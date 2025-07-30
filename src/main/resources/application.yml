@@ -1,0 +1,23 @@
+spring:
+  datasource:
+    url: jdbc:h2:tcp://localhost/~/maple_expectation
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+
+
+  jpa:
+    hibernate:
+      ddl-auto: create
+    properties:
+      hibernate:
+#        show_sql: true
+        format_sql: true
+
+logging:
+  level:
+    org.hibernate.SQL: debug
+
+nexon:
+  api:
+    key: test_76e53708902bdd9d753e3b108cb8a320b274f92915e3b55f831bf419022aa95cefe8d04e6d233bd35cf2fabdeb93fb0d
