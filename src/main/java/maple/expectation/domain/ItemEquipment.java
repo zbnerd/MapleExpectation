@@ -3,10 +3,12 @@ package maple.expectation.domain;
 import lombok.Builder;
 import lombok.Getter;
 import jakarta.persistence.*;
+import lombok.ToString;
 import maple.expectation.domain.dto.ItemEquipmentDto;
 
 @Entity
 @Getter
+@ToString
 public class ItemEquipment {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
 
