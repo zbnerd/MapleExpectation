@@ -20,4 +20,6 @@ public class GameCharacterController {
 
         return ResponseEntity.ok(character); // 200 + JSON
     }
+
+
 }

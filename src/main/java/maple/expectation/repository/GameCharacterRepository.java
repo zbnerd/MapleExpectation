@@ -15,6 +15,8 @@ public class GameCharacterRepository {
         return character.getUserIgn();
     }
 
+
+
     public GameCharacter findByUserIgn(String userIgn) {
         return em.createQuery("SELECT c FROM GameCharacter c WHERE c.userIgn = :userIgn", GameCharacter.class)
                 .setParameter("userIgn", userIgn)
