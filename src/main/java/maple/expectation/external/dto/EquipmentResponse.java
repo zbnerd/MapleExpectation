@@ -2,15 +2,11 @@ package maple.expectation.external.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
-import maple.expectation.domain.ItemEquipment;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 @Getter
-public class ItemDataResponse {
-    @JsonProperty("date")
-    private LocalDateTime date;
+public class EquipmentResponse {
 
     @JsonProperty("character_gender")
     private String characterGender;
@@ -22,6 +18,6 @@ public class ItemDataResponse {
     private Integer presetNo;
 
     @JsonProperty("item_equipment")
-    private List<ItemEquipmentResponse> itemEquipment;
+    private List<ItemResponse> itemEquipment;
 
 }

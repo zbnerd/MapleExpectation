@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.ToString;
 
 @ToString
-public class ItemEquipmentResponse {
+public class ItemResponse {
 
     @JsonProperty("item_equipment_part")
     private String itemEquipmentPart;
@@ -54,7 +54,16 @@ public class ItemEquipmentResponse {
     @JsonProperty("scroll_upgrade")
     private Integer scrollUpgrade;
 
-    @JsonProperty("item_etc_option")
+    @JsonProperty("item_base_option") // 베이스 옵션
+    private ItemBaseOptionResponse itemBaseOptionResponse;
+
+    @JsonProperty("item_etc_option") // 작 옵션
     private ItemScrollOptionResponse itemScrollOptionResponse;
+
+    @JsonProperty("item_add_option") // 추가 옵션
+    private ItemAddOptionResponse itemAddOptionResponse;
+
+    @JsonProperty("item_starforce_option") // 스타포스 옵션
+    private ItemStarforceOptionResponse itemStarforceOptionResponse;
 
 }
