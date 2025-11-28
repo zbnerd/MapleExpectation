@@ -34,4 +34,21 @@ public class GameCharacterService {
 
         return gameCharacterRepository.findByUserIgn(userIgn);
     }
+
+    // ❌ 1. [방어 없음] 일반적인 조회 -> 수정
+    // 동시에 100명이 들어오면 서로 덮어써서 숫자가 씹힘 (Race Condition)
+    @Transactional
+    public void clickLikeWithOutLock(String userIgn) {
+        GameCharacter character = gameCharacterRepository.findByUserIgn(userIgn);
+        character.like();
+    }
+
+    // ✅ 2. [비관적 락] 조회 시점부터 잠금
+    // 동시에 100명이 들어와도 줄을 서서(Sequential) 처리됨 -> 데이터 정합성 보장
+    @Transactional
+    public void clickLikeWithLock(String userIgn) {
+        GameCharacter character = gameCharacterRepository.findByUserIgnWithPessimisticLock(userIgn);
+        character.like();
+    }
+
 }

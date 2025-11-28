@@ -5,6 +5,9 @@ spring:
     password: 1234
     driver-class-name: com.mysql.cj.jdbc.Driver
 
+    hikari:
+      maximum-pool-size: 50
+
   jpa:
     hibernate:
       ddl-auto: update
