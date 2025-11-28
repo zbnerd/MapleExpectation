@@ -17,6 +17,9 @@ public class GameCharacter {
     private String userIgn;
     private String ocid;
 
+    @Version
+    private Long version;
+
     // 👍 핵심: 좋아요 카운트 (기본값 0)
     private Long likeCount = 0L;
 
@@ -33,6 +36,6 @@ public class GameCharacter {
         this.likeCount++;
     }
 
-    @OneToMany(mappedBy = "gameCharacter")
-    private List<ItemEquipment> equipments;
+/*    @OneToMany(mappedBy = "gameCharacter")
+    private List<ItemEquipment> equipments;*/
 }

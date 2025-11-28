@@ -13,10 +13,20 @@ spring:
       ddl-auto: update
     properties:
       hibernate:
-        format_sql: false        # 1. 이거 false로 변경 (쿼리 예쁘게 출력 끄기)
-        show_sql: false          # 2. 이것도 false로 (하이버네이트 콘솔 출력 끄기)
+        format_sql: false
+        show_sql: false
         jdbc:
           batch_size: 1000
+
+#  jpa:
+#    hibernate:
+#      ddl-auto: update
+#    properties:
+#      hibernate:
+#        format_sql: false        # 1. 이거 false로 변경 (쿼리 예쁘게 출력 끄기)
+#        show_sql: false          # 2. 이것도 false로 (하이버네이트 콘솔 출력 끄기)
+#        jdbc:
+#          batch_size: 1000
 
 logging:
   level:
@@ -24,6 +34,9 @@ logging:
     org.hibernate.SQL: info      # 3. debug -> info로 변경 (SQL 로그 끄기)
     org.hibernate.type.descriptor.sql: info # 파라미터 바인딩 로그 끄기
 
+    org.hibernate.orm.jdbc.batch: ERROR
+
+
 nexon:
   api:
-    key: test_76e53708902bdd9d753e3b108cb8a320b274f92915e3b55f831bf419022aa95cefe8d04e6d233bd35cf2fabdeb93fb0d
+    key: ${NEXON_API_KEY}
