@@ -34,4 +34,4 @@ logging:
 
 nexon:
   api:
-    key: test_76e53708902bdd9d753e3b108cb8a320b274f92915e3b55f831bf419022aa95cefe8d04e6d233bd35cf2fabdeb93fb0d
+    key: ${NEXON_API_KEY}
