@@ -14,7 +14,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.annotation.Commit;
 import org.springframework.test.context.TestPropertySource;
 
@@ -99,6 +98,8 @@ public class LikeConcurrencyTest {
         // 100명이 다 준비될 때까지 기다리는 신호총 (Latch)
         CountDownLatch latch = new CountDownLatch(userCount);
 
+        long startTime = System.currentTimeMillis();
+
         for (int i = 0; i < userCount; i++) {
             executorService.submit(() -> {
                 try {
@@ -115,6 +116,10 @@ public class LikeConcurrencyTest {
         GameCharacter c = gameCharacterRepository.findByUserIgn(targetUserIgn);
         log.info("✅ [Pessimistic Lock] 최종 좋아요: {}", c.getLikeCount());
 
+        long endTime = System.currentTimeMillis();
+
+        log.info("⏰ 비관적 락 소요시간: {} ms", endTime-startTime);
+
         // 정확히 유저카운트만큼 좋아요 갯수여야 성공
         assertEquals(userCount, c.getLikeCount());
     }
@@ -128,6 +133,8 @@ public class LikeConcurrencyTest {
         ExecutorService executorService = Executors.newFixedThreadPool(32);
         // 100명이 다 준비될 때까지 기다리는 신호총 (Latch)
         CountDownLatch latch = new CountDownLatch(userCount);
+
+        long startTime = System.currentTimeMillis();
 
         for (int i = 0; i < userCount; i++) {
             executorService.submit(() -> {
@@ -144,6 +151,10 @@ public class LikeConcurrencyTest {
 
         Long finalCount = gameCharacterService.getLikeCount(targetUserIgn);
         log.info("✅ [OptimisticLock Lock] 최종 좋아요: {}", finalCount);
+
+        long endTime = System.currentTimeMillis();
+
+        log.info("⏰ 낙관적 락 소요시간: {} ms", endTime-startTime);
 
         // 정확히 유저카운트만큼 좋아요 갯수여야 성공
         assertEquals(userCount, finalCount);
