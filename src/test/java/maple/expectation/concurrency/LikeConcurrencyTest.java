@@ -4,19 +4,16 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.aop.LogExecutionTime;
 import maple.expectation.domain.GameCharacter;
-import maple.expectation.external.MaplestoryApiClient;
 import maple.expectation.repository.GameCharacterRepository;
 import maple.expectation.service.GameCharacterService;
+import maple.expectation.support.SpringBootTestWithTimeLogging;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.annotation.Commit;
-import org.springframework.test.context.TestPropertySource;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -25,11 +22,8 @@ import java.util.concurrent.Executors;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
-@TestPropertySource(properties = {
-        "nexon.api.key=dummy-test-key"
-})
 @Slf4j
-@SpringBootTest
+@SpringBootTestWithTimeLogging
 public class LikeConcurrencyTest {
 
     @Autowired
