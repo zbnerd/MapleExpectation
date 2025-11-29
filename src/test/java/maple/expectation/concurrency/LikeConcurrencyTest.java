@@ -53,6 +53,17 @@ public class LikeConcurrencyTest {
     }
 
     @Test
+    @DisplayName("✅ 0. [Lock 없음] 1명이 좋아요")
+    void likeOne() throws InterruptedException {
+        int userCount = 1;
+        gameCharacterService.clickLikeWithOutLock(targetUserIgn);
+
+        GameCharacter c = gameCharacterRepository.findByUserIgn(targetUserIgn);
+        log.info("✅ [No Lock] 1명 좋아요: {}", c.getLikeCount());
+        assertEquals(userCount, c.getLikeCount());
+    }
+
+    @Test
     @DisplayName("❌ 1. [Lock 없음] 100명이 동시에 좋아요 -> 100개가 안 됨 (실패)")
     void likeWithoutLock() throws InterruptedException {
         int userCount = 100;
