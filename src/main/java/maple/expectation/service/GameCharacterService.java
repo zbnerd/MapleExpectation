@@ -63,6 +63,18 @@ public class GameCharacterService {
     }
 
     // ✅ 3. [낙관적 락]
+    /**
+     * 🥉 3. [낙관적 락] 충돌 감지 후 재시도 (비교 분석용 - Legacy)
+     * <p>
+     * <strong>⚠️ 의사결정 (Decision Record):</strong><br>
+     * 100명 동시 요청 시 잦은 충돌(Conflict)과 재시도(Retry) 로직으로 인해
+     * 비관적 락(3.2s)보다 느린 성능(3.7s)을 보여 <strong>실제 로직에는 채택하지 않았습니다.</strong><br>
+     * 또한, {@code while(true)} 루프와 별도의 트랜잭션 분리({@code REQUIRES_NEW})로 인한
+     * <strong>코드 복잡성 증가</strong>가 유지보수에 불리하다고 판단했습니다.
+     * </p>
+     * * @deprecated 현재는 {@link #clickLikeWithPessimisticLock(String)} 사용을 권장합니다.
+     */
+    @Deprecated // 사용하지 않음을 코드 레벨에서 명시
     @LogExecutionTime
     public void clickLikeWithOptimisticLock(String userIgn) {
         // [프록시 객체 획득] - 현재 GameCharacterService의 프록시 객체를 가져옵니다.

@@ -8,10 +8,7 @@ import maple.expectation.domain.GameCharacter;
 import maple.expectation.repository.GameCharacterRepository;
 import maple.expectation.service.GameCharacterService;
 import maple.expectation.support.SpringBootTestWithTimeLogging;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.Commit;
 
@@ -124,8 +121,9 @@ public class LikeConcurrencyTest {
     }
 
     @Test
+    @DisplayName("⚠️ 3. [낙관적 락] (성능 비교용 - 현재 미사용)")
     @Commit
-    @DisplayName("✅ 3. [낙관적 락] 100명이 동시에 좋아요 -> 정확히 100개")
+    @Disabled("고경합(High Contention) 상황에서 재시도 비용으로 인해 비관적 락보다 성능이 낮아(3.7s vs 3.2s) 비활성화함.")
     void likeWithOptimisticLock() throws InterruptedException {
         int userCount = 100;
         // 32개의 스레드 풀 생성 (동시 접속자 흉내)
