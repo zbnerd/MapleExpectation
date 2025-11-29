@@ -4,6 +4,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.aop.LogExecutionTime;
 import maple.expectation.domain.GameCharacter;
 import maple.expectation.external.MaplestoryApiClient;
 import maple.expectation.repository.GameCharacterRepository;
@@ -30,8 +31,6 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 @Slf4j
 @SpringBootTest
 public class LikeConcurrencyTest {
-
-    private MaplestoryApiClient maplestoryApiClient;
 
     @Autowired
     private GameCharacterRepository gameCharacterRepository;
@@ -90,7 +89,7 @@ public class LikeConcurrencyTest {
 
     @Test
     @Commit
-    @DisplayName("✅ 2. [비관적 락] 100명이 동시에 좋아요 -> 정확히 100개, 속도 겁나느림")
+    @DisplayName("✅ 2. [비관적 락] 100명이 동시에 좋아요 -> 정확히 100개")
     void likeWithPessimisticLock() throws InterruptedException {
         int userCount = 100;
         // 32개의 스레드 풀 생성 (동시 접속자 흉내)
@@ -98,12 +97,11 @@ public class LikeConcurrencyTest {
         // 100명이 다 준비될 때까지 기다리는 신호총 (Latch)
         CountDownLatch latch = new CountDownLatch(userCount);
 
-        long startTime = System.currentTimeMillis();
 
         for (int i = 0; i < userCount; i++) {
             executorService.submit(() -> {
                 try {
-                    gameCharacterService.clickLikeWithLock(targetUserIgn); // 락 없는 메서드 호출
+                    gameCharacterService.clickLikeWithPessimisticLock(targetUserIgn); // 락 없는 메서드 호출
                 } finally {
                     latch.countDown(); // 완료 신호 보냄
                 }
@@ -115,10 +113,6 @@ public class LikeConcurrencyTest {
 
         GameCharacter c = gameCharacterRepository.findByUserIgn(targetUserIgn);
         log.info("✅ [Pessimistic Lock] 최종 좋아요: {}", c.getLikeCount());
-
-        long endTime = System.currentTimeMillis();
-
-        log.info("⏰ 비관적 락 소요시간: {} ms", endTime-startTime);
 
         // 정확히 유저카운트만큼 좋아요 갯수여야 성공
         assertEquals(userCount, c.getLikeCount());
@@ -133,8 +127,6 @@ public class LikeConcurrencyTest {
         ExecutorService executorService = Executors.newFixedThreadPool(32);
         // 100명이 다 준비될 때까지 기다리는 신호총 (Latch)
         CountDownLatch latch = new CountDownLatch(userCount);
-
-        long startTime = System.currentTimeMillis();
 
         for (int i = 0; i < userCount; i++) {
             executorService.submit(() -> {
@@ -151,10 +143,6 @@ public class LikeConcurrencyTest {
 
         Long finalCount = gameCharacterService.getLikeCount(targetUserIgn);
         log.info("✅ [OptimisticLock Lock] 최종 좋아요: {}", finalCount);
-
-        long endTime = System.currentTimeMillis();
-
-        log.info("⏰ 낙관적 락 소요시간: {} ms", endTime-startTime);
 
         // 정확히 유저카운트만큼 좋아요 갯수여야 성공
         assertEquals(userCount, finalCount);

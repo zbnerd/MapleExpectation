@@ -2,6 +2,7 @@ package maple.expectation.performance;
 
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.aop.LogExecutionTime;
 import maple.expectation.domain.ItemEquipment;
 import maple.expectation.repository.ItemEquipmentRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -30,6 +31,7 @@ class ItemEquipmentInsertPerformanceTest {
 
     @Test
     @DisplayName("1. JPA saveAll() 성능 측정")
+    @LogExecutionTime
     void testJpaSaveAll() {
         // 1. 데이터 생성
         List<ItemEquipment> items = new ArrayList<>();
@@ -81,13 +83,8 @@ class ItemEquipmentInsertPerformanceTest {
             });
         }
 
-        long startTime = System.currentTimeMillis();
-
         log.info("🚀 JDBC Batch Insert 시작...");
         jdbcTemplate.batchUpdate(sql, batchArgs);
-
-        long endTime = System.currentTimeMillis();
-        log.info("⚡ JDBC Batch({}건) 소요 시간: {}ms", DATA_SIZE, (endTime - startTime));
     }
 
 }
