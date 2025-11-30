@@ -2,21 +2,23 @@ package maple.expectation.setup;
 
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.support.SpringBootTestWithTimeLogging;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.Commit;
+import org.springframework.test.context.TestPropertySource;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
+
 @Slf4j
 @Commit
-@Transactional
-@SpringBootTest
+@SpringBootTestWithTimeLogging
 public class DataSeedingTest {
 
     @Autowired
@@ -31,7 +33,6 @@ public class DataSeedingTest {
     @DisplayName("🚀 100만 건 더미 데이터 적재 (Data Seeding)")
     void insertOneMillionData() {
         log.info(">>> 데이터 적재 시작: 총 {}건", TOTAL_COUNT);
-        long startTime = System.currentTimeMillis();
 
         // DB 컬럼명(snake_case)을 정확히 맞춰야 합니다.
         String sql = "INSERT INTO item_equipment " +
@@ -60,8 +61,6 @@ public class DataSeedingTest {
             }
         }
 
-        long endTime = System.currentTimeMillis();
-        log.info(">>> ✅ 최종 완료! 총 소요 시간: {}ms", (endTime - startTime));
     }
 
     // --- 랜덤 데이터 생성 헬퍼 메서드 ---
