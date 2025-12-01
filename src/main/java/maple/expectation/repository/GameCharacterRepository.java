@@ -8,6 +8,8 @@ import org.springframework.stereotype.Repository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 
+import java.util.Optional;
+
 @Repository
 public class GameCharacterRepository {
     @PersistenceContext
@@ -20,12 +22,16 @@ public class GameCharacterRepository {
     }
 
     public GameCharacter findByUserIgn(String userIgn) {
+        return findOptionalByUserIgn(userIgn)
+                .orElseThrow(() -> new CharacterNotFoundException("캐릭터 없음"));
+    }
+
+    public Optional<GameCharacter> findOptionalByUserIgn(String userIgn) {
         return em.createQuery("SELECT c FROM GameCharacter c WHERE c.userIgn = :userIgn", GameCharacter.class)
                 .setParameter("userIgn", userIgn)
                 .getResultList()
                 .stream()
-                .findFirst()
-                .orElseThrow(() -> new CharacterNotFoundException("캐릭터 없음"));
+                .findFirst();
     }
 
     public GameCharacter findByUserIgnWithPessimisticLock(String userIgn) {

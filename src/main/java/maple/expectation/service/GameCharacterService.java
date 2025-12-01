@@ -31,34 +31,22 @@ public class GameCharacterService {
 
     @Transactional
     public GameCharacter findCharacterByUserIgn(String userIgn) {
+        String cleanUserIgn = userIgn.trim();
 
-        // 1. 방어 로직: 입력값 공백 제거 (매우 중요)
-        if (userIgn == null || userIgn.trim().isEmpty()) {
-            throw new IllegalArgumentException("캐릭터 닉네임이 유효하지 않습니다.");
-        }
-        String cleanUserIgn = userIgn.trim(); // 앞뒤 공백 제거
+        // 새로 만든 Optional 메서드 사용!
+        return gameCharacterRepository.findOptionalByUserIgn(cleanUserIgn)
+                .orElseGet(() -> {
+                    // DB에 없을 때 실행될 로직
+                    log.info("DB miss! API 호출: {}", cleanUserIgn);
+                    String ocid = maplestoryApiClient.getOcidByCharacterName(cleanUserIgn).getOcid();
 
-        try {
-            // 2. DB 조회 (한 번만 호출하고 변수에 담아서 리턴)
-            return gameCharacterRepository.findByUserIgn(cleanUserIgn);
+                    GameCharacter newChar = new GameCharacter();
+                    newChar.setUserIgn(cleanUserIgn);
+                    newChar.setOcid(ocid);
+                    gameCharacterRepository.save(newChar);
 
-        } catch (CharacterNotFoundException e) {
-            log.info("DB에 캐릭터 없음. 넥슨 API 조회 시도 - 닉네임: [{}]", cleanUserIgn);
-
-            // 3. API 호출
-            // 여기서 cleanUserIgn을 넘겨야 공백 없는 깨끗한 이름이 넘어갑니다.
-            String ocid = maplestoryApiClient.getOcidByCharacterName(cleanUserIgn).getOcid();
-
-            log.info("OCID 조회 성공: {}", ocid);
-
-            GameCharacter newCharacter = new GameCharacter();
-            newCharacter.setOcid(ocid);
-            newCharacter.setUserIgn(cleanUserIgn);
-
-            // save 후 리턴 (Entity 자체가 영속화된 상태이므로 그대로 리턴하면 됨)
-            gameCharacterRepository.save(newCharacter);
-            return newCharacter;
-        }
+                    return newChar;
+                });
     }
 
     // ❌ 1. [방어 없음] 일반적인 조회 -> 수정
