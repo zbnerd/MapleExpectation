@@ -1,10 +1,10 @@
-package maple.expectation.external.dto;
+package maple.expectation.external.dto.v1;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.ToString;
 
 @ToString
-public class ItemScrollOptionResponse {
+public class ItemAddOptionResponse {
 
     @JsonProperty("str")
     private Integer str;
@@ -29,4 +29,25 @@ public class ItemScrollOptionResponse {
 
     @JsonProperty("magic_power")
     private Integer magicPower;
+
+    @JsonProperty("armor")
+    private Integer armor;
+
+    @JsonProperty("speed")
+    private Integer speed;
+
+    @JsonProperty("jump")
+    private Integer jump;
+
+    @JsonProperty("boss_damage")
+    private Integer boss_damage;
+
+    @JsonProperty("damage")
+    private Integer damage;
+
+    @JsonProperty("all_stat")
+    private Integer all_stat;
+
+    @JsonProperty("equipment_level_decrease")
+    private Integer equipment_level_decrease;
 }

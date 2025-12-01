@@ -1,8 +1,8 @@
 package maple.expectation.util;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import maple.expectation.external.dto.EquipmentResponse;
-import maple.expectation.external.dto.ItemResponse;
+import maple.expectation.external.dto.v1.EquipmentResponse;
+import maple.expectation.external.dto.v1.ItemResponse;
 
 import java.security.MessageDigest;
 import java.util.*;

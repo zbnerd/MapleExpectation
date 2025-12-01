@@ -1,7 +1,7 @@
 package maple.expectation.external;
 
-import maple.expectation.external.dto.CharacterOcidResponse;
-import maple.expectation.external.dto.EquipmentResponse;
+import maple.expectation.external.dto.v1.CharacterOcidResponse;
+import maple.expectation.external.dto.v1.EquipmentResponse;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

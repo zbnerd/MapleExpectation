@@ -1,13 +1,11 @@
 package maple.expectation.service;
 
 import maple.expectation.external.MaplestoryApiClient;
-import maple.expectation.external.dto.EquipmentResponse;
+import maple.expectation.external.dto.v1.EquipmentResponse;
 import maple.expectation.util.ChecksumUtil;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
 class EquipmentServiceTest {

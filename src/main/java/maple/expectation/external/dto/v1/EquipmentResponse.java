@@ -1,4 +1,4 @@
-package maple.expectation.external.dto;
+package maple.expectation.external.dto.v1;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
