@@ -33,7 +33,7 @@ public class GameCharacterController {
     @GetMapping("/api/v2/characters/{userIgn}/equipment")
     public ResponseEntity<EquipmentResponse> getCharacterEquipment(@PathVariable String userIgn) {
         // 서비스가 알아서 캐싱/API호출 판단 후 리턴함
-        EquipmentResponse response = equipmentService.getEquipmentByNickname(userIgn);
+        EquipmentResponse response = equipmentService.getEquipmentByUserIgn(userIgn);
         return ResponseEntity.ok(response);
     }
 
@@ -45,7 +45,7 @@ public class GameCharacterController {
     public ResponseEntity<TotalExpectationResponse> calculateTotalCost(@PathVariable String userIgn) {
 
         // 1. 장비 데이터 가져오기 (15분 캐싱 자동 적용됨)
-        EquipmentResponse equipment = equipmentService.getEquipmentByNickname(userIgn);
+        EquipmentResponse equipment = equipmentService.getEquipmentByUserIgn(userIgn);
 
         long totalCost = 0;
         List<TotalExpectationResponse.ItemExpectation> itemDetails = new ArrayList<>();

@@ -32,7 +32,7 @@ class EquipmentServiceTest {
 
         // 1. [최초 조회] Cache Miss -> API 호출 -> DB 저장
         log.info("--- 1. 최초 조회 요청 ---");
-        EquipmentResponse response1 = equipmentService.getEquipmentByNickname(nickname);
+        EquipmentResponse response1 = equipmentService.getEquipmentByUserIgn(nickname);
         assertThat(response1).isNotNull();
 
         // DB에 저장되었는지 확인
@@ -42,7 +42,7 @@ class EquipmentServiceTest {
 
         // 2. [즉시 재조회] Cache Hit -> DB에서 가져옴 (로그 확인 필요)
         log.info("--- 2. 즉시 재조회 요청 (Cache Hit 예상) ---");
-        EquipmentResponse response2 = equipmentService.getEquipmentByNickname(nickname);
+        EquipmentResponse response2 = equipmentService.getEquipmentByUserIgn(nickname);
 
         // 데이터가 같아야 함
         assertThat(response2.getDate()).isEqualTo(response1.getDate());
@@ -61,7 +61,7 @@ class EquipmentServiceTest {
 
         // 4. [만료 후 조회] Cache Expired -> API 재호출 (로그 확인)
         log.info("--- 4. 만료 후 재조회 요청 (Cache Expired 예상) ---");
-        EquipmentResponse response3 = equipmentService.getEquipmentByNickname(nickname);
+        EquipmentResponse response3 = equipmentService.getEquipmentByUserIgn(nickname);
 
         assertThat(equipmentRepository.findById(entity.getOcid()).get().getUpdatedAt()).isAfter(LocalDateTime.now().minusMinutes(5));
         assertThat(response3).isNotNull();

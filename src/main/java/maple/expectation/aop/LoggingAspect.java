@@ -1,5 +1,6 @@
 package maple.expectation.aop;
 
+import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
@@ -68,6 +69,14 @@ public class LoggingAspect {
                 "🏆 [%s] 통계: 총 호출 수: %d, 총 시간: %dms, 평균 응답 시간: %.2fms, 최대 응답 시간(Latency): %dms",
                 testName, count, sum, average, max
         );
+    }
+
+    @PreDestroy
+    public void printFinalStatistics() {
+        String stats = calculateStatistics(executionTimes, "전체 성능 통계");
+        log.info("========================================================");
+        log.info(stats);
+        log.info("========================================================");
     }
 
 }

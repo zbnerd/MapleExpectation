@@ -4,6 +4,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.aop.LogExecutionTime;
+import maple.expectation.aop.SimpleLogTime;
 import maple.expectation.domain.v2.CharacterEquipment;
 import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.external.MaplestoryApiClient;
@@ -28,9 +30,10 @@ public class EquipmentService {
      * 캐릭터 닉네임으로 장비 정보를 조회합니다. (15분 캐싱 적용)
      */
     @Transactional
-    public EquipmentResponse getEquipmentByNickname(String nickname) {
+    @SimpleLogTime
+    public EquipmentResponse getEquipmentByUserIgn(String userIgn) {
         // 1. OCID 조회 (User Identity는 변하지 않으므로 별도 캐싱 불필요)
-        GameCharacter character = characterService.findCharacterByUserIgn(nickname);
+        GameCharacter character = characterService.findCharacterByUserIgn(userIgn);
         String ocid = character.getOcid();
 
         // 2. DB 조회 및 캐싱 로직
@@ -38,16 +41,16 @@ public class EquipmentService {
                 .map(entity -> {
                     // [Case A] 데이터가 존재함 -> 시간 체크
                     if (isExpired(entity.getUpdatedAt())) {
-                        log.info("[Cache Expired] 15분 경과 -> API 재호출 및 갱신: {}", nickname);
+                        log.info("[Cache Expired] 15분 경과 -> API 재호출 및 갱신: {}", userIgn);
                         return fetchAndSave(ocid, entity);
                     }
                     // [Case B] 최신 데이터 -> DB에서 반환
-                    log.info("[Cache Hit] DB 데이터 반환 (API 호출 X): {}", nickname);
+                    log.info("[Cache Hit] DB 데이터 반환 (API 호출 X): {}", userIgn);
                     return parseJson(entity.getRawData());
                 })
                 .orElseGet(() -> {
                     // [Case C] 데이터 없음 -> API 호출 및 신규 저장
-                    log.info("[Cache Miss] 신규 데이터 -> API 호출 및 저장: {}", nickname);
+                    log.info("[Cache Miss] 신규 데이터 -> API 호출 및 저장: {}", userIgn);
                     return fetchAndSave(ocid, null);
                 });
     }
