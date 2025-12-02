@@ -5,7 +5,7 @@ import jakarta.persistence.PersistenceContext;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.domain.GameCharacter;
-import maple.expectation.repository.GameCharacterRepository;
+import maple.expectation.repository.v1.GameCharacterRepository;
 import maple.expectation.service.GameCharacterService;
 import maple.expectation.support.SpringBootTestWithTimeLogging;
 import org.junit.jupiter.api.*;

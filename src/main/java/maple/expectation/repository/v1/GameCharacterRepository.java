@@ -1,4 +1,4 @@
-package maple.expectation.repository;
+package maple.expectation.repository.v1;
 
 import jakarta.persistence.LockModeType;
 import jakarta.transaction.Transactional;
