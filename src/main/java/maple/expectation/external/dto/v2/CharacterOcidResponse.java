@@ -1,4 +1,4 @@
-package maple.expectation.external.dto.v1;
+package maple.expectation.external.dto.v2;
 
 import lombok.Data;
 

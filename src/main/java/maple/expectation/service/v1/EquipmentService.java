@@ -6,8 +6,9 @@ import maple.expectation.repository.v1.EquipmentRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Deprecated
 @RequiredArgsConstructor
-@Service
+@Service("equipmentServiceV1")
 @Transactional(readOnly = true)
 public class EquipmentService {
 
