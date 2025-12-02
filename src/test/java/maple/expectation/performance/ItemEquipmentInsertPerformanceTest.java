@@ -1,14 +1,14 @@
 package maple.expectation.performance;
 
-import jakarta.transaction.Transactional;
-import lombok.extern.slf4j.Slf4j;
 import maple.expectation.aop.LogExecutionTime;
+import org.springframework.transaction.annotation.Transactional;
+import lombok.extern.slf4j.Slf4j;
 import maple.expectation.domain.v1.ItemEquipment;
 import maple.expectation.repository.v1.ItemEquipmentRepository;
+import maple.expectation.support.SpringBootTestWithTimeLogging;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.ArrayList;
@@ -16,8 +16,8 @@ import java.util.List;
 import java.util.Random;
 
 @Slf4j
-@SpringBootTest
 @Transactional
+@SpringBootTestWithTimeLogging
 class ItemEquipmentInsertPerformanceTest {
 
     @Autowired
@@ -31,7 +31,6 @@ class ItemEquipmentInsertPerformanceTest {
 
     @Test
     @DisplayName("1. JPA saveAll() 성능 측정")
-    @LogExecutionTime
     void testJpaSaveAll() {
         // 1. 데이터 생성
         List<ItemEquipment> items = new ArrayList<>();
@@ -47,17 +46,11 @@ class ItemEquipmentInsertPerformanceTest {
 
             // 연관관계(gameCharacter)는 null로 둠 (단순 insert 속도 측정용)
             items.add(item);
+
         }
 
         // 2. 측정 및 실행
-        long startTime = System.currentTimeMillis();
-        log.info("\uD83D\uDC22 JPA Insert 시작...");
-
         itemEquipmentRepository.saveAll(items);
-
-        long endTime = System.currentTimeMillis();
-        // 3. 결과
-        log.info("🐢 JPA saveAll({}건) 소요 시간: {}ms", DATA_SIZE, (endTime - startTime));
     }
 
     @Test
