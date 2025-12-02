@@ -1,15 +1,15 @@
-package maple.expectation.service;
+package maple.expectation.service.v2;
 
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.aop.LogExecutionTime;
-import maple.expectation.domain.GameCharacter;
+import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.external.MaplestoryApiClient;
 import org.springframework.context.ApplicationContext;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import maple.expectation.repository.v1.GameCharacterRepository;
+import maple.expectation.repository.v2.GameCharacterRepository;
 import lombok.RequiredArgsConstructor;
 
 @Slf4j

@@ -1,4 +1,4 @@
-package maple.expectation.domain;
+package maple.expectation.domain.v1;
 
 import jakarta.persistence.*;
 import lombok.EqualsAndHashCode;

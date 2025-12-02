@@ -2,7 +2,7 @@ package maple.expectation.repository.v1;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
-import maple.expectation.domain.ItemEquipment;
+import maple.expectation.domain.v1.ItemEquipment;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;

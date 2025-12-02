@@ -1,8 +1,8 @@
-package maple.expectation.domain.dto;
+package maple.expectation.domain.v1.dto;
 
 import lombok.Builder;
 import lombok.Data;
-import maple.expectation.domain.GameCharacter;
+import maple.expectation.domain.v2.GameCharacter;
 
 @Data
 @Builder

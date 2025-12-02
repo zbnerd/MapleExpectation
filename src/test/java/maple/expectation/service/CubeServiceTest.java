@@ -3,6 +3,7 @@ package maple.expectation.service;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.external.dto.v2.EquipmentResponse.ItemEquipment;
 import maple.expectation.external.dto.v2.EquipmentResponse.ItemOption;
+import maple.expectation.service.v2.CubeService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

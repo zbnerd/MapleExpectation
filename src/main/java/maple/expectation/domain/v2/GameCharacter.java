@@ -1,10 +1,8 @@
-package maple.expectation.domain;
+package maple.expectation.domain.v2;
 
 import lombok.Getter;
 import jakarta.persistence.*;
 import lombok.Setter;
-
-import java.util.List;
 
 @Entity
 @Getter @Setter

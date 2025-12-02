@@ -1,4 +1,4 @@
-package maple.expectation.domain;
+package maple.expectation.domain.v1;
 
 import jakarta.persistence.*;
 import lombok.EqualsAndHashCode;
@@ -11,7 +11,7 @@ import lombok.ToString;
 @Setter
 @ToString
 @EqualsAndHashCode
-public class ItemScrollingOption {
+public class ItemStarforceOption {
     @Id
     private Long itemId;
 
@@ -28,4 +28,7 @@ public class ItemScrollingOption {
     private int maxMp;
     private int attackPower;
     private int magicPower;
+    private int armor;
+    private int speed;
+    private int jump;
 }

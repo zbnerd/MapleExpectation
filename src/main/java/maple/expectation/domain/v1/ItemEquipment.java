@@ -1,11 +1,11 @@
-package maple.expectation.domain;
+package maple.expectation.domain.v1;
 
-import lombok.Builder;
 import lombok.Getter;
 import jakarta.persistence.*;
 import lombok.Setter;
 import lombok.ToString;
-import maple.expectation.domain.dto.ItemEquipmentDto;
+import maple.expectation.domain.v2.GameCharacter;
+import maple.expectation.domain.v1.dto.ItemEquipmentDto;
 
 @Entity
 @Getter

@@ -1,4 +1,4 @@
-package maple.expectation.domain;
+package maple.expectation.domain.v1;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.EntityListeners;

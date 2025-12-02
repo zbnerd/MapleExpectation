@@ -1,10 +1,10 @@
-package maple.expectation.service;
+package maple.expectation.service.v2;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.domain.CubeProbability;
+import maple.expectation.domain.v2.CubeProbability;
 import maple.expectation.external.dto.v2.EquipmentResponse.ItemEquipment;
-import maple.expectation.repository.v1.CubeProbabilityRepository;
+import maple.expectation.repository.v2.CubeProbabilityRepository;
 import maple.expectation.util.PermutationUtil;
 import maple.expectation.util.StatParser;
 import maple.expectation.util.StatType;
@@ -12,7 +12,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 
 @Slf4j

@@ -1,7 +1,7 @@
-package maple.expectation.service;
+package maple.expectation.service.v1;
 
 import lombok.RequiredArgsConstructor;
-import maple.expectation.domain.Equipment;
+import maple.expectation.domain.v1.Equipment;
 import maple.expectation.repository.v1.EquipmentRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

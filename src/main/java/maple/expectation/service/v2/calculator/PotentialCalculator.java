@@ -1,4 +1,4 @@
-package maple.expectation.service.calculator;
+package maple.expectation.service.v2.calculator;
 
 import maple.expectation.external.dto.v2.EquipmentResponse.ItemEquipment;
 import maple.expectation.util.StatParser;

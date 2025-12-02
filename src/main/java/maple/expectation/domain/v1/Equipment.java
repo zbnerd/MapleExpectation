@@ -1,10 +1,11 @@
-package maple.expectation.domain;
+package maple.expectation.domain.v1;
 
 import jakarta.persistence.*;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
+import maple.expectation.domain.v2.GameCharacter;
 
 @Entity
 @Getter

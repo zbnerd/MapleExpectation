@@ -1,8 +1,8 @@
-package maple.expectation.repository.v1;
+package maple.expectation.repository.v2;
 
 import jakarta.persistence.LockModeType;
 import jakarta.transaction.Transactional;
-import maple.expectation.domain.GameCharacter;
+import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.exception.CharacterNotFoundException;
 import org.springframework.stereotype.Repository;
 import jakarta.persistence.EntityManager;

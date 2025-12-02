@@ -2,6 +2,7 @@ package maple.expectation.service;
 
 import maple.expectation.external.MaplestoryApiClient;
 import maple.expectation.external.dto.v1.EquipmentResponse;
+import maple.expectation.service.v1.EquipmentService;
 import maple.expectation.util.ChecksumUtil;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

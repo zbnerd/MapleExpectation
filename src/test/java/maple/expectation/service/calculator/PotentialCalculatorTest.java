@@ -2,6 +2,7 @@ package maple.expectation.service.calculator;
 
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.external.dto.v2.EquipmentResponse;
+import maple.expectation.service.v2.calculator.PotentialCalculator;
 import maple.expectation.util.StatType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -9,7 +10,6 @@ import org.junit.jupiter.api.Test;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.*;
 
 @Slf4j
 class PotentialCalculatorTest {

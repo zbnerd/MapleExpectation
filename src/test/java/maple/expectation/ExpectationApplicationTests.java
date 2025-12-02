@@ -1,7 +1,7 @@
 package maple.expectation;
 
-import maple.expectation.domain.GameCharacter;
-import maple.expectation.service.GameCharacterService;
+import maple.expectation.domain.v2.GameCharacter;
+import maple.expectation.service.v2.GameCharacterService;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

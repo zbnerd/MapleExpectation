@@ -3,7 +3,7 @@ package maple.expectation.performance;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.aop.LogExecutionTime;
-import maple.expectation.domain.ItemEquipment;
+import maple.expectation.domain.v1.ItemEquipment;
 import maple.expectation.repository.v1.ItemEquipmentRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

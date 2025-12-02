@@ -1,11 +1,11 @@
-package maple.expectation.repository.v1;
+package maple.expectation.repository.v2;
 
 import com.fasterxml.jackson.databind.MappingIterator;
 import com.fasterxml.jackson.dataformat.csv.CsvMapper;
 import com.fasterxml.jackson.dataformat.csv.CsvSchema;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.domain.CubeProbability;
+import maple.expectation.domain.v2.CubeProbability;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Repository;
 

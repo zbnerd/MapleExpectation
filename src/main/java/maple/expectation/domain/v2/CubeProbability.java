@@ -1,4 +1,4 @@
-package maple.expectation.domain;
+package maple.expectation.domain.v2;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;

@@ -1,16 +1,11 @@
 package maple.expectation.repository;
 
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.domain.CubeProbability;
-import maple.expectation.repository.v1.CubeProbabilityRepository;
+import maple.expectation.domain.v2.CubeProbability;
+import maple.expectation.repository.v2.CubeProbabilityRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.TestPropertySource;
-
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
