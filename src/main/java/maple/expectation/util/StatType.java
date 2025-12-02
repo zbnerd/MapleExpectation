@@ -28,7 +28,6 @@ public enum StatType {
     ITEM_DROP("아이템 드롭률"),
     MESO_DROP("메소 획득량"),
     HP("HP"),
-    MP("MP"),
     
     // 5. 기타 (판별 불가)
     UNKNOWN("기타");
@@ -46,6 +45,11 @@ public enum StatType {
      */
     public static StatType findType(String option) {
         if (option == null || option.isEmpty()) {
+            return UNKNOWN;
+        }
+
+        if (option.contains("피격 시") || // 피격 시 10% 확률로 데미지 무시 등
+                option.contains("오토스틸")) {  // 공격 시 x% 확률로 오토스틸
             return UNKNOWN;
         }
 
