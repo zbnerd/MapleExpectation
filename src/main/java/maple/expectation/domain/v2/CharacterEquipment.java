@@ -20,21 +20,20 @@ public class CharacterEquipment {
     @Column(length = 100) // OCID는 PK
     private String ocid;
 
-    @Lob // 대용량 텍스트
-    @Column(columnDefinition = "LONGTEXT", nullable = false)
-    private String rawData; // JSON 전체 저장
+    @Lob
+    @Column(columnDefinition = "LONGBLOB", nullable = false)
+    private byte[] rawData;
 
     private LocalDateTime updatedAt; // 마지막 갱신 시간
 
     @Builder
-    public CharacterEquipment(String ocid, String rawData) {
+    public CharacterEquipment(String ocid, byte[] rawData) { // 생성자도 byte[]로
         this.ocid = ocid;
         this.rawData = rawData;
         this.updatedAt = LocalDateTime.now();
     }
 
-    // 데이터 갱신 메서드 (Dirty Checking용)
-    public void updateData(String newJsonData) {
+    public void updateData(byte[] newJsonData) { // 업데이트도 byte[]로
         this.rawData = newJsonData;
         this.updatedAt = LocalDateTime.now();
     }

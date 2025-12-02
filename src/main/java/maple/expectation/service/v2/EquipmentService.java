@@ -11,6 +11,7 @@ import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.external.MaplestoryApiClient;
 import maple.expectation.external.dto.v2.EquipmentResponse;
 import maple.expectation.repository.v2.CharacterEquipmentRepository;
+import maple.expectation.util.GzipUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,24 +33,26 @@ public class EquipmentService {
     @Transactional
     @SimpleLogTime
     public EquipmentResponse getEquipmentByUserIgn(String userIgn) {
-        // 1. OCID 조회 (User Identity는 변하지 않으므로 별도 캐싱 불필요)
         GameCharacter character = characterService.findCharacterByUserIgn(userIgn);
         String ocid = character.getOcid();
 
-        // 2. DB 조회 및 캐싱 로직
         return equipmentRepository.findById(ocid)
                 .map(entity -> {
-                    // [Case A] 데이터가 존재함 -> 시간 체크
+                    // [Case A] 데이터 존재 & 만료됨 -> 갱신 (API 호출 + 압축 저장)
                     if (isExpired(entity.getUpdatedAt())) {
                         log.info("[Cache Expired] 15분 경과 -> API 재호출 및 갱신: {}", userIgn);
                         return fetchAndSave(ocid, entity);
                     }
-                    // [Case B] 최신 데이터 -> DB에서 반환
+
+                    // [Case B] 데이터 최신 -> 압축 풀어서 반환
                     log.info("[Cache Hit] DB 데이터 반환 (API 호출 X): {}", userIgn);
-                    return parseJson(entity.getRawData());
+
+                    // 🔓 압축 해제 (byte[] -> String)
+                    String jsonString = GzipUtils.decompress(entity.getRawData());
+                    return parseJson(jsonString);
                 })
                 .orElseGet(() -> {
-                    // [Case C] 데이터 없음 -> API 호출 및 신규 저장
+                    // [Case C] 데이터 없음 -> 신규 저장 (API 호출 + 압축 저장)
                     log.info("[Cache Miss] 신규 데이터 -> API 호출 및 저장: {}", userIgn);
                     return fetchAndSave(ocid, null);
                 });
@@ -62,17 +65,20 @@ public class EquipmentService {
 
     // API 호출 -> DB 저장 -> DTO 반환
     private EquipmentResponse fetchAndSave(String ocid, CharacterEquipment existingEntity) {
-        // 1. 넥슨 API 호출
+        // 1. API 호출
         EquipmentResponse response = apiClient.getItemDataByOcid(ocid);
 
-        // 2. DTO -> JSON String 변환
+        // 2. 변환 (DTO -> JSON String)
         String jsonString = toJson(response);
 
-        // 3. 저장 (Upsert)
+        // 3. 🔒 압축 (JSON String -> byte[])
+        byte[] compressedData = GzipUtils.compress(jsonString);
+
+        // 4. 저장 (Upsert)
         if (existingEntity != null) {
-            existingEntity.updateData(jsonString); // Update (Dirty Checking)
+            existingEntity.updateData(compressedData);
         } else {
-            equipmentRepository.save(new CharacterEquipment(ocid, jsonString)); // Insert
+            equipmentRepository.save(new CharacterEquipment(ocid, compressedData));
         }
 
         return response;
