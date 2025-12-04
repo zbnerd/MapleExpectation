@@ -36,7 +36,10 @@ logging:
 
     org.hibernate.orm.jdbc.batch: ERROR
 
-
 nexon:
   api:
     key: ${NEXON_API_KEY}
+
+app:
+  optimization:
+    use-compression: true # 👈 gzip 압축모드.

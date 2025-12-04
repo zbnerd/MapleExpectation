@@ -12,15 +12,20 @@ import maple.expectation.external.MaplestoryApiClient;
 import maple.expectation.external.dto.v2.EquipmentResponse;
 import maple.expectation.repository.v2.CharacterEquipmentRepository;
 import maple.expectation.util.GzipUtils;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class EquipmentService {
+
+    @Value("${app.optimization.use-compression}")
+    private boolean USE_COMPRESSION;
 
     private final CharacterEquipmentRepository equipmentRepository;
     private final MaplestoryApiClient apiClient;
@@ -38,22 +43,27 @@ public class EquipmentService {
 
         return equipmentRepository.findById(ocid)
                 .map(entity -> {
-                    // [Case A] 데이터 존재 & 만료됨 -> 갱신 (API 호출 + 압축 저장)
+                    // [만료됨] -> 갱신
                     if (isExpired(entity.getUpdatedAt())) {
-                        log.info("[Cache Expired] 15분 경과 -> API 재호출 및 갱신: {}", userIgn);
+                        log.info("🔄 [Cache Expired] 데이터 만료 -> 갱신 (압축모드: {})", USE_COMPRESSION);
                         return fetchAndSave(ocid, entity);
                     }
 
-                    // [Case B] 데이터 최신 -> 압축 풀어서 반환
-                    log.info("[Cache Hit] DB 데이터 반환 (API 호출 X): {}", userIgn);
+                    // [최신 데이터] -> DB 반환
+                    // 🔓 스위치에 따라 압축 해제 방식 분기
+                    String jsonString;
+                    if (USE_COMPRESSION) {
+                        jsonString = GzipUtils.decompress(entity.getRawData());
+                    } else {
+                        // 압축 안 함: byte[]를 그대로 String으로
+                        jsonString = new String(entity.getRawData(), StandardCharsets.UTF_8);
+                    }
 
-                    // 🔓 압축 해제 (byte[] -> String)
-                    String jsonString = GzipUtils.decompress(entity.getRawData());
+                    log.info("✅ [Cache Hit] DB 반환 (압축모드: {})", USE_COMPRESSION);
                     return parseJson(jsonString);
                 })
                 .orElseGet(() -> {
-                    // [Case C] 데이터 없음 -> 신규 저장 (API 호출 + 압축 저장)
-                    log.info("[Cache Miss] 신규 데이터 -> API 호출 및 저장: {}", userIgn);
+                    log.info("🆕 [Cache Miss] 신규 조회 (압축모드: {})", USE_COMPRESSION);
                     return fetchAndSave(ocid, null);
                 });
     }
@@ -71,14 +81,21 @@ public class EquipmentService {
         // 2. 변환 (DTO -> JSON String)
         String jsonString = toJson(response);
 
-        // 3. 🔒 압축 (JSON String -> byte[])
-        byte[] compressedData = GzipUtils.compress(jsonString);
+        // 3. 🔒 설정에 따라 압축 여부 결정 (이 부분이 수정됨!)
+        byte[] dataToSave;
+        if (USE_COMPRESSION) {
+            // 압축 모드: GZIP 압축 수행
+            dataToSave = GzipUtils.compress(jsonString);
+        } else {
+            // 비압축 모드: 문자열을 그대로 바이트로 변환
+            dataToSave = jsonString.getBytes(StandardCharsets.UTF_8);
+        }
 
         // 4. 저장 (Upsert)
         if (existingEntity != null) {
-            existingEntity.updateData(compressedData);
+            existingEntity.updateData(dataToSave);
         } else {
-            equipmentRepository.save(new CharacterEquipment(ocid, compressedData));
+            equipmentRepository.save(new CharacterEquipment(ocid, dataToSave));
         }
 
         return response;
