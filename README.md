@@ -5,7 +5,13 @@
 ## 1. 프로젝트 소개
 넥슨 Open API를 활용하여 유저 장비 데이터를 수집하고, 확률형 아이템(큐브)의 기댓값을 계산하여 "스펙 완성 비용"을 시뮬레이션해주는 서비스입니다.
 
-## 2. 핵심 기술적 성과 (Key Engineering)
+## 2. 프로젝트 아키텍처
+<img width="100%" alt="System Architecture" src="https://github.com/user-attachments/assets/979d2898-78e8-40ba-850c-d2b8e6305cf8" />
+
+> **[System Architecture]**
+> 15분 만료 정책을 가진 **Cache-Aside 전략**을 도식화한 구조입니다. GZIP 압축된 데이터(BLOB)를 MySQL에 저장하여, Cache Hit 시 **0.38초** 만에 응답하도록 설계했습니다.
+
+## 3. 핵심 기술적 성과 (Key Engineering)
 이 프로젝트는 단순 기능 구현보다 **"대용량 데이터 처리와 성능 최적화"**에 집중했습니다.
 
 ### ① I/O 병목 95% 해소 (GZIP 압축)
@@ -44,7 +50,8 @@
 - **결과:** 비즈니스 로직의 순수성 확보 및 테스트 실행 시 **가독성 높은 성능 리포트 자동 생성**
 - [👉 기술 블로그 포스팅 보기](https://velog.io/@zbnerd/Refactoring-성능-측정-노가다에서-자동화로-AOP와-JUnit-5-Extension으로-테스트-환경-대격변)
 
-## 3. 기술 스택
+## 4. 기술 스택
 - Java 17, Spring Boot 3.x
 - JPA, JDBC Template, MySQL
-- Jsoup, JUnit 5
+- JUnit 5
+- AWS EC2
