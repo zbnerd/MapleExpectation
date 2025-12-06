@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.io.BufferedOutputStream;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -126,14 +127,13 @@ public class GameCharacterController {
     }
 
     @GetMapping("/api/v3/characters/{userIgn}/expectation")
-    public ResponseEntity<TotalExpectationResponse> getEquipmentExpectation(@PathVariable String userIgn) {
+    public ResponseEntity<TotalExpectationResponse> getEquipmentExpectation(@PathVariable String userIgn) throws IOException {
 
         // 1. [EquipmentService] 데이터 가져오기 (List 반환)
         List<CubeCalculationInput> inputs = equipmentService.getCubeCalculationInputs(userIgn);
 
 
         // 2. [CubeService] 전체 비용 계산 (List 처리)
-//        long totalExpectedCost = cubeService.calculateTotalExpectedCost(inputs);
         for (CubeCalculationInput input : inputs) {
             long expectedCost = cubeService.calculateExpectedCost(input);
             input.setExpectedCost(expectedCost);
