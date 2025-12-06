@@ -3,6 +3,7 @@ package maple.expectation.service.v2;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.domain.v2.CubeProbability;
+import maple.expectation.dto.CubeCalculationInput;
 import maple.expectation.external.dto.v2.EquipmentResponse.ItemEquipment;
 import maple.expectation.repository.v2.CubeProbabilityRepository;
 import maple.expectation.util.PermutationUtil;
@@ -25,54 +26,78 @@ public class CubeService {
     private static final long CUBE_PRICE = 50_000_000; //
 
     /**
-     * 아이템의 잠재능력(3줄)을 띄우기 위한 기대 비용을 계산합니다.
+     * [기존 메서드 유지]
+     * ItemEquipment 객체를 받아서 DTO로 변환 후 계산 메서드 호출
+     * - 기존 테스트 코드나 로직 수정 없이 그대로 사용 가능
      */
     public long calculateExpectedCost(ItemEquipment item) {
-        int level = StatParser.parseNum(item.getBaseOption().getBaseEquipmentLevel());
-        String part = item.getItemEquipmentSlot();
-        String grade = item.getPotentialOptionGrade();
+        // 1. DTO로 변환 (Heavy Object -> Light DTO)
+        CubeCalculationInput input = CubeCalculationInput.builder()
+                .level(StatParser.parseNum(item.getBaseOption().getBaseEquipmentLevel()))
+                .part(item.getItemEquipmentSlot())
+                .grade(item.getPotentialOptionGrade())
+                .options(Arrays.asList(
+                        item.getPotentialOption1(),
+                        item.getPotentialOption2(),
+                        item.getPotentialOption3()
+                ))
+                .itemName(item.getItemName())
+                .build();
 
-        // 1. 타겟 옵션 리스트 생성 (순서 섞기 위해 List로 만듦)
-        List<String> targetOptions = Arrays.asList(
-                item.getPotentialOption1(),
-                item.getPotentialOption2(),
-                item.getPotentialOption3()
-        );
+        // 2. 실제 계산 로직 호출
+        return calculateExpectedCost(input);
+    }
 
-        // 2. 가능한 모든 순서 조합 생성 (중복 제거됨)
-        // 예: [STR 12, STR 9, STR 9] -> 3가지 케이스 나옴
-        Set<List<String>> permutations = PermutationUtil.generateUniquePermutations(targetOptions);
+/*    public long calculateTotalExpectedCost(CubeCalculationInput input) {
 
-        // 3. 전체 확률 합산 (P_total = P_case1 + P_case2 + ...)
+        return calculateExpectedCost(input);
+    }
+
+    public long calculateTotalExpectedCost(List<CubeCalculationInput> inputs) {
+        long totalCost = 0;
+
+        for (CubeCalculationInput input : inputs) {
+
+            totalCost += calculateExpectedCost(input);
+        }
+
+        return totalCost;
+    }*/
+
+    /**
+     * [신규 메서드] (핵심 로직 이동)
+     * 가벼운 DTO를 받아서 실제 기대값을 계산
+     * - 스트리밍 파서는 이 메서드를 직접 호출하여 메모리 낭비 방지
+     */
+    public long calculateExpectedCost(CubeCalculationInput input) {
+        // 1. 순열 생성 (DTO의 options 사용)
+        Set<List<String>> permutations = PermutationUtil.generateUniquePermutations(input.getOptions());
+
         double totalProbability = 0.0;
 
+
+        // 2. 확률 계산 로직 (기존 로직 그대로 이동)
         for (List<String> caseOptions : permutations) {
             double caseProb = 1.0;
 
-            // 각 줄(1,2,3)에 대해 확률 조회 및 곱하기
-            // 1번째 옵션 -> Slot 1에서 찾기
-            // 2번째 옵션 -> Slot 2에서 찾기
-            // 3번째 옵션 -> Slot 3에서 찾기
-            caseProb *= findRateIfValid(level, part, grade, 1, caseOptions.get(0));
-            caseProb *= findRateIfValid(level, part, grade, 2, caseOptions.get(1));
-            caseProb *= findRateIfValid(level, part, grade, 3, caseOptions.get(2));
+            // DTO 필드 사용 (input.getLevel(), input.getPart() ...)
+            caseProb *= findRateIfValid(input.getLevel(), input.getPart(), input.getGrade(), 1, caseOptions.get(0));
+            caseProb *= findRateIfValid(input.getLevel(), input.getPart(), input.getGrade(), 2, caseOptions.get(1));
+            caseProb *= findRateIfValid(input.getLevel(), input.getPart(), input.getGrade(), 3, caseOptions.get(2));
 
             totalProbability += caseProb;
         }
 
-        if (totalProbability == 0) {
-            return 0;
-        }
+        if (totalProbability == 0) return 0;
 
         long expectedTryCount = (long) (1.0 / totalProbability);
-        long expectedCost = expectedTryCount * CUBE_PRICE;
 
-        log.info("[기대값] {} | 조합 수: {} | 확률: {}% | 비용: {}억",
-                item.getItemName(), permutations.size(),
+/*        log.info("[기대값] {} | 조합 수: {} | 확률: {}% | 비용: {}억",
+                input.getItemName(), permutations.size(),
                 String.format("%.8f", totalProbability * 100),
-                expectedCost / 100_000_000);
+                expectedCost / 100_000_000);*/
 
-        return expectedCost;
+        return expectedTryCount * CUBE_PRICE;
     }
 
     private double findRate(int level, String part, String grade, int slot, String optionName) {
@@ -98,8 +123,6 @@ public class CubeService {
 
         // UNKNOWN(잡옵)이면 계산에서 제외 (확률 100%로 취급해서 곱하나 마나 하게 만듦)
         if (type == StatType.UNKNOWN) {
-            // 예: "점프력", "방어력" 등 StatType에 등록 안 된 것들
-            log.info("{} 째줄 잡옵", slot);
             return 1.0;
         }
 

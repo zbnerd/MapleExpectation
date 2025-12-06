@@ -7,7 +7,7 @@ import java.util.List;
 @Data
 @Builder
 public class TotalExpectationResponse {
-    private String nickname;
+    private String userIgn;
     private long totalCost; // 총 기대 비용 (메소)
     private String totalCostText; // "5,300억" 처럼 보기 좋게 (선택)
     private List<ItemExpectation> items; // 각 아이템별 상세 영수증
