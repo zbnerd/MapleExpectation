@@ -20,6 +20,7 @@ class CubeServiceTest {
     @Autowired
     private CubeService cubeService;
 
+
     @Test
     @DisplayName("실전 테스트: 200제 모자, STR 3줄(12%, 9%, 9%) 띄우는 비용 계산")
     void calculate_real_cost_test() {
