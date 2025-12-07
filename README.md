@@ -15,6 +15,18 @@
 ## 3. 핵심 기술적 성과 (Key Engineering)
 이 프로젝트는 단순 기능 구현보다 **"대용량 데이터 처리와 성능 최적화"**에 집중했습니다.
 
+### 동시성 이슈 해결: DB 락의 한계를 넘는 In-Memory 버퍼링 ###
+- **문제**: 데이터 정합성을 위해 비관적 락(Pessimistic Lock) 적용 시, DB Row Lock으로 인한 직렬화 병목 발생 (100명 동시 요청 처리에 3.2초 소요, 확장성 한계)
+- **해결**: Write-Behind(지연 쓰기) 패턴과 **Caffeine Cache(AtomicLong)**를 도입하여 요청을 메모리에서 즉시 처리하고, 스케줄러를 통해 DB에 비동기 배치 업데이트(Bulk Update) 수행
+- **결과**: 트래픽이 10배(1000명) 폭증했음에도 평균 응답 속도 0.05ms 달성(약 7만 배 단축) 및 시스템 처리 효율 약 70만 배 향상
+- [👉 기술 블로그 포스팅 보기](https://velog.io/@zbnerd/%EC%84%B1%EB%8A%A5-%ED%8A%9C%EB%8B%9D-0.03%EC%B4%88%EC%9D%98-%EA%B8%B0%EC%A0%81-DB-%EB%9D%BD%EC%9D%98-%ED%95%9C%EA%B3%84%EB%A5%BC-%EB%84%98%EC%96%B4-%EC%9D%B8%EB%A9%94%EB%AA%A8%EB%A6%AC-%EB%B2%84%ED%8D%BC%EB%A7%81Write-Behind%EC%9C%BC%EB%A1%9C-%EC%84%B1%EB%8A%A5-70%EB%A7%8C-%ED%96%A5%EC%83%81%ED%95%98%EA%B8%B0)
+
+### 스트리밍 & 캐싱을 통한 대용량 JSON(350KB) 처리 최적화 ###
+- **문제**: 1000명 동시 접속 환경에서 350KB 대용량 JSON 조회 시, 전체 데이터 힙(Heap) 메모리 적재로 인한 OOM(Out Of Memory) 및 잦은 I/O로 DB 커넥션 풀 고갈 발생
+- **해결** : **스트리밍 직렬화(StreamingResponseBody)**를 도입하여 데이터를 메모리에 쌓지 않고 파이프라인으로 전송하고, 로컬 캐싱을 적용하여 DB 부하를 원천 차단
+- **결과** : 저사양 서버(t3.small)에서 RPS 11배 향상(573.2 RPS 달성) 및 1000명 동접 상황에서도 안정적인 응답 속도(Median 0.5s) 확보
+- [👉 기술 블로그 포스팅 보기](https://velog.io/@zbnerd/Spring-Boot-GZIP-%EC%8A%A4%ED%8A%B8%EB%A6%AC%EB%B0%8D-%EC%BA%90%EC%8B%B1%EC%9C%BC%EB%A1%9C-350KB-JSON%ED%99%98%EA%B2%BD-1000%EB%AA%85-%EB%8F%99%EC%8B%9C-%EC%A0%91%EC%86%8D%EC%97%90%EB%8F%84-%EA%B1%B0%EB%9C%AC%ED%95%98%EA%B2%8C)
+
 ### 대용량 JSON(350KB) 전송 성능 최적화 (GZIP Compression) ###
 - **문제**: 단건 조회 시 350KB에 달하는 대용량 응답으로 인해 t3.small 환경에서 네트워크 병목(Network I/O Bound) 발생, I/O 대기 및 메모리 할당 비용으로 인해 오히려 비압축 상태에서 CPU가 과부하(189%)되는 현상 확인
 - **해결** : GZIP 압축을 적용하여 응답 데이터 크기를 **약 95% 절감**하고, 남는 CPU 자원을 활용해 네트워크 병목을 해소하는 전략 채택
