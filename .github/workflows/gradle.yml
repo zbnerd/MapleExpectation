@@ -73,7 +73,7 @@ jobs:
           target: "/home/${{ secrets.EC2_USERNAME }}"
           strip_components: 1 # 경로 떼고 파일만 전송
 
-      # 2. SSH 접속 및 서버 재시작 (기존 deploy.sh의 ssh <<EOF 로직 대체)
+      # 2) SSH 접속 및 서버 재시작
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -82,10 +82,21 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
           script: |
-            # 파일 이름 정리 (전송된 jar를 app.jar로 변경)
-            mv /home/${{ secrets.EC2_USERNAME }}/expectation-*.jar /home/${{ secrets.EC2_USERNAME }}/app.jar
+            # 1. 헷갈리게 하는 plain jar는 무조건 삭제
+            rm -f /home/${{ secrets.EC2_USERNAME }}/expectation-*-plain.jar
+
+            # 2. (중요) JAR가 여러 개일 수 있으므로, '가장 최신 파일' 1개만 찾아서 변수에 담음
+            JAR_NAME=$(ls -tr /home/${{ secrets.EC2_USERNAME }}/expectation-*.jar | tail -n 1)
+
+            echo ">>> 발견된 파일: $JAR_NAME"
+
+            # 3. 그 파일의 이름을 app.jar로 변경 (덮어쓰기)
+            mv $JAR_NAME /home/${{ secrets.EC2_USERNAME }}/app.jar
             
-            # 1. 기존 서버 종료
+            # 4. 혹시 남은 찌꺼기 JAR 파일들 싹 삭제 (청소)
+            rm -f /home/${{ secrets.EC2_USERNAME }}/expectation-*.jar
+
+            # 5. 기존 서버 종료
             echo ">>> 기존 프로세스 종료 중..."
             CURRENT_PID=$(pgrep -f app.jar)
             if [ -n "$CURRENT_PID" ]; then
@@ -93,7 +104,7 @@ jobs:
               sleep 5
             fi
 
-            # 2. 새 서버 실행 (Secrets 주입)
+            # 6. 새 서버 실행
             echo ">>> 새 애플리케이션 배포 시작..."
             nohup java -jar \
               -Dnexon.api.key='${{ secrets.NEXON_API_KEY }}' \
