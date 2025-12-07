@@ -101,7 +101,6 @@ class CubeServiceTest {
 
         // then
         assertThat(cost).isGreaterThan(0);
-
         log.info("=============================================");
         log.info("목표: 쿨감 4초 (3번째 줄 무관)");
         log.info("💰 기대 비용: 약 {}억 메소", String.format("%,d", cost / 100_000_000));
