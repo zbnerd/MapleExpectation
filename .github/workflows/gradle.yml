@@ -79,33 +79,36 @@ jobs:
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
-          timeout: 60s # 1. 연결 타임아웃을 넉넉하게 늘림
+          timeout: 60s
           script: |
-            # 2. plain jar 삭제
+            # 1. plain jar 삭제
             rm -f /home/${{ secrets.EC2_USERNAME }}/expectation-*-plain.jar
-            
-            # 3. 최신 JAR 파일 찾기
+
+            # 2. 최신 JAR 파일 찾기
             JAR_NAME=$(ls -tr /home/${{ secrets.EC2_USERNAME }}/expectation-*.jar | tail -n 1)
             echo ">>> Found JAR: $JAR_NAME"
-            
-            # 4. [핵심] 기존 app.jar가 폴더든 파일이든 강제로 싹 지움 (에러 원인 해결)
+
+            # 3. 기존 app.jar 삭제 및 이름 변경
             rm -rf /home/${{ secrets.EC2_USERNAME }}/app.jar
-            
-            # 5. 이름 변경
             mv $JAR_NAME /home/${{ secrets.EC2_USERNAME }}/app.jar
             
-            # 6. 나머지 찌꺼기 파일 정리
+            # 4. 나머지 찌꺼기 파일 정리
             rm -f /home/${{ secrets.EC2_USERNAME }}/expectation-*.jar
-            
-            # 7. 기존 프로세스 종료
+
+            # 5. 기존 프로세스 종료 (수정됨: java 프로세스만 찾도록 변경) ✨
             echo ">>> 기존 프로세스 종료 중..."
-            CURRENT_PID=$(pgrep -f app.jar)
+            # [수정] "java -jar"로 실행된 프로세스만 찾음
+            CURRENT_PID=$(pgrep -f "java -jar.*app.jar") 
+            
             if [ -n "$CURRENT_PID" ]; then
+              echo ">>> 종료할 PID: $CURRENT_PID"
               kill -15 $CURRENT_PID
               sleep 5
+            else
+              echo ">>> 종료할 프로세스가 없습니다."
             fi
-            
-            # 8. 새 서버 실행
+
+            # 6. 새 서버 실행
             echo ">>> 새 애플리케이션 배포 시작..."
             nohup java -jar \
               -Dnexon.api.key='${{ secrets.NEXON_API_KEY }}' \
@@ -114,7 +117,7 @@ jobs:
               -Dspring.datasource.password='${{ secrets.DB_PASSWORD }}' \
               /home/${{ secrets.EC2_USERNAME }}/app.jar > /home/${{ secrets.EC2_USERNAME }}/app.log 2>&1 &
             
-            # 9. 명령어가 완전히 실행될 시간을 줌
+            # 7. 안전 종료 대기
             sleep 2
             echo "✅ 배포 완료!"
             exit 0
