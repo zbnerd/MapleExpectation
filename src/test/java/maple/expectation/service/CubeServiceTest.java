@@ -20,6 +20,7 @@ class CubeServiceTest {
     @Autowired
     private CubeService cubeService;
 
+
     @Test
     @DisplayName("실전 테스트: 200제 모자, STR 3줄(12%, 9%, 9%) 띄우는 비용 계산")
     void calculate_real_cost_test() {
@@ -100,10 +101,20 @@ class CubeServiceTest {
 
         // then
         assertThat(cost).isGreaterThan(0);
-
         log.info("=============================================");
         log.info("목표: 쿨감 4초 (3번째 줄 무관)");
         log.info("💰 기대 비용: 약 {}억 메소", String.format("%,d", cost / 100_000_000));
         log.info("=============================================");
+    }
+
+    @Test
+    @DisplayName("데이터가 없는 경우(이상한 옵션) 0원 반환 테스트")
+    void calculate_fail_test1() {
+        // ... (given/when 생략)
+
+        // then
+        // 💡 원래는 assertThat(cost).isEqualTo(0); 이지만, 고의로 1을 기대하여 실패시킵니다.
+        assertThat(0).isEqualTo(1); // 👈 고의로 실패하도록 수정
+        log.info("없는 옵션 조회 시 비용: {}", 0);
     }
 }
