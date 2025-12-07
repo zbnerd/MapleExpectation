@@ -81,34 +81,39 @@ jobs:
           port: 22
           timeout: 60s
           script: |
-            # 1. plain jar 삭제
+            # 1. 정리: plain jar 삭제
             rm -f /home/${{ secrets.EC2_USERNAME }}/expectation-*-plain.jar
-
-            # 2. 최신 JAR 파일 찾기
+            
+            # 2. 최신 JAR 파일 찾기 & 이름 변경
             JAR_NAME=$(ls -tr /home/${{ secrets.EC2_USERNAME }}/expectation-*.jar | tail -n 1)
             echo ">>> Found JAR: $JAR_NAME"
-
-            # 3. 기존 app.jar 삭제 및 이름 변경
+            
             rm -rf /home/${{ secrets.EC2_USERNAME }}/app.jar
             mv $JAR_NAME /home/${{ secrets.EC2_USERNAME }}/app.jar
-            
-            # 4. 나머지 찌꺼기 파일 정리
             rm -f /home/${{ secrets.EC2_USERNAME }}/expectation-*.jar
-
-            # 5. 기존 프로세스 종료 (수정됨: java 프로세스만 찾도록 변경) ✨
-            echo ">>> 기존 프로세스 종료 중..."
-            # [수정] "java -jar"로 실행된 프로세스만 찾음
-            CURRENT_PID=$(pgrep -f "java -jar.*app.jar") 
             
-            if [ -n "$CURRENT_PID" ]; then
-              echo ">>> 종료할 PID: $CURRENT_PID"
-              kill -15 $CURRENT_PID
-              sleep 5
+            # 3. [핵심] 기존 서버 종료 (PID 파일 사용)
+            PID_FILE="/home/${{ secrets.EC2_USERNAME }}/app.pid"
+            
+            if [ -f "$PID_FILE" ]; then
+              OLD_PID=$(cat "$PID_FILE")
+              echo ">>> 기존 PID 파일 발견: $OLD_PID"
+            
+              if ps -p $OLD_PID > /dev/null; then
+                echo ">>> 프로세스($OLD_PID) 종료 시도..."
+                kill -15 $OLD_PID
+                sleep 5
+              else
+                echo ">>> 이미 종료된 프로세스입니다."
+              fi
+              rm -f "$PID_FILE"
             else
-              echo ">>> 종료할 프로세스가 없습니다."
+              echo ">>> 기존 PID 파일이 없습니다. (최초 배포거나 강제 종료됨)"
+              # 혹시 몰라 java 프로세스 전체 검색해서 안전하게 종료 시도 (bracket trick 적용)
+              pkill -f '[j]ava -jar.*app.jar' || true
             fi
-
-            # 6. 새 서버 실행
+            
+            # 4. 새 서버 실행 & PID 저장
             echo ">>> 새 애플리케이션 배포 시작..."
             nohup java -jar \
               -Dnexon.api.key='${{ secrets.NEXON_API_KEY }}' \
@@ -117,7 +122,11 @@ jobs:
               -Dspring.datasource.password='${{ secrets.DB_PASSWORD }}' \
               /home/${{ secrets.EC2_USERNAME }}/app.jar > /home/${{ secrets.EC2_USERNAME }}/app.log 2>&1 &
             
-            # 7. 안전 종료 대기
+            # [중요] 방금 실행한 프로세스의 PID를 파일에 저장!
+            NEW_PID=$!
+            echo $NEW_PID > "$PID_FILE"
+            echo ">>> 새 PID($NEW_PID) 저장 완료."
+            
             sleep 2
             echo "✅ 배포 완료!"
             exit 0
