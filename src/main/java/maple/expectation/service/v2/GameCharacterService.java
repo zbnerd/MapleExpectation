@@ -5,6 +5,7 @@ import maple.expectation.aop.LogExecutionTime;
 import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.exception.CharacterNotFoundException;
 import maple.expectation.external.MaplestoryApiClient;
+import maple.expectation.service.v2.cache.LikeBufferStorage;
 import org.springframework.context.ApplicationContext;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
@@ -12,6 +13,8 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import maple.expectation.repository.v2.GameCharacterRepository;
 import lombok.RequiredArgsConstructor;
+
+import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -22,7 +25,7 @@ public class GameCharacterService {
     private final GameCharacterRepository gameCharacterRepository;
     private final MaplestoryApiClient maplestoryApiClient;
     private final ApplicationContext applicationContext;
-
+    private final LikeBufferStorage likeBufferStorage;
 
     @Transactional
     public String saveCharacter(GameCharacter character) {
@@ -121,6 +124,17 @@ public class GameCharacterService {
     public GameCharacter getCharacterOrThrowException(String userIgn) {
         return gameCharacterRepository.findByUserIgn(userIgn)
                 .orElseThrow(CharacterNotFoundException::new);
+    }
+
+    @LogExecutionTime
+    public void clickLikeWithCache(String userIgn) {
+        // 1. 캐시에서 카운터 가져오기 (없으면 생성)
+        AtomicLong counter = likeBufferStorage.getCounter(userIgn);
+
+        // 2. 원자적 증가 (Thread-Safe)
+        long currentVal = counter.incrementAndGet();
+
+        // log.info("User: {}, BufferCount: {}", userIgn, currentVal); // 성능 테스트 시에는 주석 처리 추천
     }
 
 }

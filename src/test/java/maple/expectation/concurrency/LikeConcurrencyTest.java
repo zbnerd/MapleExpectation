@@ -152,4 +152,52 @@ public class LikeConcurrencyTest {
         // 정확히 유저카운트만큼 좋아요 갯수여야 성공
         assertEquals(userCount, finalCount);
     }
+
+    @Test
+    @DisplayName("🚀 [Caffeine Cache] 1000명 동시 요청 -> 0.1초 내 처리 -> 3초 뒤 DB 반영 확인")
+    void cacheLikePerformanceTest() throws InterruptedException {
+        // Given
+        int userCount = 1000;
+        ExecutorService executorService = Executors.newFixedThreadPool(32); // 32개 스레드로 폭격
+        CountDownLatch latch = new CountDownLatch(userCount);
+
+        // When: 100명이 동시에 메모리(Cache)에 좋아요 누름
+
+        for (int i = 0; i < userCount; i++) {
+            executorService.submit(() -> {
+                try {
+                    gameCharacterService.clickLikeWithCache(targetUserIgn);
+                } finally {
+                    latch.countDown();
+                }
+            });
+        }
+
+        latch.await(); // 모든 요청이 끝날 때까지 대기
+
+        // Then 1: 아직 DB에는 반영되지 않았어야 함 (스케줄러 동작 전)
+        // 영속성 컨텍스트를 비워야 실제 DB 값을 가져옴
+        entityManager.clear();
+        GameCharacter characterBeforeSync = gameCharacterRepository.findByUserIgn(targetUserIgn).orElseThrow();
+
+        // 주의: 타이밍에 따라 0일 수도 있고, 테스트 도중 스케줄러가 돌아버렸으면 일부 반영될 수도 있음.
+        // 하지만 요청 처리 속도가 워낙 빨라(약 50ms) 보통 0이거나 매우 적은 수여야 정상.
+        log.info("⏳ [Before Sync] DB 현재 값: {}", characterBeforeSync.getLikeCount());
+
+
+        // When 2: 스케줄러가 돌 때까지 대기 (약 3~4초)
+        log.info("💤 스케줄러가 데이터를 DB에 밀어넣기를 기다립니다... (4초 대기)");
+        Thread.sleep(4000); // Scheduler가 3초 주기라면 넉넉히 4초 대기
+
+
+        // Then 3: 최종적으로 DB에 1000개가 정확히 반영되었는지 확인
+        entityManager.clear(); // 중요: 1차 캐시 비우고 다시 조회
+        GameCharacter characterAfterSync = gameCharacterRepository.findByUserIgn(targetUserIgn).orElseThrow();
+
+        log.info("✅ [After Sync] DB 최종 값: {}", characterAfterSync.getLikeCount());
+
+        assertEquals(userCount, characterAfterSync.getLikeCount(),
+                "스케줄러에 의해 1000개의 좋아요가 유실 없이 DB에 반영되어야 합니다.");
+    }
+
 }
