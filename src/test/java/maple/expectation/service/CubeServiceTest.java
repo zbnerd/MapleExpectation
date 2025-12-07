@@ -76,6 +76,7 @@ class CubeServiceTest {
         // then
         assertThat(cost).isEqualTo(0);
         log.info("없는 옵션 조회 시 비용: {}", cost);
+
     }
 
     @Test
