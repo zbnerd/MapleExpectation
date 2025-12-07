@@ -4,7 +4,8 @@
 넥슨 Open API를 활용하여 유저 장비 데이터를 수집하고, 확률형 아이템(큐브)의 기댓값을 계산하여 "스펙 완성 비용"을 시뮬레이션해주는 서비스입니다.
 
 ## 2. 프로젝트 아키텍처
-<img width="714" height="432" alt="image" src="https://github.com/user-attachments/assets/96083003-42ef-494d-93a6-d5525b2b611d" />
+<img width="791" height="631" alt="image" src="https://github.com/user-attachments/assets/e7667e28-d4f4-4c87-bd31-5f40ae23b43c" />
+
 
 
 > **[System Architecture]**
