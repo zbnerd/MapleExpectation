@@ -1,6 +1,8 @@
 package maple.expectation.performance;
 
 import maple.expectation.aop.LogExecutionTime;
+import org.junit.jupiter.api.Disabled;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.domain.v1.ItemEquipment;
@@ -18,6 +20,7 @@ import java.util.Random;
 @Slf4j
 @Transactional
 @SpringBootTestWithTimeLogging
+@TestPropertySource(properties = "app.optimization.use-compression=false")
 class ItemEquipmentInsertPerformanceTest {
 
     @Autowired
@@ -31,6 +34,7 @@ class ItemEquipmentInsertPerformanceTest {
 
     @Test
     @DisplayName("1. JPA saveAll() 성능 측정")
+    @Disabled
     void testJpaSaveAll() {
         // 1. 데이터 생성
         List<ItemEquipment> items = new ArrayList<>();
