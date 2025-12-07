@@ -6,7 +6,8 @@
 넥슨 Open API를 활용하여 유저 장비 데이터를 수집하고, 확률형 아이템(큐브)의 기댓값을 계산하여 "스펙 완성 비용"을 시뮬레이션해주는 서비스입니다.
 
 ## 2. 프로젝트 아키텍처
-<img width="100%" alt="System Architecture" src="https://github.com/user-attachments/assets/979d2898-78e8-40ba-850c-d2b8e6305cf8" />
+<img width="714" height="432" alt="image" src="https://github.com/user-attachments/assets/96083003-42ef-494d-93a6-d5525b2b611d" />
+
 
 > **[System Architecture]**
 > 15분 만료 정책을 가진 **Cache-Aside 전략**을 도식화한 구조입니다. GZIP 압축된 데이터(BLOB)를 MySQL에 저장하여, Cache Hit 시 **0.38초** 만에 응답하도록 설계했습니다.
