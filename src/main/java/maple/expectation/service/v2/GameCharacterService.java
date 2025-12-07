@@ -3,6 +3,7 @@ package maple.expectation.service.v2;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.aop.LogExecutionTime;
 import maple.expectation.domain.v2.GameCharacter;
+import maple.expectation.exception.CharacterNotFoundException;
 import maple.expectation.external.MaplestoryApiClient;
 import org.springframework.context.ApplicationContext;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
@@ -25,7 +26,8 @@ public class GameCharacterService {
 
     @Transactional
     public String saveCharacter(GameCharacter character) {
-        return gameCharacterRepository.save(character);
+        GameCharacter savedCharacter = gameCharacterRepository.save(character);
+        return savedCharacter.getUserIgn();
     }
 
     @Transactional
@@ -33,7 +35,7 @@ public class GameCharacterService {
         String cleanUserIgn = userIgn.trim();
 
         // 새로 만든 Optional 메서드 사용!
-        return gameCharacterRepository.findOptionalByUserIgn(cleanUserIgn)
+        return gameCharacterRepository.findByUserIgn(cleanUserIgn)
                 .orElseGet(() -> {
                     // DB에 없을 때 실행될 로직
                     log.info("DB miss! API 호출: {}", cleanUserIgn);
@@ -53,7 +55,7 @@ public class GameCharacterService {
     @Transactional
     @LogExecutionTime
     public void clickLikeWithOutLock(String userIgn) {
-        GameCharacter character = gameCharacterRepository.findByUserIgn(userIgn);
+        GameCharacter character = getCharacterOrThrowException(userIgn);
         character.like();
     }
 
@@ -63,7 +65,8 @@ public class GameCharacterService {
     @Transactional
     @LogExecutionTime
     public void clickLikeWithPessimisticLock(String userIgn) {
-        GameCharacter character = gameCharacterRepository.findByUserIgnWithPessimisticLock(userIgn);
+        GameCharacter character = gameCharacterRepository.findByUserIgnWithPessimisticLock(userIgn)
+                .orElseThrow(CharacterNotFoundException::new);
         character.like();
     }
 
@@ -104,15 +107,20 @@ public class GameCharacterService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void attemptOptimisticLike(String userIgn) {
         // 락 없이 조회 (@Version 필드를 읽어옴)
-        GameCharacter character = gameCharacterRepository.findByUserIgn(userIgn);
+        GameCharacter character = getCharacterOrThrowException(userIgn);
 
         character.like();
         // 메서드 종료 시 JPA가 UPDATE 쿼리를 날리고 @Version 체크
     }
 
     public Long getLikeCount(String userIgn) {
-        return gameCharacterRepository.findByUserIgn(userIgn)
+        return getCharacterOrThrowException(userIgn)
                 .getLikeCount();
+    }
+
+    public GameCharacter getCharacterOrThrowException(String userIgn) {
+        return gameCharacterRepository.findByUserIgn(userIgn)
+                .orElseThrow(CharacterNotFoundException::new);
     }
 
 }

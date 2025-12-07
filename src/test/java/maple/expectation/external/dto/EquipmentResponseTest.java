@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import maple.expectation.external.dto.v2.EquipmentResponse;
 import maple.expectation.repository.v2.CubeProbabilityRepository;
 import maple.expectation.service.v2.CubeService;
+import maple.expectation.service.v2.calculator.CubeRateCalculator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,7 +31,7 @@ public class EquipmentResponseTest {
 
         // 2. Service 수동 생성 (Repository 주입)
         // 스프링이 해주는 @Autowired를 우리가 직접 하는 겁니다 (생성자 주입)
-        cubeService = new CubeService(repository);
+        cubeService = new CubeService(new CubeRateCalculator(repository));
     }
 
     @Test

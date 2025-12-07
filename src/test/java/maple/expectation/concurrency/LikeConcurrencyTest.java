@@ -11,6 +11,7 @@ import maple.expectation.support.SpringBootTestWithTimeLogging;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.Commit;
+import org.springframework.test.context.TestPropertySource;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -21,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 @Slf4j
 @SpringBootTestWithTimeLogging
+@TestPropertySource(properties = "app.optimization.use-compression=false")
 public class LikeConcurrencyTest {
 
     @Autowired
@@ -46,7 +48,7 @@ public class LikeConcurrencyTest {
     @AfterEach
     void tearDown() {
         // 테스트용 데이터만 삭제
-        gameCharacterRepository.delete(gameCharacterRepository.findByUserIgn(targetUserIgn));
+        gameCharacterRepository.delete(gameCharacterService.getCharacterOrThrowException(targetUserIgn));
     }
 
     @Test
@@ -55,7 +57,7 @@ public class LikeConcurrencyTest {
         int userCount = 1;
         gameCharacterService.clickLikeWithOutLock(targetUserIgn);
 
-        GameCharacter c = gameCharacterRepository.findByUserIgn(targetUserIgn);
+        GameCharacter c = gameCharacterService.getCharacterOrThrowException(targetUserIgn);
         log.info("✅ [No Lock] 1명 좋아요: {}", c.getLikeCount());
         assertEquals(userCount, c.getLikeCount());
     }
@@ -82,7 +84,7 @@ public class LikeConcurrencyTest {
 
 
 
-        GameCharacter c = gameCharacterRepository.findByUserIgn(targetUserIgn);
+        GameCharacter c = gameCharacterService.getCharacterOrThrowException(targetUserIgn);
         log.info("❌ [No Lock] 최종 좋아요: {}", c.getLikeCount());
 
         // userCount만큼 아니면 테스트 통과 (문제가 발생했음을 증명!)
@@ -113,7 +115,7 @@ public class LikeConcurrencyTest {
 
         entityManager.clear();
 
-        GameCharacter c = gameCharacterRepository.findByUserIgn(targetUserIgn);
+        GameCharacter c = gameCharacterService.getCharacterOrThrowException(targetUserIgn);
         log.info("✅ [Pessimistic Lock] 최종 좋아요: {}", c.getLikeCount());
 
         // 정확히 유저카운트만큼 좋아요 갯수여야 성공
