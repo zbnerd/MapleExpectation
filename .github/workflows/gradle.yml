@@ -51,8 +51,8 @@ jobs:
   # 🚀 JOB 2: 서버 배포 (CD) - deploy.sh 로직 이식
   # ==========================================
   deploy:
-    needs: build # build가 성공해야만 실행됨
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master' # master 푸시일 때만 배포
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
 
     steps:
@@ -62,7 +62,6 @@ jobs:
           name: maple-app
           path: ./build-artifact
 
-      # 1. SCP 전송 (기존 deploy.sh의 scp 명령어 대체)
       - name: Copy JAR to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -71,9 +70,8 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           source: "./build-artifact/*.jar"
           target: "/home/${{ secrets.EC2_USERNAME }}"
-          strip_components: 1 # 경로 떼고 파일만 전송
+          strip_components: 1
 
-      # 2) SSH 접속 및 서버 재시작
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -81,30 +79,33 @@ jobs:
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
+          timeout: 60s # 1. 연결 타임아웃을 넉넉하게 늘림
           script: |
-            # 1. 헷갈리게 하는 plain jar는 무조건 삭제
+            # 2. plain jar 삭제
             rm -f /home/${{ secrets.EC2_USERNAME }}/expectation-*-plain.jar
-
-            # 2. (중요) JAR가 여러 개일 수 있으므로, '가장 최신 파일' 1개만 찾아서 변수에 담음
+            
+            # 3. 최신 JAR 파일 찾기
             JAR_NAME=$(ls -tr /home/${{ secrets.EC2_USERNAME }}/expectation-*.jar | tail -n 1)
-
-            echo ">>> 발견된 파일: $JAR_NAME"
-
-            # 3. 그 파일의 이름을 app.jar로 변경 (덮어쓰기)
+            echo ">>> Found JAR: $JAR_NAME"
+            
+            # 4. [핵심] 기존 app.jar가 폴더든 파일이든 강제로 싹 지움 (에러 원인 해결)
+            rm -rf /home/${{ secrets.EC2_USERNAME }}/app.jar
+            
+            # 5. 이름 변경
             mv $JAR_NAME /home/${{ secrets.EC2_USERNAME }}/app.jar
             
-            # 4. 혹시 남은 찌꺼기 JAR 파일들 싹 삭제 (청소)
+            # 6. 나머지 찌꺼기 파일 정리
             rm -f /home/${{ secrets.EC2_USERNAME }}/expectation-*.jar
-
-            # 5. 기존 서버 종료
+            
+            # 7. 기존 프로세스 종료
             echo ">>> 기존 프로세스 종료 중..."
             CURRENT_PID=$(pgrep -f app.jar)
             if [ -n "$CURRENT_PID" ]; then
               kill -15 $CURRENT_PID
               sleep 5
             fi
-
-            # 6. 새 서버 실행
+            
+            # 8. 새 서버 실행
             echo ">>> 새 애플리케이션 배포 시작..."
             nohup java -jar \
               -Dnexon.api.key='${{ secrets.NEXON_API_KEY }}' \
@@ -113,4 +114,7 @@ jobs:
               -Dspring.datasource.password='${{ secrets.DB_PASSWORD }}' \
               /home/${{ secrets.EC2_USERNAME }}/app.jar > /home/${{ secrets.EC2_USERNAME }}/app.log 2>&1 &
             
+            # 9. 명령어가 완전히 실행될 시간을 줌
+            sleep 2
             echo "✅ 배포 완료!"
+            exit 0
