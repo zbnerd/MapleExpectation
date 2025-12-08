@@ -91,14 +91,15 @@
 ## 5. CI/CD 자동 배포 파이프라인
 
 > GitHub Actions → Build → Test → AWS EC2 자동 배포
+> master 브랜치에 push 또는 merge되면 Build & Deploy가 자동 실행됩니다.
+<img width="1023" height="443" alt="image" src="https://github.com/user-attachments/assets/071e1bc0-1133-4f9e-afdc-b255853e3318" />
+
 
 🔗 Workflow:  
-https://github.com/zbnerd/MapleExpectation/blob/main/.github/workflows/deploy.yml
-
-<img width="850" alt="ci-cd-pipeline" src="https://github.com/user-attachments/assets/ci-example.png" />
+https://github.com/zbnerd/MapleExpectation/blob/master/.github/workflows/gradle.yml
 
 ### 배포 단계
-1) main 브랜치에 Push 발생
+1) master 브랜치에 push or merge 발생
 2) GitHub Actions에서 Gradle Build & Test
 3) SSH를 통한 EC2 서버 자동 배포 스크립트 실행
 4) 서비스 재기동 및 상태 확인(Log 기반)
