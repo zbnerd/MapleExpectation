@@ -68,7 +68,43 @@
 - **결과:** 비즈니스 로직의 순수성 확보 및 테스트 실행 시 **가독성 높은 성능 리포트 자동 생성**
 - [👉 기술 블로그 포스팅 보기](https://velog.io/@zbnerd/Refactoring-성능-측정-노가다에서-자동화로-AOP와-JUnit-5-Extension으로-테스트-환경-대격변)
 
-## 4. 기술 스택
+## 4. 협업 기반 개발 프로세스 (Git Flow)
+<img width="1000" height="420" alt="image" src="https://github.com/user-attachments/assets/21ff1b7f-e0e6-4656-b9dd-5e292891a22f" />
+> 실제로도 해당 Git Flow를 기반으로 개발을 진행했습니다.  
+> 기능 단위 Branch → Pull Request → Code Review → master Merge 프로세스 적용
+
+### 📈 대표 Pull Request (성능 개선 사례)
+
+> **[PR #3] 좋아요 기능 성능 86배 향상**  
+> Caffeine Cache + Write-Behind 패턴 적용  
+> 🔗 https://github.com/zbnerd/MapleExpectation/pull/3
+
+- 동시 요청 처리량 **100 → 1000명 (10배 증가)**
+- 평균 응답 속도 **3.2s → 0.037s (약 86배 개선)**
+- DB 락 대기 제거(AtomicLong 기반)
+- Eventual Consistency 기반 Trade-off 명확
+
+> 병목 원인 분석 → 개선 전략 설계 → 실측 검증 → 문서화  
+> End-to-End 성능 최적화 수행
+
+
+## 5. CI/CD 자동 배포 파이프라인
+
+> GitHub Actions → Build → Test → AWS EC2 자동 배포
+
+🔗 Workflow:  
+https://github.com/zbnerd/MapleExpectation/blob/main/.github/workflows/deploy.yml
+
+<img width="850" alt="ci-cd-pipeline" src="https://github.com/user-attachments/assets/ci-example.png" />
+
+### 배포 단계
+1) main 브랜치에 Push 발생
+2) GitHub Actions에서 Gradle Build & Test
+3) SSH를 통한 EC2 서버 자동 배포 스크립트 실행
+4) 서비스 재기동 및 상태 확인(Log 기반)
+
+
+## 6. 기술 스택
 - Java 17, Spring Boot 3.x
 - JPA, JDBC Template, MySQL
 - JUnit 5
