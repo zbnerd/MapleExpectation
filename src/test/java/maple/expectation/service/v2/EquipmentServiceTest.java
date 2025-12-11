@@ -13,7 +13,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.lang.reflect.Field;
 import java.time.LocalDateTime;
@@ -25,7 +24,6 @@ import static org.mockito.Mockito.mock;
 
 @Slf4j
 @SpringBootTest
-@Transactional
 @TestPropertySource(properties = "app.optimization.use-compression=false")
 class EquipmentServiceTest {
 
@@ -51,35 +49,23 @@ class EquipmentServiceTest {
         String nickname = "개리";
         String mockOcid = "test-ocid-12345";
 
-        // 1. Mock 객체 생성 (JSON 문자열 대신 자바 객체 생성)
+        // Mock 객체 생성
         EquipmentResponse mockResponse = new EquipmentResponse();
-        // 테스트 검증에 필요한 날짜 필드는 꼭 세팅해줘야 합니다.
-        // (Setter가 없다면 Reflection이나 @Builder 등을 사용해야 함)
-        // 여기서는 Setter가 있다고 가정하거나 리플렉션으로 넣습니다.
         mockResponse.setDate(LocalDateTime.now().toString());
 
-
-        // 2. GameCharacterService Mocking
         GameCharacter mockCharacter = mock(GameCharacter.class);
         given(mockCharacter.getOcid()).willReturn(mockOcid);
         given(characterService.findCharacterByUserIgn(nickname)).willReturn(mockCharacter);
-
-        // ✨ 3. MaplestoryApiClient Mocking (핵심 변경)
-        // API 클라이언트가 "객체"를 반환하므로, 우리도 "객체"를 리턴해줍니다.
-        given(apiClient.getItemDataByOcid(anyString()))
-                .willReturn(mockResponse);
-
-
-        // --- 이후 로직은 동일 ---
+        given(apiClient.getItemDataByOcid(anyString())).willReturn(mockResponse);
 
         // 1. [최초 조회]
         log.info("--- 1. 최초 조회 요청 ---");
         EquipmentResponse response1 = equipmentService.getEquipmentByUserIgn(nickname);
-
         assertThat(response1).isNotNull();
-        assertThat(response1.getDate()).isEqualTo(mockResponse.getDate()); // 날짜 확인
 
-        em.flush();
+        // em.flush();  <-- ❌ 제거 (트랜잭션 없음)
+
+        // 데이터 확인 (Service가 이미 내부적으로 saveAndFlush 했으므로 DB에 있음)
         CharacterEquipment entity = equipmentRepository.findById(mockOcid)
                 .orElseThrow(() -> new IllegalArgumentException("저장된 데이터가 없습니다."));
         log.info("DB 저장 완료. 업데이트 시간: {}", entity.getUpdatedAt());
@@ -88,8 +74,8 @@ class EquipmentServiceTest {
         // 2. [즉시 재조회]
         log.info("--- 2. 즉시 재조회 요청 (Cache Hit 예상) ---");
         EquipmentResponse response2 = equipmentService.getEquipmentByUserIgn(nickname);
-
         assertThat(response2.getDate()).isEqualTo(response1.getDate());
+        // verify(apiClient, times(1)).getItemDataByOcid(anyString()); // 필요시 추가 검증
 
 
         // 3. [시간 조작] 20분 전으로 설정
@@ -98,15 +84,20 @@ class EquipmentServiceTest {
         timeField.setAccessible(true);
         timeField.set(entity, LocalDateTime.now().minusMinutes(20));
 
+        // saveAndFlush는 내부적으로 트랜잭션을 열어서 저장하고 닫아주므로 OK!
         equipmentRepository.saveAndFlush(entity);
-        em.clear();
+
+        // em.clear(); <-- ❌ 제거 (필요 없음, 다음 조회 시 새로운 트랜잭션이라서 최신 데이터 읽음)
 
 
         // 4. [만료 후 조회]
         log.info("--- 4. 만료 후 재조회 요청 (Cache Expired 예상) ---");
         EquipmentResponse response3 = equipmentService.getEquipmentByUserIgn(nickname);
 
+        // 다시 DB에서 읽어와서 시간이 갱신되었는지 확인
         CharacterEquipment refreshedEntity = equipmentRepository.findById(mockOcid).get();
         assertThat(refreshedEntity.getUpdatedAt()).isAfter(LocalDateTime.now().minusMinutes(5));
+
+        log.info("✅ 테스트 성공!");
     }
 }

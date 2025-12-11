@@ -29,7 +29,7 @@ public class EquipmentService {
     private final EquipmentStreamingParser streamingParser;
     private final CubeService cubeService;
 
-    @Transactional(readOnly = true)
+    @Transactional
     public EquipmentResponse getEquipmentByUserIgn(String userIgn) {
         String ocid = getOcid(userIgn);
         return equipmentProvider.getEquipmentResponse(ocid);
@@ -39,7 +39,7 @@ public class EquipmentService {
      * [V3 API] 기대 비용 총계 계산
      * ✅ try-catch 완전 제거 완료!
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public TotalExpectationResponse calculateTotalExpectation(String userIgn) {
         // 1. 파싱 (예외 발생 시 Parser 내부에서 RuntimeException으로 던짐 -> ControllerAdvice가 처리)
         List<CubeCalculationInput> inputs = getCubeCalculationInputs(userIgn);
@@ -65,7 +65,7 @@ public class EquipmentService {
                 .build();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public TotalExpectationResponse calculateTotalExpectationLegacy(String userIgn) {
         // 1. 데이터 조회 (ObjectMapper 파싱)
         EquipmentResponse equipment = getEquipmentByUserIgn(userIgn);
