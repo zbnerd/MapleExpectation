@@ -10,6 +10,7 @@ import maple.expectation.external.dto.v2.TotalExpectationResponse;
 import maple.expectation.external.dto.v2.TotalExpectationResponse.ItemExpectation;
 import maple.expectation.parser.EquipmentStreamingParser;
 import maple.expectation.provider.EquipmentDataProvider;
+import maple.expectation.util.StatParser;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -61,6 +62,62 @@ public class EquipmentService {
                 .totalCost(totalCost)
                 .totalCostText(String.format("%,d 메소", totalCost))
                 .items(itemDetails)
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public TotalExpectationResponse calculateTotalExpectationLegacy(String userIgn) {
+        // 1. 데이터 조회 (ObjectMapper 파싱)
+        EquipmentResponse equipment = getEquipmentByUserIgn(userIgn);
+
+        long totalCost = 0;
+        List<ItemExpectation> itemDetails = new ArrayList<>();
+
+        if (equipment.getItemEquipment() != null) {
+            for (EquipmentResponse.ItemEquipment item : equipment.getItemEquipment()) {
+                if (item.getPotentialOptionGrade() == null) continue;
+
+                // 2. 변환 로직 (Mapping)
+                CubeCalculationInput input = mapToCubeInput(item);
+
+                // 3. 계산
+                long cost = cubeService.calculateExpectedCost(input);
+
+                if (cost > 0) {
+                    totalCost += cost;
+                    itemDetails.add(mapToItemExpectation(input, cost));
+                }
+            }
+        }
+
+        return TotalExpectationResponse.builder()
+                .userIgn(userIgn)
+                .totalCost(totalCost)
+                .totalCostText(String.format("%,d 메소", totalCost))
+                .items(itemDetails)
+                .build();
+    }
+
+    // --- Helper Method: 지저분한 변환 로직을 별도 메서드로 분리 ---
+    private CubeCalculationInput mapToCubeInput(EquipmentResponse.ItemEquipment item) {
+        // 옵션 3줄 리스트 변환
+        List<String> optionList = new ArrayList<>();
+        if (item.getPotentialOption1() != null) optionList.add(item.getPotentialOption1());
+        if (item.getPotentialOption2() != null) optionList.add(item.getPotentialOption2());
+        if (item.getPotentialOption3() != null) optionList.add(item.getPotentialOption3());
+
+        // 레벨 파싱
+        int level = 0;
+        if (item.getBaseOption() != null) {
+            level = StatParser.parseNum(item.getBaseOption().getBaseEquipmentLevel());
+        }
+
+        return CubeCalculationInput.builder()
+                .itemName(item.getItemName())
+                .level(level)
+                .part(item.getItemEquipmentSlot())
+                .grade(item.getPotentialOptionGrade())
+                .options(optionList)
                 .build();
     }
 
