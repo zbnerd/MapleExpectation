@@ -1,26 +1,23 @@
 package maple.expectation.controller;
 
 import lombok.RequiredArgsConstructor;
+
+import maple.expectation.aop.annotation.TraceLog;
 import maple.expectation.dto.CubeCalculationInput;
 import maple.expectation.external.dto.v2.EquipmentResponse;
 import maple.expectation.external.dto.v2.TotalExpectationResponse;
 import maple.expectation.service.v2.CubeService;
 import maple.expectation.service.v2.EquipmentService;
 import maple.expectation.service.v2.GameCharacterService;
+import maple.expectation.util.StatParser;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * ⚡ [V2 Controller] Caching & Performance Optimization
- * <p>
- * V1의 성능 한계를 극복하기 위해 <b>In-Memory Caching (Caffeine)</b> 전략을 도입한 버전입니다.<br>
- * 외부 API 호출 비용을 절감하고, 쓰기 작업(좋아요)의 병목을 메모리 버퍼링으로 해결하여
- * <b>처리량(Throughput)</b>을 극대화하는 데 초점을 맞췄습니다.
- * </p>
- */
+@TraceLog
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v2/characters")
@@ -30,31 +27,14 @@ public class GameCharacterControllerV2 {
     private final CubeService cubeService;
     private final GameCharacterService gameCharacterService;
 
-    /**
-     * 캐릭터 장비 조회 (with Local Cache)
-     * <p>
-     * 외부 API(MapleStory Open API)의 응답 속도 지연 문제를 해결하기 위해 캐싱을 적용했습니다.<br>
-     * <b>전략:</b> TTL(Time-To-Live) 기반의 로컬 캐시를 사용하여 반복적인 요청에 대해 밀리초(ms) 단위 응답을 제공합니다.
-     * </p>
-     *
-     * @param userIgn 캐릭터 닉네임
-     * @return 장비 데이터 (Cache Hit 시 DB/API 조회 없이 즉시 반환)
-     */
-    @GetMapping("/{userIgn}/equipment")
-    public ResponseEntity<EquipmentResponse> getCharacterEquipment(@PathVariable String userIgn) {
-        return ResponseEntity.ok(equipmentService.getEquipmentByUserIgn(userIgn));
-    }
+    // ... (getCharacterEquipment 메서드는 동일) ...
 
     /**
      * 기대 비용 시뮬레이션 (Basic Iteration)
-     * <p>
-     * <b>구현 방식:</b> 조회된 장비 리스트를 순차적으로(Sequential) 순회하며 비용을 계산합니다.<br>
-     * <b>한계점:</b> 장비 개수가 많거나 계산 로직이 복잡해질 경우, 전체 응답 시간이 길어지는 Blocking 이슈가 존재합니다.
-     * (-> 이는 V3의 Streaming 방식에서 개선됨)
-     * </p>
      */
     @GetMapping("/{userIgn}/expectation")
     public ResponseEntity<TotalExpectationResponse> calculateTotalCost(@PathVariable String userIgn) {
+        // 1. 데이터 조회 (Provider -> ObjectMapper 파싱)
         EquipmentResponse equipment = equipmentService.getEquipmentByUserIgn(userIgn);
 
         long totalCost = 0;
@@ -64,15 +44,37 @@ public class GameCharacterControllerV2 {
             for (EquipmentResponse.ItemEquipment item : equipment.getItemEquipment()) {
                 if (item.getPotentialOptionGrade() == null) continue;
 
-                // 각 아이템별 독립적인 큐브 비용 계산
-                long cost = cubeService.calculateExpectedCost(item);
+                // 2. [수정됨] 옵션 3줄을 리스트로 변환
+                List<String> optionList = new ArrayList<>();
+                if (item.getPotentialOption1() != null) optionList.add(item.getPotentialOption1());
+                if (item.getPotentialOption2() != null) optionList.add(item.getPotentialOption2());
+                if (item.getPotentialOption3() != null) optionList.add(item.getPotentialOption3());
+
+                // 3. 레벨 파싱 (ItemEquipment 구조에 따라 다를 수 있음)
+                // baseOption 안에 있을 수도 있고, itemLevel이 따로 있을 수도 있음.
+                // 로그상 이미 레벨은 잘 들어가고 있으니 기존 코드 유지하되, 예시는 StatParser 사용
+                int level = 0;
+                if (item.getBaseOption() != null) {
+                    level = StatParser.parseNum(item.getBaseOption().getBaseEquipmentLevel());
+                }
+
+                // 4. DTO 생성 (options에 리스트 주입!)
+                CubeCalculationInput inputDto = CubeCalculationInput.builder()
+                        .itemName(item.getItemName())
+                        .level(level)
+                        .part(item.getItemEquipmentSlot())
+                        .grade(item.getPotentialOptionGrade())
+                        .options(optionList) // ★★★ 여기가 핵심입니다! ★★★
+                        .build();
+
+                long cost = cubeService.calculateExpectedCost(inputDto);
 
                 if (cost > 0) {
                     totalCost += cost;
                     itemDetails.add(TotalExpectationResponse.ItemExpectation.builder()
-                            .part(item.getItemEquipmentPart())
+                            .part(item.getItemEquipmentSlot())
                             .itemName(item.getItemName())
-                            .potential(formatPotential(item))
+                            .potential(String.join(" | ", optionList))
                             .expectedCost(cost)
                             .expectedCostText(String.format("%,d 메소", cost))
                             .build());

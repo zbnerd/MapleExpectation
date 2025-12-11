@@ -1,6 +1,7 @@
 package maple.expectation.repository.v2;
 
 import jakarta.persistence.LockModeType;
+import maple.expectation.aop.annotation.TraceLog;
 import maple.expectation.domain.v2.GameCharacter;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -11,6 +12,7 @@ import org.springframework.data.repository.query.Param;
 import java.util.Optional;
 
 // 1. 인터페이스로 변경하고 JpaRepository 상속 (Entity, PK타입)
+@TraceLog
 public interface GameCharacterRepository extends JpaRepository<GameCharacter, Long> {
 
     // 2. 일반 조회 (기존 findOptionalByUserIgn 대체)

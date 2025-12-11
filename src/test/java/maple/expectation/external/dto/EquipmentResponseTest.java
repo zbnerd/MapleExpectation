@@ -1,8 +1,8 @@
 package maple.expectation.external.dto;
 
-
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.dto.CubeCalculationInput; // [IMPORT 추가]
 import maple.expectation.external.dto.v2.EquipmentResponse;
 import maple.expectation.repository.v2.CubeProbabilityRepository;
 import maple.expectation.service.v2.CubeService;
@@ -14,6 +14,7 @@ import org.springframework.core.io.ClassPathResource;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays; // [IMPORT 추가]
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -25,12 +26,11 @@ public class EquipmentResponseTest {
 
     @BeforeEach
     void setUp() {
-        // 1. Repository 수동 생성 및 초기화 (CSV 로딩)
+        // 1. Repository 수동 생성 및 초기화
         CubeProbabilityRepository repository = new CubeProbabilityRepository();
-        repository.init(); // 데이터 로딩
+        repository.init();
 
-        // 2. Service 수동 생성 (Repository 주입)
-        // 스프링이 해주는 @Autowired를 우리가 직접 하는 겁니다 (생성자 주입)
+        // 2. Service 수동 생성
         cubeService = new CubeService(new CubeRateCalculator(repository));
     }
 
@@ -45,7 +45,7 @@ public class EquipmentResponseTest {
 
         // then
         assertThat(response.getCharacterClass()).contains("에반");
-        assertThat(response.getDragonEquipment()).isNotEmpty(); // ✅ 핵심: 드래곤 장비가 잘 들어왔나?
+        assertThat(response.getDragonEquipment()).isNotEmpty();
 
         log.info("드래곤 장비 개수: {}", response.getDragonEquipment().size());
         log.info("====== JsonData ======");
@@ -72,8 +72,23 @@ public class EquipmentResponseTest {
             // 잠재 등급이 없으면 계산 패스
             if (item.getPotentialOptionGrade() == null) continue;
 
-            // 큐브 기대 비용 계산
-            long cost = cubeService.calculateExpectedCost(item);
+            // [수정 포인트] ItemEquipment -> CubeCalculationInput 변환
+            // 외부 API 객체를 서비스가 요구하는 DTO로 변환합니다.
+            CubeCalculationInput input = CubeCalculationInput.builder()
+                    .itemName(item.getItemName())
+                    .part(item.getItemEquipmentSlot()) // 장비 부위 (Slot or Part)
+                    .level(Integer.parseInt(item.getBaseOption().getBaseEquipmentLevel()))        // 장비 레벨 (int 가정)
+                    .grade(item.getPotentialOptionGrade())
+                    // 옵션 3줄을 리스트로 변환 (null 허용을 위해 Arrays.asList 사용)
+                    .options(Arrays.asList(
+                            item.getPotentialOption1(),
+                            item.getPotentialOption2(),
+                            item.getPotentialOption3()
+                    ))
+                    .build();
+
+            // 변경된 서비스 메서드 호출 (DTO 전달)
+            long cost = cubeService.calculateExpectedCost(input);
 
             if (cost > 0) {
                 totalInventoryCost += cost;
@@ -104,11 +119,10 @@ public class EquipmentResponseTest {
 
         // then
         assertThat(response.getCharacterClass()).contains("메카닉");
-        assertThat(response.getMechanicEquipment()).isNotEmpty(); // ✅ 핵심: 메카닉 장비가 잘 들어왔나?
+        assertThat(response.getMechanicEquipment()).isNotEmpty();
 
         log.info("메카닉 장비 개수: {}", response.getMechanicEquipment().size());
         log.info("====== JsonData ======");
         log.info("{}", response);
     }
-
 }
