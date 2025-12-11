@@ -43,3 +43,7 @@ nexon:
 app:
   optimization:
     use-compression: true # 👈 gzip 압축모드.
+
+  aop:
+    trace:
+      enabled: false
