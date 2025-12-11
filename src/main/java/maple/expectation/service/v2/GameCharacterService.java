@@ -2,6 +2,7 @@ package maple.expectation.service.v2;
 
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.aop.LogExecutionTime;
+import maple.expectation.aop.annotation.TraceLog;
 import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.exception.CharacterNotFoundException;
 import maple.expectation.external.MaplestoryApiClient;
@@ -19,6 +20,7 @@ import java.util.concurrent.atomic.AtomicLong;
 @Slf4j
 @RequiredArgsConstructor
 @Service
+@TraceLog
 @Transactional(readOnly = true)
 public class GameCharacterService {
 

@@ -1,6 +1,7 @@
 package maple.expectation.external;
 
 import lombok.RequiredArgsConstructor;
+import maple.expectation.aop.annotation.TraceLog;
 import maple.expectation.external.dto.v2.CharacterOcidResponse;
 import maple.expectation.external.dto.v2.EquipmentResponse;
 import org.springframework.beans.factory.annotation.Value;
@@ -8,6 +9,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 
 @Component
+@TraceLog
 @RequiredArgsConstructor
 public class MaplestoryApiClient {
 

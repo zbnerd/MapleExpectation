@@ -1,12 +1,16 @@
 package maple.expectation.service.v2.calculator;
 
 import lombok.RequiredArgsConstructor;
+
+import maple.expectation.aop.annotation.TraceLog;
 import maple.expectation.domain.v2.CubeProbability;
 import maple.expectation.repository.v2.CubeProbabilityRepository;
+
 import maple.expectation.util.StatType;
 import org.springframework.stereotype.Component;
 
 @Component
+@TraceLog
 @RequiredArgsConstructor
 public class CubeRateCalculator {
 

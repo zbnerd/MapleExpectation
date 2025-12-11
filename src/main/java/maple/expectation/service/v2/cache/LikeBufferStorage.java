@@ -2,10 +2,12 @@ package maple.expectation.service.v2.cache;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import maple.expectation.aop.annotation.TraceLog;
 import org.springframework.stereotype.Component;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+//@TraceLog
 @Component
 public class LikeBufferStorage {
 

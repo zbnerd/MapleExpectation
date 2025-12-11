@@ -1,14 +1,12 @@
 package maple.expectation.setup;
 
-import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.support.SpringBootTestWithTimeLogging;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.annotation.Commit;
 import org.springframework.test.context.TestPropertySource;
 
 import java.util.ArrayList;
@@ -32,6 +30,7 @@ public class DataSeedingTest {
 
     @Test
     @DisplayName("🚀 100만 건 더미 데이터 적재 (Data Seeding)")
+    @Disabled
     void insertOneMillionData() {
         log.info(">>> 데이터 적재 시작: 총 {}건", TOTAL_COUNT);
 
