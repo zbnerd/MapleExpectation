@@ -1,6 +1,5 @@
 package maple.expectation.performance;
 
-import maple.expectation.aop.LogExecutionTime;
 import org.junit.jupiter.api.Disabled;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;

@@ -1,7 +1,7 @@
 package maple.expectation.service.v2;
 
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.aop.LogExecutionTime;
+import maple.expectation.aop.annotation.LogExecutionTime;
 import maple.expectation.aop.annotation.TraceLog;
 import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.exception.CharacterNotFoundException;

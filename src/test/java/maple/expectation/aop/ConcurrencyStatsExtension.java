@@ -1,6 +1,7 @@
 package maple.expectation.aop;
 
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.aop.aspect.LoggingAspect;
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
