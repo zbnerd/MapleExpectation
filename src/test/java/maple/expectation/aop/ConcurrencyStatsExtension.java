@@ -34,7 +34,10 @@ public class ConcurrencyStatsExtension implements BeforeEachCallback, AfterEachC
         String testName = context.getDisplayName(); // 테스트 메서드의 이름(@DisplayName)을 가져옵니다.
 
         // 3. 로그 출력 (이제 테스트 코드에 log.info 안 써도 됨)
-        log.info(aspect.calculateStatistics(times, testName));
+        for (String stat : aspect.calculateStatistics(times, testName)) {
+            log.info(stat);
+        }
+
     }
 
 }

@@ -181,12 +181,7 @@ public class EquipmentStreamingParser {
     }
 
     private void parseLevel(JsonParser parser, CubeCalculationInput item) throws IOException {
-        int levelVal = 0;
-        if (parser.currentToken() == JsonToken.VALUE_NUMBER_INT) {
-            levelVal = parser.getIntValue();
-        } else {
-            levelVal = StatParser.parseNum(parser.getText());
-        }
+        int levelVal = parser.currentToken() == JsonToken.VALUE_NUMBER_INT ? parser.getIntValue() : StatParser.parseNum(parser.getText());
         if (levelVal > 0) {
             item.setLevel(levelVal);
         }
