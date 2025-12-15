@@ -1,28 +1,46 @@
 # 🍁 MapleExpectation
 
-## 0. Professional Summary 
-> 대규모 트래픽 환경의 병목을 직접 진단하고  
-> 시스템 아키텍처 레벨에서 성능을 86배 향상시킨  
-> 신입 Java 백엔드 개발자 (운영/배포/관측 경험 보유)
+## 0. Professional Summary
+> **"숫자로 문제를 정의하고, 아키텍처로 증명하는 엔지니어"**
+>
+> 대규모 트래픽 환경의 병목을 직접 진단하고,
+> 시스템 아키텍처 개선을 통해 **RPS 7배, 성능 대폭 향상**을 달성한
+> Java 백엔드 개발자입니다.
 
 ## 1. 프로젝트 소개
-넥슨 Open API를 활용하여 유저 장비 데이터를 수집하고, 확률형 아이템(큐브)의 기댓값을 계산하여 "스펙 완성 비용"을 시뮬레이션해주는 서비스입니다.
+**넥슨 Open API**를 활용하여 유저 장비 데이터를 수집하고, 확률형 아이템(큐브)의 기댓값을 계산하여 **"스펙 완성 비용"을 시뮬레이션해주는 서비스**입니다.
+
+단순한 기능 구현을 넘어, **대용량 데이터(400KB/User) 처리와 동시성 제어** 상황에서 발생하는 성능 문제를 집요하게 파고들어 해결했습니다.
 
 ## 2. 프로젝트 아키텍처
 <img width="791" height="631" alt="image" src="https://github.com/user-attachments/assets/e7667e28-d4f4-4c87-bd31-5f40ae23b43c" />
 
 
 
-> **[System Architecture]**
-> 15분 만료 정책을 가진 **Cache-Aside 전략**을 도식화한 구조입니다. GZIP 압축된 데이터(BLOB)를 MySQL에 저장하여, Cache Hit 시 **0.38초** 만에 응답하도록 설계했습니다.
+> **[System Architecture Key Point]**
+> * **Write-Behind:** 동시성 처리를 위한 In-Memory Buffering
+> * **Cache-Aside:** 넥슨 API 15분 만료 정책 준수 및 비용 절감
+> * **GZIP Compression:** 대용량 JSON I/O 병목 해결 (Blob Storage)
 
 ## 3. 핵심 기술적 성과 (Key Engineering)
 이 프로젝트는 단순 기능 구현과 추가 인프라 도입(Redis, Kafka 등)보다 **대용량 데이터 처리, 대규모 트래픽 처리와 성능 최적화**에 집중했습니다.
 
 ### 동시성 이슈 해결: DB 락의 한계를 넘는 In-Memory 버퍼링 ###
-- **문제**: 데이터 정합성을 위해 비관적 락(Pessimistic Lock) 적용 시, DB Row Lock으로 인한 직렬화 병목 발생 (100명 동시 요청 처리에 3.2초 소요, 확장성 한계)
-- **해결**: Write-Behind(지연 쓰기) 패턴과 **Caffeine Cache(AtomicLong)**를 도입하여 요청을 메모리에서 즉시 처리하고, 스케줄러를 통해 DB에 비동기 배치 업데이트(Bulk Update) 수행
-- **결과**: 트래픽이 10배(1000명) 폭증했음에도 평균 응답 속도 0.05ms 달성(약 7만 배 단축) 및 시스템 처리 효율 약 70만 배 향상
+- **문제 (Problem):**
+  - 인기 캐릭터 '좋아요' 요청 폭주 상황(동접 1,000명)을 가정하여 **Locust** 부하 테스트 수행.
+  - **MySQL 비관적 락(Pessimistic Lock)** 적용 시, DB Row Lock 대기로 인해 **RPS가 107**에서 병목 발생 및 평균 응답 지연 **8.8초** 기록.
+  - [📉 V1 테스트 결과 그래프 보기](https://velog.velcdn.com/images/zbnerd/post/181e0bab-5e05-41cf-9945-f217fd900754/image.png)
+
+- **해결 (Action):**
+  - **Write-Behind(지연 쓰기)** 패턴 도입: 요청을 **Caffeine Cache(AtomicLong)**에서 즉시 처리(Non-Blocking)하고, 3초마다 DB에 **Bulk Update** 수행.
+  - **JPA Dirty Checking 우회:** JPA의 변경 감지 오버헤드를 제거하기 위해 `JPQL Bulk Update`를 사용하여 DB I/O를 극한으로 절감.
+
+- **결과 (Result):**
+  - **Throughput:** RPS 107.4 → **763.1 (약 7.1배 향상)**
+  - **Latency:** 평균 응답 속도 8.8s → **0.037s**
+  - **DB Efficiency:** 21만 건의 요청을 처리하는 동안 JPA `Version`이 증가하지 않음을 검증(Version: 0), **DB 쓰기 부하 99% 절감**.
+
+- [👉 **[기술 블로그] Locust 부하 테스트 & 성능 튜닝 과정 상세 보기**](https://velog.io/@zbnerd/%EB%8F%99%EC%8B%9C%EC%A0%91%EC%86%8D%EC%9E%90-1000%EB%AA%85%EC%9D%98-%EC%A2%8B%EC%95%84%EC%9A%94-%ED%8A%B8%EB%9E%98%ED%94%BD-DB-%EB%9D%BD%EC%9D%84-%EB%B2%84%EB%A6%AC%EA%B3%A0-RPS%EB%A5%BC-7%EB%B0%B0-%EC%98%AC%EB%A6%B0-%EA%B3%BC%EC%A0%95)
 - [👉 기술 블로그 포스팅 보기](https://velog.io/@zbnerd/%EC%84%B1%EB%8A%A5-%ED%8A%9C%EB%8B%9D-0.03%EC%B4%88%EC%9D%98-%EA%B8%B0%EC%A0%81-DB-%EB%9D%BD%EC%9D%98-%ED%95%9C%EA%B3%84%EB%A5%BC-%EB%84%98%EC%96%B4-%EC%9D%B8%EB%A9%94%EB%AA%A8%EB%A6%AC-%EB%B2%84%ED%8D%BC%EB%A7%81Write-Behind%EC%9C%BC%EB%A1%9C-%EC%84%B1%EB%8A%A5-70%EB%A7%8C-%ED%96%A5%EC%83%81%ED%95%98%EA%B8%B0)
 
 ### 스트리밍 & 캐싱을 통한 대용량 JSON(350KB) 처리 최적화 ###
