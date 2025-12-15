@@ -37,7 +37,7 @@ public class LikeConcurrencyTest {
     private String targetUserIgn;
 
     @BeforeEach
-    @Transactional
+//    @Transactional
     void setUp() {
         // 테스트용 타겟 캐릭터 생성 (좋아요 0개)
         GameCharacter target = new GameCharacter("테스트유저_Geek");

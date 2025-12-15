@@ -12,7 +12,10 @@ public class GameCharacter {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(nullable = false, unique = true)
     private String userIgn;
+
+    @Column(nullable = false, unique = true)
     private String ocid;
 
     @Version
