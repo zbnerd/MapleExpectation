@@ -41,9 +41,9 @@ public class LoggingAspect {
         return currentTimes;
     }
 
-    public String calculateStatistics(List<Long> times, String testName) {
+    public String[] calculateStatistics(List<Long> times, String testName) {
         if (times.isEmpty()) {
-            return String.format("[%s] 실행된 호출이 없습니다.", testName);
+            return new String[]{String.format("[%s] 실행된 호출이 없습니다.", testName)};
         }
 
         LongStream stream = times.stream().mapToLong(Long::longValue);
@@ -52,17 +52,22 @@ public class LoggingAspect {
         double average = (double) sum / count;
         long max = times.stream().mapToLong(Long::longValue).max().orElse(0L);
 
-        return String.format(
-                "🏆 [%s] 통계: 총 호출 수: %d, 총 시간: %dms, 평균 응답 시간: %.2fms, 최대 응답 시간(Latency): %dms",
-                testName, count, sum, average, max
-        );
+        String[] stats = {String.format("🏆 [%s] 통계:",testName)
+                              ,String.format("총 호출 수: %d", count)
+                              ,String.format("총 시간: %dms", sum)
+                              ,String.format("평균 응답 시간: %.2fms", average)
+                              ,String.format("최대 응답 시간(Latency): %dms", max)};
+
+        return stats;
     }
 
     @PreDestroy
     public void printFinalStatistics() {
-        String stats = calculateStatistics(executionTimes, "전체 성능 통계");
+        String[] stats = calculateStatistics(executionTimes, "전체 성능 통계");
         log.info("========================================================");
-        log.info(stats);
+        for (String stat : stats) {
+            log.info(stat);
+        }
         log.info("========================================================");
     }
 }

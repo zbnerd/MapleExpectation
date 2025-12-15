@@ -7,6 +7,7 @@ spring:
 
     hikari:
       maximum-pool-size: 50
+      minimum-idle: 50
 
   jpa:
     hibernate:
@@ -46,4 +47,4 @@ app:
 
   aop:
     trace:
-      enabled: false
+      enabled: true
