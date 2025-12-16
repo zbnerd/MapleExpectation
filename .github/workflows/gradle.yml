@@ -72,7 +72,8 @@ jobs:
           target: "/home/${{ secrets.EC2_USERNAME }}"
           strip_components: 1
 
-      # 2. 실행 위임 (수정됨)
+      # 2. 실행위임
+
       - name: Execute Deploy Script
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -81,14 +82,13 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
           script: |
-            # deploy.sh 실행 전 환경변수 주입
-            # (deploy.sh 내부 변수명과 맞춰줍니다)
+            # 1. 환경변수 주입 (변수명 통일!)
             export DB_USER="${{ secrets.DB_USER }}"
             export DB_PASSWORD="${{ secrets.DB_PASSWORD }}"
-            export NEXON_KEY="${{ secrets.NEXON_API_KEY }}"
             
-            # DB_URL은 이제 application-prod.yml에서 관리하므로 제거!
+            # [수정] 스프링 설정(${NEXON_API_KEY})과 이름 맞추기
+            export NEXON_API_KEY="${{ secrets.NEXON_API_KEY }}" 
             
-            # 실행 권한 부여 및 스크립트 실행
+            # 2. 실행 권한 및 스크립트 실행
             chmod +x /home/${{ secrets.EC2_USERNAME }}/deploy.sh
             /home/${{ secrets.EC2_USERNAME }}/deploy.sh
