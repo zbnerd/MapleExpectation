@@ -1,50 +1,37 @@
 spring:
+  profiles:
+    active: local # [Safety Guard] 별도 설정 없으면 무조건 로컬 모드
+
+  # 공통 드라이버 설정
   datasource:
-    url: jdbc:mysql://15.164.121.255:3306/maple_expectation?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&rewriteBatchedStatements=true
-    username: root
-    password: 1234
     driver-class-name: com.mysql.cj.jdbc.Driver
 
-    hikari:
-      maximum-pool-size: 50
-      minimum-idle: 50
-
+  # 공통 JPA 설정 (배치 사이즈 등 성능 옵션은 공통으로 가져감)
   jpa:
-    hibernate:
-      ddl-auto: update
     properties:
       hibernate:
-        format_sql: false
-        show_sql: false
         jdbc:
           batch_size: 1000
+        format_sql: false
+        show_sql: false
 
-#  jpa:
-#    hibernate:
-#      ddl-auto: update
-#    properties:
-#      hibernate:
-#        format_sql: false        # 1. 이거 false로 변경 (쿼리 예쁘게 출력 끄기)
-#        show_sql: false          # 2. 이것도 false로 (하이버네이트 콘솔 출력 끄기)
-#        jdbc:
-#          batch_size: 1000
-
+# 로깅 설정 (공통)
 logging:
   level:
     root: info
-    org.hibernate.SQL: info      # 3. debug -> info로 변경 (SQL 로그 끄기)
-    org.hibernate.type.descriptor.sql: info # 파라미터 바인딩 로그 끄기
-
+    org.hibernate.SQL: info
+    org.hibernate.type.descriptor.sql: info
     org.hibernate.orm.jdbc.batch: ERROR
 
+# 넥슨 API 키 (환경변수 주입 권장)
 nexon:
   api:
     key: ${NEXON_API_KEY}
 
+# 앱 전용 설정
 app:
   optimization:
-    use-compression: true # 👈 gzip 압축모드.
-
+    use-compression: true
   aop:
     trace:
       enabled: true

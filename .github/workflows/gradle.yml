@@ -25,7 +25,7 @@ jobs:
           distribution: 'temurin'
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
@@ -72,7 +72,8 @@ jobs:
           target: "/home/${{ secrets.EC2_USERNAME }}"
           strip_components: 1
 
-      # 2. 실행 위임 (핵심!)
+      # 2. 실행위임
+
       - name: Execute Deploy Script
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -80,16 +81,14 @@ jobs:
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
-          # secrets 변수들을 환경변수(envs)로 등록해서 스크립트에 넘겨줍니다.
-          envs: NEXON_KEY,DB_URL,DB_USER,DB_PASSWORD
           script: |
-            # deploy.sh를 실행해라! 하고 바로 끝냄
-            # 환경변수 값 매핑
-            export NEXON_KEY="${{ secrets.NEXON_API_KEY }}"
-            export DB_URL="jdbc:mysql://localhost:3306/maple_expectation?serverTimezone=Asia/Seoul"
+            # 1. 환경변수 주입 (변수명 통일!)
             export DB_USER="${{ secrets.DB_USER }}"
             export DB_PASSWORD="${{ secrets.DB_PASSWORD }}"
             
-            # 스크립트 실행 (로그 남기지 않고 백그라운드로 실행하거나, 그냥 실행해도 됨)
-            # 여기서는 직접 실행하되, 스크립트 내부에서 nohup을 쓰므로 안전함
+            # [수정] 스프링 설정(${NEXON_API_KEY})과 이름 맞추기
+            export NEXON_API_KEY="${{ secrets.NEXON_API_KEY }}" 
+            
+            # 2. 실행 권한 및 스크립트 실행
+            chmod +x /home/${{ secrets.EC2_USERNAME }}/deploy.sh
             /home/${{ secrets.EC2_USERNAME }}/deploy.sh
