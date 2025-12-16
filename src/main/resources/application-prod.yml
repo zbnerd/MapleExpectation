@@ -1,0 +1,20 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+  datasource:
+    # [Goal] EC2 내부 DB만 사용 (외부 접근 차단) -> EC2 안에서는 localhost로 통신
+    url: jdbc:mysql://localhost:3306/maple_expectation?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&rewriteBatchedStatements=true
+
+    # [Security] 운영 환경 비밀번호는 절대 노출 금지 -> 환경변수 처리
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+
+    hikari:
+      maximum-pool-size: 50 # 운영은 트래픽 대비
+      minimum-idle: 50
+
+  jpa:
+    hibernate:
+      ddl-auto: validate # [Safety Guard] 스키마 변경 방지 (검증만 수행)
