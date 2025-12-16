@@ -140,7 +140,7 @@ https://github.com/zbnerd/MapleExpectation/blob/master/.github/workflows/gradle.
 
 ### 1. 로컬 개발 (Local) - Default
 별도의 설정 없이 실행하면 자동으로 `local` 프로필이 적용됩니다.
-- **DB**: 로컬 MySQL (`localhost:3306`)
+- **DB**: 로컬 H2 (`localhost:3306`)
 - **DDL Mode**: `update` (테이블 자동 생성/변경)
 - **실행 방법**:
   - IntelliJ: 그냥 실행 (Run)
