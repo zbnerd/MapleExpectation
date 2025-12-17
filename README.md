@@ -13,7 +13,8 @@
 단순한 기능 구현을 넘어, **대용량 데이터(400KB/User) 처리와 동시성 제어** 상황에서 발생하는 성능 문제를 집요하게 파고들어 해결했습니다.
 
 ## 2. 프로젝트 아키텍처
-<img width="791" height="631" alt="image" src="https://github.com/user-attachments/assets/e7667e28-d4f4-4c87-bd31-5f40ae23b43c" />
+<img width="983" height="631" alt="image" src="https://github.com/user-attachments/assets/c74496a3-8552-439e-b049-5c53e4230d94" />
+
 
 
 
@@ -133,3 +134,31 @@ https://github.com/zbnerd/MapleExpectation/blob/master/.github/workflows/gradle.
 - JPA, JDBC Template, MySQL
 - JUnit 5
 - AWS EC2
+
+## 7. 🌍 환경별 실행 가이드 (Environment Setup)
+
+이 프로젝트는 `Spring Profiles`를 사용하여 **Local(개발)**과 **Prod(운영)** 환경을 철저히 분리하고 있습니다.
+
+### 1. 로컬 개발 (Local) - Default
+별도의 설정 없이 실행하면 자동으로 `local` 프로필이 적용됩니다.
+- **DB**: 로컬 H2 (`localhost:3306`)
+- **DDL Mode**: `update` (테이블 자동 생성/변경)
+- **실행 방법**:
+  - IntelliJ: 그냥 실행 (Run)
+  - CLI: `./gradlew bootRun`
+
+### 2. 운영 배포 (Prod) - EC2
+운영 환경에서는 환경변수를 통해 민감 정보를 주입받습니다.
+- **DB**: EC2 내부 MySQL (`localhost:3306`)
+- **DDL Mode**: `validate` (스키마 변경 불가, 검증만 수행)
+- **필수 환경변수**:
+  - `SPRING_PROFILES_ACTIVE=prod`
+  - `DB_USERNAME`: DB 계정명
+  - `DB_PASSWORD`: DB 비밀번호
+  - `NEXON_API_KEY`: 넥슨 API 키
+- **실행 예시**:
+  ```bash
+  export SPRING_PROFILES_ACTIVE=prod
+  export DB_USERNAME=root
+  export DB_PASSWORD=your_password
+  java -jar build/libs/donation-service.jar

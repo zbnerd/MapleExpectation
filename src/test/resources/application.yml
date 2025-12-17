@@ -1,43 +1,35 @@
 spring:
+  # [중요 1] 테스트는 'H2' 인메모리 DB를 써야 설치 없이 어디서든 돌아갑니다.
   datasource:
-    url: jdbc:mysql://15.164.121.255:3306/maple_expectation?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&rewriteBatchedStatements=true
-    username: root
-    password: 1234
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:h2:mem:testdb;MODE=MySQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
 
     hikari:
-      maximum-pool-size: 50
-      minimum-idle: 50
+      maximum-pool-size: 5  # 테스트는 혼자 하니까 많이 필요 없음
+      minimum-idle: 5
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: create-drop # 테스트 시작할 때 만들고, 끝나면 삭제 (깔끔)
     properties:
       hibernate:
-        format_sql: false
-        show_sql: false
-        jdbc:
-          batch_size: 1000
-
-#  jpa:
-#    hibernate:
-#      ddl-auto: update
-#    properties:
-#      hibernate:
-#        format_sql: false        # 1. 이거 false로 변경 (쿼리 예쁘게 출력 끄기)
-#        show_sql: false          # 2. 이것도 false로 (하이버네이트 콘솔 출력 끄기)
-#        jdbc:
-#          batch_size: 1000
+        format_sql: true    # 테스트 때는 쿼리 보는 게 디버깅에 좋음
+        show_sql: true
 
 logging:
   level:
     root: info
-    org.hibernate.SQL: info      # 3. debug -> info로 변경 (SQL 로그 끄기)
-    org.hibernate.type.descriptor.sql: info # 파라미터 바인딩 로그 끄기
+    # 테스트 실패 원인 분석을 위해 SQL 로그는 켜두는 게 좋습니다
+    org.hibernate.SQL: debug
 
-    org.hibernate.orm.jdbc.batch: ERROR
-
-
+# [중요 2] 테스트 환경에서는 실제 키 대신 '가짜 값'을 넣습니다.
+# (테스트 코드는 외부 API를 실제로 호출하지 않고 Mocking 하는 것이 원칙이므로)
 nexon:
   api:
-    key: ${NEXON_API_KEY}
+    key: "test_dummy_key"
+
+# [추가] 테스트용 가짜 디스코드 웹훅 URL
+discord:
+  webhook-url: "https://discord.com/api/webhooks/dummy/test"

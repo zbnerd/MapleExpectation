@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import maple.expectation.exception.InsufficientPointException;
+
 import java.util.UUID;
 
 @Entity
@@ -41,7 +43,7 @@ public class Member {
     // --- 비즈니스 로직 ---
     public void decreasePoint(Long amount) {
         if (this.point < amount) {
-            throw new IllegalStateException("잔액 부족");
+            throw new InsufficientPointException("잔액이 부족합니다.");
         }
         this.point -= amount;
     }
