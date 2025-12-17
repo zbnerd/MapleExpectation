@@ -29,3 +29,7 @@ logging:
 nexon:
   api:
     key: "test_dummy_key"
+
+# [추가] 테스트용 가짜 디스코드 웹훅 URL
+discord:
+  webhook-url: "https://discord.com/api/webhooks/dummy/test"

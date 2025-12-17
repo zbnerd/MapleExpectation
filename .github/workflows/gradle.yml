@@ -89,6 +89,9 @@ jobs:
             # [수정] 스프링 설정(${NEXON_API_KEY})과 이름 맞추기
             export NEXON_API_KEY="${{ secrets.NEXON_API_KEY }}" 
             
+            # [추가] 디스코드 웹훅 URL 주입
+            export DISCORD_WEBHOOK_URL="${{ secrets.DISCORD_WEBHOOK_URL }}"
+            
             # 2. 실행 권한 및 스크립트 실행
             chmod +x /home/${{ secrets.EC2_USERNAME }}/deploy.sh
             /home/${{ secrets.EC2_USERNAME }}/deploy.sh

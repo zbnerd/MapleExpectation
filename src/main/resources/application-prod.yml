@@ -19,3 +19,6 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
+
+discord:
+  webhook-url: ${DISCORD_WEBHOOK_URL}
