@@ -28,6 +28,7 @@ public class LikeConcurrencyTest {
     @Autowired
     private GameCharacterRepository gameCharacterRepository;
 
+
     @Autowired
     GameCharacterService gameCharacterService;
 
