@@ -13,6 +13,7 @@ import maple.expectation.repository.v2.CharacterEquipmentRepository;
 import maple.expectation.util.GzipUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
@@ -40,6 +41,8 @@ public class EquipmentDataProvider {
     /**
      * [핵심] Raw Data 조회 (동시성 제어 적용)
      */
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public byte[] getRawEquipmentData(String ocid) {
         // 1. [Fast-Path] 락 없이 먼저 캐시 조회 (대부분의 트래픽)
         CharacterEquipment entity = equipmentRepository.findById(ocid).orElse(null);
