@@ -35,7 +35,7 @@ public class GameCharacterService {
         return savedCharacter.getUserIgn();
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public GameCharacter findCharacterByUserIgn(String userIgn) {
         String cleanUserIgn = userIgn.trim();
 
