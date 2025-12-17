@@ -16,3 +16,6 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update # 개발 편의를 위해 스키마 자동 변경 허용
+
+discord:
+  webhook-url: ${DISCORD_WEBHOOK_URL}
