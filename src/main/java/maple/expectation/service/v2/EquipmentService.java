@@ -10,10 +10,12 @@ import maple.expectation.external.dto.v2.TotalExpectationResponse;
 import maple.expectation.external.dto.v2.TotalExpectationResponse.ItemExpectation;
 import maple.expectation.parser.EquipmentStreamingParser;
 import maple.expectation.provider.EquipmentDataProvider;
+import maple.expectation.util.GzipUtils;
 import maple.expectation.util.StatParser;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -22,6 +24,7 @@ import java.util.List;
 @TraceLog
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true) // 성능 최적화: 기본 읽기 전용
 public class EquipmentService {
 
     private final GameCharacterService characterService;
@@ -29,28 +32,68 @@ public class EquipmentService {
     private final EquipmentStreamingParser streamingParser;
     private final CubeService cubeService;
 
-    @Transactional
+    /**
+     * [V3 API] Streaming Parser 기반 (고성능 / 메모리 절약)
+     */
+    public TotalExpectationResponse calculateTotalExpectation(String userIgn) {
+        String ocid = getOcid(userIgn);
+        // Provider에서 Raw Data(byte[])를 받아 바로 파싱 -> 객체 변환 오버헤드 제거
+        byte[] rawData = equipmentProvider.getRawEquipmentData(ocid);
+        List<CubeCalculationInput> inputs = streamingParser.parseCubeInputs(rawData);
+
+        return calculateCostFromInputs(userIgn, inputs);
+    }
+
+    /**
+     * [Legacy API] ObjectMapper 기반 (기존 클라이언트 호환용)
+     */
+    public TotalExpectationResponse calculateTotalExpectationLegacy(String userIgn) {
+        EquipmentResponse equipment = getEquipmentByUserIgn(userIgn);
+        List<CubeCalculationInput> inputs = new ArrayList<>();
+
+        if (equipment.getItemEquipment() != null) {
+            for (EquipmentResponse.ItemEquipment item : equipment.getItemEquipment()) {
+                if (item.getPotentialOptionGrade() == null) continue;
+                inputs.add(mapToCubeInput(item)); // 기존 매핑 로직
+            }
+        }
+        return calculateCostFromInputs(userIgn, inputs);
+    }
+
+    /**
+     * [Stream API] Zero-Copy 스트리밍 (API 호출 -> 압축 해제 -> 전송)
+     */
+    public void streamEquipmentData(String userIgn, OutputStream outputStream) {
+        String ocid = getOcid(userIgn);
+        byte[] rawData = equipmentProvider.getRawEquipmentData(ocid);
+
+        try {
+            if (isGzip(rawData)) {
+                outputStream.write(GzipUtils.decompress(rawData).getBytes());
+            } else {
+                outputStream.write(rawData);
+            }
+            outputStream.flush();
+        } catch (IOException e) {
+            throw new RuntimeException("데이터 스트리밍 실패", e);
+        }
+    }
+
+    // [단순 조회]
     public EquipmentResponse getEquipmentByUserIgn(String userIgn) {
         String ocid = getOcid(userIgn);
         return equipmentProvider.getEquipmentResponse(ocid);
     }
 
-    /**
-     * [V3 API] 기대 비용 총계 계산
-     * ✅ try-catch 완전 제거 완료!
-     */
-    @Transactional
-    public TotalExpectationResponse calculateTotalExpectation(String userIgn) {
-        // 1. 파싱 (예외 발생 시 Parser 내부에서 RuntimeException으로 던짐 -> ControllerAdvice가 처리)
-        List<CubeCalculationInput> inputs = getCubeCalculationInputs(userIgn);
+    // --- Private Helper Methods ---
 
+    // 공통 계산 로직 추출
+    private TotalExpectationResponse calculateCostFromInputs(String userIgn, List<CubeCalculationInput> inputs) {
         long totalCost = 0;
         List<ItemExpectation> itemDetails = new ArrayList<>();
 
-        // 2. 계산 로직 (순수 비즈니스 로직)
         for (CubeCalculationInput input : inputs) {
             long cost = cubeService.calculateExpectedCost(input);
-
             if (cost > 0) {
                 totalCost += cost;
                 itemDetails.add(mapToItemExpectation(input, cost));
@@ -65,52 +108,20 @@ public class EquipmentService {
                 .build();
     }
 
-    @Transactional
-    public TotalExpectationResponse calculateTotalExpectationLegacy(String userIgn) {
-        // 1. 데이터 조회 (ObjectMapper 파싱)
-        EquipmentResponse equipment = getEquipmentByUserIgn(userIgn);
-
-        long totalCost = 0;
-        List<ItemExpectation> itemDetails = new ArrayList<>();
-
-        if (equipment.getItemEquipment() != null) {
-            for (EquipmentResponse.ItemEquipment item : equipment.getItemEquipment()) {
-                if (item.getPotentialOptionGrade() == null) continue;
-
-                // 2. 변환 로직 (Mapping)
-                CubeCalculationInput input = mapToCubeInput(item);
-
-                // 3. 계산
-                long cost = cubeService.calculateExpectedCost(input);
-
-                if (cost > 0) {
-                    totalCost += cost;
-                    itemDetails.add(mapToItemExpectation(input, cost));
-                }
-            }
-        }
-
-        return TotalExpectationResponse.builder()
-                .userIgn(userIgn)
-                .totalCost(totalCost)
-                .totalCostText(String.format("%,d 메소", totalCost))
-                .items(itemDetails)
-                .build();
+    private String getOcid(String userIgn) {
+        GameCharacter character = characterService.findCharacterByUserIgn(userIgn);
+        return character.getOcid();
     }
 
-    // --- Helper Method: 지저분한 변환 로직을 별도 메서드로 분리 ---
     private CubeCalculationInput mapToCubeInput(EquipmentResponse.ItemEquipment item) {
-        // 옵션 3줄 리스트 변환
         List<String> optionList = new ArrayList<>();
         if (item.getPotentialOption1() != null) optionList.add(item.getPotentialOption1());
         if (item.getPotentialOption2() != null) optionList.add(item.getPotentialOption2());
         if (item.getPotentialOption3() != null) optionList.add(item.getPotentialOption3());
 
-        // 레벨 파싱
-        int level = 0;
-        if (item.getBaseOption() != null) {
-            level = StatParser.parseNum(item.getBaseOption().getBaseEquipmentLevel());
-        }
+        int level = (item.getBaseOption() != null)
+                ? StatParser.parseNum(item.getBaseOption().getBaseEquipmentLevel())
+                : 0;
 
         return CubeCalculationInput.builder()
                 .itemName(item.getItemName())
@@ -121,42 +132,17 @@ public class EquipmentService {
                 .build();
     }
 
-    /**
-     * [Stream API]
-     * ✅ try-catch 완전 제거 완료!
-     */
-    public void streamEquipmentData(String userIgn, OutputStream outputStream) {
-        EquipmentResponse response = getEquipmentByUserIgn(userIgn);
-        // 쓰기 작업도 Parser에게 위임 (Service는 흐름만 제어)
-        streamingParser.writeToStream(response, outputStream);
-    }
-
-    // --- Private Helper Methods ---
-
-    private List<CubeCalculationInput> getCubeCalculationInputs(String userIgn) {
-        String ocid = getOcid(userIgn);
-        // Provider는 이미 RuntimeException을 던지도록 되어있으므로 안심하고 호출
-        byte[] rawData = equipmentProvider.getRawEquipmentData(ocid);
-        // Parser도 이제 RuntimeException을 던짐
-        return streamingParser.parseCubeInputs(rawData);
-    }
-
-    private String getOcid(String userIgn) {
-        GameCharacter character = characterService.findCharacterByUserIgn(userIgn);
-        return character.getOcid();
-    }
-
     private ItemExpectation mapToItemExpectation(CubeCalculationInput input, long cost) {
         return ItemExpectation.builder()
                 .part(input.getPart())
                 .itemName(input.getItemName())
-                .potential(formatPotential(input.getOptions()))
+                .potential(String.join(" | ", input.getOptions()))
                 .expectedCost(cost)
                 .expectedCostText(String.format("%,d 메소", cost))
                 .build();
     }
 
-    private String formatPotential(List<String> options) {
-        return String.join(" | ", options);
+    private boolean isGzip(byte[] data) {
+        return data != null && data.length > 2 && data[0] == (byte) 0x1F && data[1] == (byte) 0x8B;
     }
 }

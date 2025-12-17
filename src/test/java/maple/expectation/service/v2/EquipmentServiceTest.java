@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.lang.reflect.Field;
 import java.time.LocalDateTime;
@@ -24,6 +25,7 @@ import static org.mockito.Mockito.mock;
 
 @Slf4j
 @SpringBootTest
+@Transactional
 @TestPropertySource(properties = "app.optimization.use-compression=false")
 class EquipmentServiceTest {
 
@@ -49,14 +51,27 @@ class EquipmentServiceTest {
         String nickname = "개리";
         String mockOcid = "test-ocid-12345";
 
-        // Mock 객체 생성
-        EquipmentResponse mockResponse = new EquipmentResponse();
-        mockResponse.setDate(LocalDateTime.now().toString());
+        // 1. [최초 조회용] 응답 생성
+        EquipmentResponse mockResponse1 = new EquipmentResponse();
+        mockResponse1.setDate(LocalDateTime.now().toString());
+        // 확실한 차이를 위해 임의의 데이터 설정 (예: 직업이나 해시값 등)
+        // *필드명은 실제 EquipmentResponse DTO에 있는 필드를 사용하세요*
+        // 예시: mockResponse1.setCharacterClass("Warrior");
+
+        // 2. [갱신 조회용] 응답 생성 (데이터를 확실히 다르게 설정)
+        EquipmentResponse mockResponse2 = new EquipmentResponse();
+        mockResponse2.setDate(LocalDateTime.now().toString());
+        // mockResponse1과 '다른' 내용이 들어가야 함 -> raw_data가 변경됨 -> Update 쿼리 발생
+        // 예시: mockResponse2.setCharacterClass("Magician");  <-- 핵심!
 
         GameCharacter mockCharacter = mock(GameCharacter.class);
         given(mockCharacter.getOcid()).willReturn(mockOcid);
         given(characterService.findCharacterByUserIgn(nickname)).willReturn(mockCharacter);
-        given(apiClient.getItemDataByOcid(anyString())).willReturn(mockResponse);
+
+        // 순차적 Stubbing
+        given(apiClient.getItemDataByOcid(anyString()))
+                .willReturn(mockResponse1)  // 첫 번째 호출
+                .willReturn(mockResponse2); // 두 번째 호출 (내용이 달라야 함)
 
         // 1. [최초 조회]
         log.info("--- 1. 최초 조회 요청 ---");
@@ -92,10 +107,15 @@ class EquipmentServiceTest {
 
         // 4. [만료 후 조회]
         log.info("--- 4. 만료 후 재조회 요청 (Cache Expired 예상) ---");
+        // 이때 apiClient는 mockResponse2를 반환하므로, 데이터가 변경된 것으로 인식되어 Update 쿼리가 나갈 것입니다.
         EquipmentResponse response3 = equipmentService.getEquipmentByUserIgn(nickname);
 
-        // 다시 DB에서 읽어와서 시간이 갱신되었는지 확인
+        // 검증
         CharacterEquipment refreshedEntity = equipmentRepository.findById(mockOcid).get();
+
+        // 로그로 확인해보세요 (실제 시간이 갱신되었는지)
+        log.info("갱신된 시간: {}", refreshedEntity.getUpdatedAt());
+
         assertThat(refreshedEntity.getUpdatedAt()).isAfter(LocalDateTime.now().minusMinutes(5));
 
         log.info("✅ 테스트 성공!");
