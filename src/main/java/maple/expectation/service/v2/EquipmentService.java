@@ -10,6 +10,10 @@ import maple.expectation.external.dto.v2.TotalExpectationResponse;
 import maple.expectation.external.dto.v2.TotalExpectationResponse.ItemExpectation;
 import maple.expectation.parser.EquipmentStreamingParser;
 import maple.expectation.provider.EquipmentDataProvider;
+import maple.expectation.service.v2.calculator.ExpectationCalculator;
+import maple.expectation.service.v2.calculator.impl.BaseItem;
+import maple.expectation.service.v2.calculator.impl.BlackCubeDecorator;
+import maple.expectation.service.v2.policy.CubeCostPolicy;
 import maple.expectation.util.GzipUtils;
 import maple.expectation.util.StatParser;
 import org.springframework.stereotype.Service;
@@ -31,13 +35,13 @@ public class EquipmentService {
     private final EquipmentDataProvider equipmentProvider;
     private final EquipmentStreamingParser streamingParser;
     private final CubeService cubeService;
+    private final CubeCostPolicy costPolicy;
 
     /**
-     * [V3 API] Streaming Parser 기반 (고성능 / 메모리 절약)
+     * [V3 API] Streaming Parser 기반
      */
     public TotalExpectationResponse calculateTotalExpectation(String userIgn) {
         String ocid = getOcid(userIgn);
-        // Provider에서 Raw Data(byte[])를 받아 바로 파싱 -> 객체 변환 오버헤드 제거
         byte[] rawData = equipmentProvider.getRawEquipmentData(ocid);
         List<CubeCalculationInput> inputs = streamingParser.parseCubeInputs(rawData);
 
@@ -45,7 +49,7 @@ public class EquipmentService {
     }
 
     /**
-     * [Legacy API] ObjectMapper 기반 (기존 클라이언트 호환용)
+     * [Legacy API] ObjectMapper 기반
      */
     public TotalExpectationResponse calculateTotalExpectationLegacy(String userIgn) {
         EquipmentResponse equipment = getEquipmentByUserIgn(userIgn);
@@ -54,14 +58,45 @@ public class EquipmentService {
         if (equipment.getItemEquipment() != null) {
             for (EquipmentResponse.ItemEquipment item : equipment.getItemEquipment()) {
                 if (item.getPotentialOptionGrade() == null) continue;
-                inputs.add(mapToCubeInput(item)); // 기존 매핑 로직
+                inputs.add(mapToCubeInput(item));
             }
         }
         return calculateCostFromInputs(userIgn, inputs);
     }
 
     /**
-     * [Stream API] Zero-Copy 스트리밍 (API 호출 -> 압축 해제 -> 전송)
+     * [Core Logic] Decorator 패턴 조립 및 계산
+     */
+    private TotalExpectationResponse calculateCostFromInputs(String userIgn, List<CubeCalculationInput> inputs) {
+        long totalCost = 0;
+        List<ItemExpectation> itemDetails = new ArrayList<>();
+
+        for (CubeCalculationInput input : inputs) {
+            // 1. 시작점: 기본 아이템
+            ExpectationCalculator calculator = new BaseItem(input.getItemName());
+
+            // 2. 블랙큐브(윗잠재) 데코레이터 장착
+            // 나중에 레드큐브나 에디셔널이 추가되면 유저 선택에 따라 여기에 if문으로 감싸기만 하면 됩니다.
+            calculator = new BlackCubeDecorator(calculator, cubeService, costPolicy, input);
+
+            // 3. 최종 비용 합산
+            long cost = calculator.calculateCost();
+            if (cost > 0) {
+                totalCost += cost;
+                itemDetails.add(mapToItemExpectation(input, cost));
+            }
+        }
+
+        return TotalExpectationResponse.builder()
+                .userIgn(userIgn)
+                .totalCost(totalCost)
+                .totalCostText(String.format("%,d 메소", totalCost))
+                .items(itemDetails)
+                .build();
+    }
+
+    /**
+     * [Stream API] Zero-Copy 스트리밍
      */
     public void streamEquipmentData(String userIgn, OutputStream outputStream) {
         String ocid = getOcid(userIgn);
@@ -79,34 +114,12 @@ public class EquipmentService {
         }
     }
 
-    // [단순 조회]
     public EquipmentResponse getEquipmentByUserIgn(String userIgn) {
         String ocid = getOcid(userIgn);
         return equipmentProvider.getEquipmentResponse(ocid);
     }
 
     // --- Private Helper Methods ---
-
-    // 공통 계산 로직 추출
-    private TotalExpectationResponse calculateCostFromInputs(String userIgn, List<CubeCalculationInput> inputs) {
-        long totalCost = 0;
-        List<ItemExpectation> itemDetails = new ArrayList<>();
-
-        for (CubeCalculationInput input : inputs) {
-            long cost = cubeService.calculateExpectedCost(input);
-            if (cost > 0) {
-                totalCost += cost;
-                itemDetails.add(mapToItemExpectation(input, cost));
-            }
-        }
-
-        return TotalExpectationResponse.builder()
-                .userIgn(userIgn)
-                .totalCost(totalCost)
-                .totalCostText(String.format("%,d 메소", totalCost))
-                .items(itemDetails)
-                .build();
-    }
 
     private String getOcid(String userIgn) {
         GameCharacter character = characterService.findCharacterByUserIgn(userIgn);

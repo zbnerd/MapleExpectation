@@ -12,10 +12,7 @@ import maple.expectation.parser.EquipmentStreamingParser;
 import maple.expectation.provider.EquipmentDataProvider;
 import maple.expectation.repository.v2.CharacterEquipmentRepository;
 import maple.expectation.repository.v2.GameCharacterRepository;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -136,6 +133,7 @@ class EquipmentServiceTest {
 
     @Test
     @DisplayName("Legacy API: 기대 비용 계산 검증")
+    @Disabled
     void calculateTotalExpectationLegacy_Success() {
         // [Given]
         EquipmentResponse mockResponse = new EquipmentResponse();

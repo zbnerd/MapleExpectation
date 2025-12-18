@@ -2,12 +2,11 @@ package maple.expectation.service.v2;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-
 import maple.expectation.aop.annotation.TraceLog;
+import maple.expectation.domain.v2.CubeType;
 import maple.expectation.dto.CubeCalculationInput;
 import maple.expectation.service.v2.calculator.CubeRateCalculator;
 import maple.expectation.util.PermutationUtil;
-
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -23,62 +22,72 @@ import java.util.concurrent.ConcurrentHashMap;
 public class CubeService {
 
     private final CubeRateCalculator rateCalculator;
-    private static final long CUBE_PRICE = 50_000_000;
 
-    // 계산 캐시 (Memoization)
-    private final Map<String, Long> calculationCache = new ConcurrentHashMap<>();
+    // 계산 캐시 (Memoization): 이제 비용(Meso)이 아닌 '기대 시도 횟수(Trials)'를 캐싱합니다.
+    private final Map<String, Long> trialsCache = new ConcurrentHashMap<>();
 
     /**
-     * 큐브 기대 비용 계산
-     * 이제 ItemEquipment 같은 거대 DTO를 받지 않습니다.
-     * 오직 계산에 필요한 POJO(CubeCalculationInput)만 받습니다.
+     * [Decorator용] 기대 시도 횟수 계산
+     * @param input  강화 설정값
+     * @param type   큐브 종류 (BLACK, RED 등)
+     * @return       목표 옵션 도달을 위한 평균 시도 횟수
      */
-    public long calculateExpectedCost(CubeCalculationInput input) {
-        // 방어 로직: 계산할 필요 없는 경우
+    public long calculateExpectedTrials(CubeCalculationInput input, CubeType type) {
+        // 1. 방어 로직
         if (!input.isReady()) {
             return 0L;
         }
 
-        String cacheKey = generateCacheKey(input);
-        List<String> targetOptions = new ArrayList<>(input.getOptions());
-
-
-
-        // Cache Hit
-        if (calculationCache.containsKey(cacheKey)) {
-            return calculationCache.get(cacheKey);
+        // 2. 캐시 확인 (Key에 CubeType 포함)
+        String cacheKey = generateTrialsCacheKey(input, type);
+        if (trialsCache.containsKey(cacheKey)) {
+            return trialsCache.get(cacheKey);
         }
 
-        // Cache Miss -> Calculate
+        // 3. 순열 기반 확률 계산 (기존 로직 유지)
+        List<String> targetOptions = new ArrayList<>(input.getOptions());
         Set<List<String>> permutations = PermutationUtil.generateUniquePermutations(targetOptions);
         double totalProbability = 0.0;
 
         for (List<String> caseOptions : permutations) {
             double caseProb = 1.0;
-            // Loop unrolling or simple iteration
             for (int i = 0; i < 3; i++) {
+                // 어떤 큐브인지(type)를 전달하여 정확한 확률 데이터 조회
                 caseProb *= rateCalculator.getOptionRate(
+                        type,
                         input.getLevel(),
                         input.getPart(),
                         input.getGrade(),
-                        i + 1, // line number (1, 2, 3)
+                        i + 1,
                         caseOptions.get(i)
                 );
             }
             totalProbability += caseProb;
         }
 
-        long resultCost = 0;
+        // 4. 기댓값 산출 (1 / 성공확률)
+        long expectedTryCount = 0;
         if (totalProbability > 0) {
-            long expectedTryCount = (long) (1.0 / totalProbability);
-            resultCost = expectedTryCount * CUBE_PRICE;
+            expectedTryCount = (long) Math.ceil(1.0 / totalProbability);
         }
 
-        calculationCache.put(cacheKey, resultCost);
-        return resultCost;
+        // 5. 캐시 저장 후 반환
+        trialsCache.put(cacheKey, expectedTryCount);
+        return expectedTryCount;
     }
 
-    private String generateCacheKey(CubeCalculationInput input) {
-        return input.getLevel() + "_" + input.getPart() + "_" + input.getGrade() + "_" + input.getOptions();
+    /**
+     * (V2 호환/레거시용) 기대 비용 계산
+     * @deprecated 이제 Decorator와 Policy를 사용하는 calculateExpectedTrials 사용을 권장합니다.
+     */
+    @Deprecated
+    public long calculateExpectedCost(CubeCalculationInput input) {
+        // 기존 5천만 메소 고정 가격 정책 유지 (하위 호환용)
+        long trials = calculateExpectedTrials(input, CubeType.BLACK);
+        return trials * 50_000_000L;
+    }
+
+    private String generateTrialsCacheKey(CubeCalculationInput input, CubeType type) {
+        return type.name() + "_" + input.getLevel() + "_" + input.getPart() + "_" + input.getGrade() + "_" + input.getOptions();
     }
 }
