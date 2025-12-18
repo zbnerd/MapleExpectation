@@ -13,7 +13,8 @@
 단순한 기능 구현을 넘어, **대용량 데이터(400KB/User) 처리와 동시성 제어** 상황에서 발생하는 성능 문제를 집요하게 파고들어 해결했습니다.
 
 ## 2. 프로젝트 아키텍처
-<img width="983" height="631" alt="image" src="https://github.com/user-attachments/assets/c74496a3-8552-439e-b049-5c53e4230d94" />
+<img width="1074" height="771" alt="image" src="https://github.com/user-attachments/assets/1531c4d4-df09-4e58-8263-89c7c2785b3f" />
+
 
 
 
