@@ -5,7 +5,7 @@ import maple.expectation.aop.annotation.LogExecutionTime;
 import maple.expectation.aop.annotation.TraceLog;
 import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.exception.CharacterNotFoundException;
-import maple.expectation.external.MaplestoryApiClient;
+import maple.expectation.external.NexonApiClient;
 import maple.expectation.service.v2.cache.LikeBufferStorage;
 import org.springframework.context.ApplicationContext;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
@@ -25,7 +25,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class GameCharacterService {
 
     private final GameCharacterRepository gameCharacterRepository;
-    private final MaplestoryApiClient maplestoryApiClient;
+    private final NexonApiClient nexonApiClient;
     private final ApplicationContext applicationContext;
     private final LikeBufferStorage likeBufferStorage;
 
@@ -44,7 +44,7 @@ public class GameCharacterService {
                 .orElseGet(() -> {
                     // DB에 없을 때 실행될 로직
                     log.info("DB miss! API 호출: {}", cleanUserIgn);
-                    String ocid = maplestoryApiClient.getOcidByCharacterName(cleanUserIgn).getOcid();
+                    String ocid = nexonApiClient.getOcidByCharacterName(cleanUserIgn).getOcid();
 
                     GameCharacter newChar = new GameCharacter();
                     newChar.setUserIgn(cleanUserIgn);

@@ -26,7 +26,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @Slf4j
 @SpringBootTestWithTimeLogging
-@TestPropertySource(properties = "app.optimization.use-compression=false")
 public class DonationTest {
 
     @Autowired

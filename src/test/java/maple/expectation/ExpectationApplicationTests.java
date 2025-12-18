@@ -1,7 +1,7 @@
 package maple.expectation;
 
 import maple.expectation.domain.v2.GameCharacter;
-import maple.expectation.external.MaplestoryApiClient; // import 추가
+import maple.expectation.external.impl.RealNexonApiClient;
 import maple.expectation.service.v2.GameCharacterService;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -21,7 +21,7 @@ class ExpectationApplicationTests {
 
     // ✨ 해결책: 외부 API 클라이언트를 Mocking하여 실제 키값 주입 과정을 생략시킴
     @MockitoBean
-    MaplestoryApiClient maplestoryApiClient;
+    RealNexonApiClient nexonApiClient;
 
     @Test
     void 캐릭터ocid생성() {

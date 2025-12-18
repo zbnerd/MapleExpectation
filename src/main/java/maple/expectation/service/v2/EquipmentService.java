@@ -24,7 +24,7 @@ import java.util.List;
 @TraceLog
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true) // 성능 최적화: 기본 읽기 전용
+@Transactional
 public class EquipmentService {
 
     private final GameCharacterService characterService;

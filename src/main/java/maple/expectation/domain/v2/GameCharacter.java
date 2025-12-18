@@ -3,9 +3,11 @@ package maple.expectation.domain.v2;
 import lombok.Getter;
 import jakarta.persistence.*;
 import lombok.Setter;
+import lombok.ToString;
 
 @Entity
 @Getter @Setter
+@ToString
 public class GameCharacter {
 
     @Id
