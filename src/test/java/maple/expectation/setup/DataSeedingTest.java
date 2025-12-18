@@ -17,7 +17,6 @@ import java.util.Random;
 @Slf4j
 //@Commit
 @SpringBootTestWithTimeLogging
-@TestPropertySource(properties = "app.optimization.use-compression=false")
 public class DataSeedingTest {
 
     @Autowired
