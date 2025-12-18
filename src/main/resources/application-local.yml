@@ -4,18 +4,17 @@ spring:
       on-profile: local
 
   datasource:
-    # [Safety] 로컬은 무조건 내 컴퓨터 DB(localhost)
-    url: jdbc:mysql://localhost:3306/maple_expectation?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&rewriteBatchedStatements=true
+    url: jdbc:mysql://localhost:3306/${DB_SCHEMA_NAME}?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&rewriteBatchedStatements=true
     username: root
-    password: 1234 # 로컬은 편의상 하드코딩 (팀 정책에 따라 변경 가능)
+    password: ${DB_ROOT_PASSWORD}
 
     hikari:
-      maximum-pool-size: 10 # 로컬 리소스 절약
+      maximum-pool-size: 10
       minimum-idle: 5
 
   jpa:
     hibernate:
-      ddl-auto: update # 개발 편의를 위해 스키마 자동 변경 허용
+      ddl-auto: update
 
 discord:
   webhook-url: ${DISCORD_WEBHOOK_URL}

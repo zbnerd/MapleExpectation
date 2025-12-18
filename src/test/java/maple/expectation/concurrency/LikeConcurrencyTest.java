@@ -22,7 +22,6 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 @Slf4j
 @SpringBootTestWithTimeLogging
-@TestPropertySource(properties = "app.optimization.use-compression=false")
 public class LikeConcurrencyTest {
 
     @Autowired

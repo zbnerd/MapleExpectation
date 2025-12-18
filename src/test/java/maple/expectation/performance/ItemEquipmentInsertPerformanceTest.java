@@ -19,7 +19,6 @@ import java.util.Random;
 @Slf4j
 @Transactional
 @SpringBootTestWithTimeLogging
-@TestPropertySource(properties = "app.optimization.use-compression=false")
 class ItemEquipmentInsertPerformanceTest {
 
     @Autowired
