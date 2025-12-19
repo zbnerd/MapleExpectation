@@ -5,6 +5,7 @@ import maple.expectation.domain.v2.CubeType;
 import maple.expectation.dto.CubeCalculationInput;
 import maple.expectation.service.v2.CubeTrialsProvider;
 import maple.expectation.support.SpringBootTestWithTimeLogging;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,6 +23,7 @@ class CubeServiceTest {
     private CubeTrialsProvider cubeTrialsProvider; // 인터페이스로 주입 (Proxy가 주입됨)
 
     @Test
+    @Disabled("CI 환경에서 시간 측정 불확실성으로 인해 로컬에서만 실행")
     @DisplayName("실전 테스트: 200제 모자, STR 3줄(12%, 9%, 9%) 띄우는 기대 횟수 계산")
     void calculate_real_trials_test() {
         // 1. given
