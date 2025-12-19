@@ -2,6 +2,7 @@ package maple.expectation.repository;
 
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.domain.v2.CubeProbability;
+import maple.expectation.domain.v2.CubeType; // 👈 추가
 import maple.expectation.repository.v2.CubeProbabilityRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -16,9 +17,8 @@ class CubeProbabilityRepositoryTest {
 
     @BeforeEach
     void setUp() {
-        // 스프링이 주입(Autowired) 안 해주니까, 우리가 직접 생성하고 init() 호출
         repository = new CubeProbabilityRepository();
-        repository.init(); // @PostConstruct 수동 실행
+        repository.init();
     }
 
     @Test
@@ -28,29 +28,29 @@ class CubeProbabilityRepositoryTest {
         int level = 200;
         String part = "모자";
         String grade = "레전드리";
+        CubeType type = CubeType.BLACK; // 👈 윗잠재는 블랙큐브로 설정
 
-        // when
-        CubeProbability line1 = repository.findProbabilities(level, part, grade, 1).stream()
+        // when: findProbabilities 호출 시 CubeType.BLACK(type)을 첫 번째 인자로 전달
+        CubeProbability line1 = repository.findProbabilities(type, level, part, grade, 1).stream()
                 .filter(p -> p.getOptionName().startsWith("STR"))
                 .findFirst().orElseThrow();
 
-        CubeProbability line2 = repository.findProbabilities(level, part, grade, 2).stream()
+        CubeProbability line2 = repository.findProbabilities(type, level, part, grade, 2).stream()
                 .filter(p -> p.getOptionName().startsWith("STR"))
                 .findFirst().orElseThrow();
 
-        CubeProbability line3 = repository.findProbabilities(level, part, grade, 3).stream()
+        CubeProbability line3 = repository.findProbabilities(type, level, part, grade, 3).stream()
                 .filter(p -> p.getOptionName().startsWith("STR"))
                 .findFirst().orElseThrow();
 
-        // then: 로그 확인 (이제 getRate()로 바로 호출)
+        // then: 로그 확인 및 검증 로직은 동일
+        log.info("큐브 종류: {}", type.getDescription());
         log.info("1번째 줄: {} (확률: {})", line1.getOptionName(), line1.getRate());
         log.info("2번째 줄: {} (확률: {})", line2.getOptionName(), line2.getRate());
         log.info("3번째 줄: {} (확률: {})", line3.getOptionName(), line3.getRate());
 
         assertThat(line1.getOptionName()).contains("12%");
-        
-        // 4. 최종 확률 계산 (독립 시행: P(A) * P(B) * P(C))
-        // 데이터가 이미 0.0976 형태이므로 100으로 나눌 필요 없음! 🌟
+
         double prob1 = line1.getRate();
         double prob2 = line2.getRate();
         double prob3 = line3.getRate();
@@ -59,9 +59,10 @@ class CubeProbabilityRepositoryTest {
         double oneInN = 1.0 / totalProbability;
 
         log.info("==========================================");
-        // %로 표시하기 위해 100을 곱해서 출력
         log.info("STR 30%(12+9+9) 저격 성공 확률: {}%", String.format("%.10f", totalProbability * 100));
         log.info("기대 재설정 횟수: 약 {}개", String.format("%,.0f", oneInN));
         log.info("==========================================");
+
+        assertThat(totalProbability).isGreaterThan(0);
     }
 }

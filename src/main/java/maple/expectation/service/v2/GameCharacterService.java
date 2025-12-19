@@ -5,138 +5,86 @@ import maple.expectation.aop.annotation.LogExecutionTime;
 import maple.expectation.aop.annotation.TraceLog;
 import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.exception.CharacterNotFoundException;
-import maple.expectation.external.MaplestoryApiClient;
-import maple.expectation.service.v2.cache.LikeBufferStorage;
-import org.springframework.context.ApplicationContext;
-import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import maple.expectation.external.NexonApiClient;
+import maple.expectation.repository.v2.GameCharacterRepository;
+import maple.expectation.service.v2.impl.DatabaseLikeProcessor;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import maple.expectation.repository.v2.GameCharacterRepository;
-import lombok.RequiredArgsConstructor;
-
-import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
-@RequiredArgsConstructor
 @Service
 @TraceLog
 @Transactional(readOnly = true)
 public class GameCharacterService {
 
     private final GameCharacterRepository gameCharacterRepository;
-    private final MaplestoryApiClient maplestoryApiClient;
-    private final ApplicationContext applicationContext;
-    private final LikeBufferStorage likeBufferStorage;
+    private final NexonApiClient nexonApiClient;
+    private final LikeProcessor likeProcessor; // @Primary인 BufferedLikeProxy가 주입됨
+    private final DatabaseLikeProcessor databaseLikeProcessor; // 직접 DB 반영용
+
+    // 순환 참조 방지를 위해 한 쪽에 @Lazy를 적용합니다.
+    public GameCharacterService(
+            GameCharacterRepository gameCharacterRepository,
+            NexonApiClient nexonApiClient,
+            LikeProcessor likeProcessor,
+            @Lazy DatabaseLikeProcessor databaseLikeProcessor) {
+        this.gameCharacterRepository = gameCharacterRepository;
+        this.nexonApiClient = nexonApiClient;
+        this.likeProcessor = likeProcessor;
+        this.databaseLikeProcessor = databaseLikeProcessor;
+    }
 
     @Transactional
     public String saveCharacter(GameCharacter character) {
-        GameCharacter savedCharacter = gameCharacterRepository.save(character);
-        return savedCharacter.getUserIgn();
+        return gameCharacterRepository.save(character).getUserIgn();
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public GameCharacter findCharacterByUserIgn(String userIgn) {
         String cleanUserIgn = userIgn.trim();
-
-        // 새로 만든 Optional 메서드 사용!
         return gameCharacterRepository.findByUserIgn(cleanUserIgn)
                 .orElseGet(() -> {
-                    // DB에 없을 때 실행될 로직
-                    log.info("DB miss! API 호출: {}", cleanUserIgn);
-                    String ocid = maplestoryApiClient.getOcidByCharacterName(cleanUserIgn).getOcid();
-
-                    GameCharacter newChar = new GameCharacter();
-                    newChar.setUserIgn(cleanUserIgn);
+                    String ocid = nexonApiClient.getOcidByCharacterName(cleanUserIgn).getOcid();
+                    GameCharacter newChar = new GameCharacter(cleanUserIgn);
                     newChar.setOcid(ocid);
-                    gameCharacterRepository.save(newChar);
-
-                    return newChar;
+                    return gameCharacterRepository.save(newChar);
                 });
     }
 
-    // ❌ 1. [방어 없음] 일반적인 조회 -> 수정
-    // 동시에 100명이 들어오면 서로 덮어써서 숫자가 씹힘 (Race Condition)
-    @Transactional
-    @LogExecutionTime
-    public void clickLikeWithOutLock(String userIgn) {
-        GameCharacter character = getCharacterOrThrowException(userIgn);
-        character.like();
-    }
-
-    // ✅ 2. [비관적 락] 조회 시점부터 잠금
-    // 동시에 100명이 들어와도 줄을 서서(Sequential) 처리됨 -> 데이터 정합성 보장
-
-    @Transactional
-    @LogExecutionTime
-    public void clickLikeWithPessimisticLock(String userIgn) {
-        GameCharacter character = gameCharacterRepository.findByUserIgnWithPessimisticLock(userIgn)
-                .orElseThrow(CharacterNotFoundException::new);
-        character.like();
-    }
-
-    // ✅ 3. [낙관적 락]
     /**
-     * 🥉 3. [낙관적 락] 충돌 감지 후 재시도 (비교 분석용 - Legacy)
-     * <p>
-     * <strong>⚠️ 의사결정 (Decision Record):</strong><br>
-     * 100명 동시 요청 시 잦은 충돌(Conflict)과 재시도(Retry) 로직으로 인해
-     * 비관적 락(3.2s)보다 느린 성능(3.7s)을 보여 <strong>실제 로직에는 채택하지 않았습니다.</strong><br>
-     * 또한, {@code while(true)} 루프와 별도의 트랜잭션 분리({@code REQUIRES_NEW})로 인한
-     * <strong>코드 복잡성 증가</strong>가 유지보수에 불리하다고 판단했습니다.
-     * </p>
-     * * @deprecated 현재는 {@link #clickLikeWithPessimisticLock(String)} 사용을 권장합니다.
+     * 🚀 [V2용] 기본 프록시(Caffeine 캐시 버퍼) 사용
+     * 처리량(Throughput) 최우선 전략
      */
-    @Deprecated // 사용하지 않음을 코드 레벨에서 명시
     @LogExecutionTime
-    public void clickLikeWithOptimisticLock(String userIgn) {
-        // [프록시 객체 획득] - 현재 GameCharacterService의 프록시 객체를 가져옵니다.
-        // 이를 통해 호출해야 @Transactional AOP가 작동합니다.
-        GameCharacterService self = applicationContext.getBean(GameCharacterService.class);
-
-        while (true) {
-            try {
-                // 프록시 객체를 통해 호출하여 새로운 트랜잭션 시작
-                self.attemptOptimisticLike(userIgn);
-                return; // 성공 시 루프 종료
-            } catch (ObjectOptimisticLockingFailureException e) {
-                // 충돌 감지! 재시도 로직
-            }
-        }
+    public void clickLikeCache(String userIgn) {
+        likeProcessor.processLike(userIgn);
     }
 
     /**
-     * ✅ 4. [Core Transaction] - 실제 DB 업데이트와 @Version 체크를 담당.
-     * PUBLIC 메서드여야 AOP 프록시가 걸립니다.
+     * 🔒 [V1용] 비관적 락 강제 사용 (DB 즉시 반영)
+     * 데이터 정합성 최우선 전략
      */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void attemptOptimisticLike(String userIgn) {
-        // 락 없이 조회 (@Version 필드를 읽어옴)
-        GameCharacter character = getCharacterOrThrowException(userIgn);
-
-        character.like();
-        // 메서드 종료 시 JPA가 UPDATE 쿼리를 날리고 @Version 체크
+    @LogExecutionTime
+    @Transactional
+    public void clickLikePessimistic(String userIgn) {
+        databaseLikeProcessor.processLike(userIgn);
     }
 
-    public Long getLikeCount(String userIgn) {
-        return getCharacterOrThrowException(userIgn)
-                .getLikeCount();
-    }
-
-    public GameCharacter getCharacterOrThrowException(String userIgn) {
+    /**
+     * 중앙 집중식 조회 메서드 (프로세서들이 사용)
+     */
+    public GameCharacter getCharacterOrThrow(String userIgn) {
         return gameCharacterRepository.findByUserIgn(userIgn)
                 .orElseThrow(CharacterNotFoundException::new);
     }
 
-    @LogExecutionTime
-    public void clickLikeWithCache(String userIgn) {
-        // 1. 캐시에서 카운터 가져오기 (없으면 생성)
-        AtomicLong counter = likeBufferStorage.getCounter(userIgn);
-
-        // 2. 원자적 증가 (Thread-Safe)
-        long currentVal = counter.incrementAndGet();
-
-        // log.info("User: {}, BufferCount: {}", userIgn, currentVal); // 성능 테스트 시에는 주석 처리 추천
+    /**
+     * 중앙 집중식 비관적 락 조회 메서드 (DatabaseLikeProcessor가 사용)
+     */
+    public GameCharacter getCharacterForUpdate(String userIgn) {
+        return gameCharacterRepository.findByUserIgnWithPessimisticLock(userIgn)
+                .orElseThrow(CharacterNotFoundException::new);
     }
-
 }

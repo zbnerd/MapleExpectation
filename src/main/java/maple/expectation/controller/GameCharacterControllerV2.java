@@ -19,7 +19,7 @@ public class GameCharacterControllerV2 {
     private final GameCharacterService gameCharacterService;
 
     /**
-     * 캐릭터 장비 조회 (with Local Cache)
+     * 캐릭터 장비 조회
      */
     @GetMapping("/{userIgn}/equipment")
     public ResponseEntity<EquipmentResponse> getCharacterEquipment(@PathVariable String userIgn) {
@@ -27,21 +27,22 @@ public class GameCharacterControllerV2 {
     }
 
     /**
-     * 기대 비용 시뮬레이션 (Basic Iteration)
-     * ✅ 리팩토링 후: 복잡한 로직이 모두 사라지고 Service 호출 한 줄만 남음
+     * 기대 비용 시뮬레이션
+     * 리팩토링 성과: 내부에서 Decorator/Policy 패턴이 작동하지만 컨트롤러 코드는 매우 단순함
      */
     @GetMapping("/{userIgn}/expectation")
     public ResponseEntity<TotalExpectationResponse> calculateTotalCost(@PathVariable String userIgn) {
-        TotalExpectationResponse response = equipmentService.calculateTotalExpectationLegacy(userIgn);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(equipmentService.calculateTotalExpectationLegacy(userIgn));
     }
 
     /**
-     * 좋아요 기능
+     * 🚀 [V2] 프록시 기반 좋아요 (Caffeine 버퍼링)
+     * 리팩토링 후: @Primary 프록시가 주입된 서비스 메서드 호출
      */
     @PostMapping("/{userIgn}/like")
     public ResponseEntity<String> likeCharacterCaffeine(@PathVariable String userIgn) {
-        gameCharacterService.clickLikeWithCache(userIgn);
+        // 인터페이스 기반 호출로 실제로는 BufferedLikeProxy가 동작
+        gameCharacterService.clickLikeCache(userIgn);
         return ResponseEntity.ok("ok");
     }
 }

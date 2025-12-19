@@ -2,7 +2,6 @@ package maple.expectation.service.v1;
 
 import lombok.RequiredArgsConstructor;
 import maple.expectation.domain.v1.ItemEquipment;
-import maple.expectation.external.MaplestoryApiClient;
 import maple.expectation.repository.v1.ItemEquipmentRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,7 +15,6 @@ import java.util.stream.Collectors;
 public class ItemEquipmentService {
 
     private final ItemEquipmentRepository itemEquipmentRepository;
-    private final MaplestoryApiClient maplestoryApiClient;
     
     @Transactional
     public Long saveItem(ItemEquipment itemEquipment) {
