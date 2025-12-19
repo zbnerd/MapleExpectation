@@ -59,19 +59,24 @@ class CubeServiceTest {
                 .options(List.of("STR +12%", "STR +9%", "STR +9%"))
                 .build();
 
-        // when & then
-        log.info("첫 번째 호출 (계산 발생)...");
-        long startTime1 = System.currentTimeMillis();
+        // when
+        log.info("첫 번째 호출 (계산 발생 및 캐시 적재)...");
+        long startTime1 = System.nanoTime(); // 💡 밀리초 대신 나노초 사용
         cubeTrialsProvider.calculateExpectedTrials(input, CubeType.BLACK);
-        long duration1 = System.currentTimeMillis() - startTime1;
+        long duration1 = System.nanoTime() - startTime1;
 
-        log.info("두 번째 호출 (캐시 히트)...");
-        long startTime2 = System.currentTimeMillis();
+        log.info("두 번째 호출 (캐시 히트 기대)...");
+        long startTime2 = System.nanoTime();
         cubeTrialsProvider.calculateExpectedTrials(input, CubeType.BLACK);
-        long duration2 = System.currentTimeMillis() - startTime2;
+        long duration2 = System.nanoTime() - startTime2;
 
-        log.info("1차 소요 시간: {}ms, 2차 소요 시간: {}ms", duration1, duration2);
-        assertThat(duration2).isLessThanOrEqualTo(duration1);
+        log.info("1차 소요 시간: {}ns, 2차 소요 시간: {}ns", duration1, duration2);
+
+        // then
+        // 💡 캐시가 작동한다면 최소 10배 이상은 빨라야 합니다.
+        // 단순 비교(<=) 대신 캐시의 효과가 확실히 나타나는지 검증합니다.
+        assertThat(duration2).as("캐시된 호출은 최초 호출보다 훨씬 빨라야 합니다")
+                .isLessThan(duration1 / 2);
     }
 
     @Test
