@@ -42,7 +42,7 @@ public class GameCharacterControllerV2 {
     @PostMapping("/{userIgn}/like")
     public ResponseEntity<String> likeCharacterCaffeine(@PathVariable String userIgn) {
         // 인터페이스 기반 호출로 실제로는 BufferedLikeProxy가 동작
-        gameCharacterService.clickLike(userIgn);
+        gameCharacterService.clickLikeCache(userIgn);
         return ResponseEntity.ok("ok");
     }
 }

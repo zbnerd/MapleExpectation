@@ -1,69 +1,54 @@
-package maple.expectation.aop.aspect; // 패키지 변경됨
+package maple.expectation.aop.aspect;
 
 import jakarta.annotation.PreDestroy;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.aop.collector.PerformanceStatisticsCollector;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.stream.LongStream;
 
 @Aspect
 @Component
 @Slf4j
+@RequiredArgsConstructor // 수집기 주입을 위함
 public class LoggingAspect {
 
-    private final List<Long> executionTimes = Collections.synchronizedList(new ArrayList<>());
+    private final PerformanceStatisticsCollector statsCollector;
 
-    /**
-     * ★ 중요: 포인트컷 경로가 변경되었습니다.
-     * maple.expectation.aop.LogExecutionTime -> maple.expectation.aop.annotation.LogExecutionTime
-     */
     @Around("@annotation(maple.expectation.aop.annotation.LogExecutionTime)")
     public Object logExecutionTime(ProceedingJoinPoint joinPoint) throws Throwable {
         long start = System.currentTimeMillis();
 
-        Object proceed = joinPoint.proceed();
-
-        long end = System.currentTimeMillis();
-        executionTimes.add(end - start);
-
-        return proceed;
+        try {
+            return joinPoint.proceed();
+        } finally {
+            // 메서드 실행이 성공하든 실패하든 실행 시간 수집
+            long executionTime = System.currentTimeMillis() - start;
+            statsCollector.addTime(executionTime);
+        }
     }
 
+    /**
+     * 테스트 코드 등 외부에서 호출할 때 사용
+     */
     public List<Long> getAndClearExecutionTimes() {
-        List<Long> currentTimes = new ArrayList<>(executionTimes);
-        executionTimes.clear();
-        return currentTimes;
+        return statsCollector.getAndClear();
     }
 
     public String[] calculateStatistics(List<Long> times, String testName) {
-        if (times.isEmpty()) {
-            return new String[]{String.format("[%s] 실행된 호출이 없습니다.", testName)};
-        }
-
-        LongStream stream = times.stream().mapToLong(Long::longValue);
-        long sum = stream.sum();
-        long count = times.size();
-        double average = (double) sum / count;
-        long max = times.stream().mapToLong(Long::longValue).max().orElse(0L);
-
-        String[] stats = {String.format("🏆 [%s] 통계:",testName)
-                              ,String.format("총 호출 수: %d", count)
-                              ,String.format("총 시간: %dms", sum)
-                              ,String.format("평균 응답 시간: %.2fms", average)
-                              ,String.format("최대 응답 시간(Latency): %dms", max)};
-
-        return stats;
+        return statsCollector.calculateStatistics(times, testName);
     }
 
     @PreDestroy
     public void printFinalStatistics() {
-        String[] stats = calculateStatistics(executionTimes, "전체 성능 통계");
+        // 애플리케이션 종료 전 최종 통계 출력
+        List<Long> times = statsCollector.getAndClear();
+        String[] stats = statsCollector.calculateStatistics(times, "전체 성능 통계");
+
         log.info("========================================================");
         for (String stat : stats) {
             log.info(stat);

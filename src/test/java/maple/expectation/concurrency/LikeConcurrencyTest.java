@@ -6,11 +6,11 @@ import lombok.extern.slf4j.Slf4j;
 import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.repository.v2.GameCharacterRepository;
 import maple.expectation.service.v2.GameCharacterService;
-import maple.expectation.service.v2.impl.DatabaseLikeProcessor;
 import maple.expectation.support.SpringBootTestWithTimeLogging;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.Commit;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -29,20 +29,27 @@ public class LikeConcurrencyTest {
     @Autowired
     private GameCharacterService gameCharacterService;
 
-    @Autowired
-    private DatabaseLikeProcessor databaseLikeProcessor; // 직접 DB 반영 (비관적 락) 검증용
-
     @PersistenceContext
     private EntityManager entityManager;
+
+    @Autowired
+    private TransactionTemplate transactionTemplate; // 명시적 트랜잭션 커밋용
 
     private String targetUserIgn;
 
     @BeforeEach
     void setUp() {
         targetUserIgn = "TestUser_" + UUID.randomUUID().toString().substring(0, 8);
-        GameCharacter target = new GameCharacter(targetUserIgn);
-        target.setOcid("test-fake-ocid-" + UUID.randomUUID().toString());
-        gameCharacterRepository.save(target);
+
+        // 💡 1. 데이터를 별도 트랜잭션으로 커밋하여 다른 쓰레드가 볼 수 있게 함
+        transactionTemplate.execute(status -> {
+            GameCharacter target = new GameCharacter(targetUserIgn);
+            target.setOcid("test-fake-ocid-" + UUID.randomUUID().toString());
+            gameCharacterRepository.save(target);
+            return null;
+        });
+
+        log.info("🎯 테스트 유저 준비 완료: {}", targetUserIgn);
     }
 
     @AfterEach
@@ -65,18 +72,21 @@ public class LikeConcurrencyTest {
         for (int i = 0; i < userCount; i++) {
             executorService.submit(() -> {
                 try {
-                    databaseLikeProcessor.processLike(targetUserIgn);
+                    gameCharacterService.clickLikePessimistic(targetUserIgn);
+                } catch (Exception e) {
+                    // 💡 2. 쓰레드 내부에서 발생하는 에러를 반드시 로그로 확인
+                    log.error("💥 [Pessimistic] 좋아요 처리 중 에러: {}", e.getMessage());
                 } finally {
                     latch.countDown();
                 }
             });
         }
         latch.await();
+        executorService.shutdown();
 
         // 영속성 컨텍스트 초기화 후 DB에서 직접 다시 읽어옴
         entityManager.clear();
 
-        // getCharacterOrThrowException -> getCharacterOrThrow로 수정
         GameCharacter c = gameCharacterService.getCharacterOrThrow(targetUserIgn);
         log.info("✅ [Pessimistic Lock] 최종 좋아요: {}", c.getLikeCount());
 
@@ -93,7 +103,9 @@ public class LikeConcurrencyTest {
         for (int i = 0; i < userCount; i++) {
             executorService.submit(() -> {
                 try {
-                    gameCharacterService.clickLike(targetUserIgn);
+                    gameCharacterService.clickLikeCache(targetUserIgn);
+                } catch (Exception e) {
+                    log.error("💥 [Cache] 좋아요 처리 중 에러: {}", e.getMessage());
                 } finally {
                     latch.countDown();
                 }
@@ -105,7 +117,6 @@ public class LikeConcurrencyTest {
         log.info("💤 스케줄러 동기화 대기 중 (4.5s)...");
         Thread.sleep(4500);
 
-        // 검증 전 영속성 컨텍스트 초기화 필수
         entityManager.clear();
 
         GameCharacter characterAfterSync = gameCharacterService.getCharacterOrThrow(targetUserIgn);

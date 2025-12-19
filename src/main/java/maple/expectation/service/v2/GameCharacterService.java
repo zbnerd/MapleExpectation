@@ -1,7 +1,7 @@
 package maple.expectation.service.v2;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.aop.annotation.LogExecutionTime;
 import maple.expectation.aop.annotation.TraceLog;
 import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.exception.CharacterNotFoundException;
@@ -57,7 +57,8 @@ public class GameCharacterService {
      * 🚀 [V2용] 기본 프록시(Caffeine 캐시 버퍼) 사용
      * 처리량(Throughput) 최우선 전략
      */
-    public void clickLike(String userIgn) {
+    @LogExecutionTime
+    public void clickLikeCache(String userIgn) {
         likeProcessor.processLike(userIgn);
     }
 
@@ -65,6 +66,8 @@ public class GameCharacterService {
      * 🔒 [V1용] 비관적 락 강제 사용 (DB 즉시 반영)
      * 데이터 정합성 최우선 전략
      */
+    @LogExecutionTime
+    @Transactional
     public void clickLikePessimistic(String userIgn) {
         databaseLikeProcessor.processLike(userIgn);
     }
