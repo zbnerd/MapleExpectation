@@ -30,24 +30,21 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      # 1. 테스트 실행 (PR일 때도 실행됨)
       - name: Test with Gradle
         run: ./gradlew test
 
-      # 2. 배포용 JAR 파일 빌드 (Test는 위에서 했으니 여기선 생략 가능하지만, 안전하게 clean build)
-      # 기존 deploy.sh의 "-x test" 처럼 속도를 원하면 "./gradlew clean build -x test"로 변경 가능
       - name: Build JAR
         run: ./gradlew clean build -x test
 
-      # 3. 빌드된 JAR 파일을 다음 Job(deploy)으로 넘겨주기 위해 업로드
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
           name: maple-app
           path: build/libs/*.jar
           retention-days: 1
+
   # ==========================================
-  # 🚀 JOB 2: 서버 배포 (CD) - deploy.sh 로직 이식
+  # 🚀 JOB 2: 서버 배포 (CD)
   # ==========================================
   deploy:
     needs: build
@@ -61,7 +58,24 @@ jobs:
           name: maple-app
           path: ./build-artifact
 
-      # 1. 파일 전송 (단순화됨)
+      # -----------------------------------------------------------
+      # [추가] 1. 기존 프로세스 강제 종료 (포트 점유 해제)
+      # 파일을 복사하기 전에 실행 중인 프로세스를 죽여야 "Text file busy"를 피할 수 있습니다.
+      # -----------------------------------------------------------
+      - name: Stop Existing Process
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          script: |
+            echo "Stopping existing process on port 8080..."
+            # 8080 포트를 사용하는 프로세스를 찾아 종료 (없어도 에러내지 않음)
+            sudo fuser -k -n tcp 8080 || true
+            sleep 2
+
+      # 2. 파일 전송 (이제 파일이 사용 중이 아니므로 안전하게 덮어씁니다)
       - name: Copy JAR to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -72,8 +86,7 @@ jobs:
           target: "/home/${{ secrets.EC2_USERNAME }}"
           strip_components: 1
 
-      # 2. 실행위임
-
+      # 3. 배포 스크립트 실행 (새로운 프로세스 시작)
       - name: Execute Deploy Script
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -82,16 +95,12 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
           script: |
-            # 1. 환경변수 주입 (변수명 통일!)
+            # 환경변수 주입
             export DB_USER="${{ secrets.DB_USER }}"
             export DB_PASSWORD="${{ secrets.DB_PASSWORD }}"
-            
-            # [수정] 스프링 설정(${NEXON_API_KEY})과 이름 맞추기
             export NEXON_API_KEY="${{ secrets.NEXON_API_KEY }}" 
-            
-            # [추가] 디스코드 웹훅 URL 주입
             export DISCORD_WEBHOOK_URL="${{ secrets.DISCORD_WEBHOOK_URL }}"
             
-            # 2. 실행 권한 및 스크립트 실행
+            # 실행 권한 부여 및 스크립트 실행
             chmod +x /home/${{ secrets.EC2_USERNAME }}/deploy.sh
             /home/${{ secrets.EC2_USERNAME }}/deploy.sh
