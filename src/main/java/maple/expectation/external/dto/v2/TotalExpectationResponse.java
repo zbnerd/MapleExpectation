@@ -20,5 +20,6 @@ public class TotalExpectationResponse {
         private String potential;   // 잠재 옵션 (STR 12% | 9% | 9%)
         private long expectedCost;  // 이 아이템 하나 만드는 비용
         private String expectedCostText; // "80억" (선택)
+        private long expectedCount; // 기대 횟수
     }
 }

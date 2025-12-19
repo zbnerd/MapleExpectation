@@ -3,6 +3,8 @@ package maple.expectation.service.v2.calculator.impl;
 import lombok.RequiredArgsConstructor;
 import maple.expectation.service.v2.calculator.ExpectationCalculator;
 
+import java.util.Optional;
+
 /**
  * [Concrete Component] 강화가 시작되는 원본 아이템
  */
@@ -19,4 +21,7 @@ public class BaseItem implements ExpectationCalculator {
     public String getEnhancePath() {
         return itemName;
     }
+
+    @Override
+    public Optional<Long> getTrials() { return Optional.of(0L); }
 }

@@ -34,7 +34,7 @@ public class EquipmentService {
     private final GameCharacterService characterService;
     private final EquipmentDataProvider equipmentProvider;
     private final EquipmentStreamingParser streamingParser;
-    private final CubeService cubeService;
+    private final CubeTrialsProvider trialsProvider;
     private final CubeCostPolicy costPolicy;
 
     /**
@@ -77,13 +77,13 @@ public class EquipmentService {
 
             // 2. 블랙큐브(윗잠재) 데코레이터 장착
             // 나중에 레드큐브나 에디셔널이 추가되면 유저 선택에 따라 여기에 if문으로 감싸기만 하면 됩니다.
-            calculator = new BlackCubeDecorator(calculator, cubeService, costPolicy, input);
+            calculator = new BlackCubeDecorator(calculator, trialsProvider, costPolicy, input);
 
             // 3. 최종 비용 합산
             long cost = calculator.calculateCost();
             if (cost > 0) {
                 totalCost += cost;
-                itemDetails.add(mapToItemExpectation(input, cost));
+                itemDetails.add(mapToItemExpectation(input, cost, calculator.getTrials().orElse(0L)));
             }
         }
 
@@ -145,13 +145,14 @@ public class EquipmentService {
                 .build();
     }
 
-    private ItemExpectation mapToItemExpectation(CubeCalculationInput input, long cost) {
+    private ItemExpectation mapToItemExpectation(CubeCalculationInput input, long cost, long count) {
         return ItemExpectation.builder()
                 .part(input.getPart())
                 .itemName(input.getItemName())
                 .potential(String.join(" | ", input.getOptions()))
                 .expectedCost(cost)
                 .expectedCostText(String.format("%,d 메소", cost))
+                .expectedCount(count)
                 .build();
     }
 
