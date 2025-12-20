@@ -60,7 +60,7 @@ public class CubeProbabilityRepository {
 
         } catch (IOException e) {
             log.error("확률 데이터 로딩 중 치명적 오류 발생", e);
-            throw new CubeDataInitializationException("확률 데이터 파싱 중 I/O 오류 발생", e);
+            throw new CubeDataInitializationException("확률 데이터 파싱 중 I/O 오류 발생");
         }
     }
 
