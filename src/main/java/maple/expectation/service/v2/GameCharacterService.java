@@ -76,12 +76,12 @@ public class GameCharacterService {
 
     public GameCharacter getCharacterOrThrow(String userIgn) {
         return gameCharacterRepository.findByUserIgn(userIgn)
-                .orElseThrow(CharacterNotFoundException::new);
+                .orElseThrow(() -> new CharacterNotFoundException(userIgn));
     }
 
     @Transactional
     public GameCharacter getCharacterForUpdate(String userIgn) {
         return gameCharacterRepository.findByUserIgnWithPessimisticLock(userIgn)
-                .orElseThrow(CharacterNotFoundException::new);
+                .orElseThrow(() -> new CharacterNotFoundException(userIgn));
     }
 }

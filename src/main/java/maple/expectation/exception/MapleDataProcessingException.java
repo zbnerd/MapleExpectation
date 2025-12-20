@@ -1,7 +1,10 @@
 package maple.expectation.exception;
 
-public class MapleDataProcessingException extends RuntimeException {
-    public MapleDataProcessingException(String message, Throwable cause) {
-        super(message, cause);
+import maple.expectation.global.error.CommonErrorCode;
+import maple.expectation.global.error.exception.ServerBaseException;
+
+public class MapleDataProcessingException extends ServerBaseException {
+    public MapleDataProcessingException(String detail) {
+        super(CommonErrorCode.DATA_PROCESSING_ERROR, detail);
     }
 }

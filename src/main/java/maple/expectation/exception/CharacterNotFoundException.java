@@ -1,12 +1,10 @@
 package maple.expectation.exception;
 
-public class CharacterNotFoundException extends RuntimeException {
+import maple.expectation.global.error.CommonErrorCode;
+import maple.expectation.global.error.exception.ClientBaseException;
 
-    public CharacterNotFoundException() {
-        super();
-    }
-
-    public CharacterNotFoundException(String message) {
-        super(message);
+public class CharacterNotFoundException extends ClientBaseException {
+    public CharacterNotFoundException(String userIgn) {
+        super(CommonErrorCode.CHARACTER_NOT_FOUND, userIgn);
     }
 }

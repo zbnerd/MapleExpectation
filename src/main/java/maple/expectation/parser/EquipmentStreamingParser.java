@@ -105,7 +105,7 @@ public class EquipmentStreamingParser {
             return resultList;
 
         } catch (IOException e) {
-            throw new MapleDataProcessingException("큐브 계산 입력값 파싱 실패", e);
+            throw new MapleDataProcessingException("큐브 계산 입력값 파싱 실패");
         }
     }
 
@@ -115,7 +115,7 @@ public class EquipmentStreamingParser {
             objectMapper.writeValue(jsonGenerator, response);
             jsonGenerator.flush();
         } catch (IOException e) {
-            throw new MapleDataProcessingException("JSON 스트리밍 직렬화 실패", e);
+            throw new MapleDataProcessingException("JSON 스트리밍 직렬화 실패");
         }
     }
 

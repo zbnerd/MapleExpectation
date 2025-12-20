@@ -58,7 +58,7 @@ public class EquipmentDataProvider {
 
         } catch (JsonProcessingException e) {
             log.error("직렬화 중 오류 발생: {}", response.getDate(), e);
-            throw new EquipmentDataProcessingException("데이터 직렬화 실패", e);
+            throw new EquipmentDataProcessingException("데이터 직렬화 실패");
         }
     }
 }

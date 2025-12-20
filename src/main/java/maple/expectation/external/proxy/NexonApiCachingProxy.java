@@ -99,7 +99,7 @@ public class NexonApiCachingProxy implements NexonApiClient {
             String json = isGzip(rawData) ? GzipUtils.decompress(rawData) : new String(rawData, StandardCharsets.UTF_8);
             return objectMapper.readValue(json, EquipmentResponse.class);
         } catch (JsonProcessingException e) {
-            throw new EquipmentDataProcessingException("캐시 데이터 파싱 실패", e);
+            throw new EquipmentDataProcessingException("캐시 데이터 파싱 실패");
         }
     }
 
@@ -114,7 +114,7 @@ public class NexonApiCachingProxy implements NexonApiClient {
             entity.updateData(rawData);
             equipmentRepository.saveAndFlush(entity);
         } catch (JsonProcessingException e) {
-            throw new EquipmentDataProcessingException("데이터 직렬화 실패", e);
+            throw new EquipmentDataProcessingException("데이터 직렬화 실패");
         }
     }
 
