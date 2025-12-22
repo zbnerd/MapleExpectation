@@ -1,4 +1,6 @@
 spring:
+  application:
+    name: maple-expectation
   profiles:
     active: local # [Safety Guard] 별도 설정 없으면 무조건 로컬 모드
 
@@ -6,7 +8,7 @@ spring:
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
 
-  # 공통 JPA 설정 (배치 사이즈 등 성능 옵션은 공통으로 가져감)
+  # 공통 JPA 설정
   jpa:
     properties:
       hibernate:
@@ -15,15 +17,62 @@ spring:
         format_sql: false
         show_sql: false
 
-# 로깅 설정 (공통)
+# 📊 [PR #1, #3] 관측 가능성(Observability) 설정
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus # Prometheus 엔드포인트 활성화
+  endpoint:
+    health:
+      show-details: always # 서킷 브레이커 상태를 상세히 보기 위해 필수
+  health:
+    circuitbreakers:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name} # 모든 메트릭에 앱 이름 태그 부여
+
+# 🛡️ [PR #2] 회복 탄력성(Resilience4j) 설정
+resilience4j:
+  circuitbreaker:
+    circuit-breaker-aspect-order: 400
+    configs:
+      default:
+        registerHealthIndicator: true
+        slidingWindowSize: 10              # 최근 10번의 호출 기준
+        failureRateThreshold: 50           # 실패율 50% 이상 시 Open
+        waitDurationInOpenState: 10s       # Open 유지 시간
+        permittedNumberOfCallsInHalfOpenState: 3
+        ignoreExceptions:
+          # 비즈니스 예외(404 등)는 실패로 카운트하지 않음
+          - maple.expectation.global.error.exception.marker.CircuitBreakerIgnoreMarker
+    instances:
+      nexonApi:
+        baseConfig: default
+
+  retry:
+    retry-aspect-order: 399 # Retry가 CircuitBreaker를 감싸도록 설정
+    instances:
+      nexonApi:
+        maxAttempts: 3
+        waitDuration: 500ms
+        retryExceptions:
+          - java.util.concurrent.TimeoutException
+          - org.springframework.web.reactive.function.client.WebClientRequestException # 네트워크 단절 대응
+          - java.net.UnknownHostException
+
+# 📝 [PR #1] 로깅 설정 (MDC 포함)
 logging:
   level:
     root: info
     org.hibernate.SQL: info
-    org.hibernate.type.descriptor.sql: info
     org.hibernate.orm.jdbc.batch: ERROR
+  pattern:
+    # [%X{requestId}]가 핵심입니다!
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %5p [%X{requestId}] --- [%thread] %-40.40logger{39} : %m%n"
 
-# 넥슨 API 키 (환경변수 주입 권장)
+# 넥슨 API 키
 nexon:
   api:
     key: ${NEXON_API_KEY}
