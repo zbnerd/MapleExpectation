@@ -27,8 +27,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 
 @Slf4j
-@Primary
-@Component
+@Component("nexonApiCachingProxy")
 @RequiredArgsConstructor
 public class NexonApiCachingProxy implements NexonApiClient {
 
