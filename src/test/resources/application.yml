@@ -21,6 +21,7 @@ logging:
   level:
     root: info
     org.hibernate.SQL: debug
+    maple.expectation.external.proxy: DEBUG
 
 nexon:
   api:
