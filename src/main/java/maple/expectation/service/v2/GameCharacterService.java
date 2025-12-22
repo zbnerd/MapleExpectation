@@ -1,6 +1,7 @@
 package maple.expectation.service.v2;
 
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.aop.annotation.Locked;
 import maple.expectation.aop.annotation.LogExecutionTime;
 import maple.expectation.aop.annotation.ObservedTransaction;
 import maple.expectation.aop.annotation.TraceLog;
@@ -44,24 +45,19 @@ public class GameCharacterService {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Locked(key = "#userIgn") // userIgn 매개변수를 기반으로 락 획득
     public GameCharacter findCharacterByUserIgn(String userIgn) {
         String cleanUserIgn = userIgn.trim();
 
-        Optional<GameCharacter> firstCheck = gameCharacterRepository.findByUserIgn(cleanUserIgn);
-        if (firstCheck.isPresent()) {
-            return firstCheck.get();
-        }
-
-        synchronized (cleanUserIgn.intern()) {
-            return gameCharacterRepository.findByUserIgn(cleanUserIgn)
-                    .orElseGet(() -> {
-                        log.info("✨ 신규 캐릭터 생성 시도: {}", cleanUserIgn);
-                        String ocid = nexonApiClient.getOcidByCharacterName(cleanUserIgn).getOcid();
-                        GameCharacter newChar = new GameCharacter(cleanUserIgn);
-                        newChar.setOcid(ocid);
-                        return gameCharacterRepository.saveAndFlush(newChar);
-                    });
-        }
+        // 1차 캐시 확인
+        return gameCharacterRepository.findByUserIgn(cleanUserIgn)
+                .orElseGet(() -> {
+                    log.info("✨ 신규 캐릭터 생성 시도: {}", cleanUserIgn);
+                    String ocid = nexonApiClient.getOcidByCharacterName(cleanUserIgn).getOcid();
+                    GameCharacter newChar = new GameCharacter(cleanUserIgn);
+                    newChar.setOcid(ocid);
+                    return gameCharacterRepository.saveAndFlush(newChar);
+                });
     }
 
     @LogExecutionTime

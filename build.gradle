@@ -46,6 +46,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'io.micrometer:micrometer-registry-prometheus'
 
+    implementation 'com.google.guava:guava:33.5.0-jre'
+
     implementation 'io.github.resilience4j:resilience4j-spring-boot3'
     implementation 'io.github.resilience4j:resilience4j-micrometer'
 

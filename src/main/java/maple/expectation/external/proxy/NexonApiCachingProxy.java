@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.domain.v2.CharacterEquipment;
 import maple.expectation.global.error.exception.EquipmentDataProcessingException;
+import maple.expectation.global.lock.LockStrategy; // 추가
 import maple.expectation.external.NexonApiClient;
 import maple.expectation.external.dto.v2.CharacterOcidResponse;
 import maple.expectation.external.dto.v2.EquipmentResponse;
@@ -20,10 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.ReentrantLock;
 
 @Slf4j
 @Component("nexonApiCachingProxy")
@@ -33,17 +31,14 @@ public class NexonApiCachingProxy implements NexonApiClient {
     private final RealNexonApiClient realClient;
     private final CharacterEquipmentRepository equipmentRepository;
     private final ObjectMapper objectMapper;
+    private final LockStrategy lockStrategy;
 
     @Value("${app.optimization.use-compression:true}")
     private boolean USE_COMPRESSION;
 
-    // L1 Cache: OCID (1일 유지)
     private final Cache<String, String> ocidCache = Caffeine.newBuilder()
             .expireAfterWrite(1, TimeUnit.DAYS)
             .build();
-
-    // 동시성 제어용 Lock Map
-    private final Map<String, ReentrantLock> mutexMap = new ConcurrentHashMap<>();
 
     @Override
     public CharacterOcidResponse getOcidByCharacterName(String characterName) {
@@ -56,36 +51,26 @@ public class NexonApiCachingProxy implements NexonApiClient {
     }
 
     @Override
-    @Transactional // DB 저장이 포함되므로 트랜잭션 처리
+    @Transactional
     public EquipmentResponse getItemDataByOcid(String ocid) {
-        // 1. [L2 Cache 조회] DB 확인
         return equipmentRepository.findById(ocid)
                 .filter(this::isValidCache)
                 .map(this::convertToResponse)
-                .orElseGet(() -> synchronizedFetch(ocid));
+                .orElseGet(() -> lockStrategy.executeWithLock(ocid, () -> synchronizedFetch(ocid))); // Strategy 사용
     }
 
     private EquipmentResponse synchronizedFetch(String ocid) {
-        ReentrantLock lock = mutexMap.computeIfAbsent(ocid, k -> new ReentrantLock());
-        lock.lock();
-        try {
-            // Double-Check (락 획득 후 재조회)
-            return equipmentRepository.findById(ocid)
-                    .filter(this::isValidCache)
-                    .map(this::convertToResponse)
-                    .orElseGet(() -> {
-                        log.info("🔄 [Proxy] 캐시 만료 혹은 없음. API 호출 진행: {}", ocid);
-                        EquipmentResponse response = realClient.getItemDataByOcid(ocid);
-                        saveToDb(ocid, response);
-                        return response;
-                    });
-        } finally {
-            lock.unlock();
-            // 메모리 누수 방지: 락 대기열이 없으면 맵에서 삭제 고려 가능
-        }
+        // Double-Check (락 내부에서 다시 한번 DB 확인)
+        return equipmentRepository.findById(ocid)
+                .filter(this::isValidCache)
+                .map(this::convertToResponse)
+                .orElseGet(() -> {
+                    log.info("🔄 [Proxy] 캐시 만료 혹은 없음. API 호출 진행: {}", ocid);
+                    EquipmentResponse response = realClient.getItemDataByOcid(ocid);
+                    saveToDb(ocid, response);
+                    return response;
+                });
     }
-
-    // --- 내부 헬퍼 메서드 (Provider에서 이관된 로직) ---
 
     private boolean isValidCache(CharacterEquipment entity) {
         return entity != null && entity.getUpdatedAt().isAfter(LocalDateTime.now().minusMinutes(15));
