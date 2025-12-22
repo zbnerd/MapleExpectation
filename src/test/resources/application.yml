@@ -4,11 +4,9 @@ spring:
     driver-class-name: org.h2.Driver
     username: sa
     password:
-
     hikari:
       maximum-pool-size: 5
       minimum-idle: 5
-
   jpa:
     hibernate:
       ddl-auto: create-drop
@@ -17,11 +15,40 @@ spring:
         format_sql: true
         show_sql: true
 
+# 📊 [추가] 테스트 시 서킷 상태 확인을 위해 필요
+management:
+  endpoint:
+    health:
+      show-details: always
+  health:
+    circuitbreakers:
+      enabled: true
+
+# 🛡️ [추가] 테스트 핵심 설정 (이게 없어서 실패한 것!)
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        registerHealthIndicator: true
+        slidingWindowSize: 10              # 10번만 실패해도 서킷 오픈
+        failureRateThreshold: 50           # 실패율 50% 기준
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 3
+    instances:
+      nexonApi:
+        baseConfig: default
+
+  retry:
+    instances:
+      nexonApi:
+        maxAttempts: 3                     # 테스트 코드의 times(3)와 일치해야 함
+        waitDuration: 0ms                  # 테스트 속도를 위해 대기시간 0으로 설정
+
 logging:
   level:
     root: info
     org.hibernate.SQL: debug
-    maple.expectation.external.proxy: DEBUG
+    maple.expectation: DEBUG # 우리 패키지 로그 출력
 
 nexon:
   api:
@@ -33,7 +60,6 @@ discord:
 app:
   optimization:
     use-compression: false
-
   aop:
     trace:
       enabled: true
