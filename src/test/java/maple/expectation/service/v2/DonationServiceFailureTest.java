@@ -1,6 +1,6 @@
 package maple.expectation.service.v2;
 
-import maple.expectation.exception.CriticalTransactionFailureException;
+import maple.expectation.global.error.exception.CriticalTransactionFailureException;
 import maple.expectation.repository.v2.DonationHistoryRepository;
 import maple.expectation.repository.v2.MemberRepository;
 import maple.expectation.service.v2.alert.DiscordAlertService;
