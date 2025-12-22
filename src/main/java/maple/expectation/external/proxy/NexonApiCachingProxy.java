@@ -7,7 +7,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.domain.v2.CharacterEquipment;
-import maple.expectation.exception.EquipmentDataProcessingException;
+import maple.expectation.global.error.exception.EquipmentDataProcessingException;
 import maple.expectation.external.NexonApiClient;
 import maple.expectation.external.dto.v2.CharacterOcidResponse;
 import maple.expectation.external.dto.v2.EquipmentResponse;
@@ -15,7 +15,6 @@ import maple.expectation.external.impl.RealNexonApiClient;
 import maple.expectation.repository.v2.CharacterEquipmentRepository;
 import maple.expectation.util.GzipUtils;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 

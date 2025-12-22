@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import maple.expectation.exception.InsufficientPointException;
+import maple.expectation.global.error.exception.InsufficientPointException;
 
 import java.util.UUID;
 

@@ -2,10 +2,11 @@ package maple.expectation.service.v2;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.aop.annotation.ObservedTransaction;
 import maple.expectation.domain.v2.DonationHistory;
-import maple.expectation.exception.CriticalTransactionFailureException; // [NEW] 커스텀 예외
-import maple.expectation.exception.DeveloperNotFoundException;
-import maple.expectation.exception.InsufficientPointException;
+import maple.expectation.global.error.exception.CriticalTransactionFailureException; // [NEW] 커스텀 예외
+import maple.expectation.global.error.exception.DeveloperNotFoundException;
+import maple.expectation.global.error.exception.InsufficientPointException;
 import maple.expectation.repository.v2.DonationHistoryRepository;
 import maple.expectation.repository.v2.MemberRepository;
 import maple.expectation.service.v2.alert.DiscordAlertService;
@@ -22,11 +23,9 @@ public class DonationService {
     private final DiscordAlertService discordAlertService; // [NEW] 주입
 
     @Transactional
+    @ObservedTransaction("service.v2.DonationService.sendCoffee")
     public void sendCoffee(String guestUuid, Long developerId, Long amount, String requestId) {
         try {
-            // ==========================================
-            //  비즈니스 로직 (try 안에 깔끔하게 모음)
-            // ==========================================
 
             // 1️⃣ [INFO] 멱등성 방어
             if (donationHistoryRepository.existsByRequestId(requestId)) {

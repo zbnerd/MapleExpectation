@@ -4,7 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.exception.EquipmentDataProcessingException;
+import maple.expectation.global.error.exception.EquipmentDataProcessingException;
 import maple.expectation.external.NexonApiClient;
 import maple.expectation.external.dto.v2.EquipmentResponse;
 import maple.expectation.util.GzipUtils;

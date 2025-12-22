@@ -1,7 +1,7 @@
 package maple.expectation.external.impl;
 
 import lombok.RequiredArgsConstructor;
-import maple.expectation.exception.CharacterNotFoundException;
+import maple.expectation.global.error.exception.CharacterNotFoundException;
 import maple.expectation.external.NexonApiClient;
 import maple.expectation.external.dto.v2.CharacterOcidResponse;
 import maple.expectation.external.dto.v2.EquipmentResponse;

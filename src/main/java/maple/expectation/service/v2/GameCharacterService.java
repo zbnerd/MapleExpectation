@@ -2,9 +2,10 @@ package maple.expectation.service.v2;
 
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.aop.annotation.LogExecutionTime;
+import maple.expectation.aop.annotation.ObservedTransaction;
 import maple.expectation.aop.annotation.TraceLog;
 import maple.expectation.domain.v2.GameCharacter;
-import maple.expectation.exception.CharacterNotFoundException;
+import maple.expectation.global.error.exception.CharacterNotFoundException;
 import maple.expectation.external.NexonApiClient;
 import maple.expectation.repository.v2.GameCharacterRepository;
 import maple.expectation.service.v2.impl.DatabaseLikeProcessor;
@@ -64,12 +65,14 @@ public class GameCharacterService {
     }
 
     @LogExecutionTime
+    @ObservedTransaction("service.v2.GameCharacterService.clickLikeCache")
     public void clickLikeCache(String userIgn) {
         likeProcessor.processLike(userIgn);
     }
 
     @LogExecutionTime
     @Transactional
+    @ObservedTransaction("service.v2.GameCharacterService.clickLikePessimistic")
     public void clickLikePessimistic(String userIgn) {
         databaseLikeProcessor.processLike(userIgn);
     }
