@@ -1,4 +1,6 @@
 spring:
+  application:
+    name: maple-expectation
   profiles:
     active: local # [Safety Guard] 별도 설정 없으면 무조건 로컬 모드
 
@@ -15,6 +17,22 @@ spring:
         format_sql: false
         show_sql: false
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus
+  endpoint:
+    health:
+      show-details: always
+  health:
+    circuitbreakers:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+
 # 로깅 설정 (공통)
 logging:
   level:
@@ -22,6 +40,37 @@ logging:
     org.hibernate.SQL: info
     org.hibernate.type.descriptor.sql: info
     org.hibernate.orm.jdbc.batch: ERROR
+  pattern:
+    # [%X{requestId}] 부분을 추가하여 MDC에 저장된 ID를 로그마다 출력합니다.
+    level: "%5p [%X{requestId}]"
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %5p [%X{requestId}] --- [%thread] %-40.40logger{39} : %m%n"
+
+resilience4j:
+  circuitbreaker:
+    circuit-breaker-aspect-order: 400
+    configs:
+      default:
+        registerHealthIndicator: true
+        slidingWindowSize: 10              # 최근 10번의 호출을 기준으로 판단
+        failureRateThreshold: 50           # 실패율 50% 이상 시 Circuit Open
+        waitDurationInOpenState: 10s       # Open 상태 유지 시간 (이후 Half-open으로 전환)
+        permittedNumberOfCallsInHalfOpenState: 3 # Half-open 상태에서 시도할 호출 수
+        ignoreExceptions:
+          - maple.expectation.global.error.exception.marker.CircuitBreakerIgnoreMarker
+    instances:
+      nexonApi:
+        baseConfig: default
+
+  retry:
+    retry-aspect-order: 399
+
+    instances:
+      nexonApi:
+        maxAttempts: 3                     # 최대 3번 시도
+        waitDuration: 500ms                # 재시도 간격
+        retryExceptions:                   # 재시도할 예외들
+          - java.util.concurrent.TimeoutException
+          - org.springframework.web.client.ResourceAccessException
 
 # 넥슨 API 키 (환경변수 주입 권장)
 nexon:
