@@ -3,6 +3,8 @@ spring:
     name: maple-expectation
   profiles:
     active: local # [Safety Guard] 별도 설정 없으면 무조건 로컬 모드
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
 
   # 공통 드라이버 설정
   datasource:
@@ -78,6 +80,9 @@ logging:
 nexon:
   api:
     key: ${NEXON_API_KEY}
+
+server:
+  shutdown: graceful
 
 # 앱 전용 설정
 app:
