@@ -7,6 +7,8 @@ spring:
   # 공통 드라이버 설정
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      register-mbeans: true # JMX를 통해 지표 노출 활성화
 
   # 공통 JPA 설정
   jpa:
@@ -22,7 +24,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health, info, prometheus # Prometheus 엔드포인트 활성화
+        include: "health,info,metrics,prometheus"
   endpoint:
     health:
       show-details: always # 서킷 브레이커 상태를 상세히 보기 위해 필수
