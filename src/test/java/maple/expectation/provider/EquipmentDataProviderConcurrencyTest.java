@@ -5,11 +5,13 @@ import maple.expectation.domain.v2.CharacterEquipment;
 import maple.expectation.external.dto.v2.EquipmentResponse;
 import maple.expectation.external.impl.RealNexonApiClient;
 import maple.expectation.external.proxy.NexonApiCachingProxy;
+import maple.expectation.global.lock.GuavaLockStrategy;
+import maple.expectation.global.lock.LockStrategy;
 import maple.expectation.repository.v2.CharacterEquipmentRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -28,7 +30,6 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class EquipmentDataProviderConcurrencyTest {
 
-    @InjectMocks
     private NexonApiCachingProxy proxy;
 
     @Mock
@@ -39,6 +40,13 @@ class EquipmentDataProviderConcurrencyTest {
 
     @Spy
     private ObjectMapper objectMapper = new ObjectMapper();
+
+    private final LockStrategy lockStrategy = new GuavaLockStrategy();
+
+    @BeforeEach
+    void setUp() {
+        proxy = new NexonApiCachingProxy(realClient, equipmentRepository, objectMapper, lockStrategy);
+    }
 
     @Test
     @DisplayName("Proxy: 동시에 10명이 같은 유저 조회 시, 실제 API 호출은 1회만 발생해야 한다")
@@ -51,12 +59,12 @@ class EquipmentDataProviderConcurrencyTest {
 
         AtomicReference<CharacterEquipment> mockDb = new AtomicReference<>(null);
 
-        // DB 조회 Mocking (Proxy 내부의 isValidCache 로직을 타게 됨)
+        // DB 조회 Mock (스레드들이 락을 획득한 후 이 로직을 타게 됨)
         lenient().when(equipmentRepository.findById(targetOcid)).thenAnswer(invocation ->
                 Optional.ofNullable(mockDb.get())
         );
 
-        // DB 저장 Mocking
+        // DB 저장 Mock
         lenient().when(equipmentRepository.saveAndFlush(any())).thenAnswer(invocation -> {
             CharacterEquipment entity = invocation.getArgument(0);
             ReflectionTestUtils.setField(entity, "updatedAt", LocalDateTime.now());
@@ -64,17 +72,15 @@ class EquipmentDataProviderConcurrencyTest {
             return entity;
         });
 
-        // 실제 API 호출은 딱 1번만 성공한다고 가정
+        // 실제 API 호출 설정
         when(realClient.getItemDataByOcid(targetOcid)).thenReturn(new EquipmentResponse());
-
-        // 설정값 주입
         ReflectionTestUtils.setField(proxy, "USE_COMPRESSION", false);
 
         // When
         for (int i = 0; i < threadCount; i++) {
             executor.submit(() -> {
                 try {
-                    proxy.getItemDataByOcid(targetOcid); // Proxy를 호출!
+                    proxy.getItemDataByOcid(targetOcid); // 이제 진짜 락이 작동함!
                 } catch (Exception e) {
                     e.printStackTrace();
                 } finally {
@@ -86,9 +92,9 @@ class EquipmentDataProviderConcurrencyTest {
         latch.await();
 
         // Then
-        // 1. 실제 외부 API(realClient) 호출은 1회여야 함
+        // 1. 진짜 락이 작동했다면, 첫 번째 스레드만 API를 호출하고 나머지는 DB(mockDb)에서 가져갔어야 함
         verify(realClient, times(1)).getItemDataByOcid(targetOcid);
-        // 2. DB 저장(saveAndFlush)도 1회여야 함
+        // 2. 저장도 1번만 일어남
         verify(equipmentRepository, times(1)).saveAndFlush(any());
     }
 }
