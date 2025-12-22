@@ -163,3 +163,22 @@ https://github.com/zbnerd/MapleExpectation/blob/master/.github/workflows/gradle.
   export DB_USERNAME=root
   export DB_PASSWORD=your_password
   java -jar build/libs/donation-service.jar
+
+## 📈 모니터링 및 운영 가이드 (Operational Checklist)
+
+본 프로젝트는 **Spring Boot Actuator**와 **Micrometer**를 통해 시스템 내부 지표를 노출하며, 이를 바탕으로 데이터 기반의 장애 대응 및 성능 튜닝을 수행합니다.
+
+### 1. 핵심 모니터링 지표 (Core Metrics)
+
+| 분류 | 지표 명칭 (Metric Name) | 위험 임계치 (Threshold) | 비즈니스 의미 및 대응 로직 |
+| :--- | :--- | :--- | :--- |
+| **App** | `like.buffer.total_pending` | **> 1,000** | **Saturation:** 좋아요 버퍼 유입 속도가 DB 반영보다 빠름. 스케줄러 주기 단축 검토. |
+| **App** | `scheduler.like.sync_max` | **> 1.0s** | **Latency:** 3초 주기 동기화 작업의 병목 발생. 배치 사이즈 최적화 필요. |
+| **Ext** | `resilience4j.circuitbreaker.state` | **"open"** | **Error:** 넥슨 API 장애로 인한 서킷 개방. 외부 의존성 차단 및 사용자 공지. |
+| **DB** | `hikaricp.connections.pending` | **> 0** | **Saturation:** DB 커넥션 풀 고갈. 쿼리 성능 점검 또는 풀 사이즈 증설. |
+| **Infra** | `jvm.memory.used_bytes` | **> 85%** | **Saturation:** 메모리 압박 심화. GC 로그 분석 및 Heap 메모리 증설 검토. |
+
+### 2. 장애 감지 및 알림 Flow (Alerting)
+
+- **임계치 초과 시:** `DiscordAlertService`를 통해 개발팀 채널로 즉시 Critical Alert 전송.
+- **추적 ID 활용:** 모든 에러 로그 및 메트릭은 `MDCFilter`에서 생성된 8자리 `requestId`와 연결되어 빠른 MTTR(장애 복구 시간) 확보.
