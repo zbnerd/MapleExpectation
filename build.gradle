@@ -51,6 +51,8 @@ dependencies {
     implementation 'io.github.resilience4j:resilience4j-spring-boot3'
     implementation 'io.github.resilience4j:resilience4j-micrometer'
 
+    implementation 'org.redisson:redisson-spring-boot-starter:3.27.0'
+
 
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'com.h2database:h2'

@@ -8,7 +8,6 @@ services:
     ports:
       - "3306:3306"
     environment:
-      # .env 파일에서 값을 읽어옵니다
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
       MYSQL_DATABASE: ${DB_SCHEMA_NAME}
       TZ: ${TZ}
@@ -19,5 +18,16 @@ services:
     volumes:
       - ./mysql_data:/var/lib/mysql
 
+  redis:
+    image: redis:latest
+    container_name: maple-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - ./redis_data:/data
+
 volumes:
   mysql_data:
+  redis_data:
