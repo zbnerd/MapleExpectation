@@ -3,6 +3,7 @@ package maple.expectation.scheduler;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.global.error.exception.DistributedLockException;
 import maple.expectation.global.lock.LockStrategy; // 👈 추가
 import maple.expectation.service.v2.LikeSyncService;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -22,11 +23,15 @@ public class LikeSyncScheduler {
      */
     @Scheduled(fixedRate = 3000)
     public void scheduledSync() {
-        // "like-sync-lock"이라는 키로 분산 락 획득 시도
-        lockStrategy.executeWithLock("like-sync-lock", () -> {
-            likeSyncService.syncLikesToDatabase();
-            return null;
-        });
+        try {
+
+            lockStrategy.executeWithLock("like-sync-lock", 0, 10, () -> {
+                likeSyncService.syncLikesToDatabase();
+                return null;
+            });
+        } catch (DistributedLockException e) {
+            log.info("⏭️ 다른 서버가 작업 중이므로 스케줄러를 스킵합니다.");
+        }
     }
 
     /**

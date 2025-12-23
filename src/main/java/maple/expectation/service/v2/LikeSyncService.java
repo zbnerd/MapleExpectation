@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Map;
-import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
@@ -24,7 +23,6 @@ public class LikeSyncService {
     @ObservedTransaction("scheduler.like.sync")
     public void syncLikesToDatabase() {
         Map<String, AtomicLong> bufferMap = likeBufferStorage.getCache().asMap();
-
         if (bufferMap.isEmpty()) return;
 
         log.debug("[Sync] 데이터 동기화 시작 (대상 유저 수: {})", bufferMap.size());
