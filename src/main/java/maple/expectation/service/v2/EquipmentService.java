@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture; // 추가
 
 @Slf4j
 @TraceLog
@@ -39,10 +40,12 @@ public class EquipmentService {
 
     /**
      * [V3 API] Streaming Parser 기반
+     * 💡 변경: 비동기 데이터 획득 후 join()으로 결과를 기다려 계산 수행
      */
     public TotalExpectationResponse calculateTotalExpectation(String userIgn) {
         String ocid = getOcid(userIgn);
-        byte[] rawData = equipmentProvider.getRawEquipmentData(ocid);
+        // 💡 Scenario C 대응: 3초 타임아웃이 걸린 비동기 호출
+        byte[] rawData = equipmentProvider.getRawEquipmentData(ocid).join();
         List<CubeCalculationInput> inputs = streamingParser.parseCubeInputs(rawData);
 
         return calculateCostFromInputs(userIgn, inputs);
@@ -72,14 +75,9 @@ public class EquipmentService {
         List<ItemExpectation> itemDetails = new ArrayList<>();
 
         for (CubeCalculationInput input : inputs) {
-            // 1. 시작점: 기본 아이템
             ExpectationCalculator calculator = new BaseItem(input.getItemName());
-
-            // 2. 블랙큐브(윗잠재) 데코레이터 장착
-            // 나중에 레드큐브나 에디셔널이 추가되면 유저 선택에 따라 여기에 if문으로 감싸기만 하면 됩니다.
             calculator = new BlackCubeDecorator(calculator, trialsProvider, costPolicy, input);
 
-            // 3. 최종 비용 합산
             long cost = calculator.calculateCost();
             if (cost > 0) {
                 totalCost += cost;
@@ -100,7 +98,8 @@ public class EquipmentService {
      */
     public void streamEquipmentData(String userIgn, OutputStream outputStream) {
         String ocid = getOcid(userIgn);
-        byte[] rawData = equipmentProvider.getRawEquipmentData(ocid);
+        // 💡 비동기로 데이터를 가져와서 스트림에 기록
+        byte[] rawData = equipmentProvider.getRawEquipmentData(ocid).join();
 
         try {
             if (isGzip(rawData)) {
@@ -114,9 +113,14 @@ public class EquipmentService {
         }
     }
 
+    /**
+     * 💡 중요 수정: 반환 타입 대응
+     * NexonApiClient가 CompletableFuture를 반환하므로 join()으로 동기화 처리
+     */
     public EquipmentResponse getEquipmentByUserIgn(String userIgn) {
         String ocid = getOcid(userIgn);
-        return equipmentProvider.getEquipmentResponse(ocid);
+        // 💡 CompletableFuture의 join()을 사용하여 결과를 가져옴 (장애 시 Fallback 작동)
+        return equipmentProvider.getEquipmentResponse(ocid).join();
     }
 
     // --- Private Helper Methods ---
