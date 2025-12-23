@@ -51,6 +51,8 @@ resilience4j:
         ignoreExceptions:
           # 비즈니스 예외(404 등)는 실패로 카운트하지 않음
           - maple.expectation.global.error.exception.marker.CircuitBreakerIgnoreMarker
+        recordExceptions:
+          - maple.expectation.global.error.exception.marker.CircuitBreakerRecordMarker
     instances:
       nexonApi:
         baseConfig: default

@@ -12,33 +12,35 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CompletableFuture; // 추가
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class EquipmentDataProvider {
 
-    private final NexonApiClient nexonApiClient; // @Primary인 Proxy 주입
+    private final NexonApiClient nexonApiClient; // @Primary인 ResilientNexonApiClient 주입
     private final ObjectMapper objectMapper;
 
     @Value("${app.optimization.use-compression:true}")
     private boolean USE_COMPRESSION;
 
     /**
-     * [V3 API용] Raw Data 제공 (Streaming + Optional GZIP)
+     * [V3 API용] Raw Data 제공 (비동기 처리)
+     * 💡 반환 타입을 CompletableFuture<byte[]>로 변경
      */
-    public byte[] getRawEquipmentData(String ocid) {
-        // 1. 프록시를 통해 최적화된(캐시된) 데이터 획득
-        EquipmentResponse response = nexonApiClient.getItemDataByOcid(ocid);
-
-        // 2. 스트리밍을 위한 직렬화 수행
-        return serializeResponse(response);
+    public CompletableFuture<byte[]> getRawEquipmentData(String ocid) {
+        // 1. 비동기로 클라이언트 데이터 호출
+        // 2. thenApply를 통해 결과가 오면 직렬화(Serialization) 수행
+        return nexonApiClient.getItemDataByOcid(ocid)
+                .thenApply(this::serializeResponse);
     }
 
     /**
-     * [V2 API용] 객체 제공
+     * [V2 API용] 객체 제공 (비동기 처리)
+     * 💡 반환 타입을 CompletableFuture<EquipmentResponse>로 변경
      */
-    public EquipmentResponse getEquipmentResponse(String ocid) {
+    public CompletableFuture<EquipmentResponse> getEquipmentResponse(String ocid) {
         return nexonApiClient.getItemDataByOcid(ocid);
     }
 
@@ -47,10 +49,8 @@ public class EquipmentDataProvider {
      */
     private byte[] serializeResponse(EquipmentResponse response) {
         try {
-            // 객체를 JSON 문자열로 변환
             String jsonString = objectMapper.writeValueAsString(response);
 
-            // 설정에 따라 GZIP 압축 여부 결정
             if (USE_COMPRESSION) {
                 return GzipUtils.compress(jsonString);
             }

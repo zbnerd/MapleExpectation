@@ -19,6 +19,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture; // 추가
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -59,7 +60,7 @@ class EquipmentDataProviderConcurrencyTest {
 
         AtomicReference<CharacterEquipment> mockDb = new AtomicReference<>(null);
 
-        // DB 조회 Mock (스레드들이 락을 획득한 후 이 로직을 타게 됨)
+        // DB 조회 Mock
         lenient().when(equipmentRepository.findById(targetOcid)).thenAnswer(invocation ->
                 Optional.ofNullable(mockDb.get())
         );
@@ -72,15 +73,19 @@ class EquipmentDataProviderConcurrencyTest {
             return entity;
         });
 
-        // 실제 API 호출 설정
-        when(realClient.getItemDataByOcid(targetOcid)).thenReturn(new EquipmentResponse());
+        // ✨ 수정 포인트 1: 반환 타입을 CompletableFuture.completedFuture로 감싸기
+        when(realClient.getItemDataByOcid(targetOcid))
+                .thenReturn(CompletableFuture.completedFuture(new EquipmentResponse()));
+
         ReflectionTestUtils.setField(proxy, "USE_COMPRESSION", false);
 
         // When
         for (int i = 0; i < threadCount; i++) {
             executor.submit(() -> {
                 try {
-                    proxy.getItemDataByOcid(targetOcid); // 이제 진짜 락이 작동함!
+                    // ✨ 수정 포인트 2: 비동기 작업이므로 .join()을 호출해 로직이 끝날 때까지 스레드를 대기시켜야 함
+                    // 그래야 락 해제와 DB 저장이 끝난 후 latch가 줄어듭니다.
+                    proxy.getItemDataByOcid(targetOcid).join();
                 } catch (Exception e) {
                     e.printStackTrace();
                 } finally {
@@ -92,7 +97,7 @@ class EquipmentDataProviderConcurrencyTest {
         latch.await();
 
         // Then
-        // 1. 진짜 락이 작동했다면, 첫 번째 스레드만 API를 호출하고 나머지는 DB(mockDb)에서 가져갔어야 함
+        // 1. 진짜 락이 작동했다면, 첫 번째 스레드만 API를 호출하고 나머지는 DB에서 가져갔어야 함
         verify(realClient, times(1)).getItemDataByOcid(targetOcid);
         // 2. 저장도 1번만 일어남
         verify(equipmentRepository, times(1)).saveAndFlush(any());
