@@ -2,11 +2,13 @@ package maple.expectation.controller;
 
 import lombok.RequiredArgsConstructor;
 import maple.expectation.service.v2.alert.DiscordAlertService;
+import org.springframework.context.annotation.Profile;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequiredArgsConstructor
+@Profile("!prod")
 public class AlertTestController {
 
     private final DiscordAlertService alertService;
