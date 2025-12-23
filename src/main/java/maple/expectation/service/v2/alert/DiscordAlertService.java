@@ -37,16 +37,20 @@ public class DiscordAlertService {
         try {
             String jsonPayload = createDiscordPayload(title, description, e);
 
+            // 💡 보안상 Webhook URL 마스킹 처리 (앞 20자 + ... + 뒤 8자만 노출)
+            String maskedUrl = webhookUrl.substring(0, Math.min(webhookUrl.length(), 20)) + "..." +
+                    webhookUrl.substring(Math.max(0, webhookUrl.length() - 8));
+
             webClient.post()
                     .uri(webhookUrl)
                     .contentType(MediaType.APPLICATION_JSON)
                     .bodyValue(jsonPayload)
                     .retrieve()
-                    // 2xx 응답만 받음 (비동기로 실행하고 결과를 기다리지 않음)
                     .toBodilessEntity()
                     .subscribe(
-                        response -> log.info("Discord Alert Sent successfully to {}", webhookUrl),
-                        error -> log.error("Failed to send Discord Alert. Check Webhook URL: {}", error.getMessage())
+                            // 💡 마스킹된 URL 로그 출력
+                            response -> log.info("Discord Alert Sent successfully to {}", maskedUrl),
+                            error -> log.error("Failed to send Discord Alert. Reason: {}", error.getMessage())
                     );
         } catch (Exception ex) {
             log.error("Failed to create Discord payload or send request.", ex);

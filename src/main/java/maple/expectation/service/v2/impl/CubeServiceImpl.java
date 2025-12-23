@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.Set;
 
 @Slf4j
-@Service
+@Service("cubeServiceImpl")
 @TraceLog
 @RequiredArgsConstructor
 public class CubeServiceImpl implements CubeTrialsProvider {

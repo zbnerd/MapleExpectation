@@ -5,6 +5,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import maple.expectation.domain.v2.CubeType;
 import maple.expectation.dto.CubeCalculationInput;
 import maple.expectation.service.v2.CubeTrialsProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
@@ -17,12 +18,11 @@ public class CubeTrialsCachingProxy implements CubeTrialsProvider {
     private final CubeTrialsProvider target; // 실제 계산을 수행할 CubeServiceImpl
     private final Cache<String, Long> trialsCache;
 
-    public CubeTrialsCachingProxy(CubeTrialsProvider cubeServiceImpl) {
+    public CubeTrialsCachingProxy(@Qualifier("cubeServiceImpl") CubeTrialsProvider cubeServiceImpl) {
         this.target = cubeServiceImpl;
-        // Caffeine 캐시 설정
         this.trialsCache = Caffeine.newBuilder()
-                .expireAfterAccess(30, TimeUnit.MINUTES) // 30분간 사용 안하면 제거
-                .maximumSize(10_000) // 최대 1만 건 저장 (메모리 관리)
+                .expireAfterAccess(30, TimeUnit.MINUTES)
+                .maximumSize(10_000)
                 .build();
     }
 
