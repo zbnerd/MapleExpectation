@@ -25,10 +25,6 @@ public class EquipmentDataProvider {
     @Value("${app.optimization.use-compression:true}")
     private boolean USE_COMPRESSION;
 
-    /**
-     * [V3 API용] Raw Data 제공 (비동기 처리)
-     * 💡 반환 타입을 CompletableFuture<byte[]>로 변경
-     */
     public CompletableFuture<byte[]> getRawEquipmentData(String ocid) {
         // 1. 비동기로 클라이언트 데이터 호출
         // 2. thenApply를 통해 결과가 오면 직렬화(Serialization) 수행
@@ -36,10 +32,6 @@ public class EquipmentDataProvider {
                 .thenApply(this::serializeResponse);
     }
 
-    /**
-     * [V2 API용] 객체 제공 (비동기 처리)
-     * 💡 반환 타입을 CompletableFuture<EquipmentResponse>로 변경
-     */
     public CompletableFuture<EquipmentResponse> getEquipmentResponse(String ocid) {
         return nexonApiClient.getItemDataByOcid(ocid);
     }

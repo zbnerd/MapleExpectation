@@ -1,5 +1,6 @@
 package maple.expectation.service.v2.impl;
 
+import maple.expectation.aop.annotation.BufferedLike;
 import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.service.v2.GameCharacterService;
 import maple.expectation.service.v2.LikeProcessor;
@@ -18,9 +19,9 @@ public class DatabaseLikeProcessor implements LikeProcessor {
     }
 
     @Override
+    @BufferedLike
     @Transactional
     public void processLike(String userIgn) {
-        // 서비스의 중앙 메서드를 통해 락이 걸린 엔티티 획득
         GameCharacter character = gameCharacterService.getCharacterForUpdate(userIgn);
         character.like();
     }
