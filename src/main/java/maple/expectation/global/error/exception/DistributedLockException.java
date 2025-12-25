@@ -9,13 +9,11 @@ import maple.expectation.global.error.exception.marker.CircuitBreakerIgnoreMarke
  */
 public class DistributedLockException extends ServerBaseException implements CircuitBreakerIgnoreMarker {
 
-    // 1. 기존 에러 코드 중 DATABASE_TRANSACTION_FAILURE(S002) 혹은
-    //    DATA_PROCESSING_ERROR(S004)를 활용하는 것이 적절합니다.
-    public DistributedLockException(String detail) {
-        super(CommonErrorCode.DATABASE_TRANSACTION_FAILURE, detail);
+    public DistributedLockException(String lockKey) {
+        super(CommonErrorCode.DATABASE_TRANSACTION_FAILURE, "락 획득 실패: " + lockKey);
     }
 
-    public DistributedLockException(String detail, Throwable cause) {
-        super(CommonErrorCode.DATABASE_TRANSACTION_FAILURE, detail);
+    public DistributedLockException(String lockKey, Throwable cause) {
+        super(CommonErrorCode.DATABASE_TRANSACTION_FAILURE, "락 시도 중 오류: " + lockKey);
     }
 }
