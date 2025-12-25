@@ -1,12 +1,10 @@
 package maple.expectation.service.v2;
 
-import jakarta.persistence.EntityManager;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.domain.v2.CharacterEquipment;
 import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.external.dto.v2.CharacterOcidResponse;
 import maple.expectation.external.dto.v2.EquipmentResponse;
-import maple.expectation.external.dto.v2.TotalExpectationResponse;
 import maple.expectation.external.impl.RealNexonApiClient;
 import maple.expectation.parser.EquipmentStreamingParser;
 import maple.expectation.provider.EquipmentDataProvider;
@@ -14,26 +12,24 @@ import maple.expectation.repository.v2.CharacterEquipmentRepository;
 import maple.expectation.repository.v2.GameCharacterRepository;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.test.util.AopTestUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.lang.reflect.Field;
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.concurrent.CompletableFuture; // 1. 임포트 추가
+import java.util.concurrent.CompletableFuture;
 import java.util.zip.GZIPOutputStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.*;
 
 @Slf4j
-@SpringBootTest
+@SpringBootTest // 💡 주의: @Transactional은 다른 스레드와의 데이터 공유를 위해 제거함
 class EquipmentServiceTest {
 
     @Autowired
@@ -45,10 +41,8 @@ class EquipmentServiceTest {
     @Autowired
     private GameCharacterRepository gameCharacterRepository;
 
-    @Autowired
-    private EntityManager em;
-
-    @MockitoBean
+    @MockitoSpyBean
+    @Qualifier("realNexonApiClient")
     private RealNexonApiClient realNexonApiClient;
 
     @MockitoSpyBean
@@ -65,46 +59,46 @@ class EquipmentServiceTest {
 
     @BeforeEach
     void setUp() {
-        CharacterOcidResponse mockOcidRes = new CharacterOcidResponse();
-        mockOcidRes.setOcid(OCID);
-        given(realNexonApiClient.getOcidByCharacterName(anyString())).willReturn(mockOcidRes);
+        // 💡 1. 수동 DB 청소: 자식(Equipment) -> 부모(Character) 순서로 삭제하여 FK 위반 방지
+        equipmentRepository.deleteAllInBatch();
+        gameCharacterRepository.deleteAllInBatch();
 
+        // 💡 2. 테스트용 기초 데이터 생성
         GameCharacter character = new GameCharacter(NICKNAME);
         character.setOcid(OCID);
-        gameCharacterRepository.save(character);
-    }
+        gameCharacterRepository.saveAndFlush(character);
 
-    @AfterEach
-    void tearDown() {
-        equipmentRepository.deleteAll();
-        gameCharacterRepository.deleteAll();
+        // 💡 3. AOP 프록시를 우회하여 진짜 알맹이에 모킹 설정 (UnfinishedStubbingException 방지)
+        RealNexonApiClient actualClientTarget = AopTestUtils.getUltimateTargetObject(realNexonApiClient);
+
+        CharacterOcidResponse mockOcidRes = new CharacterOcidResponse();
+        mockOcidRes.setOcid(OCID);
+
+        // OCID 조희 설정
+        doReturn(mockOcidRes).when(actualClientTarget).getOcidByCharacterName(anyString());
     }
 
     @Test
-    @DisplayName("15분 캐싱 전략 테스트: Proxy는 실제 객체, API 클라이언트는 Mock")
+    @DisplayName("15분 캐싱 전략 테스트: AOP 캐시가 작동하여 DB에 저장되고 만료 시 갱신된다")
     void caching_logic_test() throws Exception {
-        CharacterOcidResponse mockOcidRes = new CharacterOcidResponse();
-        mockOcidRes.setOcid(OCID);
-        given(realNexonApiClient.getOcidByCharacterName(anyString()))
-                .willReturn(mockOcidRes);
-
+        // [Given]
         EquipmentResponse mockRes1 = new EquipmentResponse();
-        mockRes1.setDate(LocalDateTime.now().toString());
         mockRes1.setCharacterClass("Warrior");
 
         EquipmentResponse mockRes2 = new EquipmentResponse();
-        mockRes2.setDate(LocalDateTime.now().plusMinutes(1).toString());
         mockRes2.setCharacterClass("Magician");
 
-        // 💡 2. 수정 포인트: 비동기 객체로 반환하도록 설정
-        given(realNexonApiClient.getItemDataByOcid(OCID))
-                .willReturn(CompletableFuture.completedFuture(mockRes1))
-                .willReturn(CompletableFuture.completedFuture(mockRes2));
+        // 💡 4. 비동기 API 응답 설정 (AOP 알맹이에 설정)
+        RealNexonApiClient actualClientTarget = AopTestUtils.getUltimateTargetObject(realNexonApiClient);
+        doReturn(CompletableFuture.completedFuture(mockRes1))
+                .doReturn(CompletableFuture.completedFuture(mockRes2))
+                .when(actualClientTarget).getItemDataByOcid(OCID);
 
         log.info("--- STEP 1. 최초 조회 수행 ---");
         EquipmentResponse response1 = equipmentService.getEquipmentByUserIgn(NICKNAME);
         assertThat(response1.getCharacterClass()).isEqualTo("Warrior");
 
+        // DB에 잘 저장되었는지 확인
         CharacterEquipment savedEntity = equipmentRepository.findById(OCID)
                 .orElseThrow(() -> new AssertionError("데이터가 DB에 저장되지 않았습니다."));
 
@@ -116,31 +110,10 @@ class EquipmentServiceTest {
         EquipmentResponse response2 = equipmentService.getEquipmentByUserIgn(NICKNAME);
 
         assertThat(response2.getCharacterClass()).isEqualTo("Magician");
-        verify(realNexonApiClient, times(2)).getItemDataByOcid(OCID);
+
+        // Target이 2번 호출되었는지 확인
+        verify(actualClientTarget, times(2)).getItemDataByOcid(OCID);
     }
-
-    @Test
-    @Disabled
-    @DisplayName("Legacy API: 기대 비용 계산 검증")
-    void calculateTotalExpectationLegacy_Success() {
-        EquipmentResponse mockResponse = new EquipmentResponse();
-        EquipmentResponse.ItemEquipment item = new EquipmentResponse.ItemEquipment();
-        item.setItemName("앱솔랩스 숄더");
-        item.setPotentialOptionGrade("레전드리");
-        mockResponse.setItemEquipment(List.of(item));
-
-        // 💡 3. 수정 포인트: completedFuture로 감싸기
-        given(equipmentProvider.getEquipmentResponse(OCID))
-                .willReturn(CompletableFuture.completedFuture(mockResponse));
-
-        given(cubeService.calculateExpectedCost(any())).willReturn(50_000_000L);
-
-        TotalExpectationResponse response = equipmentService.calculateTotalExpectationLegacy(NICKNAME);
-
-        assertThat(response.getTotalCost()).isEqualTo(50_000_000L);
-        assertThat(response.getItems().get(0).getItemName()).isEqualTo("앱솔랩스 숄더");
-    }
-
     @Test
     @DisplayName("Stream API: GZIP 데이터 압축 해제 검증")
     void streamEquipmentData_Gzip_Success() throws Exception {
@@ -151,9 +124,10 @@ class EquipmentServiceTest {
         }
         byte[] validGzipData = bos.toByteArray();
 
-        // 💡 4. 수정 포인트: completedFuture로 감싸기
-        given(equipmentProvider.getRawEquipmentData(anyString()))
-                .willReturn(CompletableFuture.completedFuture(validGzipData));
+        // 💡 6. Provider 알맹이 모킹
+        EquipmentDataProvider actualProviderTarget = AopTestUtils.getUltimateTargetObject(equipmentProvider);
+        doReturn(CompletableFuture.completedFuture(validGzipData))
+                .when(actualProviderTarget).getRawEquipmentData(anyString());
 
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         equipmentService.streamEquipmentData(NICKNAME, outputStream);

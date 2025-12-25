@@ -8,6 +8,7 @@ import maple.expectation.dto.CubeCalculationInput;
 import maple.expectation.service.v2.CubeTrialsProvider;
 import maple.expectation.service.v2.calculator.CubeRateCalculator;
 import maple.expectation.util.PermutationUtil;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -23,6 +24,7 @@ public class CubeServiceImpl implements CubeTrialsProvider {
     private final CubeRateCalculator rateCalculator;
 
     @Override
+    @Cacheable(value = "cubeTrials", key = "#type.name() + '_' + #input.level + '_' + #input.part + '_' + #input.grade + '_' + #input.options")
     public Long calculateExpectedTrials(CubeCalculationInput input, CubeType type) {
         if (!input.isReady()) {
             return 0L;

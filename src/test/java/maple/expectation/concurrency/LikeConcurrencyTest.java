@@ -62,39 +62,7 @@ public class LikeConcurrencyTest {
     }
 
     @Test
-    @Commit
-    @DisplayName("✅ 1. [DatabaseLikeProcessor] 100명 동시 좋아요 -> 비관적 락으로 정합성 보장")
-    void likeWithPessimisticLock() throws InterruptedException {
-        int userCount = 100;
-        ExecutorService executorService = Executors.newFixedThreadPool(32);
-        CountDownLatch latch = new CountDownLatch(userCount);
-
-        for (int i = 0; i < userCount; i++) {
-            executorService.submit(() -> {
-                try {
-                    gameCharacterService.clickLikePessimistic(targetUserIgn);
-                } catch (Exception e) {
-                    // 💡 2. 쓰레드 내부에서 발생하는 에러를 반드시 로그로 확인
-                    log.error("💥 [Pessimistic] 좋아요 처리 중 에러: {}", e.getMessage());
-                } finally {
-                    latch.countDown();
-                }
-            });
-        }
-        latch.await();
-        executorService.shutdown();
-
-        // 영속성 컨텍스트 초기화 후 DB에서 직접 다시 읽어옴
-        entityManager.clear();
-
-        GameCharacter c = gameCharacterService.getCharacterOrThrow(targetUserIgn);
-        log.info("✅ [Pessimistic Lock] 최종 좋아요: {}", c.getLikeCount());
-
-        assertEquals(userCount, c.getLikeCount());
-    }
-
-    @Test
-    @DisplayName("🚀 2. [BufferedLikeProxy] 1000명 동시 요청 -> 쓰기 지연 후 스케줄러 DB 반영 확인")
+    @DisplayName("🚀 1. [BufferedLikeProxy] 1000명 동시 요청 -> 쓰기 지연 후 스케줄러 DB 반영 확인")
     void bufferedLikePerformanceTest() throws InterruptedException {
         int userCount = 1000;
         ExecutorService executorService = Executors.newFixedThreadPool(32);

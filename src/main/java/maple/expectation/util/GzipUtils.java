@@ -1,5 +1,7 @@
 package maple.expectation.util;
 
+import maple.expectation.global.error.exception.CompressionException;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -19,7 +21,7 @@ public class GzipUtils {
             gzip.finish();
             return out.toByteArray();
         } catch (IOException e) {
-            throw new RuntimeException("GZIP 압축 실패", e);
+            throw new CompressionException(e.toString());
         }
     }
 
@@ -31,7 +33,7 @@ public class GzipUtils {
              GZIPInputStream gzip = new GZIPInputStream(in)) {
             return new String(gzip.readAllBytes(), StandardCharsets.UTF_8);
         } catch (IOException e) {
-            throw new RuntimeException("GZIP 해제 실패", e);
+            throw new CompressionException(e.toString());
         }
     }
 }

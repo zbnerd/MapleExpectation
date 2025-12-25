@@ -33,7 +33,6 @@ public class EquipmentStreamingParser {
 
     private final JsonFactory factory = new JsonFactory();
     private final ObjectMapper objectMapper;
-
     private final Map<JsonField, FieldMapper> fieldMappers = new EnumMap<>(JsonField.class);
 
     @FunctionalInterface
@@ -41,7 +40,6 @@ public class EquipmentStreamingParser {
         void map(JsonParser parser, CubeCalculationInput item) throws IOException;
     }
 
-    // JSON 필드명 매핑 Enum
     private enum JsonField {
         SLOT("item_equipment_slot"),
         GRADE("potential_option_grade"),
@@ -53,17 +51,12 @@ public class EquipmentStreamingParser {
         UNKNOWN("");
 
         private final String fieldName;
-
-        JsonField(String fieldName) {
-            this.fieldName = fieldName;
-        }
+        JsonField(String fieldName) { this.fieldName = fieldName; }
 
         public static JsonField from(String name) {
             if (name == null) return UNKNOWN;
             for (JsonField field : values()) {
-                if (field.fieldName.equals(name)) {
-                    return field;
-                }
+                if (field.fieldName.equals(name)) return field;
             }
             return UNKNOWN;
         }
@@ -74,16 +67,12 @@ public class EquipmentStreamingParser {
         fieldMappers.put(JsonField.SLOT, (p, item) -> item.setPart(p.getText()));
         fieldMappers.put(JsonField.GRADE, (p, item) -> item.setGrade(p.getText()));
         fieldMappers.put(JsonField.NAME, (p, item) -> item.setItemName(p.getText()));
-
-        // 복잡한 로직은 메서드 참조로 깔끔하게!
         fieldMappers.put(JsonField.LEVEL, this::parseLevel);
-
-        // 중복되는 로직(잠재 1,2,3)은 하나의 메서드로 재사용
-        FieldMapper potentialMapper = this::parsePotential;
-        fieldMappers.put(JsonField.POTENTIAL_1, potentialMapper);
-        fieldMappers.put(JsonField.POTENTIAL_2, potentialMapper);
-        fieldMappers.put(JsonField.POTENTIAL_3, potentialMapper);
+        fieldMappers.put(JsonField.POTENTIAL_1, this::parsePotential);
+        fieldMappers.put(JsonField.POTENTIAL_2, this::parsePotential);
+        fieldMappers.put(JsonField.POTENTIAL_3, this::parsePotential);
     }
+
 
     public List<CubeCalculationInput> parseCubeInputs(byte[] rawJsonData) {
         if (rawJsonData == null || rawJsonData.length == 0) return new ArrayList<>();
@@ -92,7 +81,6 @@ public class EquipmentStreamingParser {
              JsonParser parser = factory.createParser(inputStream)) {
 
             List<CubeCalculationInput> resultList = new ArrayList<>();
-
             while (parser.nextToken() != null) {
                 if ("item_equipment".equals(parser.currentName())) {
                     parser.nextToken();
@@ -105,7 +93,7 @@ public class EquipmentStreamingParser {
             return resultList;
 
         } catch (IOException e) {
-            throw new MapleDataProcessingException("큐브 계산 입력값 파싱 실패");
+            throw new MapleDataProcessingException("메이플 데이터 파싱 중 기술적 오류 발생: " + e.getMessage());
         }
     }
 
@@ -115,9 +103,10 @@ public class EquipmentStreamingParser {
             objectMapper.writeValue(jsonGenerator, response);
             jsonGenerator.flush();
         } catch (IOException e) {
-            throw new MapleDataProcessingException("JSON 스트리밍 직렬화 실패");
+            throw new MapleDataProcessingException("JSON 스트리밍 직렬화 실패: " + e.getMessage());
         }
     }
+
 
     private InputStream createInputStream(byte[] data) throws IOException {
         InputStream is = new ByteArrayInputStream(data);
@@ -133,47 +122,29 @@ public class EquipmentStreamingParser {
 
         while (parser.nextToken() != JsonToken.END_ARRAY) {
             JsonToken token = parser.currentToken();
-
-            // Java 14+ Enhanced Switch (화살표 문법) 사용 -> break 불필요, 괄호 최소화
             switch (token) {
                 case START_OBJECT -> {
                     depth++;
                     if (depth == 1) currentItem = new CubeCalculationInput();
                 }
                 case END_OBJECT -> {
-                    if (depth == 1) {
-                        // 유효한 아이템이면 리스트에 추가
-                        if (currentItem != null && currentItem.isReady()) {
-                            resultList.add(currentItem);
-                        }
-                        currentItem = null;
+                    if (depth == 1 && currentItem != null && currentItem.isReady()) {
+                        resultList.add(currentItem);
                     }
                     depth--;
                 }
-                case FIELD_NAME -> mapField(parser, currentItem); // ★ 로직 분리로 깔끔해짐
-                default -> { /* 그 외 토큰 무시 */ }
+                case FIELD_NAME -> mapField(parser, currentItem);
+                default -> { }
             }
         }
     }
 
-    /**
-     * 🔹 추출된 메서드: 필드 매핑 로직
-     * - 메인 루프의 들여쓰기를 줄여줌
-     * - '어떤 필드인지 확인해서 매핑한다'는 하나의 책임만 가짐
-     */
     private void mapField(JsonParser parser, CubeCalculationInput item) throws IOException {
-        // 1. 방어 로직: 아이템 객체 내부가 아니거나, 아직 생성 안 됐으면 패스
         if (item == null) return;
-
-        // 2. Enum 변환 및 유효성 체크
         JsonField field = JsonField.from(parser.currentName());
         if (field == JsonField.UNKNOWN) return;
 
-        // 3. 값 읽기 (nextToken)
         parser.nextToken();
-
-        // 4. Map에 등록된 매퍼 실행 (있을 경우만)
-        // computeIfPresent 등을 쓸 수도 있지만, 가독성을 위해 단순 get 권장
         FieldMapper mapper = fieldMappers.get(field);
         if (mapper != null) {
             mapper.map(parser, item);
@@ -181,7 +152,10 @@ public class EquipmentStreamingParser {
     }
 
     private void parseLevel(JsonParser parser, CubeCalculationInput item) throws IOException {
-        int levelVal = parser.currentToken() == JsonToken.VALUE_NUMBER_INT ? parser.getIntValue() : StatParser.parseNum(parser.getText());
+        int levelVal = (parser.currentToken() == JsonToken.VALUE_NUMBER_INT)
+                ? parser.getIntValue()
+                : StatParser.parseNum(parser.getText());
+
         if (levelVal > 0) {
             item.setLevel(levelVal);
         }
@@ -193,5 +167,4 @@ public class EquipmentStreamingParser {
             item.getOptions().add(val);
         }
     }
-
 }
