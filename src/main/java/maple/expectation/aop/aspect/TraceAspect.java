@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StopWatch;
 
 import java.util.Arrays;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -17,24 +18,38 @@ import java.util.stream.Collectors;
 @Component
 public class TraceAspect {
 
-    // ✅ yaml에서 설정값 가져오기 (기본값: false)
     @Value("${app.aop.trace.enabled:false}")
     private boolean isTraceEnabled;
 
     private final ThreadLocal<Integer> depthHolder = ThreadLocal.withInitial(() -> 0);
 
-    @Pointcut("@annotation(maple.expectation.aop.annotation.TraceLog) || @within(maple.expectation.aop.annotation.TraceLog)")
-    public void traceTarget() {}
+    // 🎯 [수정] 감시망 확대: 서비스, 외부 API, 파서, 계산기 등을 모두 포함
+    @Pointcut("execution(* maple.expectation.service..*.*(..)) " +
+            "|| execution(* maple.expectation.external..*.*(..)) " +
+            "|| execution(* maple.expectation.parser..*.*(..)) " +
+            "|| execution(* maple.expectation.provider..*.*(..))")
+    public void autoLog() {}
 
-    @Around("traceTarget()")
+    // 🎯 수동으로 @TraceLog 붙인 곳도 포함
+    @Pointcut("@annotation(maple.expectation.aop.annotation.TraceLog) || @within(maple.expectation.aop.annotation.TraceLog)")
+    public void manualLog() {}
+
+    // 🎯 스케줄러 소음 제거
+    @Pointcut("!execution(* maple.expectation.scheduler..*(..)) " +
+            "&& !execution(* maple.expectation..LikeBufferStorage.*(..)) " + // 👈 추가
+            "&& !execution(* maple.expectation.mornitering..*(..))")
+    public void excludeNoise() {}
+
+    @Pointcut("!execution(* *.syncLikesToDatabase(..))")
+    public void excludeSpecificMethod() {}
+
+    // 💡 최종 결합: (자동 OR 수동) 이면서 소음이 아닌 것!
+    @Around("(autoLog() || manualLog()) && excludeNoise() && excludeSpecificMethod()")
     public Object doTrace(ProceedingJoinPoint joinPoint) throws Throwable {
-        // ✅ [Switch] 설정이 꺼져있으면 AOP 로직을 건너뛰고 바로 실행
-        // (운영 환경 오버헤드 최소화)
         if (!isTraceEnabled) {
             return joinPoint.proceed();
         }
 
-        // --- 이하 기존 로직 동일 ---
         int depth = depthHolder.get();
         String indent = getIndent(depth);
         String className = joinPoint.getSignature().getDeclaringType().getSimpleName();
@@ -48,7 +63,7 @@ public class TraceAspect {
                 })
                 .collect(Collectors.joining(", "));
 
-        log.info("{}--> [START] {}.{}(args: [{}])", indent, className, methodName, args);
+        log.debug("{}--> [START] {}.{}(args: [{}])", indent, className, methodName, args);
 
         depthHolder.set(depth + 1);
         StopWatch stopWatch = new StopWatch();
@@ -59,23 +74,20 @@ public class TraceAspect {
             result = joinPoint.proceed();
             return result;
         } catch (Throwable e) {
-            log.error("{}<X- [EXCEPTION] {}.{} throws {}", indent, className, methodName, e.getClass().getSimpleName());
+            log.debug("{}<X- [EXCEPTION] {}.{} throws {}", indent, className, methodName, e.getClass().getSimpleName());
             throw e;
         } finally {
             stopWatch.stop();
-            depthHolder.set(depth);
+            // 리소스 해제 로직
+            Optional.of(depth)
+                    .filter(d -> d > 0)
+                    .ifPresentOrElse(depthHolder::set, depthHolder::remove);
 
-            String resultString = "void";
-            if (result != null) {
-                resultString = result.toString();
-                if (result instanceof java.util.List) {
-                    resultString = "List(size=" + ((java.util.List<?>) result).size() + ")";
-                } else if (resultString.length() > 100) {
-                    resultString = resultString.substring(0, 100) + "...";
-                }
-            }
+            String resultString = (result != null) ? result.toString() : "void";
+            if (result instanceof java.util.List) resultString = "List(size=" + ((java.util.List<?>) result).size() + ")";
+            else if (resultString.length() > 100) resultString = resultString.substring(0, 100) + "...";
 
-            log.info("{}<-- [END] {}.{} (Return: {}) [{}ms]",
+            log.debug("{}<-- [END] {}.{} (Return: {}) [{}ms]",
                     indent, className, methodName, resultString, stopWatch.getTotalTimeMillis());
         }
     }

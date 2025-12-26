@@ -12,7 +12,6 @@ import org.springframework.data.repository.query.Param;
 import java.util.Optional;
 
 // 1. 인터페이스로 변경하고 JpaRepository 상속 (Entity, PK타입)
-@TraceLog
 public interface GameCharacterRepository extends JpaRepository<GameCharacter, Long> {
 
     // 2. 일반 조회 (기존 findOptionalByUserIgn 대체)

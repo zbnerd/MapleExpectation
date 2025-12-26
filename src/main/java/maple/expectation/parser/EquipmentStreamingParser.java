@@ -27,7 +27,6 @@ import java.util.zip.GZIPInputStream;
 
 @Slf4j
 @Component
-@TraceLog
 @RequiredArgsConstructor
 public class EquipmentStreamingParser {
 

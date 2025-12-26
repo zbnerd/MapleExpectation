@@ -9,7 +9,6 @@ import maple.expectation.service.v2.GameCharacterService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-@TraceLog
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v2/characters")

@@ -29,7 +29,7 @@ public class LockAspect {
     public Object applyLock(ProceedingJoinPoint joinPoint, Locked locked) throws Throwable {
         String key = getDynamicKey(joinPoint, locked.key());
 
-        // 💡 락 전략 실행 시 내부 로직을 별도 메서드로 래핑하여 괄호 지옥을 탈출합니다.
+        // 💡 락 전략 실행 시 내부 로직을 별도 메서드로 래핑
         return lockStrategy.executeWithLock(key, () -> proceedWithExceptionHandling(joinPoint, key));
     }
 
