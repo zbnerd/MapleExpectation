@@ -19,7 +19,6 @@ import java.util.Optional;
 
 @Slf4j
 @Service
-@TraceLog
 @Transactional(readOnly = true)
 public class GameCharacterService {
 

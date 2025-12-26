@@ -8,7 +8,6 @@ import java.util.List;
 
 @Data
 @Builder
-@TraceLog
 @NoArgsConstructor  // 1. 기본 생성자 추가 (new CubeCalculationInput() 가능하게 함)
 @AllArgsConstructor // 2. @Builder가 작동하려면 전체 생성자도 필요함
 public class CubeCalculationInput {

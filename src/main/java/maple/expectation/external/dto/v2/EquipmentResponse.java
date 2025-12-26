@@ -8,7 +8,6 @@ import maple.expectation.aop.annotation.TraceLog;
 import java.util.List;
 
 @Data
-@TraceLog
 @JsonIgnoreProperties(ignoreUnknown = true) // 정의하지 않은 필드가 와도 에러 안 나게 무시
 public class EquipmentResponse {
 

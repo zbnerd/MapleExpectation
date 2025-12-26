@@ -40,12 +40,12 @@ public class RedisDistributedLockStrategy implements LockStrategy {
             }
 
             try {
-                log.info("🔓 [Distributed Lock] '{}' 획득 성공.", key);
+                log.debug("🔓 [Distributed Lock] '{}' 획득 성공.", key);
                 return task.get();
             } finally {
                 if (lock.isHeldByCurrentThread()) {
                     lock.unlock();
-                    log.info("🔒 [Distributed Lock] '{}' 해제 완료.", key);
+                    log.debug("🔒 [Distributed Lock] '{}' 해제 완료.", key);
                 }
             }
         } catch (InterruptedException e) {

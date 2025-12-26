@@ -9,7 +9,6 @@ import maple.expectation.util.StatType;
 import org.springframework.stereotype.Component;
 
 @Component
-@TraceLog
 @RequiredArgsConstructor
 public class CubeRateCalculator {
 

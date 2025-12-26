@@ -17,7 +17,6 @@ import java.io.InputStream;
 import java.util.*;
 
 @Slf4j
-@TraceLog
 @Repository("cubeProbabilityRepositoryV1")
 public class CubeProbabilityRepository {
 
