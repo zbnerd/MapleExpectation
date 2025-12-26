@@ -1,4 +1,4 @@
-package maple.expectation.external.proxy;
+package maple.expectation.external.impl;
 
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;

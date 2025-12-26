@@ -11,7 +11,6 @@ import java.util.UUID;
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-// ⚡ UUID로 조회할 때 속도를 위해 인덱스 추가 (Unique 보장)
 @Table(indexes = @Index(name = "idx_uuid", columnList = "uuid", unique = true))
 public class Member {
 

@@ -1,6 +1,7 @@
 package maple.expectation.external.proxy;
 
 import maple.expectation.external.NexonApiClient;
+import maple.expectation.external.impl.ResilientNexonApiClient;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

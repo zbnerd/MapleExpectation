@@ -5,6 +5,7 @@ import maple.expectation.domain.v2.CharacterEquipment;
 import maple.expectation.external.NexonApiClient;
 import maple.expectation.external.dto.v2.CharacterOcidResponse;
 import maple.expectation.external.dto.v2.EquipmentResponse;
+import maple.expectation.external.impl.ResilientNexonApiClient;
 import maple.expectation.global.error.exception.ExternalServiceException;
 import maple.expectation.repository.v2.CharacterEquipmentRepository;
 import org.junit.jupiter.api.DisplayName;
