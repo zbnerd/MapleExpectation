@@ -28,11 +28,9 @@ class ResilientNexonApiClientTest {
     @Autowired
     private ResilientNexonApiClient resilientNexonApiClient;
 
-    // 💡 변경 1: 삭제된 프록시 대신 실제 delegate인 RealClient를 Mocking 합니다.
     @MockitoBean(name = "realNexonApiClient")
     private NexonApiClient delegate;
 
-    // 💡 추가 2: Fallback(Scenario A/B) 검증을 위해 리포지토리 Mocking이 필요합니다.
     @MockitoBean
     private CharacterEquipmentRepository equipmentRepository;
 
@@ -72,15 +70,20 @@ class ResilientNexonApiClientTest {
         EquipmentResponse expectedResponse = new EquipmentResponse();
         expectedResponse.setCharacterClass("Hero");
 
-        // DB에 저장될 형태(byte[])로 변환
-        byte[] rawData = objectMapper.writeValueAsBytes(expectedResponse);
-        CharacterEquipment entity = new CharacterEquipment(ocid, rawData);
+        // 💡 리팩토링 포인트 1: byte[] 대신 JSON String으로 변환
+        String jsonContent = objectMapper.writeValueAsString(expectedResponse);
+
+        // 💡 리팩토링 포인트 2: 변경된 엔티티 구조(String 필드) 및 빌더 사용
+        CharacterEquipment entity = CharacterEquipment.builder()
+                .ocid(ocid)
+                .jsonContent(jsonContent)
+                .build();
 
         // 1. API 호출은 실패하도록 설정
         given(delegate.getItemDataByOcid(ocid))
                 .willReturn(CompletableFuture.failedFuture(new ExternalServiceException("API Error")));
 
-        // 2. 💡 변경: 프록시 메서드 대신 리포지토리가 캐시 엔티티를 반환하도록 Mocking
+        // 2. 리포지토리가 캐시 엔티티를 반환하도록 Mocking
         given(equipmentRepository.findById(ocid)).willReturn(Optional.of(entity));
 
         // [When]
@@ -100,7 +103,7 @@ class ResilientNexonApiClientTest {
         given(delegate.getItemDataByOcid(ocid))
                 .willReturn(CompletableFuture.failedFuture(new ExternalServiceException("Nexon API Down")));
 
-        // 2. 💡 변경: DB에도 데이터가 없음
+        // 2. DB에도 데이터가 없음
         given(equipmentRepository.findById(ocid)).willReturn(Optional.empty());
 
         // [When & Then]

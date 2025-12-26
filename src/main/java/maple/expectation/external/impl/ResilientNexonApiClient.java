@@ -13,13 +13,11 @@ import maple.expectation.global.error.exception.ExternalServiceException;
 import maple.expectation.global.error.exception.marker.CircuitBreakerIgnoreMarker;
 import maple.expectation.repository.v2.CharacterEquipmentRepository;
 import maple.expectation.service.v2.alert.DiscordAlertService;
-import maple.expectation.util.GzipUtils;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
-import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
 
 @Slf4j
@@ -29,13 +27,13 @@ public class ResilientNexonApiClient implements NexonApiClient {
 
     private final NexonApiClient delegate;
     private final DiscordAlertService discordAlertService;
-    private final CharacterEquipmentRepository equipmentRepository; // 💡 직접 주입
-    private final ObjectMapper objectMapper; // 💡 직접 주입
+    private final CharacterEquipmentRepository equipmentRepository;
+    private final ObjectMapper objectMapper;
 
     private static final String NEXON_API = "nexonApi";
 
     public ResilientNexonApiClient(
-            @Qualifier("realNexonApiClient") NexonApiClient delegate, // 💡 real로 변경
+            @Qualifier("realNexonApiClient") NexonApiClient delegate,
             DiscordAlertService discordAlertService,
             CharacterEquipmentRepository equipmentRepository,
             ObjectMapper objectMapper) {
@@ -74,7 +72,7 @@ public class ResilientNexonApiClient implements NexonApiClient {
         handleIgnoreMarker(t);
         log.warn("🚩 [Resilience] 장애 대응 시나리오 가동. 사유: {}", t.getMessage());
 
-        // 💡 프록시가 사라졌으므로 직접 DB에서 꺼내옵니다 (Scenario A)
+        // 💡 JPA Repository로 조회하면 Converter가 이미 압축을 해제한 상태입니다.
         EquipmentResponse cachedData = equipmentRepository.findById(ocid)
                 .map(this::convertToResponse)
                 .orElse(null);
@@ -95,15 +93,15 @@ public class ResilientNexonApiClient implements NexonApiClient {
         }
     }
 
-    // 💡 Fallback에서 쓸 수 있도록 캐시 변환 로직 추가
+    /**
+     * 💡 리팩토링 포인트: 더 이상 byte[] 압축 해제 로직이 필요 없습니다.
+     * entity.getJsonContent()는 이미 순수 JSON String입니다.
+     */
     private EquipmentResponse convertToResponse(CharacterEquipment entity) {
         try {
-            byte[] data = entity.getRawData();
-            String json = (data.length > 2 && data[0] == (byte) 0x1F)
-                    ? GzipUtils.decompress(data)
-                    : new String(data, StandardCharsets.UTF_8);
-            return objectMapper.readValue(json, EquipmentResponse.class);
+            return objectMapper.readValue(entity.getJsonContent(), EquipmentResponse.class);
         } catch (Exception e) {
+            log.error("Fallback 중 캐시 데이터 파싱 실패: ocid={}", entity.getOcid(), e);
             return null;
         }
     }
