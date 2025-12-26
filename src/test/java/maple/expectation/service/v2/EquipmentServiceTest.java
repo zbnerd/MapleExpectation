@@ -51,8 +51,6 @@ class EquipmentServiceTest {
     @MockitoBean
     private EquipmentStreamingParser streamingParser;
 
-    @MockitoBean
-    private CubeService cubeService;
 
     private final String USERIGN = "개리";
     private final String OCID = "test-ocid-12345";
