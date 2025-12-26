@@ -8,7 +8,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.aop.annotation.TraceLog;
 import maple.expectation.dto.CubeCalculationInput;
 import maple.expectation.global.error.exception.MapleDataProcessingException;
 import maple.expectation.external.dto.v2.EquipmentResponse;
@@ -19,10 +18,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.ArrayList;
-import java.util.EnumMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.zip.GZIPInputStream;
 
 @Slf4j
@@ -50,16 +46,30 @@ public class EquipmentStreamingParser {
         UNKNOWN("");
 
         private final String fieldName;
+
+        // 정적 캐시 맵: O(1) 조회를 위해 도입
+        private static final Map<String, JsonField> FIELD_LOOKUP;
+
+        static {
+            Map<String, JsonField> map = new HashMap<>();
+            for (JsonField field : values()) {
+                map.put(field.fieldName, field);
+            }
+            FIELD_LOOKUP = Collections.unmodifiableMap(map);
+        }
+
         JsonField(String fieldName) { this.fieldName = fieldName; }
 
+        /**
+         * 기존 O(N) 루프를 제거하고 캐시 맵을 사용하여 O(1)로 조회합니다.
+         */
         public static JsonField from(String name) {
             if (name == null) return UNKNOWN;
-            for (JsonField field : values()) {
-                if (field.fieldName.equals(name)) return field;
-            }
-            return UNKNOWN;
+            return FIELD_LOOKUP.getOrDefault(name, UNKNOWN);
         }
     }
+
+
 
     @PostConstruct
     public void initMappers() {
@@ -71,7 +81,6 @@ public class EquipmentStreamingParser {
         fieldMappers.put(JsonField.POTENTIAL_2, this::parsePotential);
         fieldMappers.put(JsonField.POTENTIAL_3, this::parsePotential);
     }
-
 
     public List<CubeCalculationInput> parseCubeInputs(byte[] rawJsonData) {
         if (rawJsonData == null || rawJsonData.length == 0) return new ArrayList<>();
@@ -105,7 +114,6 @@ public class EquipmentStreamingParser {
             throw new MapleDataProcessingException("JSON 스트리밍 직렬화 실패: " + e.getMessage());
         }
     }
-
 
     private InputStream createInputStream(byte[] data) throws IOException {
         InputStream is = new ByteArrayInputStream(data);
