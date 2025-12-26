@@ -1,13 +1,11 @@
 package maple.expectation.domain.v2;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
+import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import maple.expectation.util.converter.GzipStringConverter; // 💡 컨버터 임포트
 
 import java.time.LocalDateTime;
 
@@ -17,24 +15,26 @@ import java.time.LocalDateTime;
 public class CharacterEquipment {
 
     @Id
-    @Column(length = 100) // OCID는 PK
+    @Column(length = 100)
     private String ocid;
 
+    // 💡 핵심: 필드 타입을 String으로 변경하고 컨버터 장착!
+    @Convert(converter = GzipStringConverter.class)
     @Lob
     @Column(columnDefinition = "LONGBLOB", nullable = false)
-    private byte[] rawData;
+    private String jsonContent; // 💡 이름도 의미에 맞게 rawData -> jsonContent로 변경
 
-    private LocalDateTime updatedAt; // 마지막 갱신 시간
+    private LocalDateTime updatedAt;
 
     @Builder
-    public CharacterEquipment(String ocid, byte[] rawData) { // 생성자도 byte[]로
+    public CharacterEquipment(String ocid, String jsonContent) { // 💡 String을 받음
         this.ocid = ocid;
-        this.rawData = rawData;
+        this.jsonContent = jsonContent;
         this.updatedAt = LocalDateTime.now();
     }
 
-    public void updateData(byte[] newJsonData) { // 업데이트도 byte[]로
-        this.rawData = newJsonData;
+    public void updateData(String newJsonContent) { // 💡 String으로 업데이트
+        this.jsonContent = newJsonContent;
         this.updatedAt = LocalDateTime.now();
     }
 }
