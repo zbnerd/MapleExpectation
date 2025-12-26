@@ -43,8 +43,12 @@ public class LikeConcurrencyTest {
 
         // 💡 1. 데이터를 별도 트랜잭션으로 커밋하여 다른 쓰레드가 볼 수 있게 함
         transactionTemplate.execute(status -> {
-            GameCharacter target = new GameCharacter(targetUserIgn);
-            target.setOcid("test-fake-ocid-" + UUID.randomUUID().toString());
+            // [수정 포인트] 가짜 OCID를 미리 생성합니다.
+            String fakeOcid = "test-fake-ocid-" + UUID.randomUUID().toString();
+
+            // [수정 포인트] 생성자 호출 시 이름과 OCID를 한 번에 넣습니다. (Setter 제거 반영)
+            GameCharacter target = new GameCharacter(targetUserIgn, fakeOcid);
+
             gameCharacterRepository.save(target);
             return null;
         });

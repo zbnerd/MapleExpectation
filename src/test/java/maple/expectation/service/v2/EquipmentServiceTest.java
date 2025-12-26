@@ -29,7 +29,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @Slf4j
-@SpringBootTest // 💡 주의: @Transactional은 다른 스레드와의 데이터 공유를 위해 제거함
+@SpringBootTest
 class EquipmentServiceTest {
 
     @Autowired
@@ -54,27 +54,29 @@ class EquipmentServiceTest {
     @MockitoBean
     private CubeService cubeService;
 
-    private final String NICKNAME = "개리";
+    private final String USERIGN = "개리";
     private final String OCID = "test-ocid-12345";
 
     @BeforeEach
     void setUp() {
-        // 💡 1. 수동 DB 청소: 자식(Equipment) -> 부모(Character) 순서로 삭제하여 FK 위반 방지
+        // 💡 1. 수동 DB 청소 (순서 유지)
         equipmentRepository.deleteAllInBatch();
         gameCharacterRepository.deleteAllInBatch();
 
-        // 💡 2. 테스트용 기초 데이터 생성
-        GameCharacter character = new GameCharacter(NICKNAME);
-        character.setOcid(OCID);
+        // 💡 2. [수정 포인트] 테스트용 기초 데이터 생성
+        // Setter를 쓰지 않고, 생성 시점에 이름과 OCID를 모두 주입합니다.
+        GameCharacter character = new GameCharacter(USERIGN, OCID);
+
+        // 이제 character는 태어날 때부터 완벽한 상태이므로 바로 저장합니다.
         gameCharacterRepository.saveAndFlush(character);
 
-        // 💡 3. AOP 프록시를 우회하여 진짜 알맹이에 모킹 설정 (UnfinishedStubbingException 방지)
+        // 💡 3. AOP 프록시를 우회하여 진짜 알맹이에 모킹 설정
         RealNexonApiClient actualClientTarget = AopTestUtils.getUltimateTargetObject(realNexonApiClient);
 
         CharacterOcidResponse mockOcidRes = new CharacterOcidResponse();
         mockOcidRes.setOcid(OCID);
 
-        // OCID 조희 설정
+        // OCID 조회 설정
         doReturn(mockOcidRes).when(actualClientTarget).getOcidByCharacterName(anyString());
     }
 
@@ -95,7 +97,7 @@ class EquipmentServiceTest {
                 .when(actualClientTarget).getItemDataByOcid(OCID);
 
         log.info("--- STEP 1. 최초 조회 수행 ---");
-        EquipmentResponse response1 = equipmentService.getEquipmentByUserIgn(NICKNAME);
+        EquipmentResponse response1 = equipmentService.getEquipmentByUserIgn(USERIGN);
         assertThat(response1.getCharacterClass()).isEqualTo("Warrior");
 
         // DB에 잘 저장되었는지 확인
@@ -107,7 +109,7 @@ class EquipmentServiceTest {
         equipmentRepository.saveAndFlush(savedEntity);
 
         log.info("--- STEP 3. 만료 후 재조회 (캐시 갱신 예상) ---");
-        EquipmentResponse response2 = equipmentService.getEquipmentByUserIgn(NICKNAME);
+        EquipmentResponse response2 = equipmentService.getEquipmentByUserIgn(USERIGN);
 
         assertThat(response2.getCharacterClass()).isEqualTo("Magician");
 
@@ -130,7 +132,7 @@ class EquipmentServiceTest {
                 .when(actualProviderTarget).getRawEquipmentData(anyString());
 
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        equipmentService.streamEquipmentData(NICKNAME, outputStream);
+        equipmentService.streamEquipmentData(USERIGN, outputStream);
 
         assertThat(outputStream.toString()).contains("test-content");
     }

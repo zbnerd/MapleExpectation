@@ -45,17 +45,23 @@ public class GameCharacterService {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    @Locked(key = "#userIgn") // userIgn 매개변수를 기반으로 락 획득
+    @Locked(key = "#userIgn")
     public GameCharacter findCharacterByUserIgn(String userIgn) {
         String cleanUserIgn = userIgn.trim();
 
-        // 1차 캐시 확인
+        // 1. DB에서 먼저 조회
         return gameCharacterRepository.findByUserIgn(cleanUserIgn)
                 .orElseGet(() -> {
                     log.info("✨ 신규 캐릭터 생성 시도: {}", cleanUserIgn);
+
+                    // 2. [변경] 객체 생성 전에 넥슨 API를 호출해서 OCID를 먼저 확보합니다.
                     String ocid = nexonApiClient.getOcidByCharacterName(cleanUserIgn).getOcid();
-                    GameCharacter newChar = new GameCharacter(cleanUserIgn);
-                    newChar.setOcid(ocid);
+
+                    // 3. [수정] 이제 '완전한 상태'로 객체를 생성합니다. (Setter 필요 없음!)
+                    // public GameCharacter(String userIgn, String ocid) 생성자 호출
+                    GameCharacter newChar = new GameCharacter(cleanUserIgn, ocid);
+
+                    // 4. 저장 및 즉시 반영
                     return gameCharacterRepository.saveAndFlush(newChar);
                 });
     }
