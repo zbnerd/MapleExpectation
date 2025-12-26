@@ -2,60 +2,61 @@ package maple.expectation.service.v2;
 
 import maple.expectation.global.error.exception.CriticalTransactionFailureException;
 import maple.expectation.repository.v2.DonationHistoryRepository;
-import maple.expectation.repository.v2.MemberRepository;
-import maple.expectation.service.v2.alert.DiscordAlertService;
+import maple.expectation.service.v2.donation.event.DonationProcessor;
+import maple.expectation.service.v2.donation.listener.DonationFailedEvent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow; // 💡 void 메서드 에러 발생용
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
 
-@ExtendWith(MockitoExtension.class) // 스프링을 띄우지 않고 가볍게 테스트
+@ExtendWith(MockitoExtension.class)
 class DonationServiceFailureTest {
 
-    @Mock // 가짜 객체 생성
-    MemberRepository memberRepository;
     @Mock
     DonationHistoryRepository donationHistoryRepository;
-    @Mock
-    DiscordAlertService discordAlertService;
 
-    @InjectMocks // 가짜 객체들을 주입받는 진짜 서비스
+    @Mock
+    ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    DonationProcessor donationProcessor;
+
+    @InjectMocks
     DonationService donationService;
 
     @Test
-    @DisplayName("치명적인 시스템 예외 발생 시, 디스코드 알림을 발송하고 커스텀 예외를 던진다.")
+    @DisplayName("치명적인 시스템 예외 발생 시, 실패 이벤트를 발행하고 커스텀 예외를 던진다.")
     void criticalErrorAlertTest() {
-        // 1. Given (상황 설정)
+        // 1. Given
         String guestUuid = "guest-123";
         Long developerId = 999L;
         Long amount = 1000L;
         String requestId = "req-123";
 
-        // 멱등성 검사는 통과했다고 가정
         given(donationHistoryRepository.existsByRequestId(requestId)).willReturn(false);
 
-        // 💥 강제로 DB 에러 발생시키기 (예: RuntimeException)
-        given(memberRepository.decreasePoint(guestUuid, amount))
-                .willThrow(new RuntimeException("DB Connection Refused"));
+        willThrow(new RuntimeException("DB Connection Refused"))
+                .given(donationProcessor).executeTransfer(anyString(), anyLong(), anyLong());
 
-        // 2. When & Then (검증)
-        // 우리가 만든 CriticalTransactionFailureException이 터지는지 확인
-        assertThatThrownBy(() -> 
-            donationService.sendCoffee(guestUuid, developerId, amount, requestId)
+        // 2. When & Then
+        assertThatThrownBy(() ->
+                donationService.sendCoffee(guestUuid, developerId, amount, requestId)
         )
-        .isInstanceOf(CriticalTransactionFailureException.class)
-        .hasMessageContaining("도네이션 시스템 오류 발생");
+                .isInstanceOf(CriticalTransactionFailureException.class);
 
-        // ✅ 핵심: DiscordAlertService의 sendCriticalAlert 메서드가 호출되었는지 감시(Verify)
-        verify(discordAlertService, times(1))
-                .sendCriticalAlert(any(), any(), any());
+        // 3. 검증: 이벤트가 정말 발행되었는가?
+        verify(eventPublisher, times(1)).publishEvent(any(DonationFailedEvent.class));
     }
 }
