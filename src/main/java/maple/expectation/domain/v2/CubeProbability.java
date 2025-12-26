@@ -1,13 +1,12 @@
 package maple.expectation.domain.v2;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
-@Data
-@NoArgsConstructor
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor // 💡 모든 필드를 받는 생성자 활용
 public class CubeProbability {
-
 
     @JsonProperty("cube_type")
     private CubeType cubeType;
@@ -29,4 +28,6 @@ public class CubeProbability {
 
     @JsonProperty("item_equipment_slot")
     private String part;
+
+    // 💡 @Data 대신 필요한 메서드만 직접 구현하거나 @Getter만 사용
 }

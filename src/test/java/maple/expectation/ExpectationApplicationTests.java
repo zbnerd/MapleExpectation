@@ -13,28 +13,26 @@ import org.springframework.transaction.annotation.Transactional;
 
 @SpringBootTest
 @Transactional
-@TestPropertySource(properties = "app.optimization.use-compression=false")
 class ExpectationApplicationTests {
 
     @Autowired
     GameCharacterService gameCharacterService;
 
-    // ✨ 해결책: 외부 API 클라이언트를 Mocking하여 실제 키값 주입 과정을 생략시킴
     @MockitoBean
     RealNexonApiClient nexonApiClient;
 
     @Test
     void 캐릭터ocid생성() {
-        //given
-        GameCharacter gameCharacter = new GameCharacter();
-        gameCharacter.setUserIgn("Geek");
-        gameCharacter.setOcid("0123456789abcdef");
+        // [Given]
+        // 💡 [수정 포인트] 기본 생성자 + Setter 대신, 정의한 2인자 생성자 사용
+        // 이제 객체가 태어날 때부터 'Geek'이라는 이름과 'OCID'를 가진 완벽한 상태가 됩니다.
+        GameCharacter gameCharacter = new GameCharacter("Geek", "0123456789abcdef");
 
-        //when
+        // [When]
         gameCharacterService.saveCharacter(gameCharacter);
 
-        //then
+        // [Then]
         Assertions.assertThat(gameCharacter.getUserIgn()).isEqualTo("Geek");
+        Assertions.assertThat(gameCharacter.getOcid()).isEqualTo("0123456789abcdef");
     }
-
 }

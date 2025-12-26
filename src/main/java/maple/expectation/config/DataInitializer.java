@@ -1,6 +1,7 @@
 package maple.expectation.config;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import maple.expectation.domain.v2.Member;
 import maple.expectation.repository.v2.MemberRepository;
 import org.springframework.boot.CommandLineRunner;
@@ -8,25 +9,34 @@ import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class DataInitializer implements CommandLineRunner {
 
     private final MemberRepository memberRepository;
+    private static final String DEVELOPER_UUID = "00000000-0000-0000-0000-000000000000";
 
     @Override
-    // @Transactional // save 자체가 트랜잭션이라 초기화엔 굳이 필요 없음
     public void run(String... args) {
-        String developerUuid = "00000000-0000-0000-0000-000000000000";
+        initDeveloper();
+    }
 
-        // 1. 락 없이 그냥 조회 (Repository에 findByUuid 메서드가 필요함)
-        // 없으면 생성
-        if (memberRepository.findByUuid(developerUuid).isEmpty()) {
-            try {
-                memberRepository.save(new Member(developerUuid, 0L));
-            } catch (Exception e) {
-                // 혹시라도 아주 찰나의 순간에 다른 인스턴스가 먼저 만들었으면
-                // Unique Constraint 에러가 날 텐데, 쿨하게 무시하면 됩니다.
-                // (이미 존재한다는 뜻이니까요)
-            }
+    private void initDeveloper() {
+        if (memberRepository.findByUuid(DEVELOPER_UUID).isPresent()) {
+            return;
+        }
+
+        log.info("🚀 시스템 초기 데이터 생성: 개발자 계정 ({})", DEVELOPER_UUID);
+
+        try {
+            // 💡 [수정 포인트] new 대신 정적 팩토리 메서드 사용
+            // 이제 패키지가 달라도 public 메서드를 통해 안전하게 생성 가능합니다.
+            Member developer = Member.createSystemAdmin(DEVELOPER_UUID, 0L);
+            memberRepository.save(developer);
+
+            log.info("✅ 개발자 계정 생성 완료");
+        } catch (Exception e) {
+            // Unique Constraint 등으로 인한 에러 발생 시 (이미 다른 인스턴스가 만든 경우)
+            log.warn("⏭️ 초기 데이터가 이미 존재합니다. (Conflict 방지)");
         }
     }
 }
