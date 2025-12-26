@@ -16,17 +16,16 @@ public class BufferedLikeAspect {
 
     private final LikeBufferStorage likeBufferStorage;
 
-    @Around("@annotation(maple.expectation.aop.annotation.BufferedLike)")
-    public Object doBuffer(ProceedingJoinPoint joinPoint) throws Throwable {
-        // 1. 첫 번째 인자(userIgn) 가져오기
-        String userIgn = (String) joinPoint.getArgs()[0];
+    // 🎯 [리팩토링] args(userIgn, ..)를 통해 첫 번째 인자를 String 타입으로 직접 바인딩
+    @Around("@annotation(maple.expectation.aop.annotation.BufferedLike) && args(userIgn, ..)")
+    public Object doBuffer(ProceedingJoinPoint joinPoint, String userIgn) throws Throwable {
 
-        // 2. [핵심] 실제 DB 반영 로직을 실행하지 않고 버퍼만 증가시킴
+        // 더 이상 joinPoint.getArgs()[0]를 쓸 필요가 없습니다!
         likeBufferStorage.getCounter(userIgn).incrementAndGet();
-        
+
         log.debug("📥 [AOP Buffering] 좋아요 요청이 버퍼에 기록되었습니다: {}", userIgn);
 
-        // 3. proceed()를 호출하지 않으므로 DatabaseLikeProcessor 로직은 스킵됨!
-        return null; 
+        // 실제 DB 로직인 proceed()는 호출하지 않고 스킵
+        return null;
     }
 }

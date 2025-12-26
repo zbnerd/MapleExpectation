@@ -29,12 +29,13 @@ public class NexonDataCacheAspect {
     private final LockStrategy lockStrategy;
     private final ObjectMapper objectMapper;
 
-    @Around("@annotation(maple.expectation.aop.annotation.NexonDataCache)")
-    public Object handleNexonCache(ProceedingJoinPoint joinPoint) throws Throwable {
-        String ocid = (String) joinPoint.getArgs()[0];
+    @Around("@annotation(maple.expectation.aop.annotation.NexonDataCache) && args(ocid, ..)")
+    public Object handleNexonCache(ProceedingJoinPoint joinPoint, String ocid) throws Throwable {
+
+        // MethodSignature는 반환 타입 처리를 위해 유지합니다.
         Class<?> returnType = ((MethodSignature) joinPoint.getSignature()).getReturnType();
 
-        // 1. DB 유효 캐시 확인 (Fast Path)
+        // 1. DB 유효 캐시 확인 (Fast Path) - 인자로 받은 ocid 사용
         Optional<CharacterEquipment> cache = equipmentRepository.findById(ocid);
         if (cache.isPresent() && isValid(cache.get())) {
             log.info("🎯 [AOP Cache Hit] DB에서 데이터를 반환합니다: {}", ocid);
@@ -48,15 +49,18 @@ public class NexonDataCacheAspect {
         // 2. 캐시 없거나 만료됨 -> 락 잡고 진행 (Slow Path)
         return lockStrategy.executeWithLock(ocid, () -> {
             try {
-                // Double Check
+                // Double Check (인자로 받은 ocid 사용)
                 Optional<CharacterEquipment> latest = equipmentRepository.findById(ocid);
                 if (latest.isPresent() && isValid(latest.get())) {
+                    EquipmentResponse response = convertToResponse(latest.get());
                     return returnType.equals(CompletableFuture.class)
-                            ? CompletableFuture.completedFuture(convertToResponse(latest.get()))
-                            : convertToResponse(latest.get());
+                            ? CompletableFuture.completedFuture(response)
+                            : response;
                 }
 
                 log.info("🔄 [AOP Cache Miss] API를 호출하고 DB를 갱신합니다: {}", ocid);
+
+                // proceed() 시 인자를 전달하지 않아도 바인딩된 원본 인자로 자동 실행됩니다.
                 Object result = joinPoint.proceed();
 
                 if (result instanceof CompletableFuture<?> future) {
@@ -79,10 +83,6 @@ public class NexonDataCacheAspect {
         return e != null && e.getUpdatedAt().isAfter(LocalDateTime.now().minusMinutes(15));
     }
 
-    /**
-     * 💡 리팩토링 포인트: 더 이상 압축 해제를 고민하지 않습니다.
-     * Converter가 이미 String으로 다 풀어놨기 때문에 그냥 읽기만 하면 됩니다.
-     */
     private EquipmentResponse convertToResponse(CharacterEquipment entity) {
         try {
             return objectMapper.readValue(entity.getJsonContent(), EquipmentResponse.class);
@@ -92,10 +92,6 @@ public class NexonDataCacheAspect {
         }
     }
 
-    /**
-     * 💡 리팩토링 포인트: 더 이상 수동 압축을 하지 않습니다.
-     * 엔티티에 String만 넘겨주면, 저장 시점에 Converter가 알아서 압축해서 DB에 넣습니다.
-     */
     private void saveToDb(String ocid, EquipmentResponse res) {
         try {
             String json = objectMapper.writeValueAsString(res);
