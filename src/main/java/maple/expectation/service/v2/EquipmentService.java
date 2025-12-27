@@ -18,6 +18,7 @@ import maple.expectation.service.v2.mapper.EquipmentMapper;
 import maple.expectation.service.v2.policy.CubeCostPolicy;
 import maple.expectation.util.GzipUtils;
 import maple.expectation.util.StatParser;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -78,7 +79,9 @@ public class EquipmentService {
         equipmentProvider.streamAndDecompress(getOcid(userIgn), outputStream);
     }
 
+    @Cacheable(value = "equipment", key = "#userIgn")
     public EquipmentResponse getEquipmentByUserIgn(String userIgn) {
+        log.info("💾 [Cache Miss] DB/API에서 장비 데이터를 가져옵니다: {}", userIgn);
         return equipmentProvider.getEquipmentResponse(getOcid(userIgn)).join();
     }
 

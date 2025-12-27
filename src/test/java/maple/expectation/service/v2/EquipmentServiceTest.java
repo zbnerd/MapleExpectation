@@ -33,6 +33,9 @@ import static org.mockito.Mockito.*;
 class EquipmentServiceTest {
 
     @Autowired
+    private org.springframework.cache.CacheManager cacheManager;
+
+    @Autowired
     private EquipmentService equipmentService;
 
     @Autowired
@@ -57,38 +60,32 @@ class EquipmentServiceTest {
 
     @BeforeEach
     void setUp() {
-        // 💡 1. 수동 DB 청소 (순서 유지)
+        // 💡 1. DB 청소 (기존 로직)
         equipmentRepository.deleteAllInBatch();
         gameCharacterRepository.deleteAllInBatch();
 
-        // 💡 2. [수정 포인트] 테스트용 기초 데이터 생성
-        // Setter를 쓰지 않고, 생성 시점에 이름과 OCID를 모두 주입합니다.
-        GameCharacter character = new GameCharacter(USERIGN, OCID);
+        // 💡 2. [추가] 모든 메모리 캐시 싹 비우기 (테스트 격리)
+        cacheManager.getCacheNames().forEach(name -> cacheManager.getCache(name).clear());
 
-        // 이제 character는 태어날 때부터 완벽한 상태이므로 바로 저장합니다.
+        // ... 나머지 기존 생성자 및 모킹 로직 ...
+        GameCharacter character = new GameCharacter(USERIGN, OCID);
         gameCharacterRepository.saveAndFlush(character);
 
-        // 💡 3. AOP 프록시를 우회하여 진짜 알맹이에 모킹 설정
         RealNexonApiClient actualClientTarget = AopTestUtils.getUltimateTargetObject(realNexonApiClient);
-
         CharacterOcidResponse mockOcidRes = new CharacterOcidResponse();
         mockOcidRes.setOcid(OCID);
-
-        // OCID 조회 설정
         doReturn(mockOcidRes).when(actualClientTarget).getOcidByCharacterName(anyString());
     }
 
     @Test
     @DisplayName("15분 캐싱 전략 테스트: AOP 캐시가 작동하여 DB에 저장되고 만료 시 갱신된다")
     void caching_logic_test() throws Exception {
-        // [Given]
+        // [Given] - 생략 (기존과 동일)
         EquipmentResponse mockRes1 = new EquipmentResponse();
         mockRes1.setCharacterClass("Warrior");
-
         EquipmentResponse mockRes2 = new EquipmentResponse();
         mockRes2.setCharacterClass("Magician");
 
-        // 💡 4. 비동기 API 응답 설정 (AOP 알맹이에 설정)
         RealNexonApiClient actualClientTarget = AopTestUtils.getUltimateTargetObject(realNexonApiClient);
         doReturn(CompletableFuture.completedFuture(mockRes1))
                 .doReturn(CompletableFuture.completedFuture(mockRes2))
@@ -97,6 +94,10 @@ class EquipmentServiceTest {
         log.info("--- STEP 1. 최초 조회 수행 ---");
         EquipmentResponse response1 = equipmentService.getEquipmentByUserIgn(USERIGN);
         assertThat(response1.getCharacterClass()).isEqualTo("Warrior");
+
+        // 💡 [추가] STEP 2로 가기 전, 메모리(L1) 캐시를 강제로 비웁니다.
+        // 그래야 다음 호출 때 L2(DB/AOP) 로직이 실행되는지 확인할 수 있습니다.
+        cacheManager.getCache("equipment").clear();
 
         // DB에 잘 저장되었는지 확인
         CharacterEquipment savedEntity = equipmentRepository.findById(OCID)
@@ -107,6 +108,7 @@ class EquipmentServiceTest {
         equipmentRepository.saveAndFlush(savedEntity);
 
         log.info("--- STEP 3. 만료 후 재조회 (캐시 갱신 예상) ---");
+        // L1이 비워졌고, DB(L2)는 만료되었으므로, 결국 실제 API를 호출하게 됩니다.
         EquipmentResponse response2 = equipmentService.getEquipmentByUserIgn(USERIGN);
 
         assertThat(response2.getCharacterClass()).isEqualTo("Magician");
@@ -133,6 +135,32 @@ class EquipmentServiceTest {
         equipmentService.streamEquipmentData(USERIGN, outputStream);
 
         assertThat(outputStream.toString()).contains("test-content");
+    }
+
+    @Test
+    @DisplayName("동일 유저 재조회 시 DB 호출 없이 캐시에서 반환되어야 한다")
+    void issue11_verification_test() {
+        // [Given]
+        // 1. 가짜 응답 객체 생성
+        EquipmentResponse mockResponse = new EquipmentResponse();
+        mockResponse.setCharacterClass("Hero");
+
+        // 2. [핵심] Provider를 모킹하여 '성공'을 보장합니다.
+        // equipmentProvider는 @MockitoSpyBean이므로 doReturn을 사용해야 실제 로직을 안 탑니다.
+        doReturn(CompletableFuture.completedFuture(mockResponse))
+                .when(equipmentProvider).getEquipmentResponse(anyString());
+
+        // [When]
+        log.info("--- 1회차 호출 (캐시 미스 예상) ---");
+        equipmentService.getEquipmentByUserIgn(USERIGN);
+
+        log.info("--- 2회차 호출 (캐시 히트 예상) ---");
+        equipmentService.getEquipmentByUserIgn(USERIGN);
+
+        // [Then]
+        // 캐시가 정상 작동한다면, 실제 서비스 로직 내부의 'provider.getEquipmentResponse'는
+        // 딱 1번만 호출되어야 합니다. (2회차는 프록시가 가로채서 바로 반환하니까요!)
+        verify(equipmentProvider, times(1)).getEquipmentResponse(anyString());
     }
 
     private void manipulateUpdatedAt(CharacterEquipment entity, LocalDateTime targetTime) throws Exception {
