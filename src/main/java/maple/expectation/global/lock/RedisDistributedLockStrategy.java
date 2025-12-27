@@ -6,6 +6,7 @@ import maple.expectation.global.error.exception.DistributedLockException;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.context.annotation.Primary;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import java.util.concurrent.TimeUnit;
@@ -14,6 +15,7 @@ import java.util.function.Supplier;
 @Slf4j
 @Component
 @Primary
+@Profile("!test")
 @RequiredArgsConstructor
 public class RedisDistributedLockStrategy implements LockStrategy {
 

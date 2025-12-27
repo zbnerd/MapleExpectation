@@ -3,6 +3,7 @@ package maple.expectation.global.lock;
 import com.google.common.util.concurrent.Striped;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.error.exception.DistributedLockException;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import java.util.concurrent.TimeUnit;
@@ -11,6 +12,7 @@ import java.util.function.Supplier;
 
 @Slf4j
 @Component
+@Profile("test")
 public class GuavaLockStrategy implements LockStrategy {
     private final Striped<Lock> locks = Striped.lock(128);
 
