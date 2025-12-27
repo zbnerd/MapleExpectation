@@ -15,37 +15,32 @@ import org.springframework.stereotype.Component;
 public class LikeSyncScheduler {
 
     private final LikeSyncService likeSyncService;
-    private final LockStrategy lockStrategy; // 👈 RedisDistributedLockStrategy가 주입됨
+    private final LockStrategy lockStrategy;
 
     /**
-     * 3초마다 주기적으로 동기화 수행
-     * 분산 환경에서 단 한 대의 서버만 실행하도록 락을 겁니다.
+     * 🚀 [미션 A] 로컬 데이터를 중앙으로 집결 (L1 -> L2)
+     * 1초마다 실행: 모든 서버가 예외 없이 자기 로컬 버퍼를 Redis로 쏩니다.
      */
-    @Scheduled(fixedRate = 3000)
-    public void scheduledSync() {
-        try {
-
-            lockStrategy.executeWithLock("like-sync-lock", 0, 10, () -> {
-                likeSyncService.syncLikesToDatabase();
-                return null;
-            });
-        } catch (DistributedLockException e) {
-            log.info("⏭️ 다른 서버가 작업 중이므로 스케줄러를 스킵합니다.");
-        }
+    @Scheduled(fixedRate = 1000)
+    public void localFlush() {
+        likeSyncService.flushLocalToRedis();
     }
 
     /**
-     * 서버 종료 시 호출
-     * 종료 시에는 다른 서버와 상관없이 '내 서버'의 잔량 데이터를 무조건 Flush 해야 하므로 락을 걸지 않습니다.
+     * 🚀 [미션 B] 중앙 데이터를 DB로 반영 (L2 -> L3)
+     * 3초마다 실행: 오직 분산 락을 획득한 한 대의 서버만 수행합니다.
      */
-    @PreDestroy
-    public void shutdownSync() {
-        log.warn("⚠️ [Shutdown] 서버 종료 감지: 잔량 좋아요 데이터를 Flush합니다.");
+    @Scheduled(fixedRate = 3000)
+    public void globalSync() {
         try {
-            likeSyncService.syncLikesToDatabase();
-            log.info("✅ [Shutdown] 모든 좋아요 데이터가 안전하게 DB에 동기화되었습니다.");
-        } catch (Exception e) {
-            log.error("❌ [Shutdown Error] 종료 중 동기화 실패!", e);
+            // "like-db-sync-lock"을 잡은 서버만 Redis->DB 동기화 수행
+            lockStrategy.executeWithLock("like-db-sync-lock", 0, 10, () -> {
+                likeSyncService.syncRedisToDatabase();
+                return null;
+            });
+        } catch (DistributedLockException e) {
+            // 락을 못 잡은 서버는 평화롭게 다음 주기를 기다립니다. ㅋㅋㅋ
+            log.debug("⏭️ 리더 서버가 이미 동기화 중입니다. 작업을 건너뜁니다.");
         }
     }
 }

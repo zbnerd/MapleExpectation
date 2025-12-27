@@ -6,10 +6,10 @@ import lombok.extern.slf4j.Slf4j;
 import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.repository.v2.GameCharacterRepository;
 import maple.expectation.service.v2.GameCharacterService;
+import maple.expectation.service.v2.LikeSyncService; // 💡 추가
 import maple.expectation.support.SpringBootTestWithTimeLogging;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.annotation.Commit;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.UUID;
@@ -23,51 +23,28 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @SpringBootTestWithTimeLogging
 public class LikeConcurrencyTest {
 
-    @Autowired
-    private GameCharacterRepository gameCharacterRepository;
-
-    @Autowired
-    private GameCharacterService gameCharacterService;
-
-    @PersistenceContext
-    private EntityManager entityManager;
-
-    @Autowired
-    private TransactionTemplate transactionTemplate; // 명시적 트랜잭션 커밋용
+    @Autowired private GameCharacterRepository gameCharacterRepository;
+    @Autowired private GameCharacterService gameCharacterService;
+    @Autowired private LikeSyncService likeSyncService; // 💡 동기화 제어용 주입
+    @Autowired private TransactionTemplate transactionTemplate;
+    @PersistenceContext private EntityManager entityManager;
 
     private String targetUserIgn;
 
     @BeforeEach
     void setUp() {
         targetUserIgn = "TestUser_" + UUID.randomUUID().toString().substring(0, 8);
-
-        // 💡 1. 데이터를 별도 트랜잭션으로 커밋하여 다른 쓰레드가 볼 수 있게 함
         transactionTemplate.execute(status -> {
-            // [수정 포인트] 가짜 OCID를 미리 생성합니다.
             String fakeOcid = "test-fake-ocid-" + UUID.randomUUID().toString();
-
-            // [수정 포인트] 생성자 호출 시 이름과 OCID를 한 번에 넣습니다. (Setter 제거 반영)
-            GameCharacter target = new GameCharacter(targetUserIgn, fakeOcid);
-
-            gameCharacterRepository.save(target);
+            gameCharacterRepository.save(new GameCharacter(targetUserIgn, fakeOcid));
             return null;
         });
-
-        log.info("🎯 테스트 유저 준비 완료: {}", targetUserIgn);
-    }
-
-    @AfterEach
-    void tearDown() {
-        try {
-            gameCharacterRepository.deleteAll();
-        } catch (Exception e) {
-            log.warn("TearDown 중 에러 발생: {}", e.getMessage());
-        }
     }
 
     @Test
-    @DisplayName("🚀 1. [BufferedLikeProxy] 1000명 동시 요청 -> 쓰기 지연 후 스케줄러 DB 반영 확인")
-    void bufferedLikePerformanceTest() throws InterruptedException {
+    @DisplayName("🚀 계층형 쓰기 지연 검증: 1000명 동시 요청 -> L1->L2->L3 단계별 동기화 후 DB 반영 확인")
+    void hierarchicalLikePerformanceTest() throws InterruptedException {
+        // [Given] 1000명의 유저가 동시에 좋아요 클릭
         int userCount = 1000;
         ExecutorService executorService = Executors.newFixedThreadPool(32);
         CountDownLatch latch = new CountDownLatch(userCount);
@@ -75,9 +52,8 @@ public class LikeConcurrencyTest {
         for (int i = 0; i < userCount; i++) {
             executorService.submit(() -> {
                 try {
+                    // 1단계: L1(Caffeine)에 기록됨
                     gameCharacterService.clickLikeCache(targetUserIgn);
-                } catch (Exception e) {
-                    log.error("💥 [Cache] 좋아요 처리 중 에러: {}", e.getMessage());
                 } finally {
                     latch.countDown();
                 }
@@ -86,14 +62,18 @@ public class LikeConcurrencyTest {
         latch.await();
         executorService.shutdown();
 
-        log.info("💤 스케줄러 동기화 대기 중 (4.5s)...");
-        Thread.sleep(4500);
+        // [When] 단계별 수동 동기화 실행 (스케줄러 기다리지 않음!)
+        log.info("📥 [Step 1] L1(Caffeine) -> L2(Redis) 전송 시작");
+        likeSyncService.flushLocalToRedis();
 
-        entityManager.clear();
+        log.info("📤 [Step 2] L2(Redis) -> L3(DB) 최종 동기화 시작");
+        likeSyncService.syncRedisToDatabase();
 
+        // [Then] DB 최종 값 확인
+        entityManager.clear(); // 영속성 컨텍스트 초기화 필수
         GameCharacter characterAfterSync = gameCharacterService.getCharacterOrThrow(targetUserIgn);
-        log.info("✅ [After Sync] DB 최종 값: {}", characterAfterSync.getLikeCount());
 
+        log.info("✅ 모든 계층 동기화 완료. DB 최종 값: {}", characterAfterSync.getLikeCount());
         assertEquals(userCount, characterAfterSync.getLikeCount());
     }
 }
