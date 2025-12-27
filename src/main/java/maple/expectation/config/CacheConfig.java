@@ -10,14 +10,17 @@ import org.springframework.context.annotation.Configuration;
 import java.util.concurrent.TimeUnit;
 
 @Configuration
-@EnableCaching // 💡 핵심: 스프링의 AOP 기반 캐싱 기능을 활성화합니다!
+@EnableCaching
 public class CacheConfig {
 
     @Bean
     public CacheManager cacheManager() {
-        CaffeineCacheManager cacheManager = new CaffeineCacheManager("cubeTrials", "ocidCache");
+        // 💡 "equipment" 영역 추가
+        CaffeineCacheManager cacheManager = new CaffeineCacheManager("cubeTrials", "ocidCache", "equipment");
+
         cacheManager.setCaffeine(Caffeine.newBuilder()
-                .expireAfterAccess(30, TimeUnit.MINUTES) // 기존 프록시 설정 유지
+                // 💡 이슈 #11 정책: 15분 후 만료 (Write 기준)
+                .expireAfterWrite(15, TimeUnit.MINUTES)
                 .maximumSize(10_000));
         return cacheManager;
     }
