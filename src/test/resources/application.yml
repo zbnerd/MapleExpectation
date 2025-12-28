@@ -69,4 +69,4 @@ app:
     use-compression: false
   aop:
     trace:
-      enabled: true
+      enabled: false
