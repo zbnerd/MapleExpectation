@@ -66,7 +66,7 @@ public class EquipmentResponseTest {
 
             // 1. 스프링 AOP 프록시를 통한 기대 시도 횟수 조회
             // 💡 최초 호출 시엔 계산 로직이 실행되고, 동일 조건 재호출 시엔 캐시에서 바로 나옵니다.
-            long trials = trialsProvider.calculateExpectedTrials(input, CubeType.BLACK);
+            long trials = trialsProvider.calculateExpectedTrials(input, CubeType.BLACK).longValue();
 
             // 2. 비용 정책 객체를 통한 1회당 소모 메소 조회
             long costPerTrial = costPolicy.getCubeCost(CubeType.BLACK, level, input.getGrade());
