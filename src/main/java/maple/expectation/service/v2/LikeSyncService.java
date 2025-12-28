@@ -5,9 +5,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.aop.annotation.ObservedTransaction;
 import maple.expectation.service.v2.cache.LikeBufferStorage;
-import maple.expectation.service.v2.like.event.LikeSyncFailedEvent;
-import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
