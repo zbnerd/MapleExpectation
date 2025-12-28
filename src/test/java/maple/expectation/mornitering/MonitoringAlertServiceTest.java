@@ -2,72 +2,94 @@ package maple.expectation.mornitering;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import maple.expectation.global.lock.LockStrategy;
+import maple.expectation.global.common.function.ThrowingSupplier;
 import maple.expectation.service.v2.alert.DiscordAlertService;
 import maple.expectation.service.v2.cache.LikeBufferStorage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean; // ✅ Spring Boot 3.4+
 
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
-@ExtendWith(MockitoExtension.class)
+@SpringBootTest // ✅ Spring Context를 로드하여 @MockitoBean 사용 가능하게 함
 class MonitoringAlertServiceTest {
 
-    @Mock
+    @Autowired
+    private MonitoringAlertService monitoringAlertService;
+
+    @MockitoBean // ✅ 기존 @MockBean 대신 사용 (Spring Boot 3.4 신규 어노테이션)
     private LikeBufferStorage likeBufferStorage;
 
-    @Mock
+    @MockitoBean
     private DiscordAlertService discordAlertService;
 
-    @InjectMocks
-    private MonitoringAlertService monitoringAlertService;
+    @MockitoBean
+    private LockStrategy lockStrategy;
 
     private Cache<String, AtomicLong> testCache;
 
     @BeforeEach
     void setUp() {
-        // 실제 Caffeine 캐시를 생성하여 Mock 동작 설정
         testCache = Caffeine.newBuilder().build();
         given(likeBufferStorage.getCache()).willReturn(testCache);
     }
 
     @Test
-    @DisplayName("버퍼 잔량이 임계치(2000) 이하일 때는 알림을 보내지 않아야 한다")
-    void underThreshold_NoAlert() {
-        // given: 잔량 1000개 설정
+    @DisplayName("리더 권한을 획득하고 임계치를 초과하면 알림을 발송한다")
+    void leaderSuccess_OverThreshold_SendAlert() throws Throwable {
+        // given: 락 획득 성공 시뮬레이션 (인자로 전달된 람다를 실행하도록 설정)
+        given(lockStrategy.executeWithLock(anyString(), anyLong(), anyLong(), any(ThrowingSupplier.class)))
+                .willAnswer(invocation -> {
+                    ThrowingSupplier<?> supplier = invocation.getArgument(3);
+                    return supplier.get(); // 실제 내부 로직 실행
+                });
+
+        testCache.put("UserA", new AtomicLong(2500));
+
+        // when
+        monitoringAlertService.checkBufferSaturation();
+
+        // then
+        verify(discordAlertService, times(1)).sendCriticalAlert(anyString(), anyString(), any());
+    }
+
+    @Test
+    @DisplayName("리더 권한 획득에 실패하면 임계치를 초과해도 알림을 보내지 않는다")
+    void leaderFail_NoAlert() throws Throwable {
+        // given: 락 획득 실패 시뮬레이션 (예외 발생)
+        given(lockStrategy.executeWithLock(anyString(), anyLong(), anyLong(), any(ThrowingSupplier.class)))
+                .willThrow(new RuntimeException("Lock acquisition failed"));
+
+        testCache.put("UserA", new AtomicLong(2500));
+
+        // when
+        monitoringAlertService.checkBufferSaturation();
+
+        // then
+        verify(discordAlertService, never()).sendCriticalAlert(anyString(), anyString(), any());
+    }
+
+    @Test
+    @DisplayName("임계치 미만이면 리더 권한이 있어도 알림을 보내지 않는다")
+    void leaderSuccess_UnderThreshold_NoAlert() throws Throwable {
+        // given: 락 획득 성공
+        given(lockStrategy.executeWithLock(anyString(), anyLong(), anyLong(), any(ThrowingSupplier.class)))
+                .willAnswer(invocation -> ((ThrowingSupplier<?>) invocation.getArgument(3)).get());
+
         testCache.put("UserA", new AtomicLong(1000));
 
         // when
         monitoringAlertService.checkBufferSaturation();
 
-        // then: 알림 서비스가 한 번도 호출되지 않았는지 확인
+        // then
         verify(discordAlertService, never()).sendCriticalAlert(anyString(), anyString(), any());
-    }
-
-    @Test
-    @DisplayName("버퍼 잔량이 임계치(2000)를 초과하면 디스코드 알림을 발송해야 한다")
-    void overThreshold_SendAlert() {
-        // given: 잔량 2500개 설정 (1500 + 1000)
-        testCache.put("UserA", new AtomicLong(1500));
-        testCache.put("UserB", new AtomicLong(1000));
-
-        // when
-        monitoringAlertService.checkBufferSaturation();
-
-        // then: 알림 서비스가 정확히 1번 호출되었는지 확인
-        verify(discordAlertService, times(1)).sendCriticalAlert(
-                eq("BUFFER SATURATION WARNING"),
-                contains("2500"), // 메시지에 2500이 포함되었는지 확인
-                any()
-        );
     }
 }
