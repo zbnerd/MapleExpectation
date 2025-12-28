@@ -21,7 +21,6 @@ spring:
         format_sql: false
         show_sql: false
 
-# 📊 [PR #1, #3] 관측 가능성(Observability) 설정
 management:
   endpoints:
     web:
@@ -38,7 +37,6 @@ management:
     tags:
       application: ${spring.application.name} # 모든 메트릭에 앱 이름 태그 부여
 
-# 🛡️ [PR #2] 회복 탄력성(Resilience4j) 설정
 resilience4j:
   circuitbreaker:
     circuit-breaker-aspect-order: 400
@@ -69,11 +67,8 @@ resilience4j:
           - org.springframework.web.reactive.function.client.WebClientRequestException # 네트워크 단절 대응
           - java.net.UnknownHostException
 
-# 📝 [PR #1] 로깅 설정 (MDC 포함)
 logging:
   level:
-    org.springframework.cache: TRACE
-    maple.expectation.aop.aspect: INFO
     root: info
     org.hibernate.SQL: info
     org.hibernate.orm.jdbc.batch: ERROR
