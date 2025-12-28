@@ -2,7 +2,7 @@ package maple.expectation.global.error.dto;
 
 import lombok.Builder;
 import maple.expectation.global.error.ErrorCode;
-import maple.expectation.global.error.exception.BaseException;
+import maple.expectation.global.error.exception.base.BaseException;
 import org.springframework.http.ResponseEntity;
 
 import java.time.LocalDateTime;

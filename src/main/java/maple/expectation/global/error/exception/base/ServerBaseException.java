@@ -1,7 +1,6 @@
 package maple.expectation.global.error.exception.base;
 
 import maple.expectation.global.error.ErrorCode;
-import maple.expectation.global.error.exception.BaseException;
 
 /**
  * ServerBaseException: 시스템 내부 오류나 나의 오타로 인해 발생하는 '서버 예외'

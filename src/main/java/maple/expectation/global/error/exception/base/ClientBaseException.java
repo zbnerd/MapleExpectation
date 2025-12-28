@@ -1,7 +1,6 @@
 package maple.expectation.global.error.exception.base;
 
 import maple.expectation.global.error.ErrorCode;
-import maple.expectation.global.error.exception.BaseException;
 
 /**
  * ClientBaseException: 사용자의 의도와 다를 때 발생하는 '비즈니스 예외'
