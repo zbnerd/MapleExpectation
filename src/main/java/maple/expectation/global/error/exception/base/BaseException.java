@@ -1,4 +1,4 @@
-package maple.expectation.global.error.exception;
+package maple.expectation.global.error.exception.base;
 
 import lombok.Getter;
 import maple.expectation.global.error.ErrorCode;

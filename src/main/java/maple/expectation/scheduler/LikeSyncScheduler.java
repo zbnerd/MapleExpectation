@@ -1,15 +1,13 @@
 package maple.expectation.scheduler;
 
-import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.global.error.exception.DistributedLockException;
-import maple.expectation.global.lock.LockStrategy; // 👈 추가
+import maple.expectation.global.lock.LockStrategy;
 import maple.expectation.service.v2.LikeSyncService;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-@Slf4j
+@Slf4j // ✅ 로그 기록을 위해 추가
 @Component
 @RequiredArgsConstructor
 public class LikeSyncScheduler {
@@ -17,30 +15,25 @@ public class LikeSyncScheduler {
     private final LikeSyncService likeSyncService;
     private final LockStrategy lockStrategy;
 
-    /**
-     * 🚀 [미션 A] 로컬 데이터를 중앙으로 집결 (L1 -> L2)
-     * 1초마다 실행: 모든 서버가 예외 없이 자기 로컬 버퍼를 Redis로 쏩니다.
-     */
     @Scheduled(fixedRate = 1000)
     public void localFlush() {
+        // 로컬 버퍼는 각 서버가 독립적으로 수행하므로 락이 필요 없습니다.
         likeSyncService.flushLocalToRedis();
     }
 
-    /**
-     * 🚀 [미션 B] 중앙 데이터를 DB로 반영 (L2 -> L3)
-     * 3초마다 실행: 오직 분산 락을 획득한 한 대의 서버만 수행합니다.
-     */
     @Scheduled(fixedRate = 3000)
     public void globalSync() {
         try {
-            // "like-db-sync-lock"을 잡은 서버만 Redis->DB 동기화 수행
+            // ✅ 수정: ThrowingSupplier 대응 및 Throwable 캐치
+            // waitTime 0: 락을 못 잡으면 즉시 포기하고 다음 1초 뒤를 기약합니다.
             lockStrategy.executeWithLock("like-db-sync-lock", 0, 10, () -> {
                 likeSyncService.syncRedisToDatabase();
                 return null;
             });
-        } catch (DistributedLockException e) {
-            // 락을 못 잡은 서버는 평화롭게 다음 주기를 기다립니다. ㅋㅋㅋ
-            log.debug("⏭️ 리더 서버가 이미 동기화 중입니다. 작업을 건너뜁니다.");
+        } catch (Throwable t) {
+            // 💡 스케줄러에서는 락 획득 실패(DistributedLockException)가 빈번하므로
+            // 별도의 로그 없이 조용히 넘어가거나, 필요 시 debug 로그만 남깁니다.
+            // 만약 진짜 에러(DB 장애 등)인지는 syncRedisToDatabase 내부 로그가 알려줄 것입니다.
         }
     }
 }

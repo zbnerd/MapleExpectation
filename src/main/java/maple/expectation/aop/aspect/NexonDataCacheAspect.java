@@ -1,21 +1,16 @@
 package maple.expectation.aop.aspect;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.domain.v2.CharacterEquipment;
 import maple.expectation.external.dto.v2.EquipmentResponse;
-import maple.expectation.global.error.exception.EquipmentDataProcessingException;
 import maple.expectation.global.lock.LockStrategy;
-import maple.expectation.repository.v2.CharacterEquipmentRepository;
+import maple.expectation.service.v2.cache.EquipmentCacheService;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
@@ -25,88 +20,58 @@ import java.util.concurrent.CompletableFuture;
 @RequiredArgsConstructor
 public class NexonDataCacheAspect {
 
-    private final CharacterEquipmentRepository equipmentRepository;
+    private final EquipmentCacheService cacheService;
     private final LockStrategy lockStrategy;
-    private final ObjectMapper objectMapper;
 
     @Around("@annotation(maple.expectation.aop.annotation.NexonDataCache) && args(ocid, ..)")
     public Object handleNexonCache(ProceedingJoinPoint joinPoint, String ocid) throws Throwable {
 
-        // MethodSignature는 반환 타입 처리를 위해 유지합니다.
-        Class<?> returnType = ((MethodSignature) joinPoint.getSignature()).getReturnType();
+        MethodSignature signature = (MethodSignature) joinPoint.getSignature();
+        Class<?> returnType = signature.getReturnType();
 
-        // 1. DB 유효 캐시 확인 (Fast Path) - 인자로 받은 ocid 사용
-        Optional<CharacterEquipment> cache = equipmentRepository.findById(ocid);
-        if (cache.isPresent() && isValid(cache.get())) {
-            log.info("🎯 [AOP Cache Hit] DB에서 데이터를 반환합니다: {}", ocid);
-            EquipmentResponse response = convertToResponse(cache.get());
-
-            return returnType.equals(CompletableFuture.class)
-                    ? CompletableFuture.completedFuture(response)
-                    : response;
+        // 1. [Fast Path] L2 캐시(DB) 확인
+        Optional<EquipmentResponse> cached = cacheService.getValidCache(ocid);
+        if (cached.isPresent()) {
+            log.info("🎯 [AOP Cache Hit] ocid: {}", ocid);
+            return wrapResponse(cached.get(), returnType);
         }
 
-        // 2. 캐시 없거나 만료됨 -> 락 잡고 진행 (Slow Path)
+        // 2. [Slow Path] 분산 락을 통한 캐시 스탬피드 방지 및 API 호출
+        // ✅ Best Practice 2: ThrowingSupplier 도입으로 억지 RuntimeException 래핑 제거
         return lockStrategy.executeWithLock(ocid, () -> {
-            try {
-                // Double Check (인자로 받은 ocid 사용)
-                Optional<CharacterEquipment> latest = equipmentRepository.findById(ocid);
-                if (latest.isPresent() && isValid(latest.get())) {
-                    EquipmentResponse response = convertToResponse(latest.get());
-                    return returnType.equals(CompletableFuture.class)
-                            ? CompletableFuture.completedFuture(response)
-                            : response;
-                }
 
-                log.info("🔄 [AOP Cache Miss] API를 호출하고 DB를 갱신합니다: {}", ocid);
-
-                // proceed() 시 인자를 전달하지 않아도 바인딩된 원본 인자로 자동 실행됩니다.
-                Object result = joinPoint.proceed();
-
-                if (result instanceof CompletableFuture<?> future) {
-                    return future.thenApply(res -> {
-                        saveToDb(ocid, (EquipmentResponse) res);
-                        return res;
-                    });
-                }
-
-                saveToDb(ocid, (EquipmentResponse) result);
-                return result;
-
-            } catch (Throwable e) {
-                throw (e instanceof RuntimeException) ? (RuntimeException) e : new RuntimeException(e);
+            // 3. Double Check (락 획득 대기 중 다른 스레드가 먼저 갱신했을 수 있음)
+            Optional<EquipmentResponse> latest = cacheService.getValidCache(ocid);
+            if (latest.isPresent()) {
+                return wrapResponse(latest.get(), returnType);
             }
+
+            log.info("🔄 [AOP Cache Miss] API 호출 및 캐시 갱신 시작: {}", ocid);
+            Object result = joinPoint.proceed();
+
+            // 4. [Non-blocking Pipeline] 비동기 처리 여부에 따른 후속 작업
+            if (CompletableFuture.class.isAssignableFrom(returnType)) {
+                // ✅ Best Practice 3: join()을 쓰지 않고 thenApply 체인으로 연결 (진짜 비동기)
+                return ((CompletableFuture<?>) result).thenApply(res -> {
+                    // 캐시 저장은 별도 서비스(REQUIRES_NEW)에서 수행하여 트랜잭션 격리
+                    cacheService.saveCache(ocid, (EquipmentResponse) res);
+                    return res;
+                });
+            }
+
+            // 동기 방식인 경우 즉시 저장 후 반환
+            cacheService.saveCache(ocid, (EquipmentResponse) result);
+            return result;
         });
     }
 
-    private boolean isValid(CharacterEquipment e) {
-        return e != null && e.getUpdatedAt().isAfter(LocalDateTime.now().minusMinutes(15));
-    }
-
-    private EquipmentResponse convertToResponse(CharacterEquipment entity) {
-        try {
-            return objectMapper.readValue(entity.getJsonContent(), EquipmentResponse.class);
-        } catch (Exception e) {
-            log.error("캐시 역직렬화 실패: ocid={}", entity.getOcid(), e);
-            throw new EquipmentDataProcessingException("캐시 데이터 파싱 실패 (AOP)");
+    /**
+     * 캐시된 데이터를 메서드의 반환 타입에 맞게 래핑합니다.
+     */
+    private Object wrapResponse(EquipmentResponse response, Class<?> returnType) {
+        if (CompletableFuture.class.isAssignableFrom(returnType)) {
+            return CompletableFuture.completedFuture(response);
         }
-    }
-
-    private void saveToDb(String ocid, EquipmentResponse res) {
-        try {
-            String json = objectMapper.writeValueAsString(res);
-
-            CharacterEquipment entity = equipmentRepository.findById(ocid)
-                    .orElseGet(() -> CharacterEquipment.builder()
-                            .ocid(ocid)
-                            .jsonContent(json)
-                            .build());
-
-            entity.updateData(json);
-            equipmentRepository.saveAndFlush(entity);
-
-        } catch (JsonProcessingException e) {
-            throw new EquipmentDataProcessingException("데이터 직렬화 실패 (AOP)");
-        }
+        return response;
     }
 }

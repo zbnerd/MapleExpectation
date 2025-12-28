@@ -2,7 +2,7 @@ package maple.expectation.global.error;
 
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.error.dto.ErrorResponse;
-import maple.expectation.global.error.exception.BaseException;
+import maple.expectation.global.error.exception.base.BaseException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
