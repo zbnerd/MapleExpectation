@@ -72,11 +72,12 @@ resilience4j:
 # 📝 [PR #1] 로깅 설정 (MDC 포함)
 logging:
   level:
+    org.springframework.cache: TRACE
+    maple.expectation.aop.aspect: INFO
     root: info
     org.hibernate.SQL: info
     org.hibernate.orm.jdbc.batch: ERROR
   pattern:
-    # [%X{requestId}]가 핵심입니다!
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %5p [%X{requestId}] --- [%thread] %-40.40logger{39} : %m%n"
 
 # 넥슨 API 키
@@ -87,7 +88,6 @@ nexon:
 server:
   shutdown: graceful
 
-# 앱 전용 설정
 app:
   optimization:
     use-compression: true

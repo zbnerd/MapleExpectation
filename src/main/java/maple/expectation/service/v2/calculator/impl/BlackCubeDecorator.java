@@ -26,7 +26,7 @@ public class BlackCubeDecorator extends EnhanceDecorator {
     }
 
     public Long calculateTrials() {
-        trials = trialsProvider.calculateExpectedTrials(input, CubeType.BLACK);
+        trials = trialsProvider.calculateExpectedTrials(input, CubeType.BLACK).longValue();
         return trials;
     }
 

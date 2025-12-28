@@ -2,7 +2,6 @@ package maple.expectation.service.v2.impl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.aop.annotation.TraceLog;
 import maple.expectation.domain.v2.CubeType;
 import maple.expectation.dto.CubeCalculationInput;
 import maple.expectation.service.v2.CubeTrialsProvider;
@@ -23,13 +22,13 @@ public class CubeServiceImpl implements CubeTrialsProvider {
     private final CubeRateCalculator rateCalculator;
 
     @Override
+    // 🚀 [핵심 수정] 반환 타입을 Double로 변경합니다. (Jackson의 자동 형변환 에러 방지)
     @Cacheable(value = "cubeTrials", key = "#type.name() + '_' + #input.level + '_' + #input.part + '_' + #input.grade + '_' + #input.options")
-    public Long calculateExpectedTrials(CubeCalculationInput input, CubeType type) {
+    public Double calculateExpectedTrials(CubeCalculationInput input, CubeType type) {
         if (!input.isReady()) {
-            return 0L;
+            return 0.0;
         }
 
-        // 순열 기반 확률 계산 (기존 로직 유지)
         List<String> targetOptions = new ArrayList<>(input.getOptions());
         Set<List<String>> permutations = PermutationUtil.generateUniquePermutations(targetOptions);
         double totalProbability = 0.0;
@@ -49,6 +48,11 @@ public class CubeServiceImpl implements CubeTrialsProvider {
             totalProbability += caseProb;
         }
 
-        return (totalProbability > 0) ? (long) Math.ceil(1.0 / totalProbability) : 0L;
+
+        if (totalProbability > 0) {
+            return Math.ceil(1.0 / totalProbability);
+        }
+
+        return 0.0;
     }
 }

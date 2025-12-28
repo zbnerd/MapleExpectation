@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.error.exception.EquipmentDataProcessingException;
-import maple.expectation.external.NexonApiClient;
 import maple.expectation.external.dto.v2.EquipmentResponse;
 import maple.expectation.util.GzipUtils;
 import org.springframework.beans.factory.annotation.Value;
@@ -14,30 +13,34 @@ import org.springframework.stereotype.Component;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.CompletableFuture; // 추가
+import java.util.concurrent.CompletableFuture;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class EquipmentDataProvider {
 
-    private final NexonApiClient nexonApiClient; // @Primary인 ResilientNexonApiClient 주입
+    private final EquipmentFetchProvider fetchProvider; // 🚀 분리된 FetchProvider 주입
     private final ObjectMapper objectMapper;
 
     @Value("${app.optimization.use-compression:true}")
     private boolean USE_COMPRESSION;
 
+    // V3용
     public CompletableFuture<byte[]> getRawEquipmentData(String ocid) {
-        // 1. 비동기로 클라이언트 데이터 호출
-        // 2. thenApply를 통해 결과가 오면 직렬화(Serialization) 수행
-        return nexonApiClient.getItemDataByOcid(ocid)
+        // supplyAsync를 통해 비동기로 처리
+        return CompletableFuture.supplyAsync(() -> fetchProvider.fetchWithCache(ocid))
                 .thenApply(this::serializeResponse);
     }
 
+    // V2용
     public CompletableFuture<EquipmentResponse> getEquipmentResponse(String ocid) {
-        return nexonApiClient.getItemDataByOcid(ocid);
+        return CompletableFuture.completedFuture(fetchProvider.fetchWithCache(ocid));
     }
 
+    /**
+     * 바이트 데이터를 압축 해제하여 스트림으로 출력 (디버깅/특수 목적)
+     */
     public void streamAndDecompress(String ocid, OutputStream os) {
         byte[] rawData = getRawEquipmentData(ocid).join();
 
@@ -50,7 +53,7 @@ public class EquipmentDataProvider {
     }
 
     /**
-     * EquipmentResponse 객체를 byte[]로 변환 (압축 로직 포함)
+     * EquipmentResponse 객체를 byte[]로 변환 (GZIP 압축 로직 포함)
      */
     private byte[] serializeResponse(EquipmentResponse response) {
         try {
