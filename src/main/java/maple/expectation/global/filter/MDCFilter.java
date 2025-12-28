@@ -1,38 +1,47 @@
 package maple.expectation.global.filter;
 
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
+import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.MDC;
 import org.springframework.stereotype.Component;
-import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.UUID;
 
 @Component
-public class MDCFilter extends OncePerRequestFilter {
+public class MDCFilter implements Filter {
 
-    private static final String REQUEST_ID = "requestId";
+    // 표준적으로 많이 사용되는 Correlation ID 헤더 명칭들
+    private static final String CORRELATION_ID_HEADER = "X-Correlation-ID";
+    private static final String REQUEST_ID_MDC_KEY = "requestId";
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
-            throws ServletException, IOException {
-        
-        // 1. 8자리 짧은 UUID 생성 (로그 가독성을 위해 단축)
-        String requestId = UUID.randomUUID().toString().substring(0, 8);
-        
-        // 2. MDC(ThreadLocal 기반)에 requestId 주입
-        MDC.put(REQUEST_ID, requestId);
+    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
+            throws IOException, ServletException {
+
+        HttpServletRequest httpRequest = (HttpServletRequest) request;
+        HttpServletResponse httpResponse = (HttpServletResponse) response;
+
+        // 1. 외부(로드밸런서, 게이트웨이 등)에서 전달된 ID가 있는지 확인
+        String correlationId = httpRequest.getHeader(CORRELATION_ID_HEADER);
+
+        // 2. 없다면 새롭게 생성 (기존 로직 유지)
+        if (correlationId == null || correlationId.isBlank()) {
+            correlationId = UUID.randomUUID().toString();
+        }
+
+        // 3. 로그 추적을 위해 MDC에 삽입
+        MDC.put(REQUEST_ID_MDC_KEY, correlationId);
+
+        // 4. 클라이언트나 다음 서비스가 알 수 있도록 응답 헤더에도 추가
+        httpResponse.setHeader(CORRELATION_ID_HEADER, correlationId);
 
         try {
-            // 3. 다음 필터 혹은 서블릿(컨트롤러)으로 요청 전달
-            filterChain.doFilter(request, response);
+            chain.doFilter(request, response);
         } finally {
-            // 4. [중요] ThreadLocal 자원 누수 방지를 위해 요청 완료 후 반드시 제거
-            // 제거하지 않으면 스레드 풀의 다른 요청에서 이전 ID가 보일 수 있음
-            MDC.remove(REQUEST_ID);
+            // 요청이 끝나면 반드시 비워줌 (스레드 풀 환경 메모리 누수 방지)
+            MDC.clear();
         }
     }
 }
