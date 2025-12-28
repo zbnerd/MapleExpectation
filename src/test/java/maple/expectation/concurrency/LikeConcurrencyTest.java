@@ -10,6 +10,7 @@ import maple.expectation.service.v2.LikeSyncService; // 💡 추가
 import maple.expectation.support.SpringBootTestWithTimeLogging;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.UUID;
