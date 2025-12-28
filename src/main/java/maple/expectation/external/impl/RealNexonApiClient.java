@@ -40,7 +40,6 @@ public class RealNexonApiClient implements NexonApiClient {
     }
 
     @Override
-    @NexonDataCache // 💡 [핵심] 수동 프록시가 하던 DB캐싱+락 로직을 AOP가 가로채서 수행함!
     public CompletableFuture<EquipmentResponse> getItemDataByOcid(String ocid) {
         log.info("🌐 [API Call] 넥슨 장비 상세 데이터 요청 (Cache Miss): {}", ocid);
         return mapleWebClient.get()

@@ -8,12 +8,15 @@ import maple.expectation.external.dto.v2.EquipmentResponse;
 import maple.expectation.external.impl.RealNexonApiClient;
 import maple.expectation.parser.EquipmentStreamingParser;
 import maple.expectation.provider.EquipmentDataProvider;
+import maple.expectation.provider.EquipmentFetchProvider; // 추가
 import maple.expectation.repository.v2.CharacterEquipmentRepository;
 import maple.expectation.repository.v2.GameCharacterRepository;
 import org.junit.jupiter.api.*;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.cache.CacheManager;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.util.AopTestUtils;
@@ -33,7 +36,7 @@ import static org.mockito.Mockito.*;
 class EquipmentServiceTest {
 
     @Autowired
-    private org.springframework.cache.CacheManager cacheManager;
+    private CacheManager cacheManager;
 
     @Autowired
     private EquipmentService equipmentService;
@@ -49,76 +52,76 @@ class EquipmentServiceTest {
     private RealNexonApiClient realNexonApiClient;
 
     @MockitoSpyBean
+    private EquipmentFetchProvider fetchProvider; // 🚀 캐시 관문 스파이 추가
+
+    @MockitoSpyBean
     private EquipmentDataProvider equipmentProvider;
 
     @MockitoBean
     private EquipmentStreamingParser streamingParser;
 
-
     private final String USERIGN = "개리";
     private final String OCID = "test-ocid-12345";
 
     @BeforeEach
-    void setUp() {
-        // 💡 1. DB 청소 (기존 로직)
+    void setUp() throws Exception {
         equipmentRepository.deleteAllInBatch();
         gameCharacterRepository.deleteAllInBatch();
-
-        // 💡 2. [추가] 모든 메모리 캐시 싹 비우기 (테스트 격리)
         cacheManager.getCacheNames().forEach(name -> cacheManager.getCache(name).clear());
 
-        // ... 나머지 기존 생성자 및 모킹 로직 ...
+        // 💡 모든 스파이 객체의 AOP 타겟을 획득하고 초기화
+        RealNexonApiClient spyClient = AopTestUtils.getTargetObject(realNexonApiClient);
+        EquipmentFetchProvider spyFetch = AopTestUtils.getTargetObject(fetchProvider);
+        EquipmentDataProvider spyProvider = AopTestUtils.getTargetObject(equipmentProvider);
+
+        Mockito.reset(spyClient, spyFetch, spyProvider);
+
         GameCharacter character = new GameCharacter(USERIGN, OCID);
         gameCharacterRepository.saveAndFlush(character);
 
-        RealNexonApiClient actualClientTarget = AopTestUtils.getUltimateTargetObject(realNexonApiClient);
         CharacterOcidResponse mockOcidRes = new CharacterOcidResponse();
         mockOcidRes.setOcid(OCID);
-        doReturn(mockOcidRes).when(actualClientTarget).getOcidByCharacterName(anyString());
+        doReturn(mockOcidRes).when(spyClient).getOcidByCharacterName(anyString());
     }
 
     @Test
-    @DisplayName("15분 캐싱 전략 테스트: AOP 캐시가 작동하여 DB에 저장되고 만료 시 갱신된다")
+    @DisplayName("15분 캐싱 전략 테스트: 데이터는 동일하지만 만료 시 API를 재호출한다")
     void caching_logic_test() throws Exception {
-        // [Given] - 생략 (기존과 동일)
-        EquipmentResponse mockRes1 = new EquipmentResponse();
-        mockRes1.setCharacterClass("Warrior");
-        EquipmentResponse mockRes2 = new EquipmentResponse();
-        mockRes2.setCharacterClass("Magician");
+        RealNexonApiClient spyClient = AopTestUtils.getTargetObject(realNexonApiClient);
 
-        RealNexonApiClient actualClientTarget = AopTestUtils.getUltimateTargetObject(realNexonApiClient);
-        doReturn(CompletableFuture.completedFuture(mockRes1))
-                .doReturn(CompletableFuture.completedFuture(mockRes2))
-                .when(actualClientTarget).getItemDataByOcid(OCID);
+        EquipmentResponse mockRes = new EquipmentResponse();
+        mockRes.setCharacterClass("Warrior");
+
+        // 🚀 클라이언트 호출은 여전히 비동기이므로 CompletableFuture로 스터빙
+        doReturn(CompletableFuture.completedFuture(mockRes))
+                .when(spyClient).getItemDataByOcid(OCID);
 
         log.info("--- STEP 1. 최초 조회 수행 ---");
         EquipmentResponse response1 = equipmentService.getEquipmentByUserIgn(USERIGN);
         assertThat(response1.getCharacterClass()).isEqualTo("Warrior");
 
-        // 💡 [추가] STEP 2로 가기 전, 메모리(L1) 캐시를 강제로 비웁니다.
-        // 그래야 다음 호출 때 L2(DB/AOP) 로직이 실행되는지 확인할 수 있습니다.
-        cacheManager.getCache("equipment").clear();
-
-        // DB에 잘 저장되었는지 확인
-        CharacterEquipment savedEntity = equipmentRepository.findById(OCID)
-                .orElseThrow(() -> new AssertionError("데이터가 DB에 저장되지 않았습니다."));
+        // L1 캐시만 비워서 L2(Redis)나 L3(DB)를 타게 유도
+        cacheManager.getCache("equipment").evict(OCID); // 키를 OCID로 변경 (FetchProvider 기준)
 
         log.info("--- STEP 2. 시간 조작 (20분 전으로 타임머신) ---");
+        CharacterEquipment savedEntity = equipmentRepository.findById(OCID).orElseThrow();
         manipulateUpdatedAt(savedEntity, LocalDateTime.now().minusMinutes(20));
         equipmentRepository.saveAndFlush(savedEntity);
 
-        log.info("--- STEP 3. 만료 후 재조회 (캐시 갱신 예상) ---");
-        // L1이 비워졌고, DB(L2)는 만료되었으므로, 결국 실제 API를 호출하게 됩니다.
+        log.info("--- STEP 3. 만료 후 재조회 ---");
         EquipmentResponse response2 = equipmentService.getEquipmentByUserIgn(USERIGN);
 
-        assertThat(response2.getCharacterClass()).isEqualTo("Magician");
+        assertThat(response2.getCharacterClass()).isEqualTo("Warrior");
 
-        // Target이 2번 호출되었는지 확인
-        verify(actualClientTarget, times(2)).getItemDataByOcid(OCID);
+        // 🚀 최종적으로 클라이언트(API)가 2번 호출되었는지 검증
+        verify(spyClient, times(2)).getItemDataByOcid(OCID);
     }
+
     @Test
     @DisplayName("Stream API: GZIP 데이터 압축 해제 검증")
     void streamEquipmentData_Gzip_Success() throws Exception {
+        EquipmentDataProvider spyProvider = AopTestUtils.getTargetObject(equipmentProvider);
+
         String content = "{\"data\":\"test-content\"}";
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         try (GZIPOutputStream gos = new GZIPOutputStream(bos)) {
@@ -126,41 +129,13 @@ class EquipmentServiceTest {
         }
         byte[] validGzipData = bos.toByteArray();
 
-        // 💡 6. Provider 알맹이 모킹
-        EquipmentDataProvider actualProviderTarget = AopTestUtils.getUltimateTargetObject(equipmentProvider);
         doReturn(CompletableFuture.completedFuture(validGzipData))
-                .when(actualProviderTarget).getRawEquipmentData(anyString());
+                .when(spyProvider).getRawEquipmentData(anyString());
 
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         equipmentService.streamEquipmentData(USERIGN, outputStream);
 
         assertThat(outputStream.toString()).contains("test-content");
-    }
-
-    @Test
-    @DisplayName("동일 유저 재조회 시 DB 호출 없이 캐시에서 반환되어야 한다")
-    void issue11_verification_test() {
-        // [Given]
-        // 1. 가짜 응답 객체 생성
-        EquipmentResponse mockResponse = new EquipmentResponse();
-        mockResponse.setCharacterClass("Hero");
-
-        // 2. [핵심] Provider를 모킹하여 '성공'을 보장합니다.
-        // equipmentProvider는 @MockitoSpyBean이므로 doReturn을 사용해야 실제 로직을 안 탑니다.
-        doReturn(CompletableFuture.completedFuture(mockResponse))
-                .when(equipmentProvider).getEquipmentResponse(anyString());
-
-        // [When]
-        log.info("--- 1회차 호출 (캐시 미스 예상) ---");
-        equipmentService.getEquipmentByUserIgn(USERIGN);
-
-        log.info("--- 2회차 호출 (캐시 히트 예상) ---");
-        equipmentService.getEquipmentByUserIgn(USERIGN);
-
-        // [Then]
-        // 캐시가 정상 작동한다면, 실제 서비스 로직 내부의 'provider.getEquipmentResponse'는
-        // 딱 1번만 호출되어야 합니다. (2회차는 프록시가 가로채서 바로 반환하니까요!)
-        verify(equipmentProvider, times(1)).getEquipmentResponse(anyString());
     }
 
     private void manipulateUpdatedAt(CharacterEquipment entity, LocalDateTime targetTime) throws Exception {

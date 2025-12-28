@@ -105,16 +105,6 @@ public class EquipmentStreamingParser {
         }
     }
 
-    public void writeToStream(EquipmentResponse response, OutputStream outputStream) {
-        try {
-            JsonGenerator jsonGenerator = factory.createGenerator(outputStream);
-            objectMapper.writeValue(jsonGenerator, response);
-            jsonGenerator.flush();
-        } catch (IOException e) {
-            throw new MapleDataProcessingException("JSON 스트리밍 직렬화 실패: " + e.getMessage());
-        }
-    }
-
     private InputStream createInputStream(byte[] data) throws IOException {
         InputStream is = new ByteArrayInputStream(data);
         if (data.length > 2 && data[0] == (byte) 0x1F && data[1] == (byte) 0x8B) {

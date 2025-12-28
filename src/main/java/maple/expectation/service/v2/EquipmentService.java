@@ -38,7 +38,7 @@ public class EquipmentService {
     private final EquipmentDataProvider equipmentProvider;
     private final EquipmentStreamingParser streamingParser;
     private final ExpectationCalculatorFactory calculatorFactory;
-    private final EquipmentMapper equipmentMapper; // 💡 새로 만든 매퍼 주입
+    private final EquipmentMapper equipmentMapper;
 
     public TotalExpectationResponse calculateTotalExpectation(String userIgn) {
         // 1. 데이터 획득
@@ -79,7 +79,6 @@ public class EquipmentService {
         equipmentProvider.streamAndDecompress(getOcid(userIgn), outputStream);
     }
 
-    @Cacheable(value = "equipment", key = "#userIgn")
     public EquipmentResponse getEquipmentByUserIgn(String userIgn) {
         log.info("💾 [Cache Miss] DB/API에서 장비 데이터를 가져옵니다: {}", userIgn);
         return equipmentProvider.getEquipmentResponse(getOcid(userIgn)).join();

@@ -35,7 +35,7 @@ class CubeServiceTest {
                 .build();
 
         // 2. when: 이제 '비용'이 아닌 '횟수(Trials)'를 직접 계산합니다.
-        long trials = cubeTrialsProvider.calculateExpectedTrials(input, CubeType.BLACK);
+        long trials = cubeTrialsProvider.calculateExpectedTrials(input, CubeType.BLACK).longValue();
 
         // 3. then
         assertThat(trials).isGreaterThan(0);
@@ -61,7 +61,7 @@ class CubeServiceTest {
                 .build();
 
         // when
-        long trials = cubeTrialsProvider.calculateExpectedTrials(input, CubeType.BLACK);
+        long trials = cubeTrialsProvider.calculateExpectedTrials(input, CubeType.BLACK).longValue();
 
         // then
         assertThat(trials).isGreaterThan(0);

@@ -15,6 +15,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.util.AopTestUtils; // 💡 중요: 이거 임포트 확인!
 import org.springframework.test.util.ReflectionTestUtils;
 
+import org.springframework.cache.CacheManager;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -30,15 +31,17 @@ import static org.mockito.Mockito.*;
 class EquipmentDataProviderConcurrencyTest {
 
     @Autowired
-    @Qualifier("realNexonApiClient")
-    private NexonApiClient proxiedClient;
+    private EquipmentFetchProvider fetchProvider; // 🚀 실제 테스트 대상 (AOP가 붙은 관문)
 
-    @MockitoSpyBean
+    @MockitoBean
     @Qualifier("realNexonApiClient")
-    private RealNexonApiClient targetClient;
+    private RealNexonApiClient targetClient; // 🚀 클라이언트는 Mock으로 처리 (API 호출 방지)
 
     @MockitoBean
     private CharacterEquipmentRepository equipmentRepository;
+
+    @Autowired
+    private CacheManager cacheManager;
 
     @Test
     @DisplayName("AOP 기반 캐시: 동시에 10명이 같은 유저 조회 시, 실제 DB 저장(Sync)은 1회만 발생해야 한다")
@@ -50,7 +53,10 @@ class EquipmentDataProviderConcurrencyTest {
         CountDownLatch latch = new CountDownLatch(threadCount);
         AtomicReference<CharacterEquipment> mockDb = new AtomicReference<>(null);
 
-        // 1. 하위 의존성 모킹
+        // 이전 테스트 캐시 초기화
+        cacheManager.getCache("equipment").clear();
+
+        // 1. DB 레포지토리 모킹
         when(equipmentRepository.findById(anyString())).thenAnswer(invocation ->
                 Optional.ofNullable(mockDb.get())
         );
@@ -62,20 +68,17 @@ class EquipmentDataProviderConcurrencyTest {
             return entity;
         });
 
-        // 💡 2. [핵심 포인트] 프록시 껍데기를 벗겨내고 '진짜 알맹이'를 가져옵니다.
-        RealNexonApiClient actualTarget = AopTestUtils.getUltimateTargetObject(targetClient);
-
-        // 💡 3. [문법] 껍데기가 아닌 '진짜 알맹이'에 doReturn 설정을 겁니다.
-        // 이렇게 하면 설정을 거는 도중에 NexonDataCacheAspect가 절대 가동되지 않습니다.
-        doReturn(CompletableFuture.completedFuture(new EquipmentResponse()))
-                .when(actualTarget).getItemDataByOcid(targetOcid);
+        // 2. 🚀 API 클라이언트가 가짜 데이터를 반환하도록 설정
+        when(targetClient.getItemDataByOcid(targetOcid))
+                .thenReturn(CompletableFuture.completedFuture(new EquipmentResponse()));
 
         // When
         for (int i = 0; i < threadCount; i++) {
             executor.submit(() -> {
                 try {
-                    // 호출은 '프록시(proxiedClient)'를 통해서 해야 AOP가 작동합니다.
-                    proxiedClient.getItemDataByOcid(targetOcid).join();
+                    // 🚀 [핵심 수정] 클라이언트가 아니라 'FetchProvider'를 호출해야
+                    // 그 위에 붙은 @NexonDataCache AOP가 작동합니다!
+                    fetchProvider.fetchWithCache(targetOcid);
                 } catch (Exception e) {
                     e.printStackTrace();
                 } finally {
@@ -88,7 +91,7 @@ class EquipmentDataProviderConcurrencyTest {
         executor.shutdown();
 
         // Then
-        // AOP 락이 성공했다면 saveAndFlush는 딱 1번!
+        // 🚀 AOP의 분산 락/동기화 로직이 성공했다면 saveAndFlush는 딱 1번만 호출됩니다.
         verify(equipmentRepository, times(1)).saveAndFlush(any());
     }
 }
