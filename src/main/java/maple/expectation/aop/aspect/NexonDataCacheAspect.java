@@ -1,5 +1,6 @@
 package maple.expectation.aop.aspect;
 
+import io.github.resilience4j.retry.annotation.Retry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.external.dto.v2.EquipmentResponse;
@@ -27,6 +28,7 @@ public class NexonDataCacheAspect {
     private final LockStrategy lockStrategy;
 
     @Around("@annotation(maple.expectation.aop.annotation.NexonDataCache) && args(ocid, ..)")
+    @Retry(name = "nexonLockRetry")
     public Object handleNexonCache(ProceedingJoinPoint joinPoint, String ocid) throws Throwable {
         MethodSignature signature = (MethodSignature) joinPoint.getSignature();
         Class<?> returnType = signature.getReturnType();
