@@ -54,8 +54,8 @@ resilience4j:
 logging:
   level:
     root: info
-    org.hibernate.SQL: debug
-    maple.expectation: DEBUG
+    org.hibernate.SQL: info
+    maple.expectation: info
 
 nexon:
   api:
