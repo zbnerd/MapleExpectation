@@ -2,7 +2,7 @@ package maple.expectation.global.lock;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.global.common.function.ThrowingSupplier; // ✅ 패키지 경로 확인
+import maple.expectation.global.common.function.ThrowingSupplier;
 import maple.expectation.global.error.exception.DistributedLockException;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
@@ -23,7 +23,7 @@ public class RedisDistributedLockStrategy implements LockStrategy {
 
     @Override
     public <T> T executeWithLock(String key, ThrowingSupplier<T> task) throws Throwable {
-        return executeWithLock(key, 3, 10, task);
+        return executeWithLock(key, 3, 15, task); // LeaseTime을 넉넉히 15초로 상향
     }
 
     @Override
@@ -35,12 +35,12 @@ public class RedisDistributedLockStrategy implements LockStrategy {
 
             if (!isLocked) {
                 log.warn("⏭️ [Distributed Lock] '{}' 획득 실패.", key);
-                throw new DistributedLockException("락 획득 타임아웃: " + key);
+                throw new DistributedLockException(key);
             }
 
             try {
                 log.debug("🔓 [Distributed Lock] '{}' 획득 성공.", key);
-                return task.get(); // ✅ 이제 예외를 여기서 감싸지 않고 그대로 던집니다.
+                return task.get();
             } finally {
                 if (lock.isHeldByCurrentThread()) {
                     lock.unlock();
@@ -49,7 +49,29 @@ public class RedisDistributedLockStrategy implements LockStrategy {
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new DistributedLockException("락 시도 중 인터럽트 발생");
+            throw new DistributedLockException(key, e);
+        } catch (Exception e) {
+            throw new DistributedLockException(key, e);
+        }
+    }
+
+    @Override
+    public boolean tryLockImmediately(String key, long leaseTime) {
+        RLock lock = redissonClient.getLock("lock:" + key);
+        try {
+            // WaitTime을 0으로 주어 즉시 획득 시도
+            return lock.tryLock(0, leaseTime, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
+    @Override
+    public void unlock(String key) {
+        RLock lock = redissonClient.getLock("lock:" + key);
+        if (lock.isHeldByCurrentThread()) {
+            lock.unlock();
         }
     }
 }
