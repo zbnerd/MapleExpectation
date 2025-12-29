@@ -1,18 +1,19 @@
 package maple.expectation.concurrency;
 
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
-import lombok.extern.slf4j.Slf4j;
 import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.repository.v2.GameCharacterRepository;
 import maple.expectation.service.v2.GameCharacterService;
-import maple.expectation.service.v2.LikeSyncService; // 💡 추가
-import maple.expectation.support.SpringBootTestWithTimeLogging;
-import org.junit.jupiter.api.*;
+import maple.expectation.service.v2.LikeSyncService;
+import maple.expectation.support.AbstractContainerBaseTest;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.TestPropertySource;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -20,13 +21,12 @@ import java.util.concurrent.Executors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-@Slf4j
-@SpringBootTestWithTimeLogging
-public class LikeConcurrencyTest {
+@SpringBootTest
+public class LikeConcurrencyTest extends AbstractContainerBaseTest {
 
     @Autowired private GameCharacterRepository gameCharacterRepository;
     @Autowired private GameCharacterService gameCharacterService;
-    @Autowired private LikeSyncService likeSyncService; // 💡 동기화 제어용 주입
+    @Autowired private LikeSyncService likeSyncService;
     @Autowired private TransactionTemplate transactionTemplate;
     @PersistenceContext private EntityManager entityManager;
 
@@ -36,7 +36,7 @@ public class LikeConcurrencyTest {
     void setUp() {
         targetUserIgn = "TestUser_" + UUID.randomUUID().toString().substring(0, 8);
         transactionTemplate.execute(status -> {
-            String fakeOcid = "test-fake-ocid-" + UUID.randomUUID().toString();
+            String fakeOcid = "test-fake-ocid-" + UUID.randomUUID();
             gameCharacterRepository.save(new GameCharacter(targetUserIgn, fakeOcid));
             return null;
         });
@@ -60,21 +60,48 @@ public class LikeConcurrencyTest {
                 }
             });
         }
+
         latch.await();
         executorService.shutdown();
 
-        // [When] 단계별 수동 동기화 실행 (스케줄러 기다리지 않음!)
-        log.info("📥 [Step 1] L1(Caffeine) -> L2(Redis) 전송 시작");
+        // [When] 단계별 수동 동기화 실행
+        // Step 1: L1(Caffeine) -> L2(Redis) 전송
         likeSyncService.flushLocalToRedis();
 
-        log.info("📤 [Step 2] L2(Redis) -> L3(DB) 최종 동기화 시작");
+        // Step 2: L2(Redis) -> L3(DB) 최종 동기화
         likeSyncService.syncRedisToDatabase();
 
         // [Then] DB 최종 값 확인
-        entityManager.clear(); // 영속성 컨텍스트 초기화 필수
+        entityManager.clear();
         GameCharacter characterAfterSync = gameCharacterService.getCharacterOrThrow(targetUserIgn);
 
-        log.info("✅ 모든 계층 동기화 완료. DB 최종 값: {}", characterAfterSync.getLikeCount());
-        assertEquals(userCount, characterAfterSync.getLikeCount());
+        assertEquals(userCount, characterAfterSync.getLikeCount(), "DB 최종 값이 1000이어야 합니다.");
+    }
+
+    @Test
+    @DisplayName("🚑 Redis 장애 시나리오: L2 전송 실패 시 즉시 DB(L3) 반영 확인")
+    void redisFailureFallbackTest() {
+        // [Given] Redis 프록시에 장애(접속 차단) 주입
+        // AbstractContainerBaseTest에서 설정한 redisProxy를 사용합니다.
+        redisProxy.setConnectionCut(true);
+
+        try {
+            // [When] 좋아요 클릭 시도
+            gameCharacterService.clickLikeCache(targetUserIgn);
+
+            // L1 -> L2 전송 시도 (Redis가 죽었으므로 여기서 Fallback 발생해야 함)
+            likeSyncService.flushLocalToRedis(); // 내부에서 handleRedisFailure 실행됨
+
+            // [Then] DB에 즉시 반영되었는지 확인
+            entityManager.clear();
+            GameCharacter character = gameCharacterService.getCharacterOrThrow(targetUserIgn);
+
+            // Redis를 거치지 않고 바로 DB로 갔으므로 likeCount는 1이어야 함
+            assertEquals(1, character.getLikeCount(), "Redis 장애 시 DB로 직접 반영되어야 합니다.");
+
+        } finally {
+            // 장애 복구
+            redisProxy.setConnectionCut(false);
+        }
     }
 }
