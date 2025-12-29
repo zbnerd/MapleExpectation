@@ -19,7 +19,7 @@ import java.util.Optional;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
+//@Transactional(readOnly = true)
 public class GameCharacterService {
 
     private final GameCharacterRepository gameCharacterRepository;
