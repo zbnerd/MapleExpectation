@@ -3,6 +3,7 @@ package maple.expectation.controller;
 import lombok.RequiredArgsConstructor;
 import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.service.v2.GameCharacterService;
+import maple.expectation.service.v2.facade.GameCharacterFacade;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 public class GameCharacterControllerV1 {
 
     private final GameCharacterService gameCharacterService;
+    private final GameCharacterFacade gameCharacterFacade;
 
     /**
      * 캐릭터 정보 조회
@@ -19,7 +21,7 @@ public class GameCharacterControllerV1 {
     @GetMapping("/{userIgn}")
     public ResponseEntity<GameCharacter> findCharacterByUserIgn(@PathVariable String userIgn) {
         // 내부적으로 findByUserIgn (또는 없으면 API 생성) 로직 수행
-        return ResponseEntity.ok(gameCharacterService.findCharacterByUserIgn(userIgn));
+        return ResponseEntity.ok(gameCharacterFacade.findCharacterByUserIgn(userIgn));
     }
 
     /**

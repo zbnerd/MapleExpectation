@@ -23,7 +23,6 @@ public class LikeSyncService {
     private final StringRedisTemplate redisTemplate;
     private final RedisBufferRepository redisBufferRepository;
     private final Retry likeSyncRetry;
-
     private static final String REDIS_HASH_KEY = "buffer:likes";
 
     /**

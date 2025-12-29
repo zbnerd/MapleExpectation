@@ -1,9 +1,9 @@
 package maple.expectation.service.v2;
 
-import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.external.NexonApiClient;
 import maple.expectation.external.dto.v2.CharacterOcidResponse;
 import maple.expectation.repository.v2.GameCharacterRepository;
+import maple.expectation.service.v2.facade.GameCharacterFacade;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,6 +26,9 @@ class GameCharacterServiceConcurrencyTest {
 
     @Autowired
     private GameCharacterService gameCharacterService;
+
+    @Autowired
+    private GameCharacterFacade gameCharacterFacade;
 
     @Autowired
     private GameCharacterRepository gameCharacterRepository;
@@ -61,7 +64,7 @@ class GameCharacterServiceConcurrencyTest {
         for (int i = 0; i < threadCount; i++) {
             executorService.submit(() -> {
                 try {
-                    gameCharacterService.findCharacterByUserIgn(targetName);
+                    gameCharacterFacade.findCharacterByUserIgn(targetName);
                     successCount.incrementAndGet();
                 } catch (Exception e) {
                     failCount.incrementAndGet();
