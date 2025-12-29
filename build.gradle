@@ -85,9 +85,4 @@ test {
 
     // WSL에서 확인된 "진짜" Docker Engine API 소켓
     environment "DOCKER_HOST", "unix:///var/run/docker.sock"
-
-    testLogging {
-        showStandardStreams = true
-        exceptionFormat = "full"
-    }
 }

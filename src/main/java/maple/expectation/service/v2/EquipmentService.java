@@ -14,6 +14,7 @@ import maple.expectation.service.v2.calculator.ExpectationCalculator;
 import maple.expectation.service.v2.calculator.ExpectationCalculatorFactory;
 import maple.expectation.service.v2.calculator.impl.BaseItem;
 import maple.expectation.service.v2.calculator.impl.BlackCubeDecorator;
+import maple.expectation.service.v2.facade.GameCharacterFacade;
 import maple.expectation.service.v2.mapper.EquipmentMapper;
 import maple.expectation.service.v2.policy.CubeCostPolicy;
 import maple.expectation.util.GzipUtils;
@@ -34,7 +35,7 @@ import java.util.List;
 @Transactional(readOnly = true)
 public class EquipmentService {
 
-    private final GameCharacterService characterService;
+    private final GameCharacterFacade gameCharacterFacade;
     private final EquipmentDataProvider equipmentProvider;
     private final EquipmentStreamingParser streamingParser;
     private final ExpectationCalculatorFactory calculatorFactory;
@@ -85,6 +86,6 @@ public class EquipmentService {
     }
 
     private String getOcid(String userIgn) {
-        return characterService.findCharacterByUserIgn(userIgn).getOcid();
+        return gameCharacterFacade.findCharacterByUserIgn(userIgn).getOcid();
     }
 }

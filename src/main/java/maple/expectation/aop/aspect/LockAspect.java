@@ -29,19 +29,23 @@ public class LockAspect {
     public Object applyLock(ProceedingJoinPoint joinPoint, Locked locked) throws Throwable {
         String key = getDynamicKey(joinPoint, locked.key());
 
-        // 💡 락 전략 실행 시 내부 로직을 별도 메서드로 래핑
-        return lockStrategy.executeWithLock(key, () -> proceedWithExceptionHandling(joinPoint, key));
-    }
-
-    private Object proceedWithExceptionHandling(ProceedingJoinPoint joinPoint, String key) {
         try {
+            // 1️⃣ [Distributed Lock] 10초 대기, 20초 점유
+            // 1등이 넥슨 API에서 OCID를 가져와 DB에 저장할 시간을 충분히 벌어줍니다.
+            return lockStrategy.executeWithLock(key, 10, 20, () -> {
+                log.debug("🔑 [Locked Aspect] 락 획득 성공: {}", key);
+                return joinPoint.proceed();
+            });
+        } catch (DistributedLockException e) {
+            // 2️⃣ [Fallback] 10초를 기다려도 락을 못 잡은 경우 (나머지 99명)
+            log.warn("⏭️ [Locked Timeout] {} - 락 획득 실패. 직접 조회를 시도합니다.", key);
+
+            // 락은 못 잡았지만, 그 사이 1등이 DB에 캐릭터를 생성했을 확률이 매우 높습니다.
+            // 에러를 던지는 대신 조회를 시도하여 유저에게 정상 응답을 줍니다.
             return joinPoint.proceed();
-        } catch (RuntimeException e) {
-            // 💡 비즈니스 예외는 그대로 통과
-            throw e;
         } catch (Throwable e) {
-            // 💡 그 외의 모든 기술적 체크 예외는 락 예외로 변환하여 던짐 (S002 매핑)
-            throw new DistributedLockException(key, e);
+            // 비즈니스 예외 등은 그대로 전파
+            throw e;
         }
     }
 
@@ -52,14 +56,15 @@ public class LockAspect {
         String[] parameterNames = signature.getParameterNames();
         Object[] args = joinPoint.getArgs();
 
-        for (int i = 0; i < parameterNames.length; i++) {
-            context.setVariable(parameterNames[i], args[i]);
+        if (parameterNames != null) {
+            for (int i = 0; i < parameterNames.length; i++) {
+                context.setVariable(parameterNames[i], args[i]);
+            }
         }
 
         try {
             return parser.parseExpression(keyExpression).getValue(context, String.class);
         } catch (Exception e) {
-            // Spel 파싱 실패 시 메서드 이름이라도 반환하여 최소한의 방어
             return joinPoint.getSignature().toShortString();
         }
     }

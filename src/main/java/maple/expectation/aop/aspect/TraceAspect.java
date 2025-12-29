@@ -36,14 +36,14 @@ public class TraceAspect {
 
     // 🎯 스케줄러 소음 제거
     @Pointcut("!execution(* maple.expectation.scheduler..*(..)) " +
-            "&& !execution(* maple.expectation..LikeBufferStorage.*(..)) " + // 👈 추가
+            "&& !execution(* maple.expectation..LikeBufferStorage.*(..)) " +
+            "&& !execution(* maple.expectation..LikeSyncService.*(..)) " +
             "&& !execution(* maple.expectation.mornitering..*(..))")
     public void excludeNoise() {}
 
     @Pointcut("!execution(* *.syncLikesToDatabase(..))")
     public void excludeSpecificMethod() {}
 
-    // 💡 최종 결합: (자동 OR 수동) 이면서 소음이 아닌 것!
     @Around("(autoLog() || manualLog()) && excludeNoise() && excludeSpecificMethod()")
     public Object doTrace(ProceedingJoinPoint joinPoint) throws Throwable {
         if (!isTraceEnabled) {

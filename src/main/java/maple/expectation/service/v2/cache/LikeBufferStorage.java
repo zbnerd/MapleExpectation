@@ -20,7 +20,6 @@ public class LikeBufferStorage {
                 .expireAfterAccess(1, TimeUnit.MINUTES)
                 .maximumSize(1000) // 메모리 보호를 위해 사이즈 제한 추가
                 .build();
-
         Gauge.builder("like.buffer.local_pending", this,
                         storage -> likeCache.asMap().values().stream().mapToLong(AtomicLong::get).sum())
                 .description("현재 인스턴스의 미반영 좋아요 총합")
