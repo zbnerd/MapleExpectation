@@ -69,7 +69,7 @@ resilience4j:
 
 logging:
   level:
-    org.springframework.cache: TRACE
+    org.springframework.cache: INFO
     maple.expectation.aop.aspect: INFO
     root: info
     org.hibernate.SQL: info
