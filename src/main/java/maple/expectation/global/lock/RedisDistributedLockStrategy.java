@@ -23,7 +23,7 @@ public class RedisDistributedLockStrategy implements LockStrategy {
 
     @Override
     public <T> T executeWithLock(String key, ThrowingSupplier<T> task) throws Throwable {
-        return executeWithLock(key, 3, 15, task); // LeaseTime을 넉넉히 15초로 상향
+        return executeWithLock(key, 3, 15, task);
     }
 
     @Override
@@ -40,7 +40,7 @@ public class RedisDistributedLockStrategy implements LockStrategy {
 
             try {
                 log.debug("🔓 [Distributed Lock] '{}' 획득 성공.", key);
-                return task.get();
+                return task.get(); // 🔴 비즈니스 로직 실행 (여기서 404 발생 가능)
             } finally {
                 if (lock.isHeldByCurrentThread()) {
                     lock.unlock();
@@ -50,8 +50,12 @@ public class RedisDistributedLockStrategy implements LockStrategy {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new DistributedLockException(key, e);
+        } catch (RuntimeException e) {
+            throw e;
         } catch (Exception e) {
             throw new DistributedLockException(key, e);
+        } catch (Throwable e) {
+            throw e;
         }
     }
 
@@ -59,7 +63,6 @@ public class RedisDistributedLockStrategy implements LockStrategy {
     public boolean tryLockImmediately(String key, long leaseTime) {
         RLock lock = redissonClient.getLock("lock:" + key);
         try {
-            // WaitTime을 0으로 주어 즉시 획득 시도
             return lock.tryLock(0, leaseTime, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

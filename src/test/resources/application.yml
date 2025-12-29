@@ -1,6 +1,4 @@
 spring:
-  main:
-    banner-mode: "off" # 💡 [추가] 스프링 로고 배너 제거 (로그 가독성 향상)
   datasource:
     url: jdbc:h2:mem:testdb;MODE=MySQL;DB_CLOSE_DELAY=-1
     driver-class-name: org.h2.Driver
@@ -11,13 +9,11 @@ spring:
       minimum-idle: 5
   jpa:
     hibernate:
-      ddl-auto: create-drop
-    show-sql: false # 💡 [수정] 콘솔에 SQL을 직접 출력하는 기능 종료
+      ddl-auto: update
     properties:
       hibernate:
-        format_sql: false # 💡 [수정] 로그 부피를 줄이기 위해 포맷팅 종료
-        highlight_sql: false
-        use_sql_comments: false
+        format_sql: true
+        show_sql: true
 
 management:
   endpoint:
@@ -36,8 +32,10 @@ resilience4j:
         failureRateThreshold: 50
         waitDurationInOpenState: 10s
         permittedNumberOfCallsInHalfOpenState: 3
+        # 💡 [핵심 추가] 이 마커가 있어야 ExternalServiceException을 실패로 기록함
         recordExceptions:
           - maple.expectation.global.error.exception.marker.CircuitBreakerRecordMarker
+        # 💡 [핵심 추가] 비즈니스 예외(404 등)는 서킷을 오픈시키지 않음
         ignoreExceptions:
           - maple.expectation.global.error.exception.marker.CircuitBreakerIgnoreMarker
     instances:
@@ -49,17 +47,15 @@ resilience4j:
       nexonApi:
         maxAttempts: 3
         waitDuration: 0ms
+        # 💡 [핵심 추가] Retry도 어떤 예외일 때 재시도할지 명시해야 함
         retryExceptions:
           - maple.expectation.global.error.exception.ExternalServiceException
 
 logging:
   level:
-    root: warn # 💡 [수정] 기본 로그를 WARN으로 높여 잡음 제거
-    org.hibernate.SQL: off # 💡 [수정] Hibernate SQL 로그 완전히 종료
-    org.hibernate.type.descriptor.sql.BasicBinder: off
-    maple.expectation: info # ✅ 우리 프로젝트의 로직 로그는 유지
-  pattern:
-    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+    root: info
+    org.hibernate.SQL: info
+    maple.expectation: info
 
 nexon:
   api:
