@@ -24,6 +24,8 @@ import org.springframework.test.util.AopTestUtils;
 import java.io.ByteArrayOutputStream;
 import java.lang.reflect.Field;
 import java.time.LocalDateTime;
+import java.util.NoSuchElementException;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.zip.GZIPOutputStream;
 
@@ -92,7 +94,6 @@ class EquipmentServiceTest {
         EquipmentResponse mockRes = new EquipmentResponse();
         mockRes.setCharacterClass("Warrior");
 
-        // 🚀 클라이언트 호출은 여전히 비동기이므로 CompletableFuture로 스터빙
         doReturn(CompletableFuture.completedFuture(mockRes))
                 .when(spyClient).getItemDataByOcid(OCID);
 
@@ -100,11 +101,27 @@ class EquipmentServiceTest {
         EquipmentResponse response1 = equipmentService.getEquipmentByUserIgn(USERIGN);
         assertThat(response1.getCharacterClass()).isEqualTo("Warrior");
 
+        // 🚀 [추가] 비동기 DB 저장이 완료될 때까지 최대 2초 대기
+        log.info("⏳ 비동기 DB 저장 대기 중...");
+        CharacterEquipment savedEntity = null;
+        for (int i = 0; i < 20; i++) { // 100ms * 20 = 2초
+            Optional<CharacterEquipment> temp = equipmentRepository.findById(OCID);
+            if (temp.isPresent()) {
+                savedEntity = temp.get();
+                break;
+            }
+            Thread.sleep(100);
+        }
+
+        if (savedEntity == null) {
+            throw new NoSuchElementException("비동기 DB 저장이 시간 내에 완료되지 않았습니다: " + OCID);
+        }
+
         // L1 캐시만 비워서 L2(Redis)나 L3(DB)를 타게 유도
-        cacheManager.getCache("equipment").evict(OCID); // 키를 OCID로 변경 (FetchProvider 기준)
+        cacheManager.getCache("equipment").evict(OCID);
 
         log.info("--- STEP 2. 시간 조작 (20분 전으로 타임머신) ---");
-        CharacterEquipment savedEntity = equipmentRepository.findById(OCID).orElseThrow();
+        // 이미 위에서 찾은 savedEntity를 사용하거나 다시 조회
         manipulateUpdatedAt(savedEntity, LocalDateTime.now().minusMinutes(20));
         equipmentRepository.saveAndFlush(savedEntity);
 
@@ -113,7 +130,7 @@ class EquipmentServiceTest {
 
         assertThat(response2.getCharacterClass()).isEqualTo("Warrior");
 
-        // 🚀 최종적으로 클라이언트(API)가 2번 호출되었는지 검증
+        // 최종적으로 클라이언트(API)가 2번 호출되었는지 검증
         verify(spyClient, times(2)).getItemDataByOcid(OCID);
     }
 
