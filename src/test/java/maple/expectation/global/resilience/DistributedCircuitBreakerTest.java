@@ -2,7 +2,7 @@ package maple.expectation.global.resilience;
 
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
-import maple.expectation.mornitering.MonitoringAlertService;
+import maple.expectation.monitoring.MonitoringAlertService;
 import maple.expectation.repository.v2.RedisBufferRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

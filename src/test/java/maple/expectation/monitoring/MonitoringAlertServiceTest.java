@@ -1,4 +1,4 @@
-package maple.expectation.mornitering;
+package maple.expectation.monitoring;
 
 import maple.expectation.global.common.function.ThrowingSupplier;
 import maple.expectation.global.error.CommonErrorCode;
