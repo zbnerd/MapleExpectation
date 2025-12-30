@@ -3,94 +3,78 @@ package maple.expectation.aop.aspect;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.external.dto.v2.EquipmentResponse;
-import maple.expectation.global.error.exception.DistributedLockException;
-import maple.expectation.global.lock.LockStrategy;
 import maple.expectation.service.v2.cache.EquipmentCacheService;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
-import org.springframework.cache.Cache;
-import org.springframework.cache.CacheManager;
+import org.redisson.api.RCountDownLatch;
+import org.redisson.api.RedissonClient;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Aspect
 @Component
 @RequiredArgsConstructor
-@Order(1)
+@Order(1) // 최우선 처리
 public class NexonDataCacheAspect {
 
     private final EquipmentCacheService cacheService;
-    private final LockStrategy lockStrategy;
-    private final CacheManager cacheManager;
+    private final RedissonClient redissonClient;
 
     @Around("@annotation(maple.expectation.aop.annotation.NexonDataCache) && args(ocid, ..)")
     public Object handleNexonCache(ProceedingJoinPoint joinPoint, String ocid) throws Throwable {
         MethodSignature signature = (MethodSignature) joinPoint.getSignature();
         Class<?> returnType = signature.getReturnType();
 
-        // 1️⃣ L1 확인
-        EquipmentResponse localOnly = checkOnlyL1(ocid);
-        if (localOnly != null) {
-            // 마커면 null로 래핑해서 반환
-            return wrapResponse(cacheService.isNullMarker(localOnly) ? null : localOnly, returnType);
-        }
+        // 1. 캐시/Negative 마커 확인 (이미 있으면 즉시 반환)
+        Optional<EquipmentResponse> cached = cacheService.getValidCache(ocid);
+        if (cached.isPresent()) return wrap(cached.get(), returnType);
+        if (cacheService.hasNegativeCache(ocid)) return wrap(null, returnType);
 
-        try {
-            return lockStrategy.executeWithLock(ocid, 2, 20, () -> {
-                // 2️⃣ Double-Check
-                Optional<EquipmentResponse> doubleCheck = cacheService.getValidCache(ocid);
+        // 2. 분산 래치(Latch) 생성
+        RCountDownLatch latch = redissonClient.getCountDownLatch("latch:eq:" + ocid);
 
-                // 값이 있거나 마커(Negative Cache)가 있는 경우
-                if (doubleCheck.isPresent() || cacheService.hasNegativeCache(ocid)) {
-                    log.info("🎯 [Lock Follower] 캐시 발견: {}", ocid);
-                    return wrapResponse(doubleCheck.orElse(null), returnType);
-                }
+        // 3. 대장 선출 (Leader Election)
+        boolean isLeader = latch.trySetCount(1);
 
-                // 3️⃣ API 호출
-                log.info("🏃 [Lock Winner] API 호출 시작: {}", ocid);
-                return proceedAndSaveSync(joinPoint, ocid, returnType);
-            });
-        } catch (DistributedLockException e) {
-            log.warn("⏭️ [Lock Timeout] {} - 마지막 수단으로 캐시 확인", ocid);
-            Optional<EquipmentResponse> res = cacheService.getValidCache(ocid);
-            if (res.isPresent()) return wrapResponse(res.get(), returnType);
-            throw new DistributedLockException("현재 요청이 너무 많습니다.");
-        }
-    }
+        if (isLeader) {
+            try {
+                log.info("👑 [Leader] 내가 대표로 넥슨 API 호출: {}", ocid);
+                Object result = joinPoint.proceed();
 
-    private Object proceedAndSaveSync(ProceedingJoinPoint joinPoint, String ocid, Class<?> returnType) throws Throwable {
-        Object result = joinPoint.proceed();
-        EquipmentResponse responseObj = null;
+                EquipmentResponse response = (result instanceof CompletableFuture<?> future)
+                        ? (EquipmentResponse) future.join() : (EquipmentResponse) result;
 
-        if (result instanceof CompletableFuture<?> future) {
-            responseObj = (EquipmentResponse) future.join();
+                cacheService.saveCache(ocid, response);
+                return wrap(response, returnType);
+            } finally {
+                // 🚀 [Publish] 대기 중인 모든 스레드(Followers)를 한꺼번에 깨움
+                latch.countDown();
+                latch.delete();
+            }
         } else {
-            responseObj = (EquipmentResponse) result;
+            // 4. [Subscribe] 대장을 믿고 잠들기
+            log.info("😴 [Follower] 대장 완료 대기 중...: {}", ocid);
+            boolean completed = latch.await(5, TimeUnit.SECONDS);
+
+            if (completed) {
+                log.info("⏰ [Follower] 대장 완료 확인! 캐시에서 읽음: {}", ocid);
+                return wrap(cacheService.getValidCache(ocid).orElse(null), returnType);
+            } else {
+                log.warn("🚨 [Follower Timeout] 대장이 너무 느려 직접 확인: {}", ocid);
+                return wrap(cacheService.getValidCache(ocid).orElse(null), returnType);
+            }
         }
-
-        // null이어도 마커 저장을 위해 호출
-        cacheService.saveCache(ocid, responseObj);
-
-        return wrapResponse(responseObj, returnType);
     }
 
-    private EquipmentResponse checkOnlyL1(String ocid) {
-        try {
-            Cache cache = cacheManager.getCache("equipment");
-            return (cache != null) ? cache.get(ocid, EquipmentResponse.class) : null;
-        } catch (Exception e) { return null; }
-    }
-
-    private Object wrapResponse(EquipmentResponse response, Class<?> returnType) {
-        if (CompletableFuture.class.isAssignableFrom(returnType)) {
-            return CompletableFuture.completedFuture(response);
-        }
-        return response;
+    private Object wrap(EquipmentResponse res, Class<?> type) {
+        return CompletableFuture.class.isAssignableFrom(type) ? CompletableFuture.completedFuture(res) : res;
     }
 }

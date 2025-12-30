@@ -27,7 +27,7 @@ public class RealNexonApiClient implements NexonApiClient {
     private String apiKey;
 
     @Override
-    @Cacheable(value = "ocidCache", key = "#characterName") // 💡 OCID는 변경이 적으므로 기본 @Cacheable 적용
+//    @Cacheable(value = "ocidCache", key = "#characterName") // 💡 OCID는 변경이 적으므로 기본 @Cacheable 적용
     public CharacterOcidResponse getOcidByCharacterName(String characterName) {
         log.info("🌐 [API Call] 넥슨 OCID 조회: {}", characterName);
         return mapleWebClient.get()
