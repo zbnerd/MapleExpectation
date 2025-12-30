@@ -38,7 +38,7 @@ public class TraceAspect {
     @Pointcut("!execution(* maple.expectation.scheduler..*(..)) " +
             "&& !execution(* maple.expectation..LikeBufferStorage.*(..)) " +
             "&& !execution(* maple.expectation..LikeSyncService.*(..)) " +
-            "&& !execution(* maple.expectation.mornitering..*(..))")
+            "&& !execution(* maple.expectation.monitoring..*(..))")
     public void excludeNoise() {}
 
     @Pointcut("!execution(* *.syncLikesToDatabase(..))")
