@@ -1,13 +1,12 @@
 package maple.expectation.service.v2;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.aop.annotation.Locked;
 import maple.expectation.aop.annotation.LogExecutionTime;
 import maple.expectation.aop.annotation.ObservedTransaction;
-import maple.expectation.aop.annotation.TraceLog;
 import maple.expectation.domain.v2.GameCharacter;
-import maple.expectation.global.error.exception.CharacterNotFoundException;
 import maple.expectation.external.NexonApiClient;
+import maple.expectation.global.error.exception.CharacterNotFoundException;
 import maple.expectation.repository.v2.GameCharacterRepository;
 import maple.expectation.service.v2.impl.DatabaseLikeProcessor;
 import org.springframework.context.annotation.Lazy;
@@ -19,7 +18,8 @@ import java.util.Optional;
 
 @Slf4j
 @Service
-@Transactional(readOnly = true)
+@RequiredArgsConstructor
+//@Transactional(readOnly = true)
 public class GameCharacterService {
 
     private final GameCharacterRepository gameCharacterRepository;
@@ -27,15 +27,28 @@ public class GameCharacterService {
     private final LikeProcessor likeProcessor;
     private final DatabaseLikeProcessor databaseLikeProcessor;
 
-    public GameCharacterService(
-            GameCharacterRepository gameCharacterRepository,
-            NexonApiClient nexonApiClient,
-            LikeProcessor likeProcessor,
-            @Lazy DatabaseLikeProcessor databaseLikeProcessor) {
-        this.gameCharacterRepository = gameCharacterRepository;
-        this.nexonApiClient = nexonApiClient;
-        this.likeProcessor = likeProcessor;
-        this.databaseLikeProcessor = databaseLikeProcessor;
+    /**
+     * ⚡ [RPS 최적화] 락 없이 DB 존재 여부만 확인
+     */
+    public Optional<GameCharacter> getCharacterIfExist(String userIgn) {
+        return gameCharacterRepository.findByUserIgn(userIgn.trim());
+    }
+
+    /**
+     * 🔒 [신규 생성] 실제 넥슨 API를 호출하고 DB에 저장하는 구간 (락 내부에서 실행)
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @ObservedTransaction("service.v2.GameCharacterService.createNewCharacter")
+    public GameCharacter createNewCharacter(String userIgn) {
+        String cleanUserIgn = userIgn.trim();
+
+        // Double-Check: 락 획득 대기 중에 다른 스레드가 생성했을 수 있음
+        return gameCharacterRepository.findByUserIgn(cleanUserIgn)
+                .orElseGet(() -> {
+                    log.info("✨ [First Creation] 신규 캐릭터 생성: {}", cleanUserIgn);
+                    String ocid = nexonApiClient.getOcidByCharacterName(cleanUserIgn).getOcid();
+                    return gameCharacterRepository.saveAndFlush(new GameCharacter(cleanUserIgn, ocid));
+                });
     }
 
     @Transactional
@@ -43,34 +56,14 @@ public class GameCharacterService {
         return gameCharacterRepository.save(character).getUserIgn();
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    @Locked(key = "#userIgn")
-    public GameCharacter findCharacterByUserIgn(String userIgn) {
-        String cleanUserIgn = userIgn.trim();
-
-        // 1. DB에서 먼저 조회
-        return gameCharacterRepository.findByUserIgn(cleanUserIgn)
-                .orElseGet(() -> {
-                    log.info("✨ 신규 캐릭터 생성 시도: {}", cleanUserIgn);
-
-                    // 2. [변경] 객체 생성 전에 넥슨 API를 호출해서 OCID를 먼저 확보합니다.
-                    String ocid = nexonApiClient.getOcidByCharacterName(cleanUserIgn).getOcid();
-
-                    // 3. [수정] 이제 '완전한 상태'로 객체를 생성합니다. (Setter 필요 없음!)
-                    // public GameCharacter(String userIgn, String ocid) 생성자 호출
-                    GameCharacter newChar = new GameCharacter(cleanUserIgn, ocid);
-
-                    // 4. 저장 및 즉시 반영
-                    return gameCharacterRepository.saveAndFlush(newChar);
-                });
-    }
-
+    // 🔥 [관측 가능성 유지] 좋아요 메트릭 및 로그
     @LogExecutionTime
     @ObservedTransaction("service.v2.GameCharacterService.clickLikeCache")
     public void clickLikeCache(String userIgn) {
         likeProcessor.processLike(userIgn);
     }
 
+    // 🔥 [관측 가능성 유지] 비관적 락 좋아요 메트릭
     @LogExecutionTime
     @Transactional
     @ObservedTransaction("service.v2.GameCharacterService.clickLikePessimistic")

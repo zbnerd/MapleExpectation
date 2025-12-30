@@ -1,16 +1,17 @@
 package maple.expectation.aop.aspect;
 
-import io.github.resilience4j.retry.annotation.Retry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.external.dto.v2.EquipmentResponse;
+import maple.expectation.global.error.exception.DistributedLockException;
 import maple.expectation.global.lock.LockStrategy;
 import maple.expectation.service.v2.cache.EquipmentCacheService;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
-import org.springframework.core.Ordered;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
@@ -21,64 +22,69 @@ import java.util.concurrent.CompletableFuture;
 @Aspect
 @Component
 @RequiredArgsConstructor
-@Order(Ordered.LOWEST_PRECEDENCE)
+@Order(1)
 public class NexonDataCacheAspect {
 
     private final EquipmentCacheService cacheService;
     private final LockStrategy lockStrategy;
+    private final CacheManager cacheManager;
 
     @Around("@annotation(maple.expectation.aop.annotation.NexonDataCache) && args(ocid, ..)")
     public Object handleNexonCache(ProceedingJoinPoint joinPoint, String ocid) throws Throwable {
         MethodSignature signature = (MethodSignature) joinPoint.getSignature();
         Class<?> returnType = signature.getReturnType();
 
-        // 1. [Pre-check] 락 근처도 안 가고 캐시부터 확인 (병목 제거의 핵심)
-        Optional<EquipmentResponse> cached = cacheService.getValidCache(ocid);
-        if (cached.isPresent()) {
-            log.info("🎯 [Pre-Check Hit] 캐시 발견, 락 없이 즉시 응답: {}", ocid);
-            return wrapResponse(cached.get(), returnType);
+        // 1️⃣ L1 확인
+        EquipmentResponse localOnly = checkOnlyL1(ocid);
+        if (localOnly != null) {
+            // 마커면 null로 래핑해서 반환
+            return wrapResponse(cacheService.isNullMarker(localOnly) ? null : localOnly, returnType);
         }
 
-        // 2. [Winner's Race] 1등이 되기 위해 락 획득 시도 (WaitTime=0)
-        // 줄 서지 않고 즉시 성공/실패만 확인하여 톰캣 스레드를 보호합니다.
-        boolean isLocked = lockStrategy.tryLockImmediately(ocid, 15);
+        try {
+            return lockStrategy.executeWithLock(ocid, 2, 20, () -> {
+                // 2️⃣ Double-Check
+                Optional<EquipmentResponse> doubleCheck = cacheService.getValidCache(ocid);
 
-        if (isLocked) {
-            try {
-                // 3. [Winner's Path] 1등은 API를 호출하고 캐시를 채웁니다.
-                log.info("👑 [Lock Winner] 내가 1등이다! API 호출 시작: {}", ocid);
-                return proceedAndSave(joinPoint, ocid, returnType);
-            } finally {
-                lockStrategy.unlock(ocid);
-            }
+                // 값이 있거나 마커(Negative Cache)가 있는 경우
+                if (doubleCheck.isPresent() || cacheService.hasNegativeCache(ocid)) {
+                    log.info("🎯 [Lock Follower] 캐시 발견: {}", ocid);
+                    return wrapResponse(doubleCheck.orElse(null), returnType);
+                }
+
+                // 3️⃣ API 호출
+                log.info("🏃 [Lock Winner] API 호출 시작: {}", ocid);
+                return proceedAndSaveSync(joinPoint, ocid, returnType);
+            });
+        } catch (DistributedLockException e) {
+            log.warn("⏭️ [Lock Timeout] {} - 마지막 수단으로 캐시 확인", ocid);
+            Optional<EquipmentResponse> res = cacheService.getValidCache(ocid);
+            if (res.isPresent()) return wrapResponse(res.get(), returnType);
+            throw new DistributedLockException("현재 요청이 너무 많습니다.");
         }
-
-        // 4. [Waiters' Path] 락을 못 잡았다면(1등이 이미 있음)
-        // 승준님의 아이디어: 락 대기열에 서지 않고 잠시 기다렸다가 캐시만 다시 확인!
-        log.info("⏳ [Lock Waiter] 1등이 작업 중입니다. 500ms 대기 후 캐시 재확인: {}", ocid);
-        Thread.sleep(500);
-
-        Optional<EquipmentResponse> finalCheck = cacheService.getValidCache(ocid);
-        if (finalCheck.isPresent()) {
-            log.info("🎯 [Waiter Success] 1등이 채워준 캐시 발견! : {}", ocid);
-            return wrapResponse(finalCheck.get(), returnType);
-        }
-
-        // 5. [Final Fallback] 끝까지 안 나오면 사용자 경험을 위해 직접 호출
-        log.warn("⚠️ [Final Fallback] 캐시가 생성되지 않아 직접 호출합니다: {}", ocid);
-        return proceedAndSave(joinPoint, ocid, returnType);
     }
 
-    private Object proceedAndSave(ProceedingJoinPoint joinPoint, String ocid, Class<?> returnType) throws Throwable {
+    private Object proceedAndSaveSync(ProceedingJoinPoint joinPoint, String ocid, Class<?> returnType) throws Throwable {
         Object result = joinPoint.proceed();
-        if (CompletableFuture.class.isAssignableFrom(returnType)) {
-            return ((CompletableFuture<?>) result).thenApply(res -> {
-                cacheService.saveCache(ocid, (EquipmentResponse) res);
-                return res;
-            });
+        EquipmentResponse responseObj = null;
+
+        if (result instanceof CompletableFuture<?> future) {
+            responseObj = (EquipmentResponse) future.join();
+        } else {
+            responseObj = (EquipmentResponse) result;
         }
-        cacheService.saveCache(ocid, (EquipmentResponse) result);
-        return result;
+
+        // null이어도 마커 저장을 위해 호출
+        cacheService.saveCache(ocid, responseObj);
+
+        return wrapResponse(responseObj, returnType);
+    }
+
+    private EquipmentResponse checkOnlyL1(String ocid) {
+        try {
+            Cache cache = cacheManager.getCache("equipment");
+            return (cache != null) ? cache.get(ocid, EquipmentResponse.class) : null;
+        } catch (Exception e) { return null; }
     }
 
     private Object wrapResponse(EquipmentResponse response, Class<?> returnType) {

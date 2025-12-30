@@ -1,6 +1,7 @@
 package maple.expectation.controller;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import maple.expectation.external.dto.v2.TotalExpectationResponse;
 import maple.expectation.service.v2.EquipmentService;
 import org.springframework.http.HttpHeaders;
@@ -16,6 +17,7 @@ import java.util.zip.GZIPOutputStream;
 /**
  * 🚀 [V3 Controller] Extreme Optimization & Resource Efficiency
  */
+@Slf4j
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v3/characters")
@@ -45,13 +47,9 @@ public class GameCharacterControllerV3 {
                 .body(responseBody);
     }
 
-    /**
-     * 💰 기대 비용 계산 (Facade Pattern)
-     * Controller는 로직을 몰라야 합니다. "계산해줘"라고 Service에 던지기만 합니다.
-     */
     @GetMapping("/{userIgn}/expectation")
     public ResponseEntity<TotalExpectationResponse> getEquipmentExpectation(@PathVariable String userIgn) {
-        // 비즈니스 로직은 Service로 완전 이관
+
         TotalExpectationResponse response = equipmentService.calculateTotalExpectation(userIgn);
         return ResponseEntity.ok(response);
     }

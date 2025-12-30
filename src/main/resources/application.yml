@@ -1,4 +1,7 @@
 spring:
+  threads:
+    virtual:
+      enabled: true
   application:
     name: maple-expectation
   profiles:
@@ -14,6 +17,7 @@ spring:
 
   # 공통 JPA 설정
   jpa:
+    open-in-view: false
     properties:
       hibernate:
         jdbc:
