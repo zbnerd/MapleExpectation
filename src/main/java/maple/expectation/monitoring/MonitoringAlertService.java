@@ -1,4 +1,4 @@
-package maple.expectation.mornitering;
+package maple.expectation.monitoring;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
