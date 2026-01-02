@@ -1,0 +1,81 @@
+package maple.expectation.config;
+
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
+import org.springframework.jdbc.core.JdbcTemplate;
+
+import javax.sql.DataSource;
+
+/**
+ * MySQL Named Lock 전용 HikariCP 설정
+ *
+ * [목적]
+ * - Redis 장애 시 MySQL Named Lock을 사용할 때 메인 커넥션 풀이 고갈되는 것을 방지
+ * - 락 전용 작은 커넥션 풀을 별도로 운영하여 애플리케이션 안정성 확보
+ *
+ * [설계 원칙]
+ * - 작은 풀 크기 (10개): 락 작업은 가볍고 빠르므로 많은 커넥션 불필요
+ * - 짧은 타임아웃: 락 획득/해제는 빨라야 하므로 짧은 타임아웃 설정
+ * - 메인 풀과 분리: 메인 비즈니스 로직과 락 로직을 격리
+ */
+@Slf4j
+@Configuration
+@Profile("!test")  // 테스트 환경에서는 로드하지 않음
+public class LockHikariConfig {
+
+    @Value("${spring.datasource.url}")
+    private String jdbcUrl;
+
+    @Value("${spring.datasource.username}")
+    private String username;
+
+    @Value("${spring.datasource.password}")
+    private String password;
+
+    /**
+     * MySQL Named Lock 전용 DataSource
+     *
+     * @return 전용 HikariDataSource
+     */
+    @Bean(name = "lockDataSource")
+    public DataSource lockDataSource() {
+        HikariConfig config = new HikariConfig();
+
+        // 기본 연결 정보
+        config.setJdbcUrl(jdbcUrl);
+        config.setUsername(username);
+        config.setPassword(password);
+        config.setDriverClassName("com.mysql.cj.jdbc.Driver");
+
+        // Lock 전용 풀 설정
+        config.setMaximumPoolSize(10);           // 작은 전용 풀 (락은 가벼운 작업)
+        config.setMinimumIdle(2);                 // 최소 2개 유지 (즉시 사용 가능)
+        config.setConnectionTimeout(5000);        // 5초 - 커넥션 획득 타임아웃
+        config.setIdleTimeout(300000);            // 5분 - 유휴 커넥션 타임아웃
+        config.setMaxLifetime(600000);            // 10분 - 커넥션 최대 수명
+        config.setPoolName("MySQLLockPool");      // 모니터링용 풀 이름
+
+        // 검증 설정
+        config.setConnectionTestQuery("SELECT 1");
+        config.setValidationTimeout(3000);        // 3초 - 검증 타임아웃
+
+        log.info("✅ [Lock Pool] Initialized dedicated MySQL lock connection pool (max: 10)");
+
+        return new HikariDataSource(config);
+    }
+
+    /**
+     * MySQL Named Lock 전용 JdbcTemplate
+     *
+     * @return lockDataSource를 사용하는 JdbcTemplate
+     */
+    @Bean(name = "lockJdbcTemplate")
+    public JdbcTemplate lockJdbcTemplate() {
+        return new JdbcTemplate(lockDataSource());
+    }
+}

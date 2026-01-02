@@ -4,6 +4,7 @@ import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.service.v2.alert.DiscordAlertService;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -16,6 +17,7 @@ public class DistributedCircuitBreakerManager {
 
     private final CircuitBreakerRegistry registry;
     private final StringRedisTemplate redisTemplate;
+    private final DiscordAlertService discordAlertService;  // ✅ Discord 알림 서비스 추가
     private static final String CHANNEL_NAME = "cb-state-sync";
 
     @PostConstruct
@@ -33,13 +35,55 @@ public class DistributedCircuitBreakerManager {
 
     private void registerEventListener(CircuitBreaker cb) {
         cb.getEventPublisher().onStateTransition(event -> {
-            String state = event.getStateTransition().getToState().name();
+            String fromState = event.getStateTransition().getFromState().name();
+            String toState = event.getStateTransition().getToState().name();
+
             // 상태가 OPEN으로 변할 때만 Redis 전파
-            if ("OPEN".equals(state)) {
-                log.info("📢 [CB Sync] 서킷 열림 감지 -> 전역 전파: {}", cb.getName());
-                redisTemplate.convertAndSend(CHANNEL_NAME, cb.getName() + ":" + state);
+            if ("OPEN".equals(toState)) {
+                log.warn("📢 [CB Sync] 서킷 열림 감지 -> 전역 전파: {} ({} -> {})",
+                    cb.getName(), fromState, toState);
+                redisTemplate.convertAndSend(CHANNEL_NAME, cb.getName() + ":" + toState);
+
+                // ✅ 중요 서비스에 대해 Discord 알림 발송
+                sendDiscordAlertIfCritical(cb.getName(), fromState, toState);
             }
         });
+    }
+
+    /**
+     * 중요 Circuit Breaker에 대해 Discord 알림 발송
+     *
+     * @param cbName    Circuit Breaker 이름
+     * @param fromState 이전 상태
+     * @param toState   변경된 상태
+     */
+    private void sendDiscordAlertIfCritical(String cbName, String fromState, String toState) {
+        // redisLock과 nexonApi는 중요 서비스로 간주
+        if ("redisLock".equals(cbName) || "nexonApi".equals(cbName)) {
+            String title = String.format("🚨 Circuit Breaker OPEN: %s", cbName);
+            String description = String.format(
+                "Circuit breaker state transition detected:\n" +
+                "- Service: %s\n" +
+                "- Transition: %s → %s\n" +
+                "- Action: %s",
+                cbName,
+                fromState,
+                toState,
+                "redisLock".equals(cbName) ? "Automatic failover to MySQL Named Lock activated" : "Service degradation in progress"
+            );
+
+            try {
+                discordAlertService.sendCriticalAlert(
+                    title,
+                    description,
+                    new Exception("Circuit breaker state: " + toState)
+                );
+                log.info("✅ [CB Alert] Discord notification sent for: {}", cbName);
+            } catch (Exception e) {
+                log.error("❌ [CB Alert] Failed to send Discord notification: {}", e.getMessage());
+                // Discord 알림 실패는 시스템에 영향 주지 않음 (로그만 남김)
+            }
+        }
     }
 
     public void syncState(String message) {

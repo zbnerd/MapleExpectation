@@ -2,11 +2,11 @@ package maple.expectation.global.lock;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.global.common.function.ThrowingSupplier; // ✅ 패키지 경로 확인
+import maple.expectation.global.common.function.ThrowingSupplier;
 import maple.expectation.global.error.exception.DistributedLockException;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
-import org.springframework.context.annotation.Primary;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
@@ -14,7 +14,7 @@ import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Component
-@Primary
+@Qualifier("redisDistributedLockStrategy")
 @Profile("!test")
 @RequiredArgsConstructor
 public class RedisDistributedLockStrategy implements LockStrategy {
@@ -23,7 +23,7 @@ public class RedisDistributedLockStrategy implements LockStrategy {
 
     @Override
     public <T> T executeWithLock(String key, ThrowingSupplier<T> task) throws Throwable {
-        return executeWithLock(key, 3, 10, task);
+        return executeWithLock(key, 10, 20, task);
     }
 
     @Override
