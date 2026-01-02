@@ -14,11 +14,13 @@ import java.util.concurrent.locks.Lock;
 @Component
 @Profile("test")
 public class GuavaLockStrategy implements LockStrategy {
+
+    // 128개의 락을 조각내어 경합을 최소화하는 구조
     private final Striped<Lock> locks = Striped.lock(128);
 
     @Override
     public <T> T executeWithLock(String key, ThrowingSupplier<T> task) throws Throwable {
-        return executeWithLock(key, Long.MAX_VALUE, -1, task);
+        return executeWithLock(key, 10, -1, task);
     }
 
     @Override
@@ -29,17 +31,33 @@ public class GuavaLockStrategy implements LockStrategy {
 
             if (!isLocked) {
                 log.warn("⏭️ [Guava Lock] '{}' 획득 실패.", key);
-                throw new DistributedLockException("로컬 락 획득 실패: " + key);
+                throw new DistributedLockException(key);
             }
 
             try {
-                return task.get(); // ✅ ThrowingSupplier의 예외를 그대로 전파
+                return task.get();
             } finally {
                 lock.unlock();
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new DistributedLockException("로컬 락 시도 중 인터럽트 발생");
+            throw new DistributedLockException(key, e);
+        }
+    }
+
+    @Override
+    public boolean tryLockImmediately(String key, long leaseTime) {
+        // 로컬 락은 leaseTime(TTL)을 지원하지 않으므로 무시하고 즉시 획득 시도
+        return locks.get(key).tryLock();
+    }
+
+    @Override
+    public void unlock(String key) {
+        try {
+            locks.get(key).unlock();
+        } catch (IllegalMonitorStateException e) {
+            // 이미 풀렸거나 소유하고 있지 않은 경우 무시
+            log.trace("[Guava Lock] '{}' 이미 해제되었거나 소유주가 아님.", key);
         }
     }
 }

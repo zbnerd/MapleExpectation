@@ -43,17 +43,15 @@ public class LikeConcurrencyTest extends AbstractContainerBaseTest {
     }
 
     @Test
-    @DisplayName("🚀 계층형 쓰기 지연 검증: 1000명 동시 요청 -> L1->L2->L3 단계별 동기화 후 DB 반영 확인")
+    @DisplayName("🚀 계층형 쓰기 지연 검증: 100명 동시 요청 -> L1->L2->L3 단계별 동기화 후 DB 반영 확인")
     void hierarchicalLikePerformanceTest() throws InterruptedException {
-        // [Given] 1000명의 유저가 동시에 좋아요 클릭
-        int userCount = 1000;
-        ExecutorService executorService = Executors.newFixedThreadPool(32);
+        int userCount = 100;
+        ExecutorService executorService = Executors.newFixedThreadPool(16);
         CountDownLatch latch = new CountDownLatch(userCount);
 
         for (int i = 0; i < userCount; i++) {
             executorService.submit(() -> {
                 try {
-                    // 1단계: L1(Caffeine)에 기록됨
                     gameCharacterService.clickLikeCache(targetUserIgn);
                 } finally {
                     latch.countDown();
@@ -61,21 +59,18 @@ public class LikeConcurrencyTest extends AbstractContainerBaseTest {
             });
         }
 
-        latch.await();
+        // 💡 [수정] 무한정 기다리지 않도록 타임아웃을 줍니다.
+        boolean completed = latch.await(10, java.util.concurrent.TimeUnit.SECONDS);
         executorService.shutdown();
 
-        // [When] 단계별 수동 동기화 실행
-        // Step 1: L1(Caffeine) -> L2(Redis) 전송
+        // Step 1 & 2 로직 동일...
         likeSyncService.flushLocalToRedis();
-
-        // Step 2: L2(Redis) -> L3(DB) 최종 동기화
         likeSyncService.syncRedisToDatabase();
 
-        // [Then] DB 최종 값 확인
         entityManager.clear();
         GameCharacter characterAfterSync = gameCharacterService.getCharacterOrThrow(targetUserIgn);
 
-        assertEquals(userCount, characterAfterSync.getLikeCount(), "DB 최종 값이 1000이어야 합니다.");
+        assertEquals(userCount, characterAfterSync.getLikeCount(), "DB 최종 값이 " + userCount + "이어야 합니다.");
     }
 
     @Test

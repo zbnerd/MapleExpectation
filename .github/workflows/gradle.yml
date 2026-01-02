@@ -42,7 +42,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Test with Gradle
-        run: ./gradlew test
+        run: ./gradlew test -i
 
       - name: Build JAR
         run: ./gradlew clean build -x test

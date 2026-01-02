@@ -16,4 +16,14 @@ public abstract class ServerBaseException extends BaseException {
     public ServerBaseException(ErrorCode errorCode, Object... args) {
         super(errorCode, args);
     }
+
+    // 🚀 [추가] 실제 에러(cause)를 포함하여 디버깅 정보 확보
+    public ServerBaseException(ErrorCode errorCode, Throwable cause) {
+        super(errorCode, cause);
+    }
+
+    // 🚀 [추가] 상세 메시지(args)와 실제 에러(cause)를 동시에 기록
+    public ServerBaseException(ErrorCode errorCode, Throwable cause, Object... args) {
+        super(errorCode, cause, args);
+    }
 }
