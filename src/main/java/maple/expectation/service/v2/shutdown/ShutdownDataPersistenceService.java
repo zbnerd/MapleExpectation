@@ -2,6 +2,7 @@ package maple.expectation.service.v2.shutdown;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.shutdown.dto.ShutdownData;
@@ -38,6 +39,12 @@ public class ShutdownDataPersistenceService {
     @Value("${app.shutdown.archive-directory:/tmp/maple-shutdown/processed}")
     private String archiveDirectory;
 
+    /**
+     * -- GETTER --
+     *  현재 서버 인스턴스 ID를 반환합니다.
+     *
+     */
+    @Getter
     private final String instanceId = resolveInstanceId();
 
     /**
@@ -119,18 +126,21 @@ public class ShutdownDataPersistenceService {
      * 개별 좋아요 항목을 파일에 추가
      * <p>
      * 기존 백업 파일이 있으면 병합하고, 없으면 새로 생성합니다.
+     * 🚀 [수정] 이슈 #123: 데이터 중복 복구 방지를 위해 새 파일 작성 후 이전 파일들 삭제
      *
      * @param userIgn 사용자 IGN
      * @param count   좋아요 수
      */
     public void appendLikeEntry(String userIgn, long count) {
         try {
-            // 기존 백업 파일 찾기
-            ShutdownData existingData = loadLatestBackup().orElse(
-                    ShutdownData.empty(instanceId)
-            );
+            // 1. 기존 백업 파일 목록 미리 확보
+            List<Path> oldFiles = findAllBackupFiles();
 
-            // 기존 데이터와 병합
+            // 2. 가장 최근 데이터 로드 및 병합
+            ShutdownData existingData = oldFiles.isEmpty() ?
+                    ShutdownData.empty(instanceId) :
+                    readBackupFile(oldFiles.get(0)).orElse(ShutdownData.empty(instanceId));
+
             Map<String, Long> mergedLikeBuffer = new HashMap<>(
                     existingData.likeBuffer() != null ? existingData.likeBuffer() : Map.of()
             );
@@ -143,7 +153,15 @@ public class ShutdownDataPersistenceService {
                     existingData.equipmentPending()
             );
 
-            saveShutdownData(newData);
+            // 3. 새 백업 파일 저장
+            Path newFile = saveShutdownData(newData);
+
+            // 💡 [핵심] 성공적으로 새 파일을 썼다면 기존 파일들은 삭제하여 중복 복구 차단
+            if (newFile != null) {
+                for (Path oldFile : oldFiles) {
+                    Files.deleteIfExists(oldFile);
+                }
+            }
 
         } catch (Exception e) {
             log.error("❌ [Shutdown Persistence] 좋아요 항목 추가 실패: {}", userIgn, e);
@@ -152,6 +170,7 @@ public class ShutdownDataPersistenceService {
 
     /**
      * 미완료 Equipment OCID 목록을 파일에 저장
+     * 🚀 [수정] 이슈 #123: 중복 방지를 위한 병합 및 기존 파일 정리 로직 적용
      *
      * @param ocids 미완료 OCID 목록
      */
@@ -161,9 +180,10 @@ public class ShutdownDataPersistenceService {
         }
 
         try {
-            ShutdownData existingData = loadLatestBackup().orElse(
-                    ShutdownData.empty(instanceId)
-            );
+            List<Path> oldFiles = findAllBackupFiles();
+            ShutdownData existingData = oldFiles.isEmpty() ?
+                    ShutdownData.empty(instanceId) :
+                    readBackupFile(oldFiles.get(0)).orElse(ShutdownData.empty(instanceId));
 
             List<String> mergedEquipment = new ArrayList<>(
                     existingData.equipmentPending() != null ? existingData.equipmentPending() : List.of()
@@ -177,9 +197,16 @@ public class ShutdownDataPersistenceService {
                     mergedEquipment
             );
 
-            saveShutdownData(newData);
+            Path newFile = saveShutdownData(newData);
 
-            log.warn("💾 [Shutdown Persistence] Equipment 목록 저장: {}건", ocids.size());
+            // 기존 파편화된 백업 파일 정리
+            if (newFile != null) {
+                for (Path oldFile : oldFiles) {
+                    Files.deleteIfExists(oldFile);
+                }
+            }
+
+            log.warn("💾 [Shutdown Persistence] Equipment 목록 저장 완료: {}건", ocids.size());
 
         } catch (Exception e) {
             log.error("❌ [Shutdown Persistence] Equipment 목록 저장 실패", e);
@@ -286,15 +313,6 @@ public class ShutdownDataPersistenceService {
         } catch (IOException e) {
             return LocalDateTime.MIN;
         }
-    }
-
-    /**
-     * 현재 서버 인스턴스 ID를 반환합니다.
-     *
-     * @return 인스턴스 ID (호스트명 또는 UUID)
-     */
-    public String getInstanceId() {
-        return instanceId;
     }
 
     /**
