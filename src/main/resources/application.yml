@@ -59,6 +59,18 @@ resilience4j:
     instances:
       nexonApi:
         baseConfig: default
+      redisLock:  # Redis 분산 락 전용 Circuit Breaker
+        slidingWindowSize: 20              # 락 작업은 빈번하므로 더 많은 샘플 수집
+        failureRateThreshold: 60           # 60% 실패율에서 Open (락 경합은 정상적일 수 있음)
+        waitDurationInOpenState: 30s       # Open 후 30초 대기 (Redis 복구 시간 확보)
+        minimumNumberOfCalls: 5            # 최소 5번 호출 후 통계 산출
+        permittedNumberOfCallsInHalfOpenState: 3
+        registerHealthIndicator: true
+        recordExceptions:                  # 이 예외들이 발생하면 실패로 간주
+          - org.redisson.client.RedisException
+          - org.redisson.client.RedisTimeoutException
+          - java.util.concurrent.TimeoutException
+          - maple.expectation.global.error.exception.DistributedLockException
 
   retry:
     retry-aspect-order: 399 # Retry가 CircuitBreaker를 감싸도록 설정
