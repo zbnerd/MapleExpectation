@@ -4,13 +4,16 @@ import io.github.resilience4j.retry.Retry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.aop.annotation.ObservedTransaction;
+import maple.expectation.global.shutdown.dto.FlushResult;
 import maple.expectation.repository.v2.RedisBufferRepository;
 import maple.expectation.service.v2.cache.LikeBufferStorage;
+import maple.expectation.service.v2.shutdown.ShutdownDataPersistenceService;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
@@ -23,6 +26,7 @@ public class LikeSyncService {
     private final StringRedisTemplate redisTemplate;
     private final RedisBufferRepository redisBufferRepository;
     private final Retry likeSyncRetry;
+    private final ShutdownDataPersistenceService shutdownDataPersistenceService;
     private static final String REDIS_HASH_KEY = "buffer:likes";
 
     /**
@@ -32,6 +36,54 @@ public class LikeSyncService {
         Map<String, AtomicLong> snapshot = likeBufferStorage.getCache().asMap();
         if (snapshot.isEmpty()) return;
         snapshot.forEach(this::processLocalBufferEntry);
+    }
+
+    /**
+     * ✅ L1(Caffeine) -> L2(Redis) 전송 (Graceful Shutdown용)
+     * <p>
+     * Redis 장애 시 로컬 파일로 백업하여 데이터 유실을 방지합니다.
+     * {@link FlushResult}를 반환하여 성공/실패 건수를 추적합니다.
+     *
+     * @return FlushResult (Redis 성공 건수, 파일 백업 건수)
+     */
+    public FlushResult flushLocalToRedisWithFallback() {
+        Map<String, AtomicLong> snapshot = likeBufferStorage.getCache().asMap();
+
+        if (snapshot.isEmpty()) {
+            return FlushResult.empty();
+        }
+
+        AtomicInteger redisSuccessCount = new AtomicInteger(0);
+        AtomicInteger fileBackupCount = new AtomicInteger(0);
+
+        snapshot.forEach((userIgn, atomicCount) -> {
+            long count = atomicCount.getAndSet(0);
+            if (count <= 0) return;
+
+            try {
+                // Redis 전송 시도
+                redisTemplate.opsForHash().increment(REDIS_HASH_KEY, userIgn, count);
+                redisBufferRepository.incrementGlobalCount(count);
+                redisSuccessCount.incrementAndGet();
+
+            } catch (Exception e) {
+                // Redis 실패 시 파일 백업
+                log.warn("⚠️ [Shutdown Flush] Redis 전송 실패, 파일 백업: {} ({}건)", userIgn, count);
+                shutdownDataPersistenceService.appendLikeEntry(userIgn, count);
+                fileBackupCount.incrementAndGet();
+            }
+        });
+
+        FlushResult result = new FlushResult(redisSuccessCount.get(), fileBackupCount.get());
+
+        if (result.hasFailures()) {
+            log.warn("⚠️ [Shutdown Flush] 일부 데이터 파일 백업: 성공 {}건, 백업 {}건 (성공률: {:.1f}%)",
+                    result.redisSuccessCount(), result.fileBackupCount(), result.successRate() * 100);
+        } else if (result.isFullSuccess()) {
+            log.info("✅ [Shutdown Flush] 모든 데이터 Redis 전송 완료: {}건", result.redisSuccessCount());
+        }
+
+        return result;
     }
 
     /**
