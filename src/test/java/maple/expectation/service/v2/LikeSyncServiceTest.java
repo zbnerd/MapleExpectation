@@ -3,6 +3,7 @@ package maple.expectation.service.v2;
 import io.github.resilience4j.retry.Retry;
 import maple.expectation.repository.v2.RedisBufferRepository; // ✅ 추가
 import maple.expectation.service.v2.cache.LikeBufferStorage;
+import maple.expectation.service.v2.shutdown.ShutdownDataPersistenceService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -28,6 +29,7 @@ class LikeSyncServiceTest {
     @Mock private LikeSyncExecutor syncExecutor;
     @Mock private StringRedisTemplate redisTemplate;
     @Mock private RedisBufferRepository redisBufferRepository; // ✅ 추가: 리포지토리 모킹
+    @Mock private ShutdownDataPersistenceService shutdownDataPersistenceService; // ✅ 추가: Shutdown 데이터 서비스 모킹
     @Mock private HashOperations<String, Object, Object> hashOperations;
 
     private final Retry likeSyncRetry = Retry.ofDefaults("testRetry");
@@ -35,13 +37,14 @@ class LikeSyncServiceTest {
 
     @BeforeEach
     void setUp() {
-        // 🚀 핵심: 변경된 5개의 파라미터 순서에 맞춰 생성자 호출
+        // 🚀 핵심: 변경된 6개의 파라미터 순서에 맞춰 생성자 호출
         likeSyncService = new LikeSyncService(
-                likeBufferStorage,      // 1
-                syncExecutor,           // 2
-                redisTemplate,          // 3
-                redisBufferRepository,  // 4 (추가됨)
-                likeSyncRetry           // 5
+                likeBufferStorage,                // 1
+                syncExecutor,                     // 2
+                redisTemplate,                    // 3
+                redisBufferRepository,            // 4
+                likeSyncRetry,                    // 5
+                shutdownDataPersistenceService    // 6 (추가됨)
         );
 
         // Redis 연산 기본 설정

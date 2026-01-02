@@ -25,7 +25,6 @@ repositories {
 
 dependencyManagement {
     imports {
-        // Resilience4j의 모든 모듈 버전을 알아서 맞춰줍니다.
         mavenBom "io.github.resilience4j:resilience4j-bom:2.2.0"
     }
 }

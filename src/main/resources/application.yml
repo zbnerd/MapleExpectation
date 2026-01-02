@@ -7,7 +7,7 @@ spring:
   profiles:
     active: local # [Safety Guard] 별도 설정 없으면 무조건 로컬 모드
   lifecycle:
-    timeout-per-shutdown-phase: 30s
+    timeout-per-shutdown-phase: 50s # Graceful Shutdown 시 충분한 시간 확보 (Equipment 대기 20s + Redis sync + 여유)
 
   # 공통 드라이버 설정
   datasource:
@@ -100,3 +100,6 @@ app:
   aop:
     trace:
       enabled: true
+  shutdown:
+    backup-directory: /tmp/maple-shutdown
+    archive-directory: /tmp/maple-shutdown/processed

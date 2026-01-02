@@ -43,6 +43,17 @@ public class EquipmentCacheService {
             return;
         }
         cache.put(ocid, response);
-        dbWorker.persist(ocid, response); // 비동기 DB 저장
+
+        // 비동기 DB 저장 (Graceful Shutdown 추적 포함)
+        try {
+            dbWorker.persist(ocid, response)
+                    .exceptionally(throwable -> {
+                        log.error("❌ [Equipment Cache] 비동기 저장 실패: {}", ocid, throwable);
+                        return null;
+                    });
+        } catch (IllegalStateException e) {
+            // Shutdown 진행 중인 경우 - 캐시만 저장하고 DB 저장은 스킵
+            log.warn("⚠️ [Equipment Cache] Shutdown 진행 중 - DB 저장 스킵: {}", ocid);
+        }
     }
 }
