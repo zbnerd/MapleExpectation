@@ -89,4 +89,40 @@ public class ResilientLockStrategy implements LockStrategy {
             }
         }
     }
+
+    @Override
+    public boolean tryLockImmediately(String key, long leaseTime) {
+        try {
+            // 🔵 Tier 1: Redis 락 즉시 시도 (Circuit Breaker로 보호)
+            return circuitBreaker.executeSupplier(() -> {
+                log.debug("🔵 [Resilient Lock] Attempting immediate Redis lock for: {}", key);
+                return redisLockStrategy.tryLockImmediately(key, leaseTime);
+            });
+
+        } catch (Exception redisException) {
+            // 🔴 Redis 실패 또는 Circuit Breaker OPEN
+            CircuitBreaker.State cbState = circuitBreaker.getState();
+            log.warn("🔴 [Resilient Lock] Redis unavailable for immediate lock '{}'. CB State: {}, Reason: {}. Falling back to MySQL...",
+                key, cbState, redisException.getMessage());
+
+            // 🟡 Tier 2: MySQL Named Lock Fallback
+            return mysqlLockStrategy.tryLockImmediately(key, leaseTime);
+        }
+    }
+
+    @Override
+    public void unlock(String key) {
+        try {
+            // 🔵 Tier 1: Redis 락 해제 (Circuit Breaker로 보호)
+            circuitBreaker.executeRunnable(() -> {
+                log.debug("🔵 [Resilient Lock] Unlocking Redis lock for: {}", key);
+                redisLockStrategy.unlock(key);
+            });
+
+        } catch (Exception redisException) {
+            // 🔴 Redis 실패 시 MySQL도 시도
+            log.warn("🔴 [Resilient Lock] Redis unlock failed for '{}'. Trying MySQL...", key);
+            mysqlLockStrategy.unlock(key);
+        }
+    }
 }

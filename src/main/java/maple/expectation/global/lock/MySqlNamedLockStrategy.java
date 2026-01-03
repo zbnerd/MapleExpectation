@@ -75,6 +75,36 @@ public class MySqlNamedLockStrategy implements LockStrategy {
         }
     }
 
+    @Override
+    public boolean tryLockImmediately(String key, long leaseTime) {
+        String lockName = "maple_lock:" + key;
+        try {
+            // MySQL Named Lock은 즉시 획득 시도 (waitTime = 0)
+            Integer lockResult = lockJdbcTemplate.queryForObject(
+                "SELECT GET_LOCK(?, 0)",
+                Integer.class,
+                lockName
+            );
+
+            if (lockResult != null && lockResult == 1) {
+                log.debug("🔓 [MySQL Lock] '{}' 즉시 획득 성공.", lockName);
+                return true;
+            } else {
+                log.debug("⏭️ [MySQL Lock] '{}' 즉시 획득 실패 (result: {}).", lockName, lockResult);
+                return false;
+            }
+        } catch (Exception e) {
+            log.error("❌ [MySQL Lock] '{}' 즉시 획득 중 오류: {}", lockName, e.getMessage());
+            return false;
+        }
+    }
+
+    @Override
+    public void unlock(String key) {
+        String lockName = "maple_lock:" + key;
+        releaseLock(lockName);
+    }
+
     /**
      * MySQL Named Lock 해제
      *
