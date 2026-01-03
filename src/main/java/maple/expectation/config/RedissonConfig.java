@@ -28,7 +28,7 @@ public class RedissonConfig {
     @Value("${spring.data.redis.port:6379}")
     private int port;
 
-    // 🔥 [Issue #77] Testcontainers NAT 매핑 정보
+    // 🔥 [Issue #77] Testcontainers NAT 매핑 정보 (테스트 시에만 주입됨)
     @Value("${redis.nat-mapping:}")
     private String natMapping;
 
@@ -38,65 +38,76 @@ public class RedissonConfig {
     public RedissonClient redissonClient() {
         Config config = new Config();
 
-        // Sentinel 모드 우선 사용, 설정이 없으면 Single Server로 Fallback
+        // 1. Sentinel 모드 설정
         if (!masterName.isEmpty() && !sentinelNodes.isEmpty()) {
             String[] nodes = sentinelNodes.split(",");
             String[] addresses = Arrays.stream(nodes)
-                .map(node -> REDISSON_HOST_PREFIX + node.trim())
-                .toArray(String[]::new);
+                    .map(node -> REDISSON_HOST_PREFIX + node.trim())
+                    .toArray(String[]::new);
 
             var sentinelConfig = config.useSentinelServers()
-                  .setMasterName(masterName)
-                  .addSentinelAddress(addresses)
-                  .setCheckSentinelsList(false) // 로컬 개발 시 필요
+                    .setMasterName(masterName)
+                    .addSentinelAddress(addresses)
+                    .setCheckSentinelsList(false)    // 테스트 환경 안정성
+                    .setScanInterval(1000)          // 1초마다 마스터 교체 감지
+                    .setReadMode(ReadMode.MASTER)   // READONLY 에러 방지
+                    .setDnsMonitoringInterval(5000)
+                    .setRetryAttempts(3)
+                    .setRetryInterval(1500)
+                    .setTimeout(3000)
+                    .setConnectTimeout(10000)
+                    .setMasterConnectionPoolSize(64)
+                    .setMasterConnectionMinimumIdleSize(24);
 
-                  // 🔥 [Issue #77] Failover 시 즉시 Topology 업데이트
-                  .setScanInterval(1000)           // 1초마다 Master/Slave 구성 스캔
-
-                  // 🔥 [Issue #77] READONLY 에러 방지: 모든 읽기를 Master에서 수행
-                  .setReadMode(ReadMode.MASTER)    // Slave 읽기 비활성화
-
-                  // 🔥 [Issue #77] DNS 안정성 강화
-                  .setDnsMonitoringInterval(5000)  // 5초마다 DNS 갱신
-
-                  // 🔥 [Issue #77] 재연결 및 타임아웃 설정
-                  .setRetryAttempts(3)             // 재시도 3회
-                  .setRetryInterval(1500)          // 재시도 간격 1.5초
-                  .setTimeout(3000)                // 명령 타임아웃 3초
-                  .setConnectTimeout(10000)        // 연결 타임아웃 10초
-
-                  // 🔥 [Issue #77] Connection Pool 설정
-                  .setMasterConnectionPoolSize(64)     // Master 연결 풀 크기
-                  .setMasterConnectionMinimumIdleSize(24) // 최소 유휴 연결
-                  .setSlaveConnectionPoolSize(64)      // Slave 연결 풀 크기
-                  .setSlaveConnectionMinimumIdleSize(24)
-                  .setFailedSlaveCheckInterval(3000);  // 실패한 Slave 재확인 간격 3초
-
-            // 🔥 [Issue #77] Testcontainers NAT 매핑: Docker 네트워크 내부 주소 → 외부 매핑 주소
+            // 🚀 [핵심 수정] 강력한 NAT 매핑 로직 적용
             if (!natMapping.isEmpty()) {
                 Map<String, String> natMap = parseNatMapping(natMapping);
+
                 sentinelConfig.setNatMapper(uri -> {
-                    String key = uri.getHost() + ":" + uri.getPort();
-                    String mapped = natMap.get(key);
-                    if (mapped != null) {
-                        String[] parts = mapped.split(":");
-                        return new RedisURI(uri.getScheme(), parts[0], Integer.parseInt(parts[1]));
+                    String currentHost = uri.getHost();
+                    int currentPort = uri.getPort();
+                    String key = currentHost + ":" + currentPort;
+
+                    // CASE 1: 직접 매핑 정보가 있는 경우 (예: "redis-master:6379")
+                    if (natMap.containsKey(key)) {
+                        String mappedValue = natMap.get(key);
+                        String[] parts = mappedValue.split(":");
+                        return new RedisURI(uri.getScheme(), "127.0.0.1", Integer.parseInt(parts[1]));
                     }
+
+                    // CASE 2: 호스트명은 맞는데 포트가 명시되지 않았거나 IP로 들어온 경우 우회 로직
+                    // UnknownHostException (redis-master) 방지
+                    if (currentHost.equals("redis-master")) {
+                        String masterEntry = natMap.get("redis-master:6379");
+                        if (masterEntry != null) {
+                            return new RedisURI(uri.getScheme(), "127.0.0.1", Integer.parseInt(masterEntry.split(":")[1]));
+                        }
+                    }
+
+                    // CASE 3: 172.x.x.x (Docker 내부 IP) 대역인 경우 (ConnectTimeout 방지)
+                    if (currentHost.startsWith("172.")) {
+                        // 기본 Redis 포트(6379)라면 마스터 매핑 포트 사용 권장
+                        String masterEntry = natMap.get("redis-master:6379");
+                        int targetPort = (masterEntry != null && currentPort == 6379)
+                                ? Integer.parseInt(masterEntry.split(":")[1])
+                                : currentPort;
+
+                        return new RedisURI(uri.getScheme(), "127.0.0.1", targetPort);
+                    }
+
                     return uri;
                 });
             }
         } else {
-            // Fallback: Single Server (로컬 개발, 테스트용)
+            // 2. Single Server 모드 (로컬 개발용)
             config.useSingleServer()
-                  .setAddress(REDISSON_HOST_PREFIX + host + ":" + port)
-
-                  // Single Server 모드에도 기본 재연결 설정 추가
-                  .setRetryAttempts(3)
-                  .setRetryInterval(1500)
-                  .setTimeout(3000)
-                  .setConnectTimeout(10000)
-                  .setConnectionPoolSize(64)
-                  .setConnectionMinimumIdleSize(24);
+                    .setAddress(REDISSON_HOST_PREFIX + host + ":" + port)
+                    .setRetryAttempts(3)
+                    .setRetryInterval(1500)
+                    .setTimeout(3000)
+                    .setConnectTimeout(10000)
+                    .setConnectionPoolSize(64)
+                    .setConnectionMinimumIdleSize(24);
         }
 
         return Redisson.create(config);
@@ -104,10 +115,12 @@ public class RedissonConfig {
 
     /**
      * NAT 매핑 문자열 파싱
-     * 형식: "redis-master:6379=localhost:32768,redis-slave:6379=localhost:32769"
+     * 입력 예: "redis-master:6379=127.0.0.1:32768,redis-slave:6379=127.0.0.1:32769"
      */
     private Map<String, String> parseNatMapping(String natMappingStr) {
         Map<String, String> map = new HashMap<>();
+        if (natMappingStr == null || natMappingStr.isEmpty()) return map;
+
         String[] mappings = natMappingStr.split(",");
         for (String mapping : mappings) {
             String[] parts = mapping.trim().split("=");
