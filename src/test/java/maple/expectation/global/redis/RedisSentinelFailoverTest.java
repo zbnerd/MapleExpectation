@@ -1,6 +1,7 @@
 package maple.expectation.global.redis;
 
 import maple.expectation.support.AbstractSentinelContainerBaseTest;
+import maple.expectation.support.IntegrationTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.redisson.api.RLock;
@@ -33,7 +34,7 @@ import static org.awaitility.Awaitility.await;
  */
 @ActiveProfiles("test")
 @DisplayName("Redis Sentinel Failover 자동화 테스트")
-class RedisSentinelFailoverTest extends AbstractSentinelContainerBaseTest {
+class RedisSentinelFailoverTest extends IntegrationTestSupport {
 
     @Autowired
     private RedisTemplate<String, String> redisTemplate;

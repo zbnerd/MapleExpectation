@@ -75,7 +75,7 @@ public class LikeSyncService {
         String tempKey = REDIS_HASH_KEY + ":sync:" + UUID.randomUUID();
         try {
             Boolean hasKey = redisTemplate.hasKey(REDIS_HASH_KEY);
-            if (Boolean.FALSE.equals(hasKey)) return;
+            if (!hasKey) return;
 
             redisTemplate.rename(REDIS_HASH_KEY, tempKey);
 
@@ -109,7 +109,7 @@ public class LikeSyncService {
 
             // 🚀 [이슈 #123] 롤백 로직: 임시 키에 데이터가 남아있다면 원본 키로 병합
             try {
-                if (Boolean.TRUE.equals(redisTemplate.hasKey(tempKey))) {
+                if (redisTemplate.hasKey(tempKey)) {
                     Map<Object, Object> strandedEntries = redisTemplate.opsForHash().entries(tempKey);
                     strandedEntries.forEach((key, value) ->
                             redisTemplate.opsForHash().increment(REDIS_HASH_KEY, (String) key, Long.parseLong((String) value))
