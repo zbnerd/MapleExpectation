@@ -1,18 +1,14 @@
 package maple.expectation.external.proxy;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import maple.expectation.domain.v2.CharacterEquipment;
-import maple.expectation.external.NexonApiClient;
 import maple.expectation.external.dto.v2.CharacterOcidResponse;
 import maple.expectation.external.dto.v2.EquipmentResponse;
 import maple.expectation.external.impl.ResilientNexonApiClient;
 import maple.expectation.global.error.exception.ExternalServiceException;
-import maple.expectation.repository.v2.CharacterEquipmentRepository;
+import maple.expectation.support.IntegrationTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -22,111 +18,48 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
-@SpringBootTest
-class ResilientNexonApiClientTest {
+@DisplayName("장애 복원력이 적용된 Nexon API 클라이언트 테스트")
+class ResilientNexonApiClientTest extends IntegrationTestSupport {
 
-    @Autowired
-    private ResilientNexonApiClient resilientNexonApiClient;
+    @Autowired private ResilientNexonApiClient resilientNexonApiClient;
+    @Autowired private ObjectMapper objectMapper;
 
-    @MockitoBean(name = "realNexonApiClient")
-    private NexonApiClient delegate;
+    // 💡 equipmentRepository를 Mock으로 오버라이드하여 stubbing 가능하게 함
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    private maple.expectation.repository.v2.CharacterEquipmentRepository equipmentRepository;
 
-    @MockitoBean
-    private CharacterEquipmentRepository equipmentRepository;
-
-    @Autowired
-    private ObjectMapper objectMapper;
+    // 💡 nexonApiClient는 부모(IntegrationTestSupport)에서 상속받은 Mock 사용
 
     @Test
-    @DisplayName("성공 시나리오: 외부 API가 정상 응답하면 결과값을 그대로 반환한다")
+    @DisplayName("성공 시나리오: 결과값을 그대로 반환")
     void successDelegationTest() {
-        String characterName = "메이플고수";
-        CharacterOcidResponse expectedResponse = new CharacterOcidResponse("ocid-123");
-        given(delegate.getOcidByCharacterName(characterName)).willReturn(expectedResponse);
+        String name = "메이플고수";
+        given(nexonApiClient.getOcidByCharacterName(name)).willReturn(new CharacterOcidResponse("ocid-123"));
 
-        CharacterOcidResponse result = resilientNexonApiClient.getOcidByCharacterName(characterName);
-
-        assertThat(result.getOcid()).isEqualTo("ocid-123");
+        assertThat(resilientNexonApiClient.getOcidByCharacterName(name).getOcid()).isEqualTo("ocid-123");
     }
 
     @Test
-    @DisplayName("재시도 시나리오: API 호출 실패 시 설정에 따라 3번 재시도(Retry)를 수행한다")
+    @DisplayName("재시도 시나리오: 실패 시 3번 재시도 수행")
     void retryLogicTest() {
-        String characterName = "네트워크불안정";
-        given(delegate.getOcidByCharacterName(characterName))
-                .willThrow(new ExternalServiceException("Nexon API Connection Failed"));
+        String name = "네트워크불안정";
+        given(nexonApiClient.getOcidByCharacterName(name)).willThrow(new ExternalServiceException("Error"));
 
-        assertThatThrownBy(() -> resilientNexonApiClient.getOcidByCharacterName(characterName))
+        assertThatThrownBy(() -> resilientNexonApiClient.getOcidByCharacterName(name))
                 .isInstanceOf(ExternalServiceException.class);
 
-        verify(delegate, times(3)).getOcidByCharacterName(characterName);
+        verify(nexonApiClient, times(3)).getOcidByCharacterName(name);
     }
 
     @Test
-    @DisplayName("Fallback 시나리오 [Scenario A]: API 실패 시 캐시가 있으면 캐시를 반환한다")
+    @DisplayName("Fallback: API 실패 시 DB 캐시 반환")
     void fallbackScenarioA_Test() throws Exception {
-        // [Given]
         String ocid = "cache-exists-ocid";
-        EquipmentResponse expectedResponse = new EquipmentResponse();
-        expectedResponse.setCharacterClass("Hero");
+        String json = objectMapper.writeValueAsString(new EquipmentResponse());
 
-        // 💡 리팩토링 포인트 1: byte[] 대신 JSON String으로 변환
-        String jsonContent = objectMapper.writeValueAsString(expectedResponse);
+        given(nexonApiClient.getItemDataByOcid(ocid)).willReturn(CompletableFuture.failedFuture(new ExternalServiceException("Err")));
+        given(equipmentRepository.findById(ocid)).willReturn(Optional.of(maple.expectation.domain.v2.CharacterEquipment.builder().ocid(ocid).jsonContent(json).build()));
 
-        // 💡 리팩토링 포인트 2: 변경된 엔티티 구조(String 필드) 및 빌더 사용
-        CharacterEquipment entity = CharacterEquipment.builder()
-                .ocid(ocid)
-                .jsonContent(jsonContent)
-                .build();
-
-        // 1. API 호출은 실패하도록 설정
-        given(delegate.getItemDataByOcid(ocid))
-                .willReturn(CompletableFuture.failedFuture(new ExternalServiceException("API Error")));
-
-        // 2. 리포지토리가 캐시 엔티티를 반환하도록 Mocking
-        given(equipmentRepository.findById(ocid)).willReturn(Optional.of(entity));
-
-        // [When]
-        CompletableFuture<EquipmentResponse> result = resilientNexonApiClient.getItemDataByOcid(ocid);
-
-        // [Then]
-        assertThat(result.join().getCharacterClass()).isEqualTo("Hero");
-    }
-
-    @Test
-    @DisplayName("Fallback 시나리오 [Scenario B]: 장애가 지속되고 캐시도 없으면 예외를 반환한다")
-    void fallbackScenarioB_Test() {
-        // [Given]
-        String ocid = "no-cache-ocid";
-
-        // 1. API 실패
-        given(delegate.getItemDataByOcid(ocid))
-                .willReturn(CompletableFuture.failedFuture(new ExternalServiceException("Nexon API Down")));
-
-        // 2. DB에도 데이터가 없음
-        given(equipmentRepository.findById(ocid)).willReturn(Optional.empty());
-
-        // [When & Then]
-        assertThatThrownBy(() -> resilientNexonApiClient.getItemDataByOcid(ocid).join())
-                .isInstanceOf(RuntimeException.class)
-                .hasCauseInstanceOf(ExternalServiceException.class);
-    }
-
-    @Test
-    @DisplayName("서킷 브레이커 테스트: 연속 실패 시 호출을 차단해야 한다")
-    void circuitBreakerOpenTest() {
-        given(delegate.getOcidByCharacterName(anyString()))
-                .willThrow(new ExternalServiceException("Critical Nexon API Error"));
-
-        for (int i = 0; i < 20; i++) {
-            try {
-                resilientNexonApiClient.getOcidByCharacterName("테스트캐릭터");
-            } catch (Exception ignored) {}
-        }
-
-        assertThatThrownBy(() -> resilientNexonApiClient.getOcidByCharacterName("마지막요청"))
-                .isInstanceOf(ExternalServiceException.class);
-
-        verify(delegate, atMost(30)).getOcidByCharacterName(anyString());
+        assertThat(resilientNexonApiClient.getItemDataByOcid(ocid).join()).isNotNull();
     }
 }

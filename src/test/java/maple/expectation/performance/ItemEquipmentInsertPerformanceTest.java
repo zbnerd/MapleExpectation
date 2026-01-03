@@ -1,12 +1,13 @@
 package maple.expectation.performance;
 
 import org.junit.jupiter.api.Disabled;
-import org.springframework.test.context.TestPropertySource;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.domain.v1.ItemEquipment;
 import maple.expectation.repository.v1.ItemEquipmentRepository;
-import maple.expectation.support.SpringBootTestWithTimeLogging;
+import maple.expectation.support.EnableTimeLogging;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,7 +19,9 @@ import java.util.Random;
 
 @Slf4j
 @Transactional
-@SpringBootTestWithTimeLogging
+@EnableTimeLogging
+@SpringBootTest
+@ActiveProfiles("test")
 class ItemEquipmentInsertPerformanceTest {
 
     @Autowired

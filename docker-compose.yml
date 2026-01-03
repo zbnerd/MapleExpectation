@@ -17,22 +17,117 @@ services:
       --default-authentication-plugin=mysql_native_password
     volumes:
       - ./mysql_data:/var/lib/mysql
+    networks:
+      - maple-network
 
-  redis:
-    image: redis:latest
-    container_name: maple-redis
+  # Redis HA: Master Node
+  redis-master:
+    image: redis:7.0
+    container_name: redis-master
     restart: always
     ports:
       - "6379:6379"
-    # 🚀 메모리 제한(256mb)과 초과 시 삭제 정책(allkeys-lru) 추가
     command: >
-      redis-server 
-      --save 60 1 
-      --loglevel warning 
-      --maxmemory 256mb 
+      redis-server
+      --save 60 1
+      --loglevel warning
+      --maxmemory 256mb
       --maxmemory-policy allkeys-lru
     volumes:
-      - ./redis_data:/data
+      - ./redis_data/master:/data
+    networks:
+      maple-network:
+        ipv4_address: 172.20.0.10
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+
+  # Redis HA: Slave Node
+  redis-slave:
+    image: redis:7.0
+    container_name: redis-slave
+    restart: always
+    ports:
+      - "6380:6379"
+    command: >
+      redis-server
+      --slaveof redis-master 6379
+      --save 60 1
+      --loglevel warning
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - ./redis_data/slave:/data
+    networks:
+      maple-network:
+        aliases:
+          - redis-slave
+    depends_on:
+      redis-master:
+        condition: service_healthy
+
+  # Redis Sentinel 1 (Quorum 2/3)
+  redis-sentinel-1:
+    image: redis:7.0
+    container_name: maple-sentinel-1
+    restart: always
+    ports:
+      - "26379:26379"
+    command: redis-sentinel /etc/redis/sentinel.conf
+    volumes:
+      - ./sentinel/sentinel-1.conf:/etc/redis/sentinel.conf
+    networks:
+      - maple-network
+    depends_on:
+      redis-master:
+        condition: service_healthy
+      redis-slave:
+        condition: service_started
+
+  # Redis Sentinel 2 (Quorum 2/3)
+  redis-sentinel-2:
+    image: redis:7.0
+    container_name: maple-sentinel-2
+    restart: always
+    ports:
+      - "26380:26379"
+    command: redis-sentinel /etc/redis/sentinel.conf
+    volumes:
+      - ./sentinel/sentinel-2.conf:/etc/redis/sentinel.conf
+    networks:
+      - maple-network
+    depends_on:
+      redis-master:
+        condition: service_healthy
+      redis-slave:
+        condition: service_started
+
+  # Redis Sentinel 3 (Quorum 2/3)
+  redis-sentinel-3:
+    image: redis:7.0
+    container_name: maple-sentinel-3
+    restart: always
+    ports:
+      - "26381:26379"
+    command: redis-sentinel /etc/redis/sentinel.conf
+    volumes:
+      - ./sentinel/sentinel-3.conf:/etc/redis/sentinel.conf
+    networks:
+      - maple-network
+    depends_on:
+      redis-master:
+        condition: service_healthy
+      redis-slave:
+        condition: service_started
+
+networks:
+  maple-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
 
 volumes:
   mysql_data:

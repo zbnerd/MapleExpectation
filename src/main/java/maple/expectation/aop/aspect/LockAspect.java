@@ -29,15 +29,21 @@ public class LockAspect {
     public Object applyLock(ProceedingJoinPoint joinPoint, Locked locked) throws Throwable {
         String key = getDynamicKey(joinPoint, locked.key());
 
+        // 🎯 SSOT: 어노테이션에서 락 타이밍 정책 읽기
+        long waitTime = locked.waitTime();
+        long leaseTime = locked.leaseTime();
+        long waitSeconds = locked.timeUnit().toSeconds(waitTime);
+        long leaseSeconds = locked.timeUnit().toSeconds(leaseTime);
+
         try {
-            // 1️⃣ [Distributed Lock] 10초 대기, 20초 점유
+            // 1️⃣ [Distributed Lock] 어노테이션 설정값으로 락 획득
             // 1등이 넥슨 API에서 OCID를 가져와 DB에 저장할 시간을 충분히 벌어줍니다.
-            return lockStrategy.executeWithLock(key, 10, 20, () -> {
+            return lockStrategy.executeWithLock(key, waitSeconds, leaseSeconds, () -> {
                 log.debug("🔑 [Locked Aspect] 락 획득 성공: {}", key);
                 return joinPoint.proceed();
             });
         } catch (DistributedLockException e) {
-            // 2️⃣ [Fallback] 10초를 기다려도 락을 못 잡은 경우 (나머지 99명)
+            // 2️⃣ [Fallback] 대기 시간 내에 락을 못 잡은 경우 (나머지 99명)
             log.warn("⏭️ [Locked Timeout] {} - 락 획득 실패. 직접 조회를 시도합니다.", key);
 
             // 락은 못 잡았지만, 그 사이 1등이 DB에 캐릭터를 생성했을 확률이 매우 높습니다.

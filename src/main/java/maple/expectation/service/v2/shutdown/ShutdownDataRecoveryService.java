@@ -38,125 +38,92 @@ public class ShutdownDataRecoveryService {
 
     private static final String REDIS_HASH_KEY = "buffer:likes";
 
-    /**
-     * 애플리케이션 시작 시 백업 파일 복구 실행
-     * <p>
-     * 백업 파일이 없으면 아무 작업도 수행하지 않습니다.
-     */
     @PostConstruct
     public void recoverFromBackup() {
-        log.info("🔄 [Shutdown Recovery] 백업 데이터 복구 시작");
+        try {
+            log.info("🔄 [Shutdown Recovery] 백업 데이터 복구 시작");
 
-        List<Path> backupFiles = persistenceService.findAllBackupFiles();
-
-        if (backupFiles.isEmpty()) {
-            log.info("✅ [Shutdown Recovery] 복구할 백업 파일 없음");
-            return;
-        }
-
-        log.info("📂 [Shutdown Recovery] {}개의 백업 파일 발견", backupFiles.size());
-
-        for (Path backupFile : backupFiles) {
-            try {
-                processBackupFile(backupFile);
-                persistenceService.archiveFile(backupFile);
-
-            } catch (Exception e) {
-                log.error("❌ [Shutdown Recovery] 백업 파일 처리 실패: {}", backupFile.getFileName(), e);
+            List<Path> backupFiles = persistenceService.findAllBackupFiles();
+            if (backupFiles.isEmpty()) {
+                log.info("✅ [Shutdown Recovery] 복구할 백업 파일 없음");
+                return;
             }
-        }
 
-        log.info("✅ [Shutdown Recovery] 백업 데이터 복구 완료");
+            for (Path backupFile : backupFiles) {
+                try {
+                    // 🚀 [이슈 #123] 성공 시에만 아카이브 수행
+                    boolean success = processBackupFile(backupFile);
+                    if (success) {
+                        persistenceService.archiveFile(backupFile);
+                    } else {
+                        log.warn("⏭️ [Recovery Skip] 복구 미완료로 파일을 보존합니다: {}", backupFile.getFileName());
+                    }
+                } catch (Exception e) {
+                    log.error("❌ [Shutdown Recovery] 백업 파일 처리 실패: {}", backupFile.getFileName(), e);
+                    // 🔥 [Issue #77] 개별 파일 실패는 전체 복구를 중단시키지 않음
+                }
+            }
+            log.info("✅ [Shutdown Recovery] 백업 데이터 복구 완료");
+        } catch (Exception e) {
+            // 🔥 [Issue #77] Redis 연결 실패 등으로 복구가 불가능해도 애플리케이션은 시작됨
+            log.error("❌ [Shutdown Recovery] 복구 프로세스 실패 - 애플리케이션은 계속 시작됩니다", e);
+            log.warn("⚠️ [Shutdown Recovery] 백업 파일은 보존되며, 수동 복구가 필요할 수 있습니다");
+        }
     }
 
-    /**
-     * 백업 파일을 읽어서 데이터 복구
-     *
-     * @param backupFile 백업 파일 경로
-     */
-    private void processBackupFile(Path backupFile) {
+    private boolean processBackupFile(Path backupFile) {
         Optional<ShutdownData> dataOpt = persistenceService.readBackupFile(backupFile);
-
-        if (dataOpt.isEmpty()) {
-            log.warn("⚠️ [Shutdown Recovery] 백업 파일 읽기 실패: {}", backupFile.getFileName());
-            return;
-        }
+        if (dataOpt.isEmpty()) return false;
 
         ShutdownData data = dataOpt.get();
+        log.info("📝 [Shutdown Recovery] 처리 중: {} (항목: {}개)", backupFile.getFileName(), data.getTotalItems());
 
-        log.info("📝 [Shutdown Recovery] 처리 중: {} (인스턴스: {}, 항목: {}개)",
-                backupFile.getFileName(), data.instanceId(), data.getTotalItems());
+        // 🚀 모든 복구 로직이 성공해야 true 반환
+        boolean likesRecovered = recoverLikeBuffer(data);
+        recoverEquipmentPending(data); // Equipment는 로그 기록용이므로 결과에 영향 없음
 
-        // 1. 좋아요 버퍼 복구
-        recoverLikeBuffer(data);
-
-        // 2. Equipment 미완료 처리
-        recoverEquipmentPending(data);
+        return likesRecovered;
     }
 
-    /**
-     * 좋아요 버퍼 데이터를 Redis로 복구
-     * <p>
-     * Redis 장애 시 DB로 직접 반영합니다.
-     *
-     * @param data Shutdown 백업 데이터
-     */
-    private void recoverLikeBuffer(ShutdownData data) {
+    private boolean recoverLikeBuffer(ShutdownData data) {
         Map<String, Long> likeBuffer = data.likeBuffer();
+        if (likeBuffer == null || likeBuffer.isEmpty()) return true;
 
-        if (likeBuffer == null || likeBuffer.isEmpty()) {
-            return;
-        }
-
-        int successCount = 0;
-        int failureCount = 0;
-
+        boolean allSuccess = true;
         for (Map.Entry<String, Long> entry : likeBuffer.entrySet()) {
             String userIgn = entry.getKey();
             Long count = entry.getValue();
 
             try {
-                // Redis로 복구 시도
                 redisTemplate.opsForHash().increment(REDIS_HASH_KEY, userIgn, count);
-                successCount++;
-
+                log.debug("✅ [Shutdown Recovery] Redis 복구 성공: {} ({}건)", userIgn, count);
             } catch (Exception e) {
-                // Redis 실패 시 DB로 직접 반영
-                log.warn("⚠️ [Shutdown Recovery] Redis 복구 실패, DB 직접 반영: {} ({}건)", userIgn, count);
+                // 🔥 [Issue #77] Redis 장애 시 즉시 DB Fallback (CircuitBreaker 패턴)
+                log.warn("⚠️ [Shutdown Recovery] Redis 복구 실패 ({}), DB 직접 반영: {} ({}건)",
+                    e.getClass().getSimpleName(), userIgn, count);
                 try {
                     syncExecutor.executeIncrement(userIgn, count);
-                    successCount++;
+                    log.info("✅ [Shutdown Recovery] DB 직접 반영 성공: {} ({}건)", userIgn, count);
                 } catch (Exception dbEx) {
-                    log.error("❌ [Shutdown Recovery] DB 반영 실패: {}", userIgn, dbEx);
-                    failureCount++;
+                    log.error("❌ [Shutdown Recovery] 최종 복구 실패 - 수동 처리 필요: {} ({}건)", userIgn, count, dbEx);
+                    allSuccess = false; // 하나라도 실패하면 false
                 }
             }
         }
 
-        log.info("✅ [Shutdown Recovery] 좋아요 복구 완료: 성공 {}건, 실패 {}건", successCount, failureCount);
+        if (!allSuccess) {
+            log.error("❌ [Shutdown Recovery] 일부 데이터 복구 실패 - 백업 파일 보존됨");
+        }
+
+        return allSuccess;
     }
 
-    /**
-     * Equipment 미완료 항목 처리
-     * <p>
-     * Equipment 데이터는 Nexon API 재호출이 필요하므로 자동 복구 불가.
-     * 로그로 기록하여 운영자가 수동으로 처리할 수 있도록 합니다.
-     *
-     * @param data Shutdown 백업 데이터
-     */
     private void recoverEquipmentPending(ShutdownData data) {
         List<String> equipmentPending = data.equipmentPending();
-
-        if (equipmentPending == null || equipmentPending.isEmpty()) {
-            return;
-        }
+        if (equipmentPending == null || equipmentPending.isEmpty()) return;
 
         log.warn("⚠️ [Shutdown Recovery] Equipment 미완료 항목: {}건", equipmentPending.size());
         log.warn("   → OCID 목록: {}", equipmentPending);
-        log.warn("   → 자동 복구 불가: Nexon API 재호출 필요");
         log.warn("   → 운영자 수동 처리 권장: 해당 OCID의 Equipment 데이터 재조회");
-
-        // TODO: 자동 복구 로직 추가 가능 (Nexon API 재호출 + 캐시 갱신)
-        // 현재는 로그만 남기고 수동 처리로 유도
     }
 }

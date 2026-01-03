@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 // 1. 인터페이스로 변경하고 JpaRepository 상속 (Entity, PK타입)
@@ -29,4 +30,12 @@ public interface GameCharacterRepository extends JpaRepository<GameCharacter, Lo
     @Modifying(clearAutomatically = true) // 쿼리 실행 후 영속성 컨텍스트 초기화
     @Query("UPDATE GameCharacter c SET c.likeCount = c.likeCount + :count WHERE c.userIgn = :userIgn")
     void incrementLikeCount(@Param("userIgn") String userIgn, @Param("count") Long count);
+
+    /**
+     * 단일 캐릭터 상세 조회 (캐릭터 + 장비 정보 한방에)
+     * 상세 페이지나 장비 계산 로직에서 사용
+     */
+    @TraceLog
+    @Query("SELECT gc FROM GameCharacter gc LEFT JOIN FETCH gc.equipment WHERE gc.userIgn = :userIgn")
+    Optional<GameCharacter> findByUserIgnWithEquipment(@Param("userIgn") String userIgn);
 }
