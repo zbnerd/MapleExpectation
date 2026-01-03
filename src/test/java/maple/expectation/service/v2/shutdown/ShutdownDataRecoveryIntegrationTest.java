@@ -1,9 +1,8 @@
 package maple.expectation.service.v2.shutdown;
 
 import maple.expectation.global.shutdown.dto.ShutdownData;
-import maple.expectation.repository.v2.GameCharacterRepository;
 import maple.expectation.service.v2.cache.LikeBufferStorage;
-import maple.expectation.support.AbstractContainerBaseTest;
+import maple.expectation.support.IntegrationTestSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -11,6 +10,7 @@ import org.junit.jupiter.api.Timeout;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.io.IOException;
@@ -32,7 +32,8 @@ import static org.awaitility.Awaitility.await;
 @ActiveProfiles("test")
 @DisplayName("Shutdown 백업/복구 E2E 통합 테스트")
 @Timeout(value = 2, unit = TimeUnit.MINUTES)
-class ShutdownDataRecoveryIntegrationTest extends AbstractContainerBaseTest {
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+class ShutdownDataRecoveryIntegrationTest extends IntegrationTestSupport {
 
     @Autowired private ShutdownDataPersistenceService persistenceService;
     @Autowired private ShutdownDataRecoveryService recoveryService;
@@ -113,11 +114,12 @@ class ShutdownDataRecoveryIntegrationTest extends AbstractContainerBaseTest {
         // when
         recoveryService.recoverFromBackup();
 
-        // then
-        await().atMost(5, TimeUnit.SECONDS).untilAsserted(() -> {
+        // then - 비동기 복구를 위해 대기 시간 증가
+        await().atMost(10, TimeUnit.SECONDS).pollInterval(200, TimeUnit.MILLISECONDS).untilAsserted(() -> {
             Object c1 = redisTemplate.opsForHash().get(REDIS_HASH_KEY, "mixedUser1");
             Object c2 = redisTemplate.opsForHash().get(REDIS_HASH_KEY, "mixedUser2");
-            assertThat(c1).isNotNull();
+            assertThat(c1).as("mixedUser1 Redis 값이 존재해야 함").isNotNull();
+            assertThat(c2).as("mixedUser2 Redis 값이 존재해야 함").isNotNull();
             assertThat(Long.parseLong(c1.toString())).isEqualTo(50L);
             assertThat(Long.parseLong(c2.toString())).isEqualTo(150L);
         });
