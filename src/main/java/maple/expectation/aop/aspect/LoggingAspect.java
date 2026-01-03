@@ -4,11 +4,45 @@ import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.aop.collector.PerformanceStatisticsCollector;
+import maple.expectation.global.executor.LogicExecutor;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.springframework.stereotype.Component;
 
+/**
+ * 실행 시간 로깅 Aspect (코드 평탄화 적용)
+ *
+ * <h3>Before (try-finally 보일러플레이트)</h3>
+ * <pre>{@code
+ * public Object logExecutionTime(ProceedingJoinPoint joinPoint) throws Throwable {
+ *     long start = System.currentTimeMillis();
+ *     try {
+ *         return joinPoint.proceed();
+ *     } finally {
+ *         long executionTime = System.currentTimeMillis() - start;
+ *         statsCollector.addTime(methodName, executionTime);
+ *     }
+ * }
+ * }</pre>
+ *
+ * <h3>After (LogicExecutor.executeWithFinally 사용)</h3>
+ * <pre>{@code
+ * public Object logExecutionTime(ProceedingJoinPoint joinPoint) {
+ *     String methodName = joinPoint.getSignature().toShortString();
+ *     long start = System.currentTimeMillis();
+ *
+ *     return executor.executeWithFinally(
+ *         joinPoint::proceed,
+ *         () -> this.recordExecutionTime(methodName, start),
+ *         "logExecutionTime:" + methodName
+ *     );
+ * }
+ * }</pre>
+ *
+ * @see LogicExecutor
+ * @since 1.0.0
+ */
 @Aspect
 @Component
 @Slf4j
@@ -16,21 +50,34 @@ import org.springframework.stereotype.Component;
 public class LoggingAspect {
 
     private final PerformanceStatisticsCollector statsCollector;
+    private final LogicExecutor executor;
 
+    /**
+     * 메서드 실행 시간 로깅 (코드 평탄화 적용)
+     *
+     * <p>throws Throwable 제거, try-finally 블록 제거
+     */
     @Around("@annotation(maple.expectation.aop.annotation.LogExecutionTime)")
-    public Object logExecutionTime(ProceedingJoinPoint joinPoint) throws Throwable {
+    public Object logExecutionTime(ProceedingJoinPoint joinPoint) {
+        String methodName = joinPoint.getSignature().toShortString();
         long start = System.currentTimeMillis();
 
-        // ✅ 메서드 이름을 가져와서 통계의 구분값(testName)으로 사용합니다.
-        String methodName = joinPoint.getSignature().toShortString();
+        return executor.executeWithFinally(
+            joinPoint::proceed,
+            () -> this.recordExecutionTime(methodName, start),
+            "logExecutionTime:" + methodName
+        );
+    }
 
-        try {
-            return joinPoint.proceed();
-        } finally {
-            long executionTime = System.currentTimeMillis() - start;
-            // ✅ 수정: 이제 '어떤 메서드'의 소요 시간인지 이름을 함께 넘겨야 합니다.
-            statsCollector.addTime(methodName, executionTime);
-        }
+    /**
+     * 실행 시간 기록 (평탄화: 별도 메서드로 분리)
+     *
+     * @param methodName 메서드 이름
+     * @param start 시작 시간
+     */
+    private void recordExecutionTime(String methodName, long start) {
+        long executionTime = System.currentTimeMillis() - start;
+        statsCollector.addTime(methodName, executionTime);
     }
 
     public String[] getStatistics(String testName) {

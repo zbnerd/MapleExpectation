@@ -2,15 +2,12 @@ package maple.expectation.service.v2.facade;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.aop.annotation.Locked;
 import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.global.error.exception.CharacterNotFoundException;
 import maple.expectation.service.v2.GameCharacterService;
 import org.redisson.api.RCountDownLatch;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 
-import java.util.concurrent.TimeUnit;
 
 @Component
 @RequiredArgsConstructor
