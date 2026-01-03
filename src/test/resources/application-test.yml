@@ -38,3 +38,7 @@ logging:
     root: info
     maple.expectation: debug
     org.springframework.test: info
+
+nexon:
+  api:
+    key: dummy-test-key # Codex Bot이 지적한 @Value 주입 실패 해결
