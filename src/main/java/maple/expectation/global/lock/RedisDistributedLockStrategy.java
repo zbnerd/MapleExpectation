@@ -52,4 +52,33 @@ public class RedisDistributedLockStrategy implements LockStrategy {
             throw new DistributedLockException("락 시도 중 인터럽트 발생");
         }
     }
+
+    @Override
+    public boolean tryLockImmediately(String key, long leaseTime) {
+        RLock lock = redissonClient.getLock("lock:" + key);
+        try {
+            boolean isLocked = lock.tryLock(0, leaseTime, TimeUnit.SECONDS);
+            if (isLocked) {
+                log.debug("🔓 [Distributed Lock] '{}' 즉시 획득 성공.", key);
+            } else {
+                log.debug("⏭️ [Distributed Lock] '{}' 즉시 획득 실패 (이미 점유됨).", key);
+            }
+            return isLocked;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("⚠️ [Distributed Lock] '{}' 즉시 획득 중 인터럽트 발생.", key);
+            return false;
+        }
+    }
+
+    @Override
+    public void unlock(String key) {
+        RLock lock = redissonClient.getLock("lock:" + key);
+        if (lock.isHeldByCurrentThread()) {
+            lock.unlock();
+            log.debug("🔒 [Distributed Lock] '{}' 수동 해제 완료.", key);
+        } else {
+            log.warn("⚠️ [Distributed Lock] '{}' 락이 현재 스레드에 의해 보유되지 않음.", key);
+        }
+    }
 }
