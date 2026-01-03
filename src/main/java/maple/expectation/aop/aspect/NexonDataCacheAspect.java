@@ -3,6 +3,7 @@ package maple.expectation.aop.aspect;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.external.dto.v2.EquipmentResponse;
+import maple.expectation.global.error.exception.InternalSystemException;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.service.v2.cache.EquipmentCacheService;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -19,75 +20,116 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Nexon 데이터 캐시 Aspect (코드 평탄화 적용)
+ * Nexon 데이터 캐시 Aspect - 비동기 논블로킹 + 래치 TTL 정책
  *
- * <p>Leader/Follower 패턴을 사용한 넥슨 API 호출 중복 방지 Aspect
+ * <h3>🚨 P0: .join() 완전 박멸</h3>
+ * <p>비동기 결과에 대해 {@code handle()} 체이닝을 사용하여 톰캣 스레드를 즉시 풀로 반환
  *
- * <h3>Before (try-finally 보일러플레이트)</h3>
- * <pre>{@code
- * if (isLeader) {
- *     try {
- *         Object result = joinPoint.proceed();
- *         cacheService.saveCache(ocid, response);
- *         return wrap(response, returnType);
- *     } finally {
- *         latch.countDown();
- *         latch.delete();
- *     }
- * }
- * }</pre>
+ * <h3>🚨 P0: 래치 TTL 생명줄</h3>
+ * <p>{@code trySetCount(1)} 성공 직후 {@code expire(60초)} 설정하여 리더 크래시 시 팔로워 영구 대기 방지
  *
- * <h3>After (LogicExecutor 사용)</h3>
- * <pre>{@code
- * return executor.executeWithFinally(
- *     () -> this.fetchAndCacheData(joinPoint, ocid, returnType),
- *     () -> this.releaseLatch(latch),
- *     "nexonCache:leader:" + ocid
- * );
- * }</pre>
+ * <h3>🚨 P0: finalizeLatch 전략</h3>
+ * <p>{@code delete()} 대신 짧은 {@code expire(10초)}로 레이스 컨디션 방지
  *
  * @see LogicExecutor
  * @since 1.0.0
  */
-
 @Slf4j
 @Aspect
 @Component
 @RequiredArgsConstructor
-@Order(1) // 최우선 처리
+@Order(1)
 public class NexonDataCacheAspect {
 
     private final EquipmentCacheService cacheService;
     private final RedissonClient redissonClient;
     private final LogicExecutor executor;
 
-    /**
-     * Nexon 데이터 캐시 핸들링 (코드 평탄화 적용)
-     *
-     * <p>throws Throwable 제거, try-finally 블록 제거, 비즈니스 로직 분리
-     */
     @Around("@annotation(maple.expectation.aop.annotation.NexonDataCache) && args(ocid, ..)")
     public Object handleNexonCache(ProceedingJoinPoint joinPoint, String ocid) {
         MethodSignature signature = (MethodSignature) joinPoint.getSignature();
         Class<?> returnType = signature.getReturnType();
 
-        // 1. 캐시 조회 (이미 있으면 즉시 반환)
-        Optional<Object> cachedResult = getCachedResult(ocid, returnType);
-        if (cachedResult.isPresent()) {
-            return cachedResult.get();
-        }
+        return getCachedResult(ocid, returnType)
+                .orElseGet(() -> this.executeDistributedStrategy(joinPoint, ocid, returnType));
+    }
 
-        // 2. 분산 래치로 Leader Election
-        RCountDownLatch latch = redissonClient.getCountDownLatch("latch:eq:" + ocid);
+    private Object executeDistributedStrategy(ProceedingJoinPoint joinPoint, String ocid, Class<?> returnType) {
+        String latchKey = "latch:eq:" + ocid;
+        RCountDownLatch latch = redissonClient.getCountDownLatch(latchKey);
         boolean isLeader = latch.trySetCount(1);
 
-        return isLeader
-                ? executeAsLeader(joinPoint, ocid, returnType, latch)
-                : executeAsFollower(ocid, returnType, latch);
+        if (isLeader) {
+            // ✅ P0: 리더 선출 즉시 TTL 설정 (리더 크래시 대비 생명줄)
+            redissonClient.getKeys().expire(latchKey, 60, TimeUnit.SECONDS);
+            log.debug("🕐 [Leader] 래치 TTL 60초 설정 완료: {}", ocid);
+            return executeAsLeader(joinPoint, ocid, returnType, latch);
+        }
+        return executeAsFollower(ocid, returnType, latch);
+    }
+
+    private Object executeAsLeader(ProceedingJoinPoint joinPoint, String ocid, Class<?> returnType, RCountDownLatch latch) {
+        log.info("👑 [Leader] 내가 대표로 넥슨 API 호출: {}", ocid);
+
+        // ✅ 주의: 비동기일 경우 LogicExecutor의 finallyBlock은 Future 반환 시점에 실행됨.
+        // 따라서 실제 래치 해제는 Future의 파이프라인 안에서 처리해야 함.
+        return executor.execute(
+                () -> this.fetchAndCacheData(joinPoint, ocid, returnType, latch),
+                "NexonCache:leader:" + ocid
+        );
+    }
+
+    private Object fetchAndCacheData(ProceedingJoinPoint joinPoint, String ocid, Class<?> returnType, RCountDownLatch latch) throws Throwable {
+        Object result = joinPoint.proceed();
+
+        if (result instanceof CompletableFuture<?> future) {
+            // ✅ P0: .join()을 완전히 제거하고 비동기 체이닝으로 위임
+            return future.handle((res, ex) -> {
+                try {
+                    if (ex == null) cacheService.saveCache(ocid, (EquipmentResponse) res);
+                    return res;
+                } finally {
+                    finalizeLatch(latch); // 비동기 완료 후 래치 해제
+                }
+            });
+        }
+
+        // 동기 로직의 경우 - LogicExecutor.executeWithFinally 사용
+        return executor.executeWithFinally(
+                () -> {
+                    EquipmentResponse response = (EquipmentResponse) result;
+                    cacheService.saveCache(ocid, response);
+                    return wrap(response, returnType);
+                },
+                () -> finalizeLatch(latch),
+                "NexonCache:syncCache:" + ocid
+        );
+    }
+
+    private Object executeAsFollower(String ocid, Class<?> returnType, RCountDownLatch latch) {
+        return executor.execute(() -> {
+            log.info("😴 [Follower] 대장 완료 대기 중...: {}", ocid);
+            boolean completed = latch.await(5, TimeUnit.SECONDS);
+
+            return getCachedResult(ocid, returnType)
+                    .orElseGet(() -> {
+                        // ✅ P0: 대기 후에도 캐시가 없으면 조용히 null을 반환하지 않고 명시적 실패 처리
+                        if (!completed) throw new InternalSystemException("NexonCache Follower Timeout: " + ocid);
+                        throw new InternalSystemException("NexonCache Leader Failed: " + ocid);
+                    });
+        }, "NexonCache:follower:" + ocid);
+    }
+
+    private void finalizeLatch(RCountDownLatch latch) {
+        latch.countDown();
+        // ✅ P0: delete() 대신 짧은 expire로 정리 (레이스 컨디션 방지)
+        String latchKey = latch.getName();
+        redissonClient.getKeys().expire(latchKey, 10, TimeUnit.SECONDS);
+        log.debug("🚀 [Leader] 모든 Follower에게 완료 신호 전송 및 10초 뒤 만료 설정");
     }
 
     /**
-     * 캐시 조회 (평탄화: 별도 메서드로 분리)
+     * 캐시 조회
      *
      * @param ocid OCID
      * @param returnType 반환 타입
@@ -105,86 +147,11 @@ public class NexonDataCacheAspect {
     }
 
     /**
-     * Leader로 실행 (평탄화: 별도 메서드로 분리)
-     *
-     * <p>LogicExecutor.executeWithFinally를 사용하여 try-finally 제거
-     */
-    private Object executeAsLeader(
-            ProceedingJoinPoint joinPoint,
-            String ocid,
-            Class<?> returnType,
-            RCountDownLatch latch
-    ) {
-        log.info("👑 [Leader] 내가 대표로 넥슨 API 호출: {}", ocid);
-
-        return executor.executeWithFinally(
-                () -> this.fetchAndCacheData(joinPoint, ocid, returnType),
-                () -> this.releaseLatch(latch),
-                "nexonCache:leader:" + ocid
-        );
-    }
-
-    /**
-     * Follower로 실행 (평탄화: 별도 메서드로 분리)
-     */
-    private Object executeAsFollower(String ocid, Class<?> returnType, RCountDownLatch latch) {
-        log.info("😴 [Follower] 대장 완료 대기 중...: {}", ocid);
-
-        return executor.executeOrDefault(
-                () -> this.awaitLeaderAndGetCache(ocid, returnType, latch),
-                wrap(null, returnType),
-                "nexonCache:follower:" + ocid
-        );
-    }
-
-    /**
-     * 데이터 가져오기 및 캐싱 (평탄화: 핵심 로직 분리)
-     */
-    private Object fetchAndCacheData(
-            ProceedingJoinPoint joinPoint,
-            String ocid,
-            Class<?> returnType
-    ) throws Throwable {
-        Object result = joinPoint.proceed();
-
-        EquipmentResponse response = (result instanceof CompletableFuture<?> future)
-                ? (EquipmentResponse) future.join()
-                : (EquipmentResponse) result;
-
-        cacheService.saveCache(ocid, response);
-        return wrap(response, returnType);
-    }
-
-    /**
-     * Leader 대기 및 캐시 조회 (평탄화: Follower 로직 분리)
-     */
-    private Object awaitLeaderAndGetCache(
-            String ocid,
-            Class<?> returnType,
-            RCountDownLatch latch
-    ) throws Exception {
-        boolean completed = latch.await(5, TimeUnit.SECONDS);
-
-        if (completed) {
-            log.info("⏰ [Follower] 대장 완료 확인! 캐시에서 읽음: {}", ocid);
-        } else {
-            log.warn("🚨 [Follower Timeout] 대장이 너무 느려 직접 확인: {}", ocid);
-        }
-
-        return wrap(cacheService.getValidCache(ocid).orElse(null), returnType);
-    }
-
-    /**
-     * 래치 해제 (평탄화: finally 로직 분리)
-     */
-    private void releaseLatch(RCountDownLatch latch) {
-        latch.countDown();
-        latch.delete();
-        log.debug("🚀 [Leader] 모든 Follower에게 완료 신호 전송 완료");
-    }
-
-    /**
      * 응답 래핑 (CompletableFuture 또는 일반 객체)
+     *
+     * @param res 응답 객체
+     * @param type 반환 타입
+     * @return 래핑된 응답
      */
     private Object wrap(EquipmentResponse res, Class<?> type) {
         return CompletableFuture.class.isAssignableFrom(type)
