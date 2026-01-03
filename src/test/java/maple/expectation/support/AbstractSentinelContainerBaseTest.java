@@ -124,9 +124,18 @@ public abstract class AbstractSentinelContainerBaseTest {
                     SENTINEL_3.getHost(), SENTINEL_3.getMappedPort(26381)
             );
 
+            // NAT 매핑 정보: Docker 네트워크 내부 주소 → 외부 매핑 주소
+            String natMapping = String.format(
+                    "redis-master:6379=%s:%d,redis-slave:6379=%s:%d",
+                    MASTER_REDIS.getHost(), MASTER_REDIS.getMappedPort(6379),
+                    SLAVE_REDIS.getHost(), SLAVE_REDIS.getMappedPort(6379)
+            );
+
             TestPropertyValues.of(
                     "spring.data.redis.sentinel.master=mymaster",
-                    "spring.data.redis.sentinel.nodes=" + sentinelNodes
+                    "spring.data.redis.sentinel.nodes=" + sentinelNodes,
+                    // Redisson NAT 매핑 정보 제공
+                    "redis.nat-mapping=" + natMapping
             ).applyTo(context.getEnvironment());
         }
     }

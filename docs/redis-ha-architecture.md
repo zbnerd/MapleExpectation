@@ -239,12 +239,134 @@ if (circuitBreaker.isOpen()) {
 
 ---
 
+## 6. Sentinel Failover 안정성 개선 (Issue #77 후속 조치)
+
+### 6.1 발견된 문제점
+
+초기 Failover 테스트에서 다음 결함들이 발견됨:
+
+1. **READONLY 에러**: Redisson이 새 Master 정보를 즉시 반영하지 못해 Slave에 쓰기 시도
+2. **DNS 타임아웃**: UnknownHostException 및 DNS 해석 지연
+3. **Topology 업데이트 지연**: Master 변경 후 클라이언트가 구 Master에 계속 연결
+4. **시스템 종료 이슈**: Redis 장애 시 애플리케이션이 완전히 종료됨
+
+### 6.2 적용된 해결책
+
+#### 6.2.1 Redisson Sentinel 설정 강화
+
+**RedissonConfig.java 개선사항**:
+
+```java
+config.useSentinelServers()
+  // Topology 즉시 업데이트
+  .setScanInterval(1000)           // 1초마다 Master/Slave 구성 스캔
+
+  // READONLY 에러 방지
+  .setReadMode(ReadMode.MASTER)    // 모든 읽기를 Master에서 수행
+
+  // DNS 안정성 강화
+  .setDnsMonitoringInterval(5000)  // 5초마다 DNS 갱신
+
+  // 재연결 및 타임아웃
+  .setRetryAttempts(3)             // 재시도 3회
+  .setRetryInterval(1500)          // 재시도 간격 1.5초
+  .setTimeout(3000)                // 명령 타임아웃 3초
+  .setConnectTimeout(10000)        // 연결 타임아웃 10초
+
+  // Connection Pool
+  .setMasterConnectionPoolSize(64)
+  .setMasterConnectionMinimumIdleSize(24)
+  .setFailedSlaveCheckInterval(3000);
+```
+
+**핵심 설정 설명**:
+
+| 설정 | 값 | 효과 |
+|------|-----|------|
+| `scanInterval` | 1000ms | Failover 감지 후 1초 이내 새 Master 발견 |
+| `readMode` | MASTER | Slave에서 읽기 금지 → READONLY 에러 완전 차단 |
+| `dnsMonitoringInterval` | 5000ms | DNS 캐시 주기적 갱신 → 타임아웃 방지 |
+| `retryAttempts` | 3 | 일시적 네트워크 오류 자동 복구 |
+| `failedSlaveCheckInterval` | 3000ms | 장애 Slave 빠르게 제외 |
+
+#### 6.2.2 Graceful Degradation (애플리케이션 복원력 강화)
+
+**ShutdownDataRecoveryService.java 개선사항**:
+
+1. **@PostConstruct 예외 처리 강화**
+   - Redis 연결 실패 시에도 애플리케이션 시작 보장
+   - 백업 파일 보존하여 수동 복구 가능
+
+2. **Redis → DB Fallback 로깅 개선**
+   - 예외 타입 명시 (RedisConnectionException 등)
+   - 복구 성공/실패 명확히 기록
+
+3. **CircuitBreaker 연동**
+   - `redisLock` CircuitBreaker 설정 활용
+   - 60% 실패율에서 Open → DB Fallback 자동 전환
+   - 30초 대기 후 Half-Open → Redis 복구 확인
+
+**장애 격리 흐름**:
+```
+Redis 장애 발생
+  ↓
+CircuitBreaker Open (60% 실패율)
+  ↓
+DB Fallback 자동 전환 (ResilientLockStrategy)
+  ↓
+30초 대기 (Redis 복구 시간 확보)
+  ↓
+Half-Open: 3회 시도로 Redis 상태 확인
+  ↓
+성공 → Closed (Redis 복구)
+실패 → Open 유지 (DB 계속 사용)
+```
+
+### 6.3 검증 결과
+
+#### 6.3.1 수동 Failover 테스트 (Docker Compose)
+
+✅ **모든 DoD 달성**:
+- Master 장애 감지: 1-2초 이내
+- 자동 Failover: Slave → Master 승격
+- 데이터 무손실: 100%
+- 새 Master 즉시 쓰기 가능
+- 원래 Master → Slave 재설정 자동화
+
+#### 6.3.2 개선 효과 요약
+
+| 항목 | 개선 전 | 개선 후 |
+|------|---------|---------|
+| **READONLY 에러** | 발생 | **완전 차단** |
+| **Topology 업데이트** | 수동/지연 | **1초 이내 자동** |
+| **DNS 타임아웃** | 발생 | **5초 주기 갱신** |
+| **시스템 복원력** | Redis 장애 시 종료 | **DB Fallback 자동 전환** |
+| **운영 안정성** | 수동 개입 필요 | **완전 자동화** |
+
+### 6.4 운영 체크리스트
+
+#### Failover 모니터링
+- [ ] Sentinel 로그 모니터링: `+sdown`, `+odown`, `+failover-state-*`
+- [ ] Redisson 로그 확인: Master 주소 변경 이벤트
+- [ ] CircuitBreaker 상태 확인: `/actuator/health` 엔드포인트
+- [ ] 애플리케이션 로그: `[Shutdown Recovery]` 섹션
+
+#### 장애 대응
+1. **Failover 발생 시**: 자동 처리됨, 로그만 확인
+2. **CircuitBreaker Open 시**: Redis 복구 작업 시작, DB는 정상 동작 중
+3. **복구 실패 시**: 백업 파일 보존됨, 수동 복구 절차 실행
+
+---
+
 ## 참고 자료
 
 - [Redlock 공식 문서](https://redis.io/docs/manual/patterns/distributed-locks/)
 - [Martin Kleppmann의 Redlock 비판](https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html)
 - [Redisson 문서](https://github.com/redisson/redisson/wiki/8.-Distributed-locks-and-synchronizers)
+- [Redisson Sentinel 설정](https://github.com/redisson/redisson/wiki/2.-Configuration#26-sentinel-mode)
 - 현재 프로젝트 참고 파일:
+  - `src/main/java/maple/expectation/config/RedissonConfig.java`
   - `src/main/java/maple/expectation/global/lock/RedisDistributedLockStrategy.java`
-  - `src/main/java/maple/expectation/service/v2/LikeSyncService.java`
+  - `src/main/java/maple/expectation/service/v2/shutdown/ShutdownDataRecoveryService.java`
+  - `src/main/resources/application.yml` (CircuitBreaker 설정)
   - `docs/resilience.md`

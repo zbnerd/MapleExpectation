@@ -23,6 +23,13 @@ import static org.awaitility.Awaitility.await;
  *   <li>Failover 후 분산 락 정상 동작 검증</li>
  *   <li>데이터 손실 없음 검증</li>
  * </ul>
+ *
+ * <p><b>Testcontainers 네트워크 주소 매핑:</b>
+ * <ul>
+ *   <li>Sentinel은 Docker 네트워크 내부 주소(redis-master:6379)를 모니터링</li>
+ *   <li>애플리케이션은 localhost:MAPPED_PORT로 연결</li>
+ *   <li>Redisson NatMapper가 내부 주소를 외부 주소로 자동 변환</li>
+ * </ul>
  */
 @ActiveProfiles("test")
 @DisplayName("Redis Sentinel Failover 자동화 테스트")

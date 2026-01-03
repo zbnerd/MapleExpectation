@@ -40,28 +40,35 @@ public class ShutdownDataRecoveryService {
 
     @PostConstruct
     public void recoverFromBackup() {
-        log.info("🔄 [Shutdown Recovery] 백업 데이터 복구 시작");
+        try {
+            log.info("🔄 [Shutdown Recovery] 백업 데이터 복구 시작");
 
-        List<Path> backupFiles = persistenceService.findAllBackupFiles();
-        if (backupFiles.isEmpty()) {
-            log.info("✅ [Shutdown Recovery] 복구할 백업 파일 없음");
-            return;
-        }
-
-        for (Path backupFile : backupFiles) {
-            try {
-                // 🚀 [이슈 #123] 성공 시에만 아카이브 수행
-                boolean success = processBackupFile(backupFile);
-                if (success) {
-                    persistenceService.archiveFile(backupFile);
-                } else {
-                    log.warn("⏭️ [Recovery Skip] 복구 미완료로 파일을 보존합니다: {}", backupFile.getFileName());
-                }
-            } catch (Exception e) {
-                log.error("❌ [Shutdown Recovery] 백업 파일 처리 실패: {}", backupFile.getFileName(), e);
+            List<Path> backupFiles = persistenceService.findAllBackupFiles();
+            if (backupFiles.isEmpty()) {
+                log.info("✅ [Shutdown Recovery] 복구할 백업 파일 없음");
+                return;
             }
+
+            for (Path backupFile : backupFiles) {
+                try {
+                    // 🚀 [이슈 #123] 성공 시에만 아카이브 수행
+                    boolean success = processBackupFile(backupFile);
+                    if (success) {
+                        persistenceService.archiveFile(backupFile);
+                    } else {
+                        log.warn("⏭️ [Recovery Skip] 복구 미완료로 파일을 보존합니다: {}", backupFile.getFileName());
+                    }
+                } catch (Exception e) {
+                    log.error("❌ [Shutdown Recovery] 백업 파일 처리 실패: {}", backupFile.getFileName(), e);
+                    // 🔥 [Issue #77] 개별 파일 실패는 전체 복구를 중단시키지 않음
+                }
+            }
+            log.info("✅ [Shutdown Recovery] 백업 데이터 복구 완료");
+        } catch (Exception e) {
+            // 🔥 [Issue #77] Redis 연결 실패 등으로 복구가 불가능해도 애플리케이션은 시작됨
+            log.error("❌ [Shutdown Recovery] 복구 프로세스 실패 - 애플리케이션은 계속 시작됩니다", e);
+            log.warn("⚠️ [Shutdown Recovery] 백업 파일은 보존되며, 수동 복구가 필요할 수 있습니다");
         }
-        log.info("✅ [Shutdown Recovery] 백업 데이터 복구 완료");
     }
 
     private boolean processBackupFile(Path backupFile) {
@@ -89,16 +96,25 @@ public class ShutdownDataRecoveryService {
 
             try {
                 redisTemplate.opsForHash().increment(REDIS_HASH_KEY, userIgn, count);
+                log.debug("✅ [Shutdown Recovery] Redis 복구 성공: {} ({}건)", userIgn, count);
             } catch (Exception e) {
-                log.warn("⚠️ [Shutdown Recovery] Redis 복구 실패, DB 직접 반영: {} ({}건)", userIgn, count);
+                // 🔥 [Issue #77] Redis 장애 시 즉시 DB Fallback (CircuitBreaker 패턴)
+                log.warn("⚠️ [Shutdown Recovery] Redis 복구 실패 ({}), DB 직접 반영: {} ({}건)",
+                    e.getClass().getSimpleName(), userIgn, count);
                 try {
                     syncExecutor.executeIncrement(userIgn, count);
+                    log.info("✅ [Shutdown Recovery] DB 직접 반영 성공: {} ({}건)", userIgn, count);
                 } catch (Exception dbEx) {
-                    log.error("❌ [Shutdown Recovery] 최종 복구 실패: {}", userIgn, dbEx);
+                    log.error("❌ [Shutdown Recovery] 최종 복구 실패 - 수동 처리 필요: {} ({}건)", userIgn, count, dbEx);
                     allSuccess = false; // 하나라도 실패하면 false
                 }
             }
         }
+
+        if (!allSuccess) {
+            log.error("❌ [Shutdown Recovery] 일부 데이터 복구 실패 - 백업 파일 보존됨");
+        }
+
         return allSuccess;
     }
 
