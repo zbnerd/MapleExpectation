@@ -1,16 +1,16 @@
 package maple.expectation.provider;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.global.error.exception.EquipmentDataProcessingException;
 import maple.expectation.external.dto.v2.EquipmentResponse;
+import maple.expectation.global.executor.LogicExecutor; // ✅ 주입
+import maple.expectation.global.executor.TaskContext; // ✅ 관측성
+import maple.expectation.global.executor.strategy.ExceptionTranslator; // ✅ 예외 세탁
 import maple.expectation.util.GzipUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
@@ -20,53 +20,71 @@ import java.util.concurrent.CompletableFuture;
 @RequiredArgsConstructor
 public class EquipmentDataProvider {
 
-    private final EquipmentFetchProvider fetchProvider; // 🚀 분리된 FetchProvider 주입
+    private final EquipmentFetchProvider fetchProvider;
     private final ObjectMapper objectMapper;
+    private final LogicExecutor executor; // ✅ 지능형 실행 엔진 주입
 
     @Value("${app.optimization.use-compression:true}")
     private boolean USE_COMPRESSION;
 
-    // V3용
+    /**
+     * ✅ [V3] 원본 데이터 획득 (비동기 및 실행기 통합)
+     */
     public CompletableFuture<byte[]> getRawEquipmentData(String ocid) {
-        // supplyAsync를 통해 비동기로 처리
-        return CompletableFuture.supplyAsync(() -> fetchProvider.fetchWithCache(ocid))
-                .thenApply(this::serializeResponse);
-    }
+        TaskContext context = TaskContext.of("EquipmentProvider", "GetRawData", ocid); //
 
-    // V2용
-    public CompletableFuture<EquipmentResponse> getEquipmentResponse(String ocid) {
-        return CompletableFuture.completedFuture(fetchProvider.fetchWithCache(ocid));
+        // supplyAsync 내부 로직을 executor로 보호하여 예외 및 지표 추적
+        return CompletableFuture.supplyAsync(() ->
+                executor.execute(() -> fetchProvider.fetchWithCache(ocid), context)
+        ).thenApply(response -> serializeResponse(response, context));
     }
 
     /**
-     * 바이트 데이터를 압축 해제하여 스트림으로 출력 (디버깅/특수 목적)
+     * ✅ [V2] Response DTO 획득
+     */
+    public CompletableFuture<EquipmentResponse> getEquipmentResponse(String ocid) {
+        return CompletableFuture.completedFuture(
+                executor.execute(
+                        () -> fetchProvider.fetchWithCache(ocid),
+                        TaskContext.of("EquipmentProvider", "GetResponse", ocid)
+                )
+        );
+    }
+
+    /**
+     * ✅  데이터 스트리밍 평탄화
+     * try-catch를 제거하고 executeVoid와 ExceptionTranslator 활용
      */
     public void streamAndDecompress(String ocid, OutputStream os) {
-        byte[] rawData = getRawEquipmentData(ocid).join();
+        TaskContext context = TaskContext.of("EquipmentProvider", "StreamData", ocid);
 
-        try {
-            os.write(GzipUtils.decompress(rawData).getBytes(StandardCharsets.UTF_8));
-            os.flush();
-        } catch (IOException e) {
-            throw new EquipmentDataProcessingException("데이터 스트리밍 중 기술적 에러: " + e.getMessage());
-        }
+        executor.executeVoid(() -> { //
+            byte[] rawData = getRawEquipmentData(ocid).join();
+
+            // 파일/스트림 I/O 전용 번역기를 통한 예외 세탁
+            executor.executeWithTranslation(() -> {
+                os.write(GzipUtils.decompress(rawData).getBytes(StandardCharsets.UTF_8));
+                os.flush();
+                return null;
+            }, ExceptionTranslator.forFileIO(), context);
+        }, context);
     }
 
     /**
-     * EquipmentResponse 객체를 byte[]로 변환 (GZIP 압축 로직 포함)
+     * ✅  직렬화 및 압축 로직 평탄화
+     * JSON 처리 및 기술적 예외 레이어 분리
      */
-    private byte[] serializeResponse(EquipmentResponse response) {
-        try {
+    private byte[] serializeResponse(EquipmentResponse response, TaskContext context) {
+        return executor.executeWithTranslation(() -> { //
+            // 1. JSON 직렬화
             String jsonString = objectMapper.writeValueAsString(response);
 
+            // 2. 조건부 GZIP 압축
             if (USE_COMPRESSION) {
                 return GzipUtils.compress(jsonString);
             }
             return jsonString.getBytes(StandardCharsets.UTF_8);
 
-        } catch (JsonProcessingException e) {
-            log.error("직렬화 중 오류 발생: {}", response.getDate(), e);
-            throw new EquipmentDataProcessingException("데이터 직렬화 실패");
-        }
+        }, ExceptionTranslator.forJson(), context); // JSON 전용 세탁기 적용
     }
 }

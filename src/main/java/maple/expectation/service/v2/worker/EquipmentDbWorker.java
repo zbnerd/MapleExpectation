@@ -5,6 +5,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.domain.v2.CharacterEquipment;
 import maple.expectation.external.dto.v2.EquipmentResponse;
+import maple.expectation.global.executor.LogicExecutor; // ✅ 주입
+import maple.expectation.global.executor.TaskContext; // ✅ 관측성 확보
+import maple.expectation.global.executor.strategy.ExceptionTranslator; // ✅ 예외 세탁
 import maple.expectation.repository.v2.CharacterEquipmentRepository;
 import maple.expectation.service.v2.shutdown.EquipmentPersistenceTracker;
 import org.springframework.scheduling.annotation.Async;
@@ -15,13 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Equipment 데이터를 비동기로 DB에 저장하는 Worker
- * <p>
- * Spring Boot 3.x의 Virtual Thread 기반 @Async를 활용하여
- * 대량의 동시 저장 요청을 효율적으로 처리합니다.
- * <p>
- * Graceful Shutdown 지원을 위해 {@link EquipmentPersistenceTracker}에
- * 모든 비동기 작업을 등록하여 추적합니다.
+ * Equipment 데이터를 비동기로 DB에 저장하는 Worker (LogicExecutor 평탄화 완료)
  */
 @Slf4j
 @Component
@@ -30,44 +27,53 @@ public class EquipmentDbWorker {
     private final CharacterEquipmentRepository repository;
     private final ObjectMapper objectMapper;
     private final EquipmentPersistenceTracker persistenceTracker;
+    private final LogicExecutor executor; // ✅ 지능형 실행기 주입
 
     /**
-     * 비동기로 Equipment 데이터를 DB에 저장합니다.
-     * <p>
-     * REQUIRES_NEW를 통해 호출측 트랜잭션과 무관하게 즉시 커밋합니다.
-     * 이 작업이 끝나야만 404(조회 실패) 현상이 근본적으로 해결됩니다.
-     * <p>
-     * {@link CompletableFuture}를 반환하여 호출자가 필요 시 완료를 기다릴 수 있으며,
-     * Graceful Shutdown 시 {@link EquipmentPersistenceTracker}가 모든 작업을 추적합니다.
-     *
-     * @param ocid     캐릭터 OCID
-     * @param response Equipment 응답 데이터
-     * @return 비동기 작업을 나타내는 CompletableFuture
+     * ✅  비동기 저장 로직 평탄화
+     * try-catch 대신 executeWithRecovery를 사용하여 Future의 상태를 결정합니다.
      */
     @Async
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public CompletableFuture<Void> persist(String ocid, EquipmentResponse response) {
         CompletableFuture<Void> future = new CompletableFuture<>();
+        TaskContext context = TaskContext.of("EquipmentWorker", "AsyncPersist", ocid); //
 
-        // Graceful Shutdown 지원: 작업 추적 등록
+        // 1. Graceful Shutdown 지원: 작업 추적 등록
         persistenceTracker.trackOperation(ocid, future);
 
-        try {
-            String json = objectMapper.writeValueAsString(response);
-            CharacterEquipment entity = repository.findById(ocid)
-                    .orElseGet(() -> CharacterEquipment.builder().ocid(ocid).build());
+        // ✅ [패턴 5] executeWithRecovery: 성공 시 complete, 실패 시 completeExceptionally 수행
+        return executor.executeWithRecovery(
+                () -> {
+                    performSave(ocid, response, context);
+                    log.debug("💾 [Async DB Save Success] ocid: {}", ocid);
+                    future.complete(null); // 성공 완료 처리
+                    return future;
+                },
+                (e) -> {
+                    log.error("❌ [Async DB Save Error] ocid: {} | 사유: {}", ocid, e.getMessage());
+                    future.completeExceptionally(e); // 예외와 함께 완료 처리
+                    return future;
+                },
+                context
+        );
+    }
 
-            entity.updateData(json);
-            repository.saveAndFlush(entity); // 즉시 물리적 저장
+    /**
+     * 헬퍼: 실제 저장 로직 (직렬화 및 DB 반영)
+     */
+    private void performSave(String ocid, EquipmentResponse response, TaskContext context) {
+        //  Jackson 직렬화 시 발생하는 체크 예외를 도메인 예외로 세탁
+        String json = executor.executeWithTranslation(
+                () -> objectMapper.writeValueAsString(response),
+                ExceptionTranslator.forJson(),
+                context
+        );
 
-            log.debug("💾 [Async DB Save Success] ocid: {}", ocid);
-            future.complete(null); // 성공 완료
+        CharacterEquipment entity = repository.findById(ocid)
+                .orElseGet(() -> CharacterEquipment.builder().ocid(ocid).build());
 
-        } catch (Exception e) {
-            log.error("❌ [Async DB Save Error] ocid: {}", ocid, e);
-            future.completeExceptionally(e); // 예외와 함께 완료
-        }
-
-        return future;
+        entity.updateData(json);
+        repository.saveAndFlush(entity); // 즉시 물리적 저장 보장
     }
 }

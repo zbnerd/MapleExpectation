@@ -5,6 +5,8 @@ import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.aop.annotation.ObservedTransaction;
+import maple.expectation.global.executor.LogicExecutor;
+import maple.expectation.global.executor.TaskContext;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
@@ -17,36 +19,46 @@ import org.springframework.stereotype.Component;
 public class ObservabilityAspect {
 
     private final MeterRegistry meterRegistry;
+    private final LogicExecutor executor;
 
     @Around("@annotation(observedTransaction)")
-    public Object trackMetrics(ProceedingJoinPoint joinPoint, ObservedTransaction observedTransaction) throws Throwable {
+    public Object trackMetrics(ProceedingJoinPoint joinPoint, ObservedTransaction observedTransaction) {
         String metricName = observedTransaction.value();
         Timer.Sample sample = Timer.start(meterRegistry);
 
-        try {
-            Object result = joinPoint.proceed(); // 실제 비즈니스 로직 실행
+        // ✅ TaskContext 적용: Component="Observability", Operation="Track"
+        return executor.executeWithRecovery(
+                () -> this.executeAndRecordSuccess(joinPoint, metricName, sample),
+                ex -> this.recordFailureAndThrow(metricName, joinPoint, sample, ex),
+                TaskContext.of("Observability", "Track", metricName)
+        );
+    }
 
-            // 성공 시 메트릭 기록
-            sample.stop(Timer.builder(metricName)
-                    .tag("result", "success")
-                    .tag("class", joinPoint.getSignature().getDeclaringTypeName())
-                    .tag("method", joinPoint.getSignature().getName())
-                    .register(meterRegistry));
+    private Object executeAndRecordSuccess(ProceedingJoinPoint joinPoint, String metricName, Timer.Sample sample) throws Throwable {
+        Object result = joinPoint.proceed();
+        sample.stop(Timer.builder(metricName)
+                .tag("result", "success")
+                .tag("class", joinPoint.getSignature().getDeclaringTypeName())
+                .tag("method", joinPoint.getSignature().getName())
+                .register(meterRegistry));
+        return result;
+    }
 
-            return result;
-        } catch (Throwable e) {
-            log.error("[Metric-Failure] ID: {}, Method: {}, Error: {}",
-                    metricName, joinPoint.getSignature().getName(), e.getMessage());
-            // 실패 시 메트릭 기록 및 카운트 증가
-            sample.stop(Timer.builder(metricName)
-                    .tag("result", "failure")
-                    .tag("exception", e.getClass().getSimpleName())
-                    .register(meterRegistry));
+    private Object recordFailureAndThrow(String metricName, ProceedingJoinPoint joinPoint, Timer.Sample sample, Throwable e) {
+        log.error("[Metric-Failure] ID: {}, Method: {}, Error: {}",
+                metricName, joinPoint.getSignature().getName(), e.getMessage());
 
-            meterRegistry.counter(metricName + ".failure", 
-                    "exception", e.getClass().getSimpleName()).increment();
-            
-            throw e; // 예외는 다시 던져서 기존 예외 처리가 작동하게 함
+        sample.stop(Timer.builder(metricName)
+                .tag("result", "failure")
+                .tag("exception", e.getClass().getSimpleName())
+                .register(meterRegistry));
+
+        meterRegistry.counter(metricName + ".failure",
+                "exception", e.getClass().getSimpleName()).increment();
+
+        if (e instanceof RuntimeException) {
+            throw (RuntimeException) e;
         }
+        throw new RuntimeException("Observability tracking failed", e);
     }
 }

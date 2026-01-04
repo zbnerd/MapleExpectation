@@ -4,6 +4,8 @@ import io.github.resilience4j.retry.Retry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.aop.annotation.ObservedTransaction;
+import maple.expectation.global.executor.LogicExecutor;
+import maple.expectation.global.executor.TaskContext;
 import maple.expectation.global.shutdown.dto.FlushResult;
 import maple.expectation.repository.v2.RedisBufferRepository;
 import maple.expectation.service.v2.cache.LikeBufferStorage;
@@ -27,10 +29,12 @@ public class LikeSyncService {
     private final RedisBufferRepository redisBufferRepository;
     private final Retry likeSyncRetry;
     private final ShutdownDataPersistenceService shutdownDataPersistenceService;
+    private final LogicExecutor executor; // ✅ 지능형 실행 엔진 주입
+
     private static final String REDIS_HASH_KEY = "buffer:likes";
 
     /**
-     * ✅ L1(Caffeine) -> L2(Redis) 전송
+     * ✅ L1 -> L2 전송
      */
     public void flushLocalToRedis() {
         Map<String, AtomicLong> snapshot = likeBufferStorage.getCache().asMap();
@@ -39,12 +43,7 @@ public class LikeSyncService {
     }
 
     /**
-     * ✅ L1(Caffeine) -> L2(Redis) 전송 (Graceful Shutdown용)
-     * <p>
-     * Redis 장애 시 로컬 파일로 백업하여 데이터 유실을 방지합니다.
-     * {@link FlushResult}를 반환하여 성공/실패 건수를 추적합니다.
-     *
-     * @return FlushResult (Redis 성공 건수, 파일 백업 건수)
+     * ✅ Graceful Shutdown용 전송 (평탄화 완료)
      */
     public FlushResult flushLocalToRedisWithFallback() {
         Map<String, AtomicLong> snapshot = likeBufferStorage.getCache().asMap();
@@ -56,103 +55,131 @@ public class LikeSyncService {
         snapshot.forEach((userIgn, atomicCount) -> {
             long count = atomicCount.getAndSet(0);
             if (count <= 0) return;
-            try {
-                redisTemplate.opsForHash().increment(REDIS_HASH_KEY, userIgn, count);
-                redisBufferRepository.incrementGlobalCount(count);
-                redisSuccessCount.incrementAndGet();
-            } catch (Exception e) {
-                log.warn("⚠️ [Shutdown Flush] Redis 전송 실패, 파일 백업: {} ({}건)", userIgn, count);
-                shutdownDataPersistenceService.appendLikeEntry(userIgn, count);
-                fileBackupCount.incrementAndGet();
-            }
+
+            // [패턴 5] executeWithRecovery: Redis 실패 시 파일 백업 로직으로 자동 복구
+            executor.executeWithRecovery(
+                    () -> {
+                        redisTemplate.opsForHash().increment(REDIS_HASH_KEY, userIgn, count);
+                        redisBufferRepository.incrementGlobalCount(count);
+                        redisSuccessCount.incrementAndGet();
+                        return null;
+                    },
+                    (e) -> {
+                        log.warn("⚠️ [Shutdown Flush] Redis 전송 실패, 파일 백업: {} ({}건)", userIgn, count);
+                        shutdownDataPersistenceService.appendLikeEntry(userIgn, count);
+                        fileBackupCount.incrementAndGet();
+                        return null;
+                    },
+                    TaskContext.of("LikeSync", "ShutdownFlush", userIgn)
+            );
         });
 
         return new FlushResult(redisSuccessCount.get(), fileBackupCount.get());
     }
 
+    /**
+     * ✅ Redis -> DB 동기화 (트랜잭션 롤백 로직 평탄화)
+     */
     @ObservedTransaction("scheduler.like.redis_to_db")
     public void syncRedisToDatabase() {
         String tempKey = REDIS_HASH_KEY + ":sync:" + UUID.randomUUID();
-        try {
-            Boolean hasKey = redisTemplate.hasKey(REDIS_HASH_KEY);
-            if (!hasKey) return;
+        TaskContext context = TaskContext.of("LikeSync", "RedisToDb", tempKey);
 
-            redisTemplate.rename(REDIS_HASH_KEY, tempKey);
+        // [패턴 1] executeWithFinally: 성공/실패 여부와 상관없이 임시 키 자원 해제(Cleanup) 보장
+        executor.executeWithFinally(
+                () -> {
+                    doSyncProcess(tempKey);
+                    return null;
+                },
+                () -> cleanupTempKey(tempKey), // 에러 발생 시 데이터 복구 및 키 삭제 전담
+                context
+        );
+    }
 
-            Map<Object, Object> entries = redisTemplate.opsForHash().entries(tempKey);
-            if (entries.isEmpty()) return;
+    private void doSyncProcess(String tempKey) {
+        if (Boolean.FALSE.equals(redisTemplate.hasKey(REDIS_HASH_KEY))) return;
 
-            AtomicLong actualSuccessTotal = new AtomicLong(0);
+        redisTemplate.rename(REDIS_HASH_KEY, tempKey);
+        Map<Object, Object> entries = redisTemplate.opsForHash().entries(tempKey);
+        if (entries.isEmpty()) return;
 
-            entries.forEach((key, value) -> {
-                String userIgn = (String) key;
-                long count = Long.parseLong((String) value);
+        AtomicLong actualSuccessTotal = new AtomicLong(0);
 
-                if (syncWithRetry(userIgn, count)) {
-                    actualSuccessTotal.addAndGet(count);
-                } else {
-                    // 개별 항목 실패 시 원본 키로 즉시 복구
-                    redisTemplate.opsForHash().increment(REDIS_HASH_KEY, userIgn, count);
-                    log.warn("♻️ [Sync Recovery] DB 반영 실패로 데이터 Redis 복구: {} ({}건)", userIgn, count);
-                }
-            });
+        entries.forEach((key, value) -> {
+            String userIgn = (String) key;
+            long count = Long.parseLong((String) value);
 
-            long totalToDecrement = actualSuccessTotal.get();
-            if (totalToDecrement > 0) {
-                redisBufferRepository.decrementGlobalCount(totalToDecrement);
-                log.info("✅ [Sync Success] 총 {}건의 좋아요가 DB에 반영되었습니다.", totalToDecrement);
+            if (syncWithRetry(userIgn, count)) {
+                actualSuccessTotal.addAndGet(count);
+            } else {
+                // 개별 항목 실패 시 즉시 복구
+                redisTemplate.opsForHash().increment(REDIS_HASH_KEY, userIgn, count);
+                log.warn("♻️ [Sync Recovery] DB 반영 실패로 Redis 복구: {} ({}건)", userIgn, count);
             }
-            redisTemplate.delete(tempKey);
+        });
 
-        } catch (Exception e) {
-            log.error("⚠️ [Sync Logic Error] 동기화 프로세스 중 치명적 오류: {}", e.getMessage());
-
-            // 🚀 [이슈 #123] 롤백 로직: 임시 키에 데이터가 남아있다면 원본 키로 병합
-            try {
-                if (redisTemplate.hasKey(tempKey)) {
-                    Map<Object, Object> strandedEntries = redisTemplate.opsForHash().entries(tempKey);
-                    strandedEntries.forEach((key, value) ->
-                            redisTemplate.opsForHash().increment(REDIS_HASH_KEY, (String) key, Long.parseLong((String) value))
-                    );
-                    redisTemplate.delete(tempKey);
-                    log.info("♻️ [Sync Rollback] 임시 키 데이터를 원본 버퍼로 병합 완료");
-                }
-            } catch (Exception rollbackEx) {
-                log.error("❌ [Critical] Sync 롤백 중 추가 장애 발생: {}", rollbackEx.getMessage());
-            }
+        if (actualSuccessTotal.get() > 0) {
+            redisBufferRepository.decrementGlobalCount(actualSuccessTotal.get());
         }
+    }
+
+    /**
+     * 🚀 [이슈 #123] 자원 정리 및 롤백 로직 격리
+     */
+    private void cleanupTempKey(String tempKey) {
+        executor.executeVoid(() -> {
+            if (Boolean.TRUE.equals(redisTemplate.hasKey(tempKey))) {
+                Map<Object, Object> strandedEntries = redisTemplate.opsForHash().entries(tempKey);
+                strandedEntries.forEach((key, value) ->
+                        redisTemplate.opsForHash().increment(REDIS_HASH_KEY, (String) key, Long.parseLong((String) value))
+                );
+                redisTemplate.delete(tempKey);
+                log.info("♻️ [Sync Cleanup] 임시 키 데이터를 원본 버퍼로 병합 완료");
+            }
+        }, TaskContext.of("LikeSync", "Cleanup", tempKey));
     }
 
     private void processLocalBufferEntry(String userIgn, AtomicLong atomicCount) {
         long count = atomicCount.getAndSet(0);
         if (count <= 0) return;
-        try {
-            redisTemplate.opsForHash().increment(REDIS_HASH_KEY, userIgn, count);
-            redisBufferRepository.incrementGlobalCount(count);
-        } catch (Exception e) {
-            handleRedisFailure(userIgn, count, e);
-        }
+
+        executor.executeWithRecovery(
+                () -> {
+                    redisTemplate.opsForHash().increment(REDIS_HASH_KEY, userIgn, count);
+                    redisBufferRepository.incrementGlobalCount(count);
+                    return null;
+                },
+                (e) -> {
+                    handleRedisFailure(userIgn, count, e);
+                    return null;
+                },
+                TaskContext.of("LikeSync", "L1toL2", userIgn)
+        );
     }
 
-    private void handleRedisFailure(String userIgn, long count, Exception e) {
+    private void handleRedisFailure(String userIgn, long count, Throwable e) {
         log.error("🚑 [Redis Down] L2 전송 실패. DB 직접 반영 시도: {}", userIgn);
-        try {
-            syncExecutor.executeIncrement(userIgn, count);
-        } catch (Exception dbEx) {
-            likeBufferStorage.getCounter(userIgn).addAndGet(count);
-            log.error("‼️ [Critical] Redis/DB 동시 장애. 로컬 롤백 완료.");
-        }
+        executor.executeWithRecovery(
+                () -> {
+                    syncExecutor.executeIncrement(userIgn, count);
+                    return null;
+                },
+                (dbEx) -> {
+                    likeBufferStorage.getCounter(userIgn).addAndGet(count);
+                    log.error("‼️ [Critical] Redis/DB 동시 장애. 로컬 롤백 완료.");
+                    return null;
+                },
+                TaskContext.of("LikeSync", "RedisFailureRecovery", userIgn)
+        );
     }
 
     private boolean syncWithRetry(String userIgn, long count) {
-        try {
-            Retry.decorateRunnable(likeSyncRetry, () -> {
-                syncExecutor.executeIncrement(userIgn, count);
-            }).run();
+        // Retry 로직도 execute를 통해 관측성 확보 가능
+        return executor.executeOrDefault(() -> {
+            Retry.decorateRunnable(likeSyncRetry, () ->
+                    syncExecutor.executeIncrement(userIgn, count)
+            ).run();
             return true;
-        } catch (Exception e) {
-            log.error("❌ [L2->L3 Sync] 재시도 후 최종 실패: {}", userIgn);
-            return false;
-        }
+        }, false, TaskContext.of("LikeSync", "DbSyncWithRetry", userIgn));
     }
 }

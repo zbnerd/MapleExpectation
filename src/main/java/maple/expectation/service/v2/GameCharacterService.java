@@ -7,6 +7,8 @@ import maple.expectation.aop.annotation.ObservedTransaction;
 import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.external.NexonApiClient;
 import maple.expectation.global.error.exception.CharacterNotFoundException;
+import maple.expectation.global.executor.LogicExecutor;
+import maple.expectation.global.executor.TaskContext;
 import maple.expectation.repository.v2.GameCharacterRepository;
 import maple.expectation.service.v2.impl.DatabaseLikeProcessor;
 import org.springframework.cache.Cache;
@@ -27,83 +29,110 @@ public class GameCharacterService {
     private final LikeProcessor likeProcessor;
     private final DatabaseLikeProcessor databaseLikeProcessor;
     private final CacheManager cacheManager;
+    private final LogicExecutor executor; // ✅ 지능형 실행 엔진 주입
 
     /**
      * ⚡ [Negative Cache 확인]
+     * executeOrDefault를 사용하여 캐시 존재 여부 및 타입 캐스팅 노이즈 제거
      */
     public boolean isNonExistent(String userIgn) {
-        Cache cache = cacheManager.getCache("ocidNegativeCache");
-        if (cache == null) return false;
-        Object val = cache.get(userIgn.trim(), Object.class);
-        return "NOT_FOUND".equals(val);
+        String cleanIgn = userIgn.trim();
+        return executor.executeOrDefault(() -> {
+            Cache cache = cacheManager.getCache("ocidNegativeCache");
+            return cache != null && "NOT_FOUND".equals(cache.get(cleanIgn, String.class));
+        }, false, TaskContext.of("Cache", "CheckNegative", cleanIgn));
     }
 
     /**
-     * ⚡ [N+1 해결] JOIN FETCH를 사용하여 캐릭터와 장비를 한방에 가져옵니다.
+     * ⚡ [N+1 해결] 캐릭터와 장비를 한방에 가져옵니다.
      */
     public Optional<GameCharacter> getCharacterIfExist(String userIgn) {
-        return gameCharacterRepository.findByUserIgnWithEquipment(userIgn.trim());
+        String cleanIgn = userIgn.trim();
+        return executor.execute(
+                () -> gameCharacterRepository.findByUserIgnWithEquipment(cleanIgn),
+                TaskContext.of("DB", "FindWithEquipment", cleanIgn)
+        );
     }
 
     /**
-     * ⚙️ [실제 생성 로직]
+     * ⚙️ [캐릭터 생성 로직]
+     * try-catch를 박멸하고 executeWithRecovery를 통해 예외 복구 로직(Negative Caching) 통합
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     @ObservedTransaction("service.v2.GameCharacterService.createNewCharacter")
     public GameCharacter createNewCharacter(String userIgn) {
         String cleanUserIgn = userIgn.trim();
-        try {
-            log.info("✨ [Creation Process] 캐릭터 생성 시작: {}", cleanUserIgn);
-            String ocid = nexonApiClient.getOcidByCharacterName(cleanUserIgn).getOcid();
+        TaskContext context = TaskContext.of("Character", "Create", cleanUserIgn);
 
-            GameCharacter saved = gameCharacterRepository.saveAndFlush(new GameCharacter(cleanUserIgn, ocid));
+        // ✅ [패턴 5] executeWithRecovery: 정상 로직 실행 후 특정 예외 발생 시 복구(사후 처리) 로직 가동
+        return executor.executeWithRecovery(
+                () -> {
+                    log.info("✨ [Creation] 캐릭터 생성 시작: {}", cleanUserIgn);
+                    String ocid = nexonApiClient.getOcidByCharacterName(cleanUserIgn).getOcid();
 
-            Optional.ofNullable(cacheManager.getCache("ocidCache"))
-                    .ifPresent(c -> c.put(cleanUserIgn, ocid));
-            return saved;
-        } catch (CharacterNotFoundException e) {
-            log.warn("🚫 [Negative Cache Saved] 캐릭터 진짜 없음 확인: {}", cleanUserIgn);
-            Optional.ofNullable(cacheManager.getCache("ocidNegativeCache"))
-                    .ifPresent(c -> c.put(cleanUserIgn, "NOT_FOUND"));
-            throw e;
-        } catch (Exception e) {
-            log.error("⚠️ [Temporary Failure] 넥슨 API 통신 실패: {}", cleanUserIgn);
-            throw e;
-        }
+                    GameCharacter saved = gameCharacterRepository.saveAndFlush(new GameCharacter(cleanUserIgn, ocid));
+
+                    // 포지티브 캐싱
+                    Optional.ofNullable(cacheManager.getCache("ocidCache"))
+                            .ifPresent(c -> c.put(cleanUserIgn, ocid));
+                    return saved;
+                },
+                (e) -> {
+                    // CharacterNotFoundException 발생 시에만 네거티브 캐싱 수행 후 예외 재전파
+                    if (e instanceof CharacterNotFoundException) {
+                        log.warn("🚫 [Recovery] 캐릭터 미존재 확인 -> 네거티브 캐시 저장: {}", cleanUserIgn);
+                        Optional.ofNullable(cacheManager.getCache("ocidNegativeCache"))
+                                .ifPresent(c -> c.put(cleanUserIgn, "NOT_FOUND"));
+                    }
+                    // 발생한 예외를 그대로 던져 상위 트랜잭션/핸들러로 전달
+                    throw (RuntimeException) e;
+                },
+                context
+        );
     }
 
     @Transactional
     public String saveCharacter(GameCharacter character) {
-        return gameCharacterRepository.save(character).getUserIgn();
+        return executor.execute(
+                () -> gameCharacterRepository.save(character).getUserIgn(),
+                TaskContext.of("DB", "SaveCharacter", character.getUserIgn())
+        );
     }
 
-    /**
-     * 상세 조회 (기존 로직 유지)
-     */
     public GameCharacter getCharacterOrThrow(String userIgn) {
-        return gameCharacterRepository.findByUserIgnWithEquipment(userIgn)
-                .orElseThrow(() -> new CharacterNotFoundException(userIgn));
+        return executor.execute(
+                () -> gameCharacterRepository.findByUserIgnWithEquipment(userIgn)
+                        .orElseThrow(() -> new CharacterNotFoundException(userIgn)),
+                TaskContext.of("DB", "GetOrThrow", userIgn)
+        );
     }
-
-    // --- 🚀 ObservedTransaction 복구 영역 ---
 
     @LogExecutionTime
     @ObservedTransaction("service.v2.GameCharacterService.clickLikeCache")
     public void clickLikeCache(String userIgn) {
-        likeProcessor.processLike(userIgn);
+        executor.executeVoid(
+                () -> likeProcessor.processLike(userIgn),
+                TaskContext.of("Like", "ProcessCache", userIgn)
+        );
     }
 
     @LogExecutionTime
     @Transactional
     @ObservedTransaction("service.v2.GameCharacterService.clickLikePessimistic")
     public void clickLikePessimistic(String userIgn) {
-        databaseLikeProcessor.processLike(userIgn);
+        executor.executeVoid(
+                () -> databaseLikeProcessor.processLike(userIgn),
+                TaskContext.of("Like", "ProcessPessimistic", userIgn)
+        );
     }
 
     @Transactional
     @ObservedTransaction("service.v2.GameCharacterService.getCharacterForUpdate")
     public GameCharacter getCharacterForUpdate(String userIgn) {
-        return gameCharacterRepository.findByUserIgnWithPessimisticLock(userIgn)
-                .orElseThrow(() -> new CharacterNotFoundException(userIgn));
+        return executor.execute(
+                () -> gameCharacterRepository.findByUserIgnWithPessimisticLock(userIgn)
+                        .orElseThrow(() -> new CharacterNotFoundException(userIgn)),
+                TaskContext.of("DB", "GetForUpdate", userIgn)
+        );
     }
 }
