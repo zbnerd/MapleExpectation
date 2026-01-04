@@ -53,7 +53,7 @@ public class LockHikariConfig {
         config.setDriverClassName("com.mysql.cj.jdbc.Driver");
 
         // Lock 전용 풀 설정
-        config.setMaximumPoolSize(10);           // 작은 전용 풀 (락은 가벼운 작업)
+        config.setMaximumPoolSize(50);           // 작은 전용 풀 (락은 가벼운 작업)
         config.setMinimumIdle(2);                 // 최소 2개 유지 (즉시 사용 가능)
         config.setConnectionTimeout(5000);        // 5초 - 커넥션 획득 타임아웃
         config.setIdleTimeout(300000);            // 5분 - 유휴 커넥션 타임아웃

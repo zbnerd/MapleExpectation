@@ -143,8 +143,8 @@ AOP 적용 시 프록시 메커니즘 한계 극복을 위해 반드시 **Facade
 
 ## 🧪 10. Mandatory Testing & Zero-Failure Policy
 - **Mandatory:** 모든 구현/리팩토링 시 테스트 코드를 반드시 세트로 작성합니다.
-- **Structure:** Given-When-Then (AAA 패턴) 및 에지 케이스(null, 빈 값, 타임아웃) 검증을 포함합니다.
-
+- **Policy:** 테스트를 통과시키기 위해 `@Disabled`를 사용하거나 테스트를 삭제하는 행위를 엄격히 금지합니다. 반드시 로직을 디버깅하여 100% 통과(All Green)를 달성해야 합니다.
+- **Mocking:** `LogicExecutor` 테스트 시 `doAnswer`를 사용하여 Passthrough 설정을 적용, 실제 람다가 실행되도록 검증합니다.
 ---
 
 ## 🚨 11. Exception Handling Strategy (AI Mentor Recommendation)
@@ -158,6 +158,37 @@ AOP 적용 시 프록시 메커니즘 한계 극복을 위해 반드시 **Facade
 - **Dynamic Message:** `String.format`을 활용하여 에러 메시지에 구체적인 식별자(ID, IGN 등)를 포함해 디버깅 가시성을 높입니다.
 
 ---
+
+## 🚨 12. Zero Try-Catch Policy & LogicExecutor (Architectural Core)
+비즈니스 로직에서 `try-catch` 블록을 사용하는 것을 **엄격히 금지**합니다. 모든 실행 흐름과 예외 처리는 **`LogicExecutor`** 템플릿에 위임합니다.
+
+### 🔑 LogicExecutor 사용 패턴 가이드
+| 패턴 | 메서드 | 용도 |
+| :--- | :--- | :--- |
+| **패턴 1** | `execute(task, context)` | 일반적인 실행. 예외 발생 시 로그 기록 후 상위 전파. |
+| **패턴 2** | `executeVoid(task, context)` | 반환값이 없는 작업(Runnable) 실행. |
+| **패턴 3** | `executeOrDefault(task, default, context)` | 예외 발생 시 안전하게 기본값 반환 (조회 로직 등). |
+| **패턴 4** | `executeWithRecovery(task, recovery, context)` | 예외 발생 시 특정 복구 로직(람다) 실행. |
+| **패턴 5** | `executeWithFinally(task, finalizer, context)` | 자원 해제 등 `finally` 블록이 반드시 필요한 경우 사용. |
+| **패턴 6** | `executeWithTranslation(task, translator, context)` | 기술적 예외(IOException 등)를 도메인 예외로 변환. |
+
+**Code Example:**
+```java
+// ❌ Bad (Legacy)
+try {
+    return repository.findById(id);
+} catch (Exception e) {
+    log.error("Error", e);
+    return null;
+}
+
+// ✅ Good (Modern)
+return executor.executeOrDefault(
+    () -> repository.findById(id),
+    null,
+    TaskContext.of("Domain", "FindById", id)
+);
+```
 
 ## 🛡️ 12. Circuit Breaker & Resilience Rules
 장애가 전체 시스템으로 전파되는 것을 방지하기 위해 Resilience4j 설정을 준수합니다.
@@ -187,13 +218,49 @@ AOP 적용 시 프록시 메커니즘 한계 극복을 위해 반드시 **Facade
 - **Hardcoded Error Messages:** 에러 메시지를 소스 코드에 직접 적지 말고 `ErrorCode` Enum에서 관리합니다.
 - **Standard Output:** `e.printStackTrace()`나 `System.out.println()` 대신 반드시 `@Slf4j` 로거를 사용합니다.
 - **God Class/Spaghetti:** 하나의 메서드가 여러 책임을 지거나 2단계를 초과하는 인덴트를 가지지 않도록 작게 쪼갭니다.
+- **Direct try-catch:** 비즈니스 로직 내에 try-catch가 보이면 즉시 리팩토링 대상입니다.
+- **Raw Thread Usage:** new Thread(), Future 직접 사용 금지. LogicExecutor 또는 비동기 어노테이션을 사용합니다.
+- **Log Pollution:** 의미 없는 로그 산재 금지. TaskContext를 통해 구조화된 로그를 남깁니다.
 
 ---
 
+## 🚫 15. Anti-Pattern: Lambda & Parenthesis Hell (Critical)
+`LogicExecutor` 도입으로 `try-catch`는 사라졌지만, 과도한 람다 중첩으로 인한 **"괄호 지옥"**이 발생해서는 안 됩니다.
+
+- **Rule of Thumb (3-Line Rule):** 람다 내부 로직이 **3줄**을 초과하거나 분기문(`if/else`)이 포함된다면, 즉시 **Private Method**로 추출합니다.
+- **Method Reference Preference:** `() -> service.process(param)` 대신 `service::process` 또는 `this::process` 형태의 메서드 참조를 최우선으로 사용합니다.
+- **Flattening:** `executor.execute(() -> executor.execute(() -> ...))` 형태의 중첩 실행을 금지합니다. 각 단계를 메서드로 분리하여 수직적 깊이를 줄이십시오.
+
+**Code Example:**
+```java
+// ❌ Bad (Lambda Hell: 가독성 최악, 디버깅 어려움)
+return executor.execute(() -> {
+    User user = repo.findById(id).orElseThrow(() -> new RuntimeException("..."));
+    if (user.isActive()) {
+        return otherService.process(user.getData().stream()
+            .filter(d -> d.isValid())
+            .map(d -> {
+                // ... complex logic ...
+                return d.toDto();
+            }).toList());
+    }
+}, context);
+
+// ✅ Good (Method Extraction: 선언적이고 깔끔함)
+return executor.execute(() -> this.processActiveUser(id), context);
+
+// Private Helper Method
+private List<Dto> processActiveUser(Long id) {
+    User user = findUserOrThrow(id);
+    return user.isActive() ? processUserData(user) : List.of();
+}
+```
+
 ## 🔄 15. Proactive Refactoring & Quality (ETC)
-- **Refactoring First:** 새로운 기능 구현 전, 기존 코드가 위 원칙(Facade, SOLID, Exception 전략 등)을 위반한다면 반드시 **리팩토링을 선행**합니다.
+- **Refactoring First:** 
+  - 새로운 기능 구현 전, 기존 코드가 위 원칙(Facade, SOLID, Exception 전략 등)을 위반한다면 반드시 **리팩토링을 선행**합니다.
+  - 기능 추가 전, 기존 코드가 LogicExecutor 패턴을 따르지 않는다면 우선 리팩토링을 수행합니다.
 - **Sequential Thinking:** 작업 시작 전 `Context 7`의 기술 스택과 현재 가이드를 단계별로 대조하여 디테일을 놓치지 않습니다.
 - **Update Rule:** 새로운 라이브러리나 기술 스택 추가 시, 해당 분야의 Best Practice를 조사하여 `CLAUDE.md`를 즉시 업데이트합니다.
 - **Definition of Done:** 코드가 작동하는 것을 넘어, 모든 테스트가 통과하고 위 클린 코드 원칙을 준수했을 때 작업을 완료한 것으로 간주합니다.
-
-- **테스트** : 테스트를 100% 통과하기위해 @Disabled를 남발한다거나 테스트코드를 삭제해서는 안되며, 반드시 우리가 작업하는 이슈가 100% 반영이 되도록 디버깅을 해야합니다.
+- **Context Awareness:** 수정하려는 코드가 TieredCache나 LockStrategy 등 공통 모듈에 영향을 주는지 LogicExecutor의 파급력을 고려하여 작업합니다.

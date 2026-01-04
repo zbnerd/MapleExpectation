@@ -7,9 +7,7 @@ import maple.expectation.global.error.exception.DistributedLockException;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.global.executor.strategy.ExceptionTranslator;
-import net.bytebuddy.implementation.bytecode.Throw;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.SingleConnectionDataSource;
@@ -81,8 +79,8 @@ public class MySqlNamedLockStrategy implements LockStrategy {
     }
 
     private boolean tryAcquire(JdbcTemplate sessionJdbc, String lockKey, long waitTime) {
-        return Boolean.TRUE.equals(sessionJdbc.queryForObject(
-                "SELECT GET_LOCK(?, ?)", Integer.class, lockKey, waitTime) == 1);
+        return sessionJdbc.queryForObject(
+                "SELECT GET_LOCK(?, ?)", Integer.class, lockKey, waitTime) == 1;
     }
 
     private void releaseLock(JdbcTemplate sessionJdbc, String lockKey, TaskContext context) {
@@ -105,7 +103,7 @@ public class MySqlNamedLockStrategy implements LockStrategy {
 
     @Override
     public void unlock(String key) {
-        log.warn("⚠️ [MySQL Lock] unlock() 호출 생략 - 세션 기반 자동 해제 정책 적용 중");
+        log.debug("ℹ\uFE0F [MySQL Lock] unlock() 호출됨 (세션 기반이라 실제 동작 안 함)");
     }
 
     private String buildLockKey(String key) {
