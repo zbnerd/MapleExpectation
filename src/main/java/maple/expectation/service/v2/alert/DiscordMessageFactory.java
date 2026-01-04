@@ -14,7 +14,7 @@ public class DiscordMessageFactory {
 
     private static final int ERROR_COLOR = 16711680; // 빨간색
 
-    public DiscordMessage createCriticalEmbed(String title, String description, Exception e) {
+    public DiscordMessage createCriticalEmbed(String title, String description, Throwable e) {
         return new DiscordMessage(List.of(
             new DiscordMessage.Embed(
                 "🚨 " + title,
@@ -27,7 +27,7 @@ public class DiscordMessageFactory {
         ));
     }
 
-    private List<DiscordMessage.Field> createFields(Exception e) {
+    private List<DiscordMessage.Field> createFields(Throwable e) {
         return List.of(
             new DiscordMessage.Field("📄 Exception Type", e.getClass().getSimpleName(), true),
             new DiscordMessage.Field("💻 Server IP", getServerIp(), true),
@@ -40,11 +40,11 @@ public class DiscordMessageFactory {
         return System.getenv("HOSTNAME") != null ? System.getenv("HOSTNAME") : "Unknown";
     }
 
-    private String getShortMessage(Exception e) {
+    private String getShortMessage(Throwable e) {
         return e.getMessage() != null ? e.getMessage() : "No message provided";
     }
 
-    private String getStackTrace(Exception e) {
+    private String getStackTrace(Throwable e) {
         return Arrays.stream(e.getStackTrace())
                 .limit(5)
                 .map(StackTraceElement::toString)

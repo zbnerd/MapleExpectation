@@ -19,6 +19,10 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Stream;
 
+/**
+ * 🍁 셧다운 데이터 영속화 서비스
+ * LogicExecutor를 사용하여 try-catch 없이 선언적으로 파일 IO 및 복구 로직을 수행합니다.
+ */
 @Slf4j
 @Service
 public class ShutdownDataPersistenceService {
@@ -32,20 +36,13 @@ public class ShutdownDataPersistenceService {
     @Value("${app.shutdown.archive-directory:/tmp/maple-shutdown/processed}")
     private String archiveDirectory;
 
-    /**
-     * -- GETTER --
-     * 인스턴스 ID (생성자에서 executor를 통해 안전하게 초기화됨)
-     */
     @Getter
     private final String instanceId;
 
-    /**
-     * ✅ [변경점] 명시적 생성자를 통해 executor 주입 후 instanceId를 초기화합니다.
-     */
     public ShutdownDataPersistenceService(ObjectMapper objectMapper, LogicExecutor executor) {
         this.objectMapper = objectMapper;
         this.executor = executor;
-        this.instanceId = resolveInstanceId(); // 이제 executor 사용 가능!
+        this.instanceId = resolveInstanceId();
     }
 
     @PostConstruct
@@ -53,18 +50,20 @@ public class ShutdownDataPersistenceService {
         executor.executeWithTranslation(() -> {
             Files.createDirectories(Paths.get(backupDirectory));
             Files.createDirectories(Paths.get(archiveDirectory));
-            log.info("✅ [Shutdown Persistence] 백업 디렉토리 초기화 완료 (ID: {})", instanceId);
+            log.info("✅ [Shutdown Persistence] 디렉토리 초기화 완료 (ID: {})", instanceId);
             return null;
         }, ExceptionTranslator.forFileIO(), TaskContext.of("Persistence", "Init"));
     }
 
+    /**
+     * 데이터를 JSON 파일로 원자적(Atomic)으로 저장합니다.
+     */
     public Path saveShutdownData(ShutdownData data) {
-        if (data.isEmpty()) return null;
+        if (data == null || data.isEmpty()) return null;
 
         TaskContext context = TaskContext.of("Persistence", "SaveData");
         Path backupPath = Paths.get(backupDirectory);
-        String filename = generateFilename();
-        Path targetFile = backupPath.resolve(filename);
+        Path targetFile = backupPath.resolve(generateFilename());
 
         return executor.execute(() -> {
             Path tempFile = Files.createTempFile(backupPath, "shutdown-", ".tmp");
@@ -77,6 +76,9 @@ public class ShutdownDataPersistenceService {
         }, context);
     }
 
+    /**
+     * 기존 백업 파일에 '좋아요' 데이터를 병합하여 저장합니다.
+     */
     public void appendLikeEntry(String userIgn, long count) {
         TaskContext context = TaskContext.of("Persistence", "AppendLike", userIgn);
 
@@ -84,18 +86,24 @@ public class ShutdownDataPersistenceService {
             List<Path> oldFiles = findAllBackupFiles();
             ShutdownData existingData = loadLatestFromList(oldFiles);
 
-            Map<String, Long> mergedBuffer = new HashMap<>(existingData.likeBuffer() != null ? existingData.likeBuffer() : Map.of());
+            Map<String, Long> mergedBuffer = new HashMap<>(
+                    existingData.likeBuffer() != null ? existingData.likeBuffer() : Map.of()
+            );
             mergedBuffer.merge(userIgn, count, Long::sum);
 
-            ShutdownData newData = new ShutdownData(LocalDateTime.now(), instanceId, mergedBuffer, existingData.equipmentPending());
+            ShutdownData newData = new ShutdownData(
+                    LocalDateTime.now(), instanceId, mergedBuffer, existingData.equipmentPending()
+            );
 
-            Path newFile = saveShutdownData(newData);
-            if (newFile != null) {
+            if (saveShutdownData(newData) != null) {
                 deleteFiles(oldFiles);
             }
         }, context);
     }
 
+    /**
+     * 처리되지 않은 장비 목록을 백업 파일에 추가합니다.
+     */
     public void savePendingEquipment(List<String> ocids) {
         if (ocids == null || ocids.isEmpty()) return;
 
@@ -103,19 +111,25 @@ public class ShutdownDataPersistenceService {
             List<Path> oldFiles = findAllBackupFiles();
             ShutdownData existingData = loadLatestFromList(oldFiles);
 
-            List<String> mergedEquipment = new ArrayList<>(existingData.equipmentPending() != null ? existingData.equipmentPending() : List.of());
+            List<String> mergedEquipment = new ArrayList<>(
+                    existingData.equipmentPending() != null ? existingData.equipmentPending() : List.of()
+            );
             mergedEquipment.addAll(ocids);
 
-            ShutdownData newData = new ShutdownData(LocalDateTime.now(), instanceId, existingData.likeBuffer(), mergedEquipment);
+            ShutdownData newData = new ShutdownData(
+                    LocalDateTime.now(), instanceId, existingData.likeBuffer(), mergedEquipment
+            );
 
-            Path newFile = saveShutdownData(newData);
-            if (newFile != null) {
+            if (saveShutdownData(newData) != null) {
                 deleteFiles(oldFiles);
+                log.warn("💾 [Persistence] Equipment 목록 업데이트 완료: {}건", ocids.size());
             }
-            log.warn("💾 [Persistence] Equipment 목록 저장 완료: {}건", ocids.size());
-        }, TaskContext.of("Persistence", "SavePending", String.valueOf(ocids.size())));
+        }, TaskContext.of("Persistence", "SavePending", "size:" + ocids.size()));
     }
 
+    /**
+     * 백업 디렉토리 내의 모든 JSON 파일을 생성 시간 역순으로 조회합니다.
+     */
     public List<Path> findAllBackupFiles() {
         return executor.executeWithTranslation(() -> {
             Path backupPath = Paths.get(backupDirectory);
@@ -131,13 +145,28 @@ public class ShutdownDataPersistenceService {
         }, ExceptionTranslator.forFileIO(), TaskContext.of("Persistence", "ScanFiles"));
     }
 
+    /**
+     * 🚀 [수정] executeWithRecovery를 사용하여 파일 손상 시 Optional.empty를 반환합니다.
+     * (try-catch 없이 JSON 파싱 에러를 우아하게 처리)
+     */
     public Optional<ShutdownData> readBackupFile(Path filePath) {
-        return executor.execute(() -> {
-            String json = Files.readString(filePath);
-            return Optional.of(objectMapper.readValue(json, ShutdownData.class));
-        }, TaskContext.of("Persistence", "ReadFile", filePath.getFileName().toString()));
+        return executor.executeWithRecovery(
+                // 1. 시도: 파일 읽기 및 역직렬화
+                () -> Optional.of(objectMapper.readValue(Files.readString(filePath), ShutdownData.class)),
+
+                // 2. 복구: 에러 발생 시(파일 손상 등) 비어있는 Optional 반환
+                (e) -> {
+                    log.error("⚠️ 파일 손상으로 읽기 실패: {} | 사유: {}", filePath, e.getMessage());
+                    return Optional.empty();
+                },
+
+                TaskContext.of("Persistence", "ReadFile", filePath.getFileName().toString())
+        );
     }
 
+    /**
+     * 처리가 완료된 파일을 아카이브 디렉토리로 이동시킵니다.
+     */
     public void archiveFile(Path filePath) {
         executor.executeWithTranslation(() -> {
             Files.move(filePath, Paths.get(archiveDirectory).resolve(filePath.getFileName()), StandardCopyOption.REPLACE_EXISTING);
@@ -145,6 +174,16 @@ public class ShutdownDataPersistenceService {
             return null;
         }, ExceptionTranslator.forFileIO(), TaskContext.of("Persistence", "Archive", filePath.getFileName().toString()));
     }
+
+    public Path getBackupDirectory() {
+        return Paths.get(backupDirectory);
+    }
+
+    public Path getArchiveDirectory() {
+        return Paths.get(archiveDirectory);
+    }
+
+    // --- Private Helper Methods (모두 LogicExecutor 활용) ---
 
     private Path performAtomicWrite(ShutdownData data, Path tempFile, Path targetFile, TaskContext context) throws IOException {
         String json = executor.executeWithTranslation(
@@ -181,13 +220,10 @@ public class ShutdownDataPersistenceService {
         return String.format("shutdown-%s-%s.json", timestamp, UUID.randomUUID().toString().substring(0, 8));
     }
 
-    /**
-     * ✅ [최종 박멸] static try-catch를 제거하고 executor.executeOrDefault로 평탄화
-     */
     private String resolveInstanceId() {
         return executor.executeOrDefault(
                 () -> InetAddress.getLocalHost().getHostName(),
-                UUID.randomUUID().toString(), // 실패 시 폴백
+                UUID.randomUUID().toString(),
                 TaskContext.of("Persistence", "ResolveInstanceId")
         );
     }

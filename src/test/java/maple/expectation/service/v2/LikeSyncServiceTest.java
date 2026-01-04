@@ -1,7 +1,9 @@
 package maple.expectation.service.v2;
 
 import io.github.resilience4j.retry.Retry;
-import maple.expectation.repository.v2.RedisBufferRepository; // ✅ 추가
+import maple.expectation.global.executor.DefaultLogicExecutor;
+import maple.expectation.global.executor.strategy.ExceptionTranslator;
+import maple.expectation.repository.v2.RedisBufferRepository;
 import maple.expectation.service.v2.cache.LikeBufferStorage;
 import maple.expectation.service.v2.shutdown.ShutdownDataPersistenceService;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,6 +22,9 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.*;
 
+/**
+ * 🚀 [Fix] 컴파일 에러를 해결하고 비동기 로직 실행을 보장하는 최종 테스트 코드
+ */
 @ExtendWith(MockitoExtension.class)
 class LikeSyncServiceTest {
 
@@ -28,26 +33,34 @@ class LikeSyncServiceTest {
     @Mock private LikeBufferStorage likeBufferStorage;
     @Mock private LikeSyncExecutor syncExecutor;
     @Mock private StringRedisTemplate redisTemplate;
-    @Mock private RedisBufferRepository redisBufferRepository; // ✅ 추가: 리포지토리 모킹
-    @Mock private ShutdownDataPersistenceService shutdownDataPersistenceService; // ✅ 추가: Shutdown 데이터 서비스 모킹
+    @Mock private RedisBufferRepository redisBufferRepository;
+    @Mock private ShutdownDataPersistenceService shutdownDataPersistenceService;
     @Mock private HashOperations<String, Object, Object> hashOperations;
+
+    // 실제 객체를 사용하여 내부 람다 실행 보장
+    private DefaultLogicExecutor logicExecutor;
+    @Mock private ExceptionTranslator exceptionTranslator;
 
     private final Retry likeSyncRetry = Retry.ofDefaults("testRetry");
     private static final String REDIS_HASH_KEY = "buffer:likes";
 
     @BeforeEach
     void setUp() {
-        // 🚀 핵심: 변경된 6개의 파라미터 순서에 맞춰 생성자 호출
+        // 🚀 [해결 1] 생성자 파라미터를 1개로 수정 (image_013d2a 대응)
+        logicExecutor = new DefaultLogicExecutor(exceptionTranslator);
+
         likeSyncService = new LikeSyncService(
-                likeBufferStorage,                // 1
-                syncExecutor,                     // 2
-                redisTemplate,                    // 3
-                redisBufferRepository,            // 4
-                likeSyncRetry,                    // 5
-                shutdownDataPersistenceService    // 6 (추가됨)
+                likeBufferStorage,
+                syncExecutor,
+                redisTemplate,
+                redisBufferRepository,
+                likeSyncRetry,
+                shutdownDataPersistenceService,
+                logicExecutor
         );
 
-        // Redis 연산 기본 설정
+        // 🚀 [해결 2] when() 뒤에는 thenReturn()을 사용 (image_013d48 대응)
+        lenient().when(redisTemplate.hasKey(anyString())).thenReturn(true);
         lenient().when(redisTemplate.opsForHash()).thenReturn(hashOperations);
     }
 
@@ -58,25 +71,16 @@ class LikeSyncServiceTest {
         String userIgn = "Gamer";
         Map<Object, Object> redisData = Map.of(userIgn, "5");
 
-        // 💡 Rename 전략 대응: 키가 존재한다고 가정
-        given(redisTemplate.hasKey(REDIS_HASH_KEY)).willReturn(true);
-        // 임시 키(anyString)에서 데이터를 읽어온다고 설정
+        // BDD 스타일(given) 유지
         given(hashOperations.entries(anyString())).willReturn(redisData);
 
         // [When]
         likeSyncService.syncRedisToDatabase();
 
         // [Then]
-        // 1. Rename 명령어 실행 확인
         verify(redisTemplate, times(1)).rename(eq(REDIS_HASH_KEY), anyString());
-
-        // 2. DB 반영 성공 확인
         verify(syncExecutor, times(1)).executeIncrement(eq(userIgn), eq(5L));
-
-        // 3. ✅ 중요: 전역 카운터 차감(decrement)이 호출되었는지 확인
         verify(redisBufferRepository, times(1)).decrementGlobalCount(5L);
-
-        // 4. 임시 키 삭제 확인
         verify(redisTemplate, times(1)).delete(anyString());
     }
 
@@ -87,10 +91,9 @@ class LikeSyncServiceTest {
         String userIgn = "Gamer";
         Map<Object, Object> redisData = Map.of(userIgn, "10");
 
-        given(redisTemplate.hasKey(REDIS_HASH_KEY)).willReturn(true);
         given(hashOperations.entries(anyString())).willReturn(redisData);
 
-        // DB 반영 시 에러 발생 시뮬레이션
+        // 🚀 [해결 3] 매처를 메서드 인자에 직접 사용하여 mismatch 해결
         willThrow(new RuntimeException("DB Fail"))
                 .given(syncExecutor).executeIncrement(anyString(), anyLong());
 
@@ -98,7 +101,9 @@ class LikeSyncServiceTest {
         likeSyncService.syncRedisToDatabase();
 
         // [Then]
-        // 🛡️ 실패했으므로 전역 카운터 차감이 호출되지 않아야 함
+        // 비즈니스 로직: 실패 시 차감하지 않음
         verify(redisBufferRepository, never()).decrementGlobalCount(anyLong());
+        // 기술적 로직: 실패해도 임시 키 삭제(Clean-up)는 수행되어야 함
+        verify(redisTemplate, times(1)).delete(anyString());
     }
 }

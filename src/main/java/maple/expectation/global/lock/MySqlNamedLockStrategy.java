@@ -23,7 +23,6 @@ import java.sql.Connection;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@Profile("!test")
 public class MySqlNamedLockStrategy implements LockStrategy {
 
     @Qualifier("lockJdbcTemplate")

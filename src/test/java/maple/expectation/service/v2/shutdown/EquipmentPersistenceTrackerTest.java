@@ -1,16 +1,24 @@
 package maple.expectation.service.v2.shutdown;
 
+import maple.expectation.global.common.function.ThrowingSupplier;
+import maple.expectation.global.executor.LogicExecutor;
+import maple.expectation.global.executor.TaskContext;
+import maple.expectation.global.executor.function.ThrowingRunnable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 
 /**
  * EquipmentPersistenceTracker 테스트
@@ -19,10 +27,32 @@ import static org.awaitility.Awaitility.await;
 class EquipmentPersistenceTrackerTest {
 
     private EquipmentPersistenceTracker tracker;
+    private LogicExecutor executor;
 
     @BeforeEach
     void setUp() {
-        tracker = new EquipmentPersistenceTracker();
+        executor = Mockito.mock(LogicExecutor.class);
+
+        // ✅ [해결] any(ThrowingRunnable.class)로 타입을 명시하여 중의성 제거
+        doAnswer(invocation -> {
+            ThrowingRunnable task = invocation.getArgument(0);
+            task.run();
+            return null;
+        }).when(executor).executeVoid(any(ThrowingRunnable.class), any(TaskContext.class));
+
+        // ✅ [해결] executeWithFallback Passthrough 설정
+        doAnswer(invocation -> {
+            ThrowingSupplier<?> task = invocation.getArgument(0);
+            Function<Throwable, Object> fallback = invocation.getArgument(1);
+            try {
+                return task.get();
+            } catch (Throwable e) {
+                return fallback.apply(e);
+            }
+        }).when(executor).executeWithFallback(any(ThrowingSupplier.class), any(Function.class), any(TaskContext.class));
+
+        // 리팩토링된 생성자로 주입
+        tracker = new EquipmentPersistenceTracker(executor);
     }
 
     @Test
@@ -67,19 +97,11 @@ class EquipmentPersistenceTrackerTest {
     void testAwaitAllCompletionSuccess() {
         // given
         CompletableFuture<Void> future1 = CompletableFuture.runAsync(() -> {
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
+            try { Thread.sleep(100); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
         });
 
         CompletableFuture<Void> future2 = CompletableFuture.runAsync(() -> {
-            try {
-                Thread.sleep(200);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
+            try { Thread.sleep(200); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
         });
 
         tracker.trackOperation("ocid1", future1);
@@ -90,7 +112,10 @@ class EquipmentPersistenceTrackerTest {
 
         // then
         assertThat(completed).isTrue();
-        assertThat(tracker.getPendingCount()).isZero();
+
+        // 🚀 [수정] 비동기 콜백(제거 로직)이 완료될 때까지 Awaitility로 대기
+        await().atMost(Duration.ofSeconds(1))
+                .untilAsserted(() -> assertThat(tracker.getPendingCount()).isZero());
     }
 
     @Test

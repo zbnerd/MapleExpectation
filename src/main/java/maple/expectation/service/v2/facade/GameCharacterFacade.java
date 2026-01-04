@@ -14,6 +14,7 @@ import org.redisson.api.RedissonClient;
 import org.springframework.stereotype.Component;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
@@ -75,11 +76,22 @@ public class GameCharacterFacade {
      */
     private GameCharacter awaitFuture(CompletableFuture<GameCharacter> future, String userIgn, TaskContext context) {
         return executor.executeWithTranslation(
-                () -> future.get(10, TimeUnit.SECONDS), //
+                // 🚀 1. 작업: Checked Exception을 그대로 던지게 둡니다.
+                () -> future.get(10, TimeUnit.SECONDS),
+
+                // 🚀 2. 번역: 발생한 Throwable을 여기서 요리합니다.
                 (e, ctx) -> {
-                    // 💡 람다 내부에서 예외 로그를 남기고 도메인 예외로 변환
-                    log.error("⏳ [Timeout/Error] 캐릭터 생성 대기 실패 (닉네임: {}): {}", userIgn, e.getMessage());
-                    return new ExternalServiceException("현재 요청이 많습니다. 잠시 후 다시 확인해주세요." + e);
+                    // 비동기 실행 중 발생한 실제 원인(cause)을 추출합니다.
+                    Throwable cause = (e instanceof ExecutionException) ? e.getCause() : e;
+
+                    // 이미 도메인 예외(404 등)라면 그대로 던집니다.
+                    if (cause instanceof CharacterNotFoundException) {
+                        return (CharacterNotFoundException) cause;
+                    }
+
+                    // 그 외 기술적 예외(TimeoutException, InterruptedException 등) 처리
+                    log.error("⏳ [Timeout/Error] 캐릭터 생성 대기 실패 (IGN: {}): {}", userIgn, cause.getMessage());
+                    return new ExternalServiceException("현재 요청이 많습니다. 잠시 후 다시 확인해주세요.");
                 },
                 context
         );

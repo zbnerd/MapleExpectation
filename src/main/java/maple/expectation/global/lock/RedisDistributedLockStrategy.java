@@ -32,7 +32,6 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 @Component
 @Qualifier("redisDistributedLockStrategy")
-@Profile("!test")
 public class RedisDistributedLockStrategy extends AbstractLockStrategy {
 
     private final RedissonClient redissonClient;
