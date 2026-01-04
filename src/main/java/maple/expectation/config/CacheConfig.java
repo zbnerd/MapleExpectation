@@ -2,6 +2,7 @@ package maple.expectation.config;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import maple.expectation.global.cache.TieredCacheManager;
+import maple.expectation.global.executor.LogicExecutor; // ✅ 추가됨
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.caffeine.CaffeineCacheManager;
@@ -23,18 +24,23 @@ import java.util.concurrent.TimeUnit;
 @EnableCaching
 public class CacheConfig {
 
+    /**
+     * 🏗️ TieredCacheManager 생성 및 LogicExecutor 주입
+     */
     @Bean
     public CacheManager cacheManager(
-            RedisConnectionFactory connectionFactory) {
+            RedisConnectionFactory connectionFactory,
+            LogicExecutor executor) { // ✅ 스프링이 LogicExecutor 빈을 자동으로 주입합니다.
 
         return new TieredCacheManager(
                 createL1Manager(),
-                createL2Manager(connectionFactory)
+                createL2Manager(connectionFactory),
+                executor // ✅ TieredCacheManager 생성자에 전달하여 컴파일 오류 해결!
         );
     }
 
     /**
-     * 🧊 L1 (Caffeine): 로컬 메모리 - 가장 짧은 수명 (Near Cache)
+     * 🧊 L1 (Caffeine): 로컬 메모리 - Near Cache 전략
      */
     private CacheManager createL1Manager() {
         CaffeineCacheManager l1Manager = new CaffeineCacheManager();
@@ -61,7 +67,7 @@ public class CacheConfig {
     }
 
     /**
-     * 🚩 L2 (Redis): 분산 저장소 - 중간 수명
+     * 🚩 L2 (Redis): 분산 저장소 - 중앙 캐시 전략
      */
     private CacheManager createL2Manager(RedisConnectionFactory factory) {
         RedisCacheConfiguration defaultConfig = RedisCacheConfiguration.defaultCacheConfig()
@@ -71,10 +77,10 @@ public class CacheConfig {
 
         Map<String, RedisCacheConfiguration> configurations = new HashMap<>();
 
-        // [이슈 #11] DB(15분)보다 짧게 -> 10분 🚀
+        // [이슈 #11] DB(15분)보다 짧게 -> 10분
         configurations.put("equipment", defaultConfig.entryTtl(Duration.ofMinutes(10)));
 
-        // [이슈 #12] 원본(이슈 기준)보다 짧게 혹은 맞춰서 -> 20분
+        // [이슈 #12] 원본(이슈 기준)보다 짧게 -> 20분
         configurations.put("cubeTrials", defaultConfig.entryTtl(Duration.ofMinutes(20)));
 
         // OCID: 충분히 길게 -> 60분

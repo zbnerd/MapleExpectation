@@ -1,78 +1,90 @@
 package maple.expectation.service.v2.calculator;
 
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import maple.expectation.external.dto.v2.EquipmentResponse.ItemEquipment;
+import maple.expectation.global.executor.LogicExecutor;
+import maple.expectation.global.executor.TaskContext;
 import maple.expectation.util.StatParser;
 import maple.expectation.util.StatType;
 import org.springframework.stereotype.Component;
 
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Stream;
 
+/**
+ * 잠재능력 수치 계산기 (LogicExecutor 및 평탄화 적용)
+ */
+@Slf4j
 @Component
+@RequiredArgsConstructor // ✅ StatParser와 LogicExecutor 주입
 public class PotentialCalculator {
 
+    private final StatParser statParser; // ✅ Bean 주입 (static 호출 제거)
+    private final LogicExecutor executor;
+
     /**
-     * 아이템의 "윗잠(잠재능력)" 3줄을 분석해서 합산 결과를 반환합니다.
-     * 결과 예시: { STR: 21, ALL_STAT: 6, ... }
+     * "윗잠(잠재능력)" 합산 결과 반환
      */
     public Map<StatType, Integer> calculateMainPotential(ItemEquipment item) {
-        // EnumMap은 키가 Enum일 때 성능이 아주 빠릅니다.
-        Map<StatType, Integer> result = new EnumMap<>(StatType.class);
+        TaskContext context = TaskContext.of("Calculator", "MainPotential", item.getItemName());
 
-        // 잠재 1, 2, 3줄 분석 및 합산
-        accumulateStat(result, item.getPotentialOption1());
-        accumulateStat(result, item.getPotentialOption2());
-        accumulateStat(result, item.getPotentialOption3());
-
-        return result;
+        // [패턴 1] execute를 사용하여 계산 과정을 모니터링
+        return executor.execute(() ->
+                this.sumOptions(Stream.of(
+                        item.getPotentialOption1(),
+                        item.getPotentialOption2(),
+                        item.getPotentialOption3()
+                )), context);
     }
 
     /**
-     * 아이템의 "에디(에디셔널)" 3줄을 분석해서 합산 결과를 반환합니다.
+     * "에디(에디셔널)" 합산 결과 반환
      */
     public Map<StatType, Integer> calculateAdditionalPotential(ItemEquipment item) {
+        TaskContext context = TaskContext.of("Calculator", "AddPotential", item.getItemName());
+
+        return executor.execute(() ->
+                this.sumOptions(Stream.of(
+                        item.getAdditionalPotentialOption1(),
+                        item.getAdditionalPotentialOption2(),
+                        item.getAdditionalPotentialOption3()
+                )), context);
+    }
+
+    /**
+     * 특정 스탯의 "최종 수치" 계산 (올스탯 포함)
+     */
+    public int getEffectiveStat(Map<StatType, Integer> stats, StatType type) {
+        if (type == StatType.ALL_STAT) {
+            return stats.getOrDefault(StatType.ALL_STAT, 0);
+        }
+        return stats.getOrDefault(type, 0) + stats.getOrDefault(StatType.ALL_STAT, 0);
+    }
+
+    /**
+     * 🚀 평탄화: 반복적인 accumulateStat 호출을 Stream으로 통합
+     */
+    private Map<StatType, Integer> sumOptions(Stream<String> options) {
         Map<StatType, Integer> result = new EnumMap<>(StatType.class);
 
-        accumulateStat(result, item.getAdditionalPotentialOption1());
-        accumulateStat(result, item.getAdditionalPotentialOption2());
-        accumulateStat(result, item.getAdditionalPotentialOption3());
+        options.filter(Objects::nonNull)
+                .filter(opt -> !opt.isEmpty())
+                .forEach(opt -> this.accumulateStat(result, opt));
 
         return result;
     }
 
-    /**
-     * 특정 스탯의 "최종 수치"를 계산합니다. (올스탯 포함)
-     * 예: getEffectiveStat(stats, StatType.STR) -> STR값 + 올스탯값 반환
-     */
-    public int getEffectiveStat(Map<StatType, Integer> stats, StatType type) {
-        // 1. 해당 스탯의 값 (없으면 0)
-        int rawValue = stats.getOrDefault(type, 0);
-
-        // 2. 올스탯 값 (없으면 0)
-        int allStatValue = stats.getOrDefault(StatType.ALL_STAT, 0);
-
-        // 3. 두 값을 더해서 반환 (단, 요청한 타입이 ALL_STAT이면 중복 더하기 방지)
-        if (type == StatType.ALL_STAT) {
-            return allStatValue;
-        }
-
-        return rawValue + allStatValue;
-    }
-
-    // 헬퍼 메서드: 옵션 문자열을 분석해서 Map에 더하기
     private void accumulateStat(Map<StatType, Integer> map, String optionStr) {
-        if (optionStr == null || optionStr.isEmpty()) return;
-
-        // 1. 무슨 스탯인지 판별 (예: "STR")
         StatType type = StatType.findType(optionStr);
-        
-        // 2. 수치 추출 (예: 12)
-        int value = StatParser.parseNum(optionStr);
 
-        // 3. 알 수 없는 옵션이나 수치가 0이면 무시
-        if (type == StatType.UNKNOWN || value == 0) return;
+        // ✅ [해결] 주입받은 statParser 인스턴스를 통해 호출
+        int value = statParser.parseNum(optionStr);
 
-        // 4. Map에 누적 (기존 값 + 새 값)
-        map.merge(type, value, Integer::sum);
+        if (type != StatType.UNKNOWN && value != 0) {
+            map.merge(type, value, Integer::sum);
+        }
     }
 }

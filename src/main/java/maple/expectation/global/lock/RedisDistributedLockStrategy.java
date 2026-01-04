@@ -2,6 +2,7 @@ package maple.expectation.global.lock;
 
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.executor.LogicExecutor;
+import maple.expectation.global.executor.TaskContext;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -50,13 +51,14 @@ public class RedisDistributedLockStrategy extends AbstractLockStrategy {
     @Override
     protected void unlockInternal(String lockKey) {
         RLock lock = redissonClient.getLock(lockKey);
-        lock.unlock();
+        if (lock.isHeldByCurrentThread()) {
+            lock.unlock();
+        }
     }
 
     @Override
     protected boolean shouldUnlock(String lockKey) {
-        RLock lock = redissonClient.getLock(lockKey);
-        return lock.isHeldByCurrentThread();
+        return redissonClient.getLock(lockKey).isHeldByCurrentThread();
     }
 
     @Override
@@ -64,24 +66,13 @@ public class RedisDistributedLockStrategy extends AbstractLockStrategy {
         String lockKey = buildLockKey(key);
 
         return executor.executeOrDefault(
-            () -> this.attemptImmediateLock(lockKey, leaseTime),
-            false,
-            "tryLockImmediately:" + key
+                () -> this.attemptImmediateLock(lockKey, leaseTime),
+                false,
+                TaskContext.of("Lock", "RedisTryImmediate", key) // ✅ TaskContext 적용
         );
     }
 
-    /**
-     * 즉시 락 획득 시도 (평탄화: 별도 메서드로 분리)
-     */
     private boolean attemptImmediateLock(String lockKey, long leaseTime) throws Throwable {
-        boolean isLocked = tryLock(lockKey, 0, leaseTime);
-
-        if (isLocked) {
-            log.debug("🔓 [Distributed Lock] '{}' 즉시 획득 성공.", lockKey);
-        } else {
-            log.debug("⏭️ [Distributed Lock] '{}' 즉시 획득 실패 (이미 점유됨).", lockKey);
-        }
-
-        return isLocked;
+        return tryLock(lockKey, 0, leaseTime);
     }
 }
