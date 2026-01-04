@@ -1,6 +1,7 @@
 package maple.expectation.global.executor;
 
 import maple.expectation.global.common.function.ThrowingSupplier;
+import maple.expectation.global.executor.function.ThrowingFunction;
 import maple.expectation.global.executor.function.ThrowingRunnable;
 import maple.expectation.global.executor.strategy.ExceptionTranslator;
 import java.util.function.Function;
@@ -82,6 +83,34 @@ public interface LogicExecutor {
     <T> T executeWithTranslation(
             ThrowingSupplier<T> task,
             ExceptionTranslator translator,
+            TaskContext context
+    );
+
+    /**
+     * [패턴 7] Checked 예외를 전파하면서 복구 로직 수행
+     * * @param <T> 작업 결과 타입
+     * @param task 실행할 작업 (Throwable 발생 가능)
+     * @param recovery 복구 로직 (Throwable 발생 가능)
+     * @param context 작업 컨텍스트
+     * @return 작업 결과
+     * @throws Throwable 원본 체크 예외 전파
+     */
+    <T> T executeCheckedWithRecovery(
+            ThrowingSupplier<T> task,
+            ThrowingFunction<Throwable, T> recovery,
+            TaskContext context
+    ) throws Throwable;
+
+    /**
+     * [패턴 8] Checked 예외 대응 Fallback 실행
+     * * @param task 실행할 작업 (Throwable 발생 가능)
+     * @param fallback 예외 발생 시 실행할 복구 로직
+     * @param context 작업 컨텍스트
+     * @return 작업 결과 또는 Fallback 결과
+     */
+    <T> T executeWithFallback(
+            ThrowingSupplier<T> task,
+            Function<Throwable, T> fallback,
             TaskContext context
     );
 

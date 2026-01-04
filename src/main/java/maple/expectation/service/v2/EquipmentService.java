@@ -8,9 +8,12 @@ import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.dto.CubeCalculationInput;
 import maple.expectation.external.dto.v2.EquipmentResponse;
 import maple.expectation.external.dto.v2.TotalExpectationResponse;
+import maple.expectation.global.executor.LogicExecutor; // ✅ 주입
+import maple.expectation.global.executor.TaskContext; // ✅ 관측성 확보
+import maple.expectation.global.executor.strategy.ExceptionTranslator; // ✅ JSON 전용 번역기
 import maple.expectation.parser.EquipmentStreamingParser;
 import maple.expectation.provider.EquipmentDataProvider;
-import maple.expectation.service.v2.cache.EquipmentCacheService; // 💡 캐시 서비스 임포트
+import maple.expectation.service.v2.cache.EquipmentCacheService;
 import maple.expectation.service.v2.calculator.ExpectationCalculator;
 import maple.expectation.service.v2.calculator.ExpectationCalculatorFactory;
 import maple.expectation.service.v2.facade.GameCharacterFacade;
@@ -33,101 +36,123 @@ public class EquipmentService {
     private final EquipmentStreamingParser streamingParser;
     private final ExpectationCalculatorFactory calculatorFactory;
     private final EquipmentMapper equipmentMapper;
-    private final EquipmentCacheService equipmentCacheService; // 💡 추가
-    private final ObjectMapper objectMapper; // DTO 변환용
+    private final EquipmentCacheService equipmentCacheService;
+    private final ObjectMapper objectMapper;
+    private final LogicExecutor executor; // ✅ 전역 로직 실행기 주입
 
     /**
      * 🚀 [V3 메인 로직] 기대값 계산
-     * 캐시(L1/L2) -> DB(L3) -> API 순서로 데이터를 확보하여 RPS를 극대화합니다.
      */
     @TraceLog
     @Transactional
     public TotalExpectationResponse calculateTotalExpectation(String userIgn) {
-        // 1. 캐릭터 정보 획득 (Facade에서 JOIN FETCH로 장비까지 가져옴)
-        GameCharacter character = gameCharacterFacade.findCharacterByUserIgn(userIgn);
-        String ocid = character.getOcid();
-        byte[] targetData;
+        TaskContext context = TaskContext.of("EquipmentService", "CalculateTotal", userIgn);
 
-        // 🛡️ [STEP 1] 애플리케이션 캐시 확인 (Redis/Caffeine)
-        Optional<EquipmentResponse> cachedResponse = equipmentCacheService.getValidCache(ocid);
+        return executor.execute(() -> {
+            GameCharacter character = gameCharacterFacade.findCharacterByUserIgn(userIgn);
+            String ocid = character.getOcid();
+            byte[] targetData;
 
-        if (cachedResponse.isPresent()) {
-            // 캐시된 DTO를 바이트로 변환하여 파서에 전달
-            targetData = serializeToBytes(cachedResponse.get());
-        }
-        // 📦 [STEP 2] DB 데이터 확인 (캐시 미스 시)
-        else if (character.getEquipment() != null) {
-            String jsonContent = character.getEquipment().getJsonContent();
-            targetData = jsonContent.getBytes(StandardCharsets.UTF_8);
+            Optional<EquipmentResponse> cachedResponse = equipmentCacheService.getValidCache(ocid);
 
-            // DB에 있던 데이터를 다음 요청을 위해 캐시에도 저장
-            equipmentCacheService.saveCache(ocid, deserializeToDto(jsonContent));
-        }
-        // 🌐 [STEP 3] API 호출 (최후의 수단)
-        else {
-            log.info("🌐 [DB/Cache Miss] 넥슨 API 신규 호출: {}", userIgn);
-            EquipmentResponse response = equipmentProvider.getEquipmentResponse(ocid).join();
+            if (cachedResponse.isPresent()) {
+                targetData = serializeToBytes(cachedResponse.get()); // ✅ try-catch 제거됨
+            } else if (character.getEquipment() != null) {
+                String jsonContent = character.getEquipment().getJsonContent();
+                targetData = jsonContent.getBytes(StandardCharsets.UTF_8);
+                equipmentCacheService.saveCache(ocid, deserializeToDto(jsonContent)); // ✅ try-catch 제거됨
+            } else {
+                log.info("🌐 [DB/Cache Miss] 넥슨 API 신규 호출: {}", userIgn);
+                EquipmentResponse response = equipmentProvider.getEquipmentResponse(ocid).join();
+                equipmentCacheService.saveCache(ocid, response);
+                targetData = equipmentProvider.getRawEquipmentData(ocid).join();
+            }
 
-            // saveCache 내부에서 '캐시 저장 + 비동기 DB 저장'을 한꺼번에 수행함
-            equipmentCacheService.saveCache(ocid, response);
-
-            // 파싱용 Raw 데이터 확보 (GZIP 압축본)
-            targetData = equipmentProvider.getRawEquipmentData(ocid).join();
-        }
-
-        // 2. 파싱 및 계산 수행
-        List<CubeCalculationInput> inputs = streamingParser.parseCubeInputs(targetData);
-        return processCalculation(userIgn, inputs);
+            List<CubeCalculationInput> inputs = streamingParser.parseCubeInputs(targetData);
+            return processCalculation(userIgn, inputs);
+        }, context);
     }
 
-    // --- Helper Methods ---
-
+    /**
+     * ✅  try-catch 제거 및 ExceptionTranslator 적용
+     */
     private byte[] serializeToBytes(EquipmentResponse response) {
-        try {
-            return objectMapper.writeValueAsBytes(response);
-        } catch (Exception e) {
-            log.error("직렬화 실패", e);
-            return new byte[0];
-        }
+        return executor.executeWithTranslation(
+                () -> objectMapper.writeValueAsBytes(response),
+                ExceptionTranslator.forJson(), // JSON 처리용 세탁기 가동
+                TaskContext.of("EquipmentService", "Serialize")
+        );
     }
 
+    /**
+     * ✅  try-catch 제거 및 ExceptionTranslator 적용
+     */
     private EquipmentResponse deserializeToDto(String json) {
-        try {
-            return objectMapper.readValue(json, EquipmentResponse.class);
-        } catch (Exception e) {
-            log.error("역직렬화 실패", e);
-            return null;
-        }
+        return executor.executeWithTranslation(
+                () -> objectMapper.readValue(json, EquipmentResponse.class),
+                ExceptionTranslator.forJson(),
+                TaskContext.of("EquipmentService", "Deserialize")
+        );
     }
 
-    // --- 기존 메서드 유지 (테스트 코드 파손 방지) ---
+    // --- 기존 메서드 보존 (이름 유지 / 삭제 없음) ---
 
     public TotalExpectationResponse calculateTotalExpectationLegacy(String userIgn) {
-        EquipmentResponse equipment = equipmentProvider.getEquipmentResponse(getOcid(userIgn)).join();
-        List<CubeCalculationInput> inputs = equipment.getItemEquipment().stream()
-                .filter(item -> item.getPotentialOptionGrade() != null)
-                .map(equipmentMapper::toCubeInput)
-                .toList();
-        return processCalculation(userIgn, inputs);
+        return executor.execute(() -> {
+            EquipmentResponse equipment = equipmentProvider.getEquipmentResponse(getOcid(userIgn)).join();
+            List<CubeCalculationInput> inputs = equipment.getItemEquipment().stream()
+                    .filter(item -> item.getPotentialOptionGrade() != null)
+                    .map(equipmentMapper::toCubeInput)
+                    .toList();
+            return processCalculation(userIgn, inputs);
+        }, TaskContext.of("EquipmentService", "CalculateLegacy", userIgn));
     }
 
     private TotalExpectationResponse processCalculation(String userIgn, List<CubeCalculationInput> inputs) {
-        List<TotalExpectationResponse.ItemExpectation> details = inputs.stream()
-                .map(input -> {
-                    ExpectationCalculator calc = calculatorFactory.createBlackCubeCalculator(input);
-                    return equipmentMapper.toItemExpectation(input, calc.calculateCost(), calc.getTrials().orElse(0L));
-                })
-                .toList();
-        long totalCost = details.stream().mapToLong(TotalExpectationResponse.ItemExpectation::getExpectedCost).sum();
-        return equipmentMapper.toTotalResponse(userIgn, totalCost, details);
+        TaskContext context = TaskContext.of("EquipmentService", "ProcessCalculation", userIgn); //
+
+        return executor.execute(() -> { //
+            // 1. 개별 아이템 기대값 계산 (Stream 로직 평탄화)
+            List<TotalExpectationResponse.ItemExpectation> details = inputs.stream()
+                    .map(this::mapToItemExpectation) // 로직 분리 (메서드 추출)
+                    .toList();
+
+            // 2. 전체 비용 합산
+            long totalCost = details.stream()
+                    .mapToLong(TotalExpectationResponse.ItemExpectation::getExpectedCost)
+                    .sum();
+
+            // 3. 결과 Response 매핑 및 반환
+            return equipmentMapper.toTotalResponse(userIgn, totalCost, details);
+        }, context); //
+    }
+
+    /**
+     * 헬퍼 메서드: 단일 아이템에 대한 기대값 계산 및 DTO 매핑
+     */
+    private TotalExpectationResponse.ItemExpectation mapToItemExpectation(CubeCalculationInput input) {
+        // Calculator 생성 및 비용 산출 로직을 격리하여 가독성 확보
+        ExpectationCalculator calc = calculatorFactory.createBlackCubeCalculator(input);
+
+        return equipmentMapper.toItemExpectation(
+                input,
+                calc.calculateCost(),
+                calc.getTrials().orElse(0L)
+        );
     }
 
     public void streamEquipmentData(String userIgn, OutputStream outputStream) {
-        equipmentProvider.streamAndDecompress(getOcid(userIgn), outputStream);
+        executor.executeVoid(
+                () -> equipmentProvider.streamAndDecompress(getOcid(userIgn), outputStream),
+                TaskContext.of("EquipmentService", "StreamData", userIgn)
+        );
     }
 
     public EquipmentResponse getEquipmentByUserIgn(String userIgn) {
-        return equipmentProvider.getEquipmentResponse(getOcid(userIgn)).join();
+        return executor.execute(
+                () -> equipmentProvider.getEquipmentResponse(getOcid(userIgn)).join(),
+                TaskContext.of("EquipmentService", "GetEquipment", userIgn)
+        );
     }
 
     private String getOcid(String userIgn) {
