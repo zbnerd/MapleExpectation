@@ -12,6 +12,9 @@ import org.springframework.stereotype.Component;
 /**
  * 🛡️ 회복력 있는 락 전략 (Redis 우선, 실패 시 MySQL로 복구)
  * LogicExecutor를 사용하여 모든 try-catch를 제거하고, 2단계 락 메커니즘을 선언적으로 구현했습니다.
+ * * [변경 사항]
+ * - Redis 락 획득 시 '즉시 시도'가 아닌 'waitTime 대기'로 변경하여
+ * 일시적인 락 경합 시 MySQL로 트래픽이 새는 것(Connection Exhaustion)을 방지함.
  */
 @Slf4j
 @Primary
@@ -44,13 +47,21 @@ public class ResilientLockStrategy extends AbstractLockStrategy {
 
         return executor.executeCheckedWithRecovery(
                 // 1. Redis 락 시도 (서킷 브레이커 보호)
-                () -> circuitBreaker.executeCheckedSupplier(() ->
-                        redisLockStrategy.tryLockImmediately(originalKey, leaseTime)),
+                () -> circuitBreaker.executeCheckedSupplier(() -> {
+                    // 🚀 [핵심 수정] tryLockImmediately 대신 executeWithLock을 사용하여 '대기' 기능 활성화
+                    // Redis Pub/Sub을 통해 waitTime 동안 락 획득을 대기합니다.
+                    // 락 획득 성공 시 true를 반환하는 람다를 실행합니다.
+                    return redisLockStrategy.executeWithLock(originalKey, waitTime, leaseTime, () -> true);
+                }),
 
                 // 2. Redis 실패 시 MySQL 락으로 복구 (Fallback)
+                // - CircuitBreaker OPEN (Redis 다운)
+                // - DistributedLockException (Redis 락 획득 타임아웃)
                 (e) -> {
-                    log.warn("🔴 [Resilient Lock] Redis failed (State: {}). Falling back to MySQL: {}",
-                            circuitBreaker.getState(), lockKey);
+                    log.warn("🔴 [Resilient Lock] Redis unavailable (State: {}). Falling back to MySQL: {} | Cause: {}",
+                            circuitBreaker.getState(), lockKey, e.getMessage());
+
+                    // 비상시에는 MySQL에서 즉시 시도 (또는 짧은 대기)
                     return mysqlLockStrategy.tryLockImmediately(originalKey, leaseTime);
                 },
                 context
@@ -73,6 +84,7 @@ public class ResilientLockStrategy extends AbstractLockStrategy {
                     return null;
                 },
                 // MySQL 락 해제 (finally 블록에서 반드시 실행됨)
+                // MySqlNamedLockStrategy의 unlock 로그를 DEBUG로 낮췄으므로 안전함
                 () -> mysqlLockStrategy.unlock(originalKey),
                 context
         );
