@@ -2,7 +2,7 @@
 
 ## 📈 Performance
 > **RPS 235 & 0% Failure Rate** (High-Intensity CPU Task)
-> [👉 View Benchmark Report](./docs/PERFORMANCE.md)
+> [👉 View Benchmark Report](docs/PERFORMANCE_260105.md)
 
 ## 0. Professional Summary
 > **"시스템의 가용성과 확장성을 숫자로 증명하고, 장애 대응 시나리오를 설계하는 엔지니어"**
