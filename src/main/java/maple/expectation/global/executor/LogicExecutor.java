@@ -42,7 +42,7 @@ public interface LogicExecutor {
      * @param context 작업 컨텍스트
      * @return 작업 결과 또는 복구값
      */
-    <T> T executeWithRecovery(
+    <T> T executeOrCatch(
             ThrowingSupplier<T> task,
             Function<Throwable, T> recovery,
             TaskContext context
@@ -95,7 +95,7 @@ public interface LogicExecutor {
      * @return 작업 결과
      * @throws Throwable 원본 체크 예외 전파
      */
-    <T> T executeCheckedWithRecovery(
+    <T> T executeCheckedWithHandler(
             ThrowingSupplier<T> task,
             ThrowingFunction<Throwable, T> recovery,
             TaskContext context

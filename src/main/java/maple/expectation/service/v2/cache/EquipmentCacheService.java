@@ -54,7 +54,7 @@ public class EquipmentCacheService {
         TaskContext context = TaskContext.of("EquipmentCache", "Save", ocid); //
 
         // [패턴 5] executeWithRecovery: 정상 흐름과 셧다운 복구 시나리오를 분리
-        executor.executeWithRecovery(
+        executor.executeOrCatch(
                 () -> {
                     performCaching(ocid, response);  // 1. 캐시 저장 로직
                     triggerAsyncPersist(ocid, response); // 2. 비동기 저장 트리거

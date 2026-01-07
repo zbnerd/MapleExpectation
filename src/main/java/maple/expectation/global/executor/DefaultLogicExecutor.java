@@ -56,7 +56,7 @@ public class DefaultLogicExecutor implements LogicExecutor {
     }
 
     @Override
-    public <T> T executeWithRecovery(
+    public <T> T executeOrCatch(
             ThrowingSupplier<T> task,
             Function<Throwable, T> recovery,
             TaskContext context
@@ -80,7 +80,7 @@ public class DefaultLogicExecutor implements LogicExecutor {
 
     @Override
     public <T> T executeOrDefault(ThrowingSupplier<T> task, T defaultValue, TaskContext context) {
-        return executeWithRecovery(task, e -> defaultValue, context);
+        return executeOrCatch(task, e -> defaultValue, context);
     }
 
     @Override
@@ -153,13 +153,13 @@ public class DefaultLogicExecutor implements LogicExecutor {
     }
 
     @Override
-    public <T> T executeCheckedWithRecovery(
+    public <T> T executeCheckedWithHandler(
             ThrowingSupplier<T> task,
-            ThrowingFunction<Throwable, T> recovery,
+            ThrowingFunction<Throwable, T> handler,
             TaskContext context
     ) throws Throwable {
         Objects.requireNonNull(task, "task");
-        Objects.requireNonNull(recovery, "recovery");
+        Objects.requireNonNull(handler, "recovery");
         Objects.requireNonNull(context, "context");
 
         try {
@@ -167,7 +167,7 @@ public class DefaultLogicExecutor implements LogicExecutor {
         } catch (Error e) {
             throw e;
         } catch (Throwable t) {
-            return recovery.apply(t);
+            return handler.apply(t);
         }
     }
 
@@ -189,6 +189,8 @@ public class DefaultLogicExecutor implements LogicExecutor {
             return fallback.apply(t);
         }
     }
+
+
 
     /**
      * translator를 통해 "던질 primary"를 만든다.

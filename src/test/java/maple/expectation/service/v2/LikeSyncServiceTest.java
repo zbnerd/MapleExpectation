@@ -19,6 +19,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
@@ -82,6 +83,19 @@ class LikeSyncServiceTest {
                 return defaultValue;
             }
         }).when(executor).executeOrDefault(any(), any(), any());
+
+        // [패턴 4] executeOrHandle: Task 실행 시도 -> 예외 시 Handler 실행
+        lenient().doAnswer(inv -> {
+            ThrowingSupplier<?> task = inv.getArgument(0);
+            Function<Throwable, ?> handler = inv.getArgument(1); // 두 번째 인자는 핸들러
+            try {
+                return task.get();
+            } catch (Error err) {
+                throw err; // Error는 복구 금지
+            } catch (Throwable t) {
+                return handler.apply(t); // 예외 발생 시 핸들러 결과 반환
+            }
+        }).when(executor).executeOrCatch(any(), any(), any());
 
         likeSyncService = new LikeSyncService(
                 likeBufferStorage,

@@ -16,18 +16,14 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.LocalDateTime;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
-import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
 
 /**
@@ -63,7 +59,7 @@ class ShutdownDataPersistenceServiceTest {
             } catch (Throwable e) {
                 return recovery.apply(e); // 복구 로직(Optional.empty 등) 수행
             }
-        }).when(executor).executeWithRecovery(any(), any(), any());
+        }).when(executor).executeOrCatch(any(), any(), any());
 
         // 2. execute: 단순 실행
         lenient().doAnswer(inv -> ((ThrowingSupplier<?>) inv.getArgument(0)).get())

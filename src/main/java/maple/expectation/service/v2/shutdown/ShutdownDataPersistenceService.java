@@ -150,7 +150,7 @@ public class ShutdownDataPersistenceService {
      * (try-catch 없이 JSON 파싱 에러를 우아하게 처리)
      */
     public Optional<ShutdownData> readBackupFile(Path filePath) {
-        return executor.executeWithRecovery(
+        return executor.executeOrCatch(
                 // 1. 시도: 파일 읽기 및 역직렬화
                 () -> Optional.of(objectMapper.readValue(Files.readString(filePath), ShutdownData.class)),
 

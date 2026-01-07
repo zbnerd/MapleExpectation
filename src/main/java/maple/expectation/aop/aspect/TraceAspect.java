@@ -89,7 +89,7 @@ public class TraceAspect {
      */
     private Object proceedAndLog(ProceedingJoinPoint joinPoint, TraceState state) throws Throwable {
         // [패턴 5] 실행 중 예외 발생 시 전용 로깅 함수로 복구/기록
-        return executor.executeWithRecovery(
+        return executor.executeOrCatch(
                 joinPoint::proceed,
                 ex -> this.handleTraceException(state, ex),
                 TaskContext.of("Trace", "Proceed", state.methodName)

@@ -27,7 +27,7 @@ public class ObservabilityAspect {
         Timer.Sample sample = Timer.start(meterRegistry);
 
         // ✅ TaskContext 적용: Component="Observability", Operation="Track"
-        return executor.executeWithRecovery(
+        return executor.executeOrCatch(
                 () -> this.executeAndRecordSuccess(joinPoint, metricName, sample),
                 ex -> this.recordFailureAndThrow(metricName, joinPoint, sample, ex),
                 TaskContext.of("Observability", "Track", metricName)

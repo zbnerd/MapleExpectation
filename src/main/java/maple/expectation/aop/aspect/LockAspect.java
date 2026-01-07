@@ -34,7 +34,7 @@ public class LockAspect {
         long leaseSeconds = locked.timeUnit().toSeconds(locked.leaseTime());
 
         // ✅ TaskContext 적용: Component="Lock", Operation="Apply"
-        return executor.executeWithRecovery(
+        return executor.executeOrCatch(
                 () -> this.executeLockProtectedTask(joinPoint, key, waitSeconds, leaseSeconds),
                 e -> this.handleLockFailure(joinPoint, key, e),
                 TaskContext.of("Lock", "Apply", key)

@@ -31,7 +31,7 @@ public class GameCharacterWorker {
         RTopic topic = redissonClient.getTopic("char_event:" + userIgn);
 
         // ✅  try-catch 제거 및 executeWithRecovery로 방송 시나리오 평탄화
-        executor.executeWithRecovery(
+        executor.executeOrCatch(
                 () -> {
                     performCharacterCreation(userIgn, topic);
                     return null;
