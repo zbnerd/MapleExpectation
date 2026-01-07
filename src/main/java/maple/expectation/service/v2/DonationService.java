@@ -34,7 +34,7 @@ public class DonationService {
         TaskContext context = TaskContext.of("Donation", "SendCoffee", requestId);
 
         // ✅ executeWithRecovery: 정상 흐름과 복구 흐름을 선언적으로 분리
-        executor.executeWithRecovery(() -> {
+        executor.executeOrCatch(() -> {
             if (donationHistoryRepository.existsByRequestId(requestId)) {
                 return null;
             }

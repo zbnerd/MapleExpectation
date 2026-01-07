@@ -31,7 +31,7 @@ public class MonitoringAlertService {
         TaskContext context = TaskContext.of("Monitoring", "CheckSaturation"); //
 
         // [패턴 5] executeWithRecovery: 락 획득 실패(Follower)는 스킵하고, 실제 장애는 로그로 기록
-        executor.executeWithRecovery(() -> {
+        executor.executeOrCatch(() -> {
             lockStrategy.executeWithLock("global-monitoring-lock", 0, 4, () -> {
                 performBufferCheck(); // 비즈니스 로직 분리 (평탄화)
                 return null;

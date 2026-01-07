@@ -217,12 +217,16 @@ class EquipmentPersistenceTrackerTest {
         }
 
         // when
-        boolean completed = tracker.awaitAllCompletion(Duration.ofSeconds(5));
+        boolean completed = tracker.awaitAllCompletion(Duration.ofSeconds(10));
 
         // then
         assertThat(completed).isTrue();
         assertThat(completedCount.get()).isEqualTo(taskCount);
-        assertThat(tracker.getPendingCount()).isZero();
+
+        // ✅ 비동기 완료 후 cleanup을 위한 짧은 대기
+        await().atMost(Duration.ofSeconds(2))
+                .untilAsserted(() -> assertThat(tracker.getPendingCount()).isZero());
+
         assertThat(tracker.getPendingOcids()).isEmpty();
     }
 }

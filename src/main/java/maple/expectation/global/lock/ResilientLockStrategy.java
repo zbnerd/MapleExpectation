@@ -45,7 +45,7 @@ public class ResilientLockStrategy extends AbstractLockStrategy {
         String originalKey = lockKey.replace("lock:", "");
         TaskContext context = TaskContext.of("ResilientLock", "TryLockTier", lockKey);
 
-        return executor.executeCheckedWithRecovery(
+        return executor.executeCheckedWithHandler(
                 // 1. Redis 락 시도 (서킷 브레이커 보호)
                 () -> circuitBreaker.executeCheckedSupplier(() -> {
                     // 🚀 [핵심 수정] tryLockImmediately 대신 executeWithLock을 사용하여 '대기' 기능 활성화

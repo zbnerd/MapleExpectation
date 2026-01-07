@@ -42,9 +42,9 @@ public class DataInitializer implements CommandLineRunner {
 
         // 3. [패턴 3] 실패 시 경고 로그만 남기고 무시 (executeOrDefault와 유사한 효과)
         // 여기서는 예외 발생 시 전역 핸들러로 던지지 않고 조용히 넘어가기 위해 Recovery 패턴 활용
-        executor.executeWithRecovery(
+        executor.executeOrCatch(
                 () -> this.createAndSaveDeveloper(context),
-                ex -> this.handleInitConflict(ex),
+                this::handleInitConflict,
                 context
         );
     }

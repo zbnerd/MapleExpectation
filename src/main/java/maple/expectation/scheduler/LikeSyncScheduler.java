@@ -39,7 +39,7 @@ public class LikeSyncScheduler {
         TaskContext context = TaskContext.of("Scheduler", "GlobalSync");
 
         // [패턴 5] executeWithRecovery: 락 획득 실패는 정상 시나리오로, 실제 장애는 로그로 분리
-        executor.executeWithRecovery(() -> {
+        executor.executeOrCatch(() -> {
             lockStrategy.executeWithLock("like-db-sync-lock", 0, 10, () -> {
                 likeSyncService.syncRedisToDatabase();
                 return null;

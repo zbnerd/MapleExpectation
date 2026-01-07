@@ -40,7 +40,7 @@ class DonationServiceFailureTest {
     void setUp() {
         // 🚀 [핵심] LogicExecutor Mock이 내부 람다를 실제로 '호출'하게 만듭니다.
         // Ambiguous call 방지를 위해 정확한 타입을 지정합니다.
-        lenient().when(executor.executeWithRecovery(
+        lenient().when(executor.executeOrCatch(
                 any(ThrowingSupplier.class),
                 any(Function.class),
                 any(TaskContext.class))
