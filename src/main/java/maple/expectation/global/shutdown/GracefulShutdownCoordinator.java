@@ -97,7 +97,7 @@ public class GracefulShutdownCoordinator implements SmartLifecycle {
      * ✅  try-catch를 executeWithRecovery로 대체
      */
     private ShutdownData flushLikeBuffer(ShutdownData backupData) {
-        return executor.executeWithRecovery(
+        return executor.executeOrCatch(
                 () -> {
                     log.info("▶️ [2/4] 로컬 좋아요 버퍼 Flush 중...");
                     FlushResult result = likeSyncService.flushLocalToRedisWithFallback();
@@ -117,7 +117,7 @@ public class GracefulShutdownCoordinator implements SmartLifecycle {
      * ✅  복잡한 다중 catch 로직을 executeWithRecovery 내 분기 처리로 평탄화
      */
     private void syncRedisToDatabase() {
-        executor.executeWithRecovery(
+        executor.executeOrCatch(
                 () -> {
                     log.info("▶️ [3/4] DB 최종 동기화 시도 중...");
                     lockStrategy.executeWithLock("like-db-sync-lock", 3, 10, () -> {

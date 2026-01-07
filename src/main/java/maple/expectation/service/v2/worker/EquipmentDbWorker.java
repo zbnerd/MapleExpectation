@@ -43,7 +43,7 @@ public class EquipmentDbWorker {
         persistenceTracker.trackOperation(ocid, future);
 
         // ✅ [패턴 5] executeWithRecovery: 성공 시 complete, 실패 시 completeExceptionally 수행
-        return executor.executeWithRecovery(
+        return executor.executeOrCatch(
                 () -> {
                     performSave(ocid, response, context);
                     log.debug("💾 [Async DB Save Success] ocid: {}", ocid);

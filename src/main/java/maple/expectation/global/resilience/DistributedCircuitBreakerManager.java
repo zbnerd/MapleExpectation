@@ -73,7 +73,7 @@ public class DistributedCircuitBreakerManager {
         if (!isCriticalService(cbName)) return;
 
         // [패턴 5] executeWithRecovery: 알림 실패가 시스템 전체에 영향을 주지 않도록 보호
-        executor.executeWithRecovery(() -> {
+        executor.executeOrCatch(() -> {
             discordAlertService.sendCriticalAlert(
                     buildAlertTitle(cbName),
                     buildAlertDescription(cbName, fromState, toState),

@@ -65,7 +65,7 @@ public class GameCharacterService {
         TaskContext context = TaskContext.of("Character", "Create", cleanUserIgn);
 
         // ✅ [패턴 5] executeWithRecovery: 정상 로직 실행 후 특정 예외 발생 시 복구(사후 처리) 로직 가동
-        return executor.executeWithRecovery(
+        return executor.executeOrCatch(
                 () -> {
                     log.info("✨ [Creation] 캐릭터 생성 시작: {}", cleanUserIgn);
                     String ocid = nexonApiClient.getOcidByCharacterName(cleanUserIgn).getOcid();

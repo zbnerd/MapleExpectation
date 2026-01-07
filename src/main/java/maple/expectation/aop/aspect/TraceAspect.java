@@ -9,6 +9,7 @@ import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Pointcut;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StopWatch;
 
@@ -22,6 +23,7 @@ import java.util.stream.Collectors;
 @Aspect
 @Component
 @RequiredArgsConstructor
+@Order(-1)
 public class TraceAspect {
 
     @Value("${app.aop.trace.enabled:false}")
@@ -73,7 +75,7 @@ public class TraceAspect {
         String indent = "|  ".repeat(depth);
         String args = formatArgs(joinPoint.getArgs());
 
-        log.debug("{}--> [START] {}.{}(args: [{}])", indent, className, methodName, args);
+        log.info("{}--> [START] {}.{}(args: [{}])", indent, className, methodName, args);
 
         depthHolder.set(depth + 1);
         StopWatch sw = new StopWatch();
@@ -87,7 +89,7 @@ public class TraceAspect {
      */
     private Object proceedAndLog(ProceedingJoinPoint joinPoint, TraceState state) throws Throwable {
         // [패턴 5] 실행 중 예외 발생 시 전용 로깅 함수로 복구/기록
-        return executor.executeWithRecovery(
+        return executor.executeOrCatch(
                 joinPoint::proceed,
                 ex -> this.handleTraceException(state, ex),
                 TaskContext.of("Trace", "Proceed", state.methodName)
@@ -107,7 +109,7 @@ public class TraceAspect {
      * 예외 발생 시 로깅 처리 (Recovery 패턴)
      */
     private Object handleTraceException(TraceState state, Throwable e) {
-        log.debug("{}<X- [EXCEPTION] {}.{} throws {}",
+        log.error("{}<X- [EXCEPTION] {}.{} throws {}",
                 state.indent, state.className, state.methodName, e.getClass().getSimpleName());
 
         // 예외 기록 후 다시 던져서 비즈니스 흐름 유지

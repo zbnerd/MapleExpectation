@@ -10,4 +10,9 @@ public class ExternalServiceException extends ServerBaseException implements Cir
     public ExternalServiceException(String serviceName) {
         super(CommonErrorCode.EXTERNAL_API_ERROR, serviceName);
     }
+
+    // cause를 포함하여 예외 체이닝 지원
+    public ExternalServiceException(String serviceName, Throwable cause) {
+        super(CommonErrorCode.EXTERNAL_API_ERROR, cause, serviceName);
+    }
 }

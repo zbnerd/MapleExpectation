@@ -91,7 +91,7 @@ public class ShutdownDataRecoveryService {
             TaskContext entryContext = TaskContext.of("Recovery", "LikeEntry", userIgn);
 
             // [패턴 5] executeWithRecovery: Redis 시도 -> 실패 시 DB 시도 (Issue #77)
-            executor.executeWithRecovery(
+            executor.executeOrCatch(
                     () -> {
                         redisTemplate.opsForHash().increment(REDIS_HASH_KEY, userIgn, count);
                         log.debug("✅ [Shutdown Recovery] Redis 복구 성공: {} ({}건)", userIgn, count);
@@ -114,7 +114,7 @@ public class ShutdownDataRecoveryService {
     private Void recoverToDbFallback(String userIgn, Long count, Throwable redisEx, AtomicBoolean allSuccess, TaskContext context) {
         log.warn("⚠️ [Shutdown Recovery] Redis 복구 실패, DB 직접 반영 시도: {} ({}건)", userIgn, count);
 
-        return executor.executeWithRecovery(
+        return executor.executeOrCatch(
                 () -> {
                     syncExecutor.executeIncrement(userIgn, count);
                     log.info("✅ [Shutdown Recovery] DB 직접 반영 성공: {} ({}건)", userIgn, count);

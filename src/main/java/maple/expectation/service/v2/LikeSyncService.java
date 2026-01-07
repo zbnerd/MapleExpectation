@@ -10,6 +10,7 @@ import maple.expectation.global.shutdown.dto.FlushResult;
 import maple.expectation.repository.v2.RedisBufferRepository;
 import maple.expectation.service.v2.cache.LikeBufferStorage;
 import maple.expectation.service.v2.shutdown.ShutdownDataPersistenceService;
+import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -57,7 +58,7 @@ public class LikeSyncService {
             if (count <= 0) return;
 
             // [패턴 5] executeWithRecovery: Redis 실패 시 파일 백업 로직으로 자동 복구
-            executor.executeWithRecovery(
+            executor.executeOrCatch(
                     () -> {
                         redisTemplate.opsForHash().increment(REDIS_HASH_KEY, userIgn, count);
                         redisBufferRepository.incrementGlobalCount(count);
@@ -97,42 +98,103 @@ public class LikeSyncService {
     }
 
     private void doSyncProcess(String tempKey) {
-        if (Boolean.FALSE.equals(redisTemplate.hasKey(REDIS_HASH_KEY))) return;
+        if (!redisTemplate.hasKey(REDIS_HASH_KEY)) return;
+
+        // opsForHash는 한 번만 획득 (테스트에서도 mock 1개로 잡힘)
+        var ops = redisTemplate.opsForHash();
 
         redisTemplate.rename(REDIS_HASH_KEY, tempKey);
-        Map<Object, Object> entries = redisTemplate.opsForHash().entries(tempKey);
-        if (entries.isEmpty()) return;
 
-        AtomicLong actualSuccessTotal = new AtomicLong(0);
-
-        entries.forEach((key, value) -> {
-            String userIgn = (String) key;
-            long count = Long.parseLong((String) value);
-
-            if (syncWithRetry(userIgn, count)) {
-                actualSuccessTotal.addAndGet(count);
-            } else {
-                // 개별 항목 실패 시 즉시 복구
-                redisTemplate.opsForHash().increment(REDIS_HASH_KEY, userIgn, count);
-                log.warn("♻️ [Sync Recovery] DB 반영 실패로 Redis 복구: {} ({}건)", userIgn, count);
-            }
-        });
-
-        if (actualSuccessTotal.get() > 0) {
-            redisBufferRepository.decrementGlobalCount(actualSuccessTotal.get());
+        Map<Object, Object> entries = ops.entries(tempKey);
+        if (entries.isEmpty()) {
+            // rename으로 만들어진 tempKey는 정리하고 종료 (cleanup skip 유도)
+            redisTemplate.delete(tempKey);
+            return;
         }
+
+        long successTotal = 0L;
+        boolean needsCleanup = false;
+
+        for (Map.Entry<Object, Object> entry : entries.entrySet()) {
+            String userIgn = (String) entry.getKey();
+            long count = parseToLong(entry.getValue());
+
+            boolean success = syncWithRetry(userIgn, count);
+
+            if (success) {
+                successTotal += count;
+
+                // ✅ 성공 엔트리는 tempKey에서 제거 (HDEL)
+                // (예외가 나더라도 전체 플로우를 끊지 않음: 끝까지 가서 tempKey를 삭제해야 중복 위험이 줄어듦)
+
+                deleteTempEntrySilently(tempKey, ops, userIgn, count);
+                continue;
+            }
+
+            // 실패 엔트리: 즉시 원본 버퍼로 복구 + tempKey에서 제거(HDEL)
+            boolean restored = executor.executeOrCatch(
+                    () -> {
+                        ops.increment(REDIS_HASH_KEY, userIgn, count);
+                        log.warn("♻️ [Sync Recovery] DB 반영 실패로 Redis 복구: {} ({}건)", userIgn, count);
+                        return true;
+                    },
+                    e -> {
+                        log.error("‼️ [Sync Recovery] 원본 버퍼 복구 실패: {} ({}건) - cleanup에서 재시도", userIgn, count, e);
+                        return false;
+                    },
+                    TaskContext.of("Restored", "increment", "REDIS_HASH_KEY="+REDIS_HASH_KEY+" userIgn="+userIgn+" count="+count)
+            );
+
+            if (restored) deleteTempEntrySilently(tempKey, ops, userIgn, count);
+            else needsCleanup = true;
+        }
+
+        // 성공 누적분만 globalCount 차감
+        if (successTotal > 0) {
+            redisBufferRepository.decrementGlobalCount(successTotal);
+        }
+
+        // ✅ 정상 케이스(복구 실패 없음): tempKey 삭제 → cleanupTempKey는 skip
+        // ✅ 복구가 필요한 케이스(needsCleanup=true): tempKey 유지 → cleanupTempKey가 잔여분 복구
+        if (!needsCleanup) {
+            redisTemplate.delete(tempKey);
+        }
+    }
+
+    private void deleteTempEntrySilently(String tempKey, HashOperations<String, Object, Object> ops, String userIgn, long count) {
+        executor.executeOrCatch(
+            () -> {
+                ops.delete(tempKey, userIgn);
+                return null;
+            }, e -> {
+                log.warn("⚠️ [Sync] HDEL 실패(성공 엔트리): {} ({}건) - tempKey delete로 수습 예정", userIgn, count, e);
+                return null;
+            }, TaskContext.of("Ops", "delete", "tempKey=" + tempKey + " userIgn=" + userIgn)
+        );
+    }
+
+    private long parseToLong(Object value) {
+        if (value == null) return 0L;
+        if (value instanceof Number n) return n.longValue();
+        return Long.parseLong(String.valueOf(value));
     }
 
     /**
      * 🚀 [이슈 #123] 자원 정리 및 롤백 로직 격리
+     * - tempKey가 남아있을 때만 실행(= doSyncProcess에서 완전 정리 못한 경우)
      */
     private void cleanupTempKey(String tempKey) {
         executor.executeVoid(() -> {
-            if (Boolean.TRUE.equals(redisTemplate.hasKey(tempKey))) {
-                Map<Object, Object> strandedEntries = redisTemplate.opsForHash().entries(tempKey);
-                strandedEntries.forEach((key, value) ->
-                        redisTemplate.opsForHash().increment(REDIS_HASH_KEY, (String) key, Long.parseLong((String) value))
-                );
+            if (redisTemplate.hasKey(tempKey)) {
+                var ops = redisTemplate.opsForHash();
+
+                Map<Object, Object> strandedEntries = ops.entries(tempKey);
+                strandedEntries.forEach((key, value) -> {
+                    String userIgn = (String) key;
+                    long count = parseToLong(value);
+                    ops.increment(REDIS_HASH_KEY, userIgn, count);
+                });
+
                 redisTemplate.delete(tempKey);
                 log.info("♻️ [Sync Cleanup] 임시 키 데이터를 원본 버퍼로 병합 완료");
             }
@@ -143,7 +205,7 @@ public class LikeSyncService {
         long count = atomicCount.getAndSet(0);
         if (count <= 0) return;
 
-        executor.executeWithRecovery(
+        executor.executeOrCatch(
                 () -> {
                     redisTemplate.opsForHash().increment(REDIS_HASH_KEY, userIgn, count);
                     redisBufferRepository.incrementGlobalCount(count);
@@ -159,7 +221,7 @@ public class LikeSyncService {
 
     private void handleRedisFailure(String userIgn, long count, Throwable e) {
         log.error("🚑 [Redis Down] L2 전송 실패. DB 직접 반영 시도: {}", userIgn);
-        executor.executeWithRecovery(
+        executor.executeOrCatch(
                 () -> {
                     syncExecutor.executeIncrement(userIgn, count);
                     return null;
@@ -182,4 +244,5 @@ public class LikeSyncService {
             return true;
         }, false, TaskContext.of("LikeSync", "DbSyncWithRetry", userIgn));
     }
+
 }
