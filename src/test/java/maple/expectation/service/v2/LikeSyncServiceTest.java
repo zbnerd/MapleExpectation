@@ -1,8 +1,10 @@
 package maple.expectation.service.v2;
 
 import io.github.resilience4j.retry.Retry;
-import maple.expectation.global.executor.DefaultLogicExecutor;
-import maple.expectation.global.executor.strategy.ExceptionTranslator;
+import maple.expectation.global.common.function.ThrowingSupplier;
+import maple.expectation.global.executor.LogicExecutor;
+import maple.expectation.global.executor.TaskContext;
+import maple.expectation.global.executor.function.ThrowingRunnable;
 import maple.expectation.repository.v2.RedisBufferRepository;
 import maple.expectation.service.v2.cache.LikeBufferStorage;
 import maple.expectation.service.v2.shutdown.ShutdownDataPersistenceService;
@@ -16,6 +18,7 @@ import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
@@ -23,7 +26,7 @@ import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.*;
 
 /**
- * 🚀 [Fix] 컴파일 에러를 해결하고 비동기 로직 실행을 보장하는 최종 테스트 코드
+ * ✅ LogicExecutor 계약 기반 테스트 (본연의 비즈니스 로직 검증)
  */
 @ExtendWith(MockitoExtension.class)
 class LikeSyncServiceTest {
@@ -36,18 +39,49 @@ class LikeSyncServiceTest {
     @Mock private RedisBufferRepository redisBufferRepository;
     @Mock private ShutdownDataPersistenceService shutdownDataPersistenceService;
     @Mock private HashOperations<String, Object, Object> hashOperations;
-
-    // 실제 객체를 사용하여 내부 람다 실행 보장
-    private DefaultLogicExecutor logicExecutor;
-    @Mock private ExceptionTranslator exceptionTranslator;
+    @Mock private LogicExecutor executor;
 
     private final Retry likeSyncRetry = Retry.ofDefaults("testRetry");
     private static final String REDIS_HASH_KEY = "buffer:likes";
 
     @BeforeEach
     void setUp() {
-        // 🚀 [해결 1] 생성자 파라미터를 1개로 수정 (image_013d2a 대응)
-        logicExecutor = new DefaultLogicExecutor(exceptionTranslator);
+        // ✅ LogicExecutor 계약 stub (3가지 패턴)
+
+        // [패턴 1] executeWithFinally: task 실행 후 finalizer 반드시 실행
+        lenient().doAnswer(inv -> {
+            ThrowingSupplier<?> task = inv.getArgument(0);
+            Runnable finalizer = inv.getArgument(1);
+            AtomicBoolean finalizerRan = new AtomicBoolean(false);
+
+            try {
+                return task.get();
+            } finally {
+                if (finalizerRan.compareAndSet(false, true)) {
+                    finalizer.run();
+                }
+            }
+        }).when(executor).executeWithFinally(any(), any(), any());
+
+        // [패턴 2] executeVoid: task 실행 (반환값 무시)
+        lenient().doAnswer(inv -> {
+            ThrowingRunnable task = inv.getArgument(0);
+            task.run();
+            return null;
+        }).when(executor).executeVoid(any(ThrowingRunnable.class), any(TaskContext.class));
+
+        // [패턴 3] executeOrDefault: task 실행, 예외 시 기본값 반환 (Error는 즉시 rethrow)
+        lenient().doAnswer(inv -> {
+            ThrowingSupplier<?> task = inv.getArgument(0);
+            Object defaultValue = inv.getArgument(1);
+            try {
+                return task.get();
+            } catch (Error err) {
+                throw err; // Error는 복구 금지
+            } catch (Throwable e) {
+                return defaultValue;
+            }
+        }).when(executor).executeOrDefault(any(), any(), any());
 
         likeSyncService = new LikeSyncService(
                 likeBufferStorage,
@@ -56,11 +90,9 @@ class LikeSyncServiceTest {
                 redisBufferRepository,
                 likeSyncRetry,
                 shutdownDataPersistenceService,
-                logicExecutor
+                executor
         );
 
-        // 🚀 [해결 2] when() 뒤에는 thenReturn()을 사용 (image_013d48 대응)
-        lenient().when(redisTemplate.hasKey(anyString())).thenReturn(true);
         lenient().when(redisTemplate.opsForHash()).thenReturn(hashOperations);
     }
 
@@ -71,8 +103,11 @@ class LikeSyncServiceTest {
         String userIgn = "Gamer";
         Map<Object, Object> redisData = Map.of(userIgn, "5");
 
-        // BDD 스타일(given) 유지
+        // BEFORE rename: REDIS_HASH_KEY 존재
+        given(redisTemplate.hasKey(REDIS_HASH_KEY)).willReturn(true);
         given(hashOperations.entries(anyString())).willReturn(redisData);
+        // AFTER doSyncProcess delete: tempKey 존재하지 않음 (cleanup skip)
+        given(redisTemplate.hasKey(argThat(key -> key.contains(":sync:")))).willReturn(false);
 
         // [When]
         likeSyncService.syncRedisToDatabase();
@@ -81,7 +116,12 @@ class LikeSyncServiceTest {
         verify(redisTemplate, times(1)).rename(eq(REDIS_HASH_KEY), anyString());
         verify(syncExecutor, times(1)).executeIncrement(eq(userIgn), eq(5L));
         verify(redisBufferRepository, times(1)).decrementGlobalCount(5L);
-        verify(redisTemplate, times(1)).delete(anyString());
+
+        // ✅ [핵심] 성공한 항목은 tempKey field에서 삭제됨 (HDEL)
+        verify(hashOperations, times(1)).delete(anyString(), eq(userIgn));
+
+        // ✅ [핵심] 정상 경로는 doSyncProcess에서 tempKey 삭제 (cleanup skip)
+        verify(redisTemplate, times(1)).delete(argThat((String k) -> k.contains(":sync:")));
     }
 
     @Test
@@ -91,9 +131,12 @@ class LikeSyncServiceTest {
         String userIgn = "Gamer";
         Map<Object, Object> redisData = Map.of(userIgn, "10");
 
+        given(redisTemplate.hasKey(REDIS_HASH_KEY)).willReturn(true);
         given(hashOperations.entries(anyString())).willReturn(redisData);
+        // AFTER doSyncProcess: tempKey는 여전히 존재 (실패 항목이 남아있지 않음)
+        // 실패 항목은 doSyncProcess에서 즉시 원본 버퍼로 복구했으므로 tempKey는 비어있음
+        given(redisTemplate.hasKey(argThat(key -> key.contains(":sync:")))).willReturn(false);
 
-        // 🚀 [해결 3] 매처를 메서드 인자에 직접 사용하여 mismatch 해결
         willThrow(new RuntimeException("DB Fail"))
                 .given(syncExecutor).executeIncrement(anyString(), anyLong());
 
@@ -103,7 +146,15 @@ class LikeSyncServiceTest {
         // [Then]
         // 비즈니스 로직: 실패 시 차감하지 않음
         verify(redisBufferRepository, never()).decrementGlobalCount(anyLong());
-        // 기술적 로직: 실패해도 임시 키 삭제(Clean-up)는 수행되어야 함
-        verify(redisTemplate, times(1)).delete(anyString());
+
+        // ✅ [핵심] 실패 항목은 원본 버퍼로 즉시 복구
+        verify(hashOperations, times(1)).increment(eq(REDIS_HASH_KEY), eq(userIgn), eq(10L));
+
+        // ✅ [핵심] 실패 항목도 tempKey field에서 제거됨 (HDEL)
+        verify(hashOperations, times(1)).delete(anyString(), eq(userIgn));
+
+        // ✅ [핵심] doSyncProcess에서 tempKey 삭제 (cleanup skip)
+        verify(redisTemplate, times(1)).delete(argThat((String k) -> k.contains(":sync:")));
     }
+
 }

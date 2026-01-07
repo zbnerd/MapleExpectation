@@ -103,7 +103,7 @@ public class MySqlNamedLockStrategy implements LockStrategy {
 
     @Override
     public void unlock(String key) {
-        log.debug("ℹ\uFE0F [MySQL Lock] unlock() 호출됨 (세션 기반이라 실제 동작 안 함)");
+    log.debug("ℹ\uFE0F [MySQL Lock] unlock() 호출됨 (세션 기반이라 실제 동작 안 함)");
     }
 
     private String buildLockKey(String key) {
