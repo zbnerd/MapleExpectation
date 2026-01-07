@@ -1,25 +1,38 @@
 package maple.expectation.service.v2.mapper;
 
+import lombok.RequiredArgsConstructor;
 import maple.expectation.dto.CubeCalculationInput;
 import maple.expectation.external.dto.v2.EquipmentResponse;
 import maple.expectation.external.dto.v2.TotalExpectationResponse;
 import maple.expectation.util.StatParser;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Stream;
 
+/**
+ * 장비 데이터 매퍼 (LogicExecutor 환경 대응 및 평탄화 완료)
+ */
 @Component
+@RequiredArgsConstructor // ✅ StatParser 주입을 위해 추가
 public class EquipmentMapper {
 
-    public CubeCalculationInput toCubeInput(EquipmentResponse.ItemEquipment item) {
-        List<String> options = new ArrayList<>();
-        if (item.getPotentialOption1() != null) options.add(item.getPotentialOption1());
-        if (item.getPotentialOption2() != null) options.add(item.getPotentialOption2());
-        if (item.getPotentialOption3() != null) options.add(item.getPotentialOption3());
+    private final StatParser statParser; // ✅ Bean 주입 (static 호출 제거)
 
+    public CubeCalculationInput toCubeInput(EquipmentResponse.ItemEquipment item) {
+        // [평탄화] if문 나열 대신 Stream을 사용하여 기술적 노이즈 제거
+        List<String> options = Stream.of(
+                        item.getPotentialOption1(),
+                        item.getPotentialOption2(),
+                        item.getPotentialOption3()
+                )
+                .filter(Objects::nonNull)
+                .toList();
+
+        // ✅ StatParser를 인스턴스(statParser)로 호출하여 컴파일 오류 해결
         int level = (item.getBaseOption() != null)
-                ? StatParser.parseNum(item.getBaseOption().getBaseEquipmentLevel())
+                ? statParser.parseNum(item.getBaseOption().getBaseEquipmentLevel())
                 : 0;
 
         return CubeCalculationInput.builder()

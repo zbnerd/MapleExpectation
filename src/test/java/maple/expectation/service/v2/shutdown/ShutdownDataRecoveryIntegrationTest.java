@@ -32,7 +32,7 @@ import static org.awaitility.Awaitility.await;
 @ActiveProfiles("test")
 @DisplayName("Shutdown 백업/복구 E2E 통합 테스트")
 @Timeout(value = 2, unit = TimeUnit.MINUTES)
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class ShutdownDataRecoveryIntegrationTest extends IntegrationTestSupport {
 
     @Autowired private ShutdownDataPersistenceService persistenceService;
@@ -50,6 +50,13 @@ class ShutdownDataRecoveryIntegrationTest extends IntegrationTestSupport {
         redisTemplate.execute((org.springframework.data.redis.core.RedisCallback<Object>) connection -> {
             connection.serverCommands().flushAll();
             return null;
+        });
+
+        // ✅ Redis flush가 완료될 때까지 대기 (다른 테스트의 비동기 작업 영향 차단)
+        await().atMost(3, TimeUnit.SECONDS).pollInterval(100, TimeUnit.MILLISECONDS).untilAsserted(() -> {
+            Long keyCount = redisTemplate.execute((org.springframework.data.redis.core.RedisCallback<Long>)
+                connection -> connection.serverCommands().dbSize());
+            assertThat(keyCount).as("Redis가 완전히 flush되어야 함").isEqualTo(0L);
         });
 
         // 2. 내부 캐시 및 트래커 리셋

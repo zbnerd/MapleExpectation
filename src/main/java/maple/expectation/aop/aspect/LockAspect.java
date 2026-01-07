@@ -3,16 +3,17 @@ package maple.expectation.aop.aspect;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.aop.annotation.Locked;
+import maple.expectation.aop.util.CustomSpelParser;
+import maple.expectation.global.common.function.ThrowingSupplier;
 import maple.expectation.global.error.exception.DistributedLockException;
+import maple.expectation.global.error.exception.InternalSystemException;
+import maple.expectation.global.executor.LogicExecutor;
+import maple.expectation.global.executor.TaskContext;
 import maple.expectation.global.lock.LockStrategy;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
-import org.aspectj.lang.reflect.MethodSignature;
 import org.springframework.core.annotation.Order;
-import org.springframework.expression.ExpressionParser;
-import org.springframework.expression.spel.standard.SpelExpressionParser;
-import org.springframework.expression.spel.support.StandardEvaluationContext;
 import org.springframework.stereotype.Component;
 
 @Slf4j
@@ -23,55 +24,51 @@ import org.springframework.stereotype.Component;
 public class LockAspect {
 
     private final LockStrategy lockStrategy;
-    private final ExpressionParser parser = new SpelExpressionParser();
+    private final LogicExecutor executor;
+    private final CustomSpelParser spelParser;
 
     @Around("@annotation(locked)")
-    public Object applyLock(ProceedingJoinPoint joinPoint, Locked locked) throws Throwable {
+    public Object applyLock(ProceedingJoinPoint joinPoint, Locked locked) {
         String key = getDynamicKey(joinPoint, locked.key());
+        long waitSeconds = locked.timeUnit().toSeconds(locked.waitTime());
+        long leaseSeconds = locked.timeUnit().toSeconds(locked.leaseTime());
 
-        // 🎯 SSOT: 어노테이션에서 락 타이밍 정책 읽기
-        long waitTime = locked.waitTime();
-        long leaseTime = locked.leaseTime();
-        long waitSeconds = locked.timeUnit().toSeconds(waitTime);
-        long leaseSeconds = locked.timeUnit().toSeconds(leaseTime);
+        // ✅ TaskContext 적용: Component="Lock", Operation="Apply"
+        return executor.executeOrCatch(
+                () -> this.executeLockProtectedTask(joinPoint, key, waitSeconds, leaseSeconds),
+                e -> this.handleLockFailure(joinPoint, key, e),
+                TaskContext.of("Lock", "Apply", key)
+        );
+    }
 
-        try {
-            // 1️⃣ [Distributed Lock] 어노테이션 설정값으로 락 획득
-            // 1등이 넥슨 API에서 OCID를 가져와 DB에 저장할 시간을 충분히 벌어줍니다.
-            return lockStrategy.executeWithLock(key, waitSeconds, leaseSeconds, () -> {
-                log.debug("🔑 [Locked Aspect] 락 획득 성공: {}", key);
-                return joinPoint.proceed();
-            });
-        } catch (DistributedLockException e) {
-            // 2️⃣ [Fallback] 대기 시간 내에 락을 못 잡은 경우 (나머지 99명)
-            log.warn("⏭️ [Locked Timeout] {} - 락 획득 실패. 직접 조회를 시도합니다.", key);
+    private Object executeLockProtectedTask(ProceedingJoinPoint joinPoint, String key, long waitSeconds, long leaseSeconds) throws Throwable {
+        return lockStrategy.executeWithLock(key, waitSeconds, leaseSeconds, this.createLockedTask(joinPoint, key));
+    }
 
-            // 락은 못 잡았지만, 그 사이 1등이 DB에 캐릭터를 생성했을 확률이 매우 높습니다.
-            // 에러를 던지는 대신 조회를 시도하여 유저에게 정상 응답을 줍니다.
+    private ThrowingSupplier<Object> createLockedTask(ProceedingJoinPoint joinPoint, String key) {
+        return () -> {
+            log.debug("🔑 [Locked Aspect] 락 획득 성공: {}", key);
             return joinPoint.proceed();
-        } catch (Throwable e) {
-            // 비즈니스 예외 등은 그대로 전파
-            throw e;
+        };
+    }
+
+    private Object handleLockFailure(ProceedingJoinPoint joinPoint, String key, Throwable e) {
+        if (e instanceof DistributedLockException) {
+            log.warn("⏭️ [Locked Timeout] {} - 락 획득 실패. 직접 조회를 시도합니다.", key);
+            return proceedWithoutLock(joinPoint, key);
         }
+        throw new InternalSystemException("DistributedLockExecution:" + key, e);
+    }
+
+    private Object proceedWithoutLock(ProceedingJoinPoint joinPoint, String key) {
+        // ✅ TaskContext 적용: Component="Lock", Operation="Fallback"
+        return executor.execute(
+                joinPoint::proceed,
+                TaskContext.of("Lock", "Fallback", key)
+        );
     }
 
     private String getDynamicKey(ProceedingJoinPoint joinPoint, String keyExpression) {
-        MethodSignature signature = (MethodSignature) joinPoint.getSignature();
-        StandardEvaluationContext context = new StandardEvaluationContext();
-
-        String[] parameterNames = signature.getParameterNames();
-        Object[] args = joinPoint.getArgs();
-
-        if (parameterNames != null) {
-            for (int i = 0; i < parameterNames.length; i++) {
-                context.setVariable(parameterNames[i], args[i]);
-            }
-        }
-
-        try {
-            return parser.parseExpression(keyExpression).getValue(context, String.class);
-        } catch (Exception e) {
-            return joinPoint.getSignature().toShortString();
-        }
+        return spelParser.parse(joinPoint, keyExpression);
     }
 }

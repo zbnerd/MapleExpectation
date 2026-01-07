@@ -4,130 +4,109 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.common.function.ThrowingSupplier;
 import maple.expectation.global.error.exception.DistributedLockException;
+import maple.expectation.global.executor.LogicExecutor;
+import maple.expectation.global.executor.TaskContext;
+import maple.expectation.global.executor.strategy.ExceptionTranslator;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.context.annotation.Profile;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.SingleConnectionDataSource;
 import org.springframework.stereotype.Component;
 
+import java.sql.Connection;
+
 /**
- * MySQL Named Lock 기반 Fallback 락 전략
- *
- * [사용 시점]
- * - Redis가 장애 상황일 때 Circuit Breaker에 의해 자동으로 전환됨
- * - ResilientLockStrategy에서 Tier 2 fallback으로 사용
- *
- * [MySQL Named Lock 특징]
- * - SELECT GET_LOCK(name, timeout): 락 획득 (1=성공, 0=타임아웃, NULL=에러)
- * - SELECT RELEASE_LOCK(name): 락 해제 (1=성공, 0=다른 스레드 소유, NULL=존재안함)
- * - 세션 기반: 커넥션이 닫히면 자동으로 락 해제
- * - 비재진입적(Non-reentrant): 동일 세션에서도 재획득 불가
- *
- * [중요 설계]
- * - 전용 커넥션 풀 사용: 메인 풀 고갈 방지
- * - waitTime 정확히 전달: ✅ 체크포인트 3번 준수
- * - finally 블록에서 항상 해제: 데드락 방지
+ * MySQL Named Lock 전략 (100% 평탄화 및 보일러플레이트 박멸 버전)
  */
 @Slf4j
 @Component
-@Profile("!test")  // 테스트 환경에서는 GuavaLockStrategy 사용
 @RequiredArgsConstructor
 public class MySqlNamedLockStrategy implements LockStrategy {
 
     @Qualifier("lockJdbcTemplate")
     private final JdbcTemplate lockJdbcTemplate;
+    private final LogicExecutor executor;
 
     @Override
-    public <T> T executeWithLock(String key, ThrowingSupplier<T> task) throws Throwable {
-        return executeWithLock(key, 10, 20, task);
+    public <T> T executeWithLock(String key, long waitTime, long leaseTime, ThrowingSupplier<T> task) {
+        String lockKey = buildLockKey(key);
+        TaskContext context = TaskContext.of("Lock", "MySqlExecute", key);
+
+        // [패턴 6] 최상단에서 모든 예외를 도메인 예외로 세탁
+        return executor.executeWithTranslation(
+                () -> this.executeInSession(lockKey, waitTime, task, context),
+                ExceptionTranslator.forLock(),
+                context
+        );
     }
 
     @Override
-    public <T> T executeWithLock(String key, long waitTime, long leaseTime, ThrowingSupplier<T> task) throws Throwable {
-        String lockName = "maple_lock:" + key;
+    public <T> T executeWithLock(String key, ThrowingSupplier<T> task) {
+        return executeWithLock(key, 10, 20, task);
+    }
 
-        try {
-            // 🔑 MySQL Named Lock 획득
-            // ✅ 체크포인트 3: waitTime을 그대로 전달 (하드코딩 X)
-            Integer lockResult = lockJdbcTemplate.queryForObject(
-                "SELECT GET_LOCK(?, ?)",
-                Integer.class,
-                lockName,
-                waitTime  // ✅ 어노테이션에서 넘어온 waitTime 사용
-            );
+    /**
+     * 🚀 평탄화의 핵심: 람다 중첩과 try-catch를 메서드 추출로 해결
+     */
+    private <T> T executeInSession(String lockKey, long waitTime, ThrowingSupplier<T> task, TaskContext context) {
+        // 1. 명시적 캐스팅으로 람다 모호성 해결 (괄호 한 번만 열림)
+        return lockJdbcTemplate.execute((ConnectionCallback<T>) conn ->
+                this.runLogicWithPinnedSession(conn, lockKey, waitTime, task, context)
+        );
+    }
 
-            if (lockResult == null || lockResult != 1) {
-                log.warn("⏭️ [MySQL Lock] '{}' acquisition failed (result: {})", lockName, lockResult);
-                throw new DistributedLockException("MySQL lock acquisition timeout: " + key);
-            }
+    /**
+     * P0: 세션 고정 환경에서 로직 실행 (패턴 1 활용)
+     * 이 메서드는 체크 예외를 던지지 않으므로 콜백 내부에서 안전하게 실행됩니다.
+     */
+    private <T> T runLogicWithPinnedSession(Connection conn, String lockKey, long waitTime, ThrowingSupplier<T> task, TaskContext context) {
+        JdbcTemplate sessionJdbc = new JdbcTemplate(new SingleConnectionDataSource(conn, true));
 
-            try {
-                log.info("🔓 [MySQL Lock] '{}' acquired successfully (fallback mode)", lockName);
-                return task.get();
-            } finally {
-                // 🔒 반드시 락 해제 (데드락 방지)
-                releaseLock(lockName);
-            }
-        } catch (DistributedLockException e) {
-            throw e;
-        } catch (Exception e) {
-            log.error("❌ [MySQL Lock] Unexpected error for key: {}", key, e);
-            throw new DistributedLockException("MySQL lock operation failed: " + key, e);
+        // [패턴 1] try-finally 키워드 대신 executeWithFinally 사용
+        return executor.executeWithFinally(
+                () -> this.acquireAndExecute(sessionJdbc, lockKey, waitTime, task),
+                () -> this.releaseLock(sessionJdbc, lockKey, context),
+                context
+        );
+    }
+
+    private <T> T acquireAndExecute(JdbcTemplate sessionJdbc, String lockKey, long waitTime, ThrowingSupplier<T> task) throws Throwable {
+        if (!tryAcquire(sessionJdbc, lockKey, waitTime)) {
+            throw new DistributedLockException("락 획득 타임아웃: " + lockKey);
         }
+        log.info("🔓 [MySQL Lock] '{}' 획득 성공", lockKey);
+        return task.get();
+    }
+
+    private boolean tryAcquire(JdbcTemplate sessionJdbc, String lockKey, long waitTime) {
+        return sessionJdbc.queryForObject(
+                "SELECT GET_LOCK(?, ?)", Integer.class, lockKey, waitTime) == 1;
+    }
+
+    private void releaseLock(JdbcTemplate sessionJdbc, String lockKey, TaskContext context) {
+        executor.executeVoid(
+                () -> sessionJdbc.queryForObject("SELECT RELEASE_LOCK(?)", Integer.class, lockKey),
+                context
+        );
+        log.debug("🔒 [MySQL Lock] '{}' 해제 완료", lockKey);
     }
 
     @Override
     public boolean tryLockImmediately(String key, long leaseTime) {
-        String lockName = "maple_lock:" + key;
-        try {
-            // MySQL Named Lock은 즉시 획득 시도 (waitTime = 0)
-            Integer lockResult = lockJdbcTemplate.queryForObject(
-                "SELECT GET_LOCK(?, 0)",
-                Integer.class,
-                lockName
-            );
-
-            if (lockResult != null && lockResult == 1) {
-                log.debug("🔓 [MySQL Lock] '{}' 즉시 획득 성공.", lockName);
-                return true;
-            } else {
-                log.debug("⏭️ [MySQL Lock] '{}' 즉시 획득 실패 (result: {}).", lockName, lockResult);
-                return false;
-            }
-        } catch (Exception e) {
-            log.error("❌ [MySQL Lock] '{}' 즉시 획득 중 오류: {}", lockName, e.getMessage());
-            return false;
-        }
+        String lockKey = buildLockKey(key);
+        return executor.executeOrDefault(
+                () -> lockJdbcTemplate.queryForObject("SELECT GET_LOCK(?, 0)", Integer.class, lockKey) == 1,
+                false,
+                TaskContext.of("Lock", "MySqlTryImmediate", key)
+        );
     }
 
     @Override
     public void unlock(String key) {
-        String lockName = "maple_lock:" + key;
-        releaseLock(lockName);
+    log.debug("ℹ\uFE0F [MySQL Lock] unlock() 호출됨 (세션 기반이라 실제 동작 안 함)");
     }
 
-    /**
-     * MySQL Named Lock 해제
-     *
-     * @param lockName 해제할 락 이름
-     */
-    private void releaseLock(String lockName) {
-        try {
-            Integer releaseResult = lockJdbcTemplate.queryForObject(
-                "SELECT RELEASE_LOCK(?)",
-                Integer.class,
-                lockName
-            );
-
-            if (releaseResult != null && releaseResult == 1) {
-                log.debug("🔒 [MySQL Lock] '{}' released successfully", lockName);
-            } else {
-                log.warn("⚠️ [MySQL Lock] '{}' release returned: {} (0=not held, NULL=doesn't exist)",
-                    lockName, releaseResult);
-            }
-        } catch (Exception e) {
-            log.error("❌ [MySQL Lock] Failed to release '{}': {}", lockName, e.getMessage());
-            // 해제 실패는 로그만 남기고 예외는 던지지 않음
-            // (커넥션이 닫히면 자동으로 락 해제되므로)
-        }
+    private String buildLockKey(String key) {
+        return "maple_lock:" + key;
     }
 }

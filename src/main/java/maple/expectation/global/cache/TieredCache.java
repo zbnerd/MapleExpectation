@@ -1,13 +1,24 @@
 package maple.expectation.global.cache;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import maple.expectation.global.executor.LogicExecutor;
+import maple.expectation.global.executor.TaskContext;
+import maple.expectation.global.executor.strategy.ExceptionTranslator;
 import org.springframework.cache.Cache;
+
 import java.util.concurrent.Callable;
 
+/**
+ * 2층 구조 캐시 (L1: Caffeine, L2: Redis)
+ * [변경점] LogicExecutor 적용으로 try-catch 박멸 및 관측성 확보
+ */
+@Slf4j
 @RequiredArgsConstructor
 public class TieredCache implements Cache {
     private final Cache l1; // Caffeine (Local)
     private final Cache l2; // Redis (Distributed)
+    private final LogicExecutor executor; // ✅ LogicExecutor 주입
 
     @Override
     public String getName() { return l2.getName(); }
@@ -16,56 +27,74 @@ public class TieredCache implements Cache {
 
     @Override
     public ValueWrapper get(Object key) {
-        // 1. L1(로컬) 확인
-        ValueWrapper wrapper = l1.get(key);
-        if (wrapper != null) return wrapper;
+        TaskContext context = TaskContext.of("Cache", "Get", key.toString());
 
-        // 2. L1 미스 시 L2(Redis) 확인
-        wrapper = l2.get(key);
-        if (wrapper != null) {
-            l1.put(key, wrapper.get()); // Backfill: Redis 데이터를 로컬에 채움
-        }
-        return wrapper;
+        // [패턴 1] execute를 사용하여 캐시 조회 과정 모니터링
+        return executor.execute(() -> {
+            // 1. L1 확인
+            ValueWrapper wrapper = l1.get(key);
+            if (wrapper != null) return wrapper;
+
+            // 2. L2 확인 및 Backfill
+            wrapper = l2.get(key);
+            if (wrapper != null) l1.put(key, wrapper.get());
+
+            return wrapper;
+        }, context);
     }
 
     @Override
     public void put(Object key, Object value) {
-        l1.put(key, value);
-        l2.put(key, value);
+        executor.executeVoid(() -> {
+            l1.put(key, value);
+            l2.put(key, value);
+        }, TaskContext.of("Cache", "Put", key.toString()));
     }
 
     @Override
     public void evict(Object key) {
-        l1.evict(key);
-        l2.evict(key);
+        executor.executeVoid(() -> {
+            l1.evict(key);
+            l2.evict(key);
+        }, TaskContext.of("Cache", "Evict", key.toString()));
     }
 
     @Override
     public void clear() {
-        l1.clear();
-        l2.clear();
+        executor.executeVoid(() -> {
+            l1.clear();
+            l2.clear();
+        }, TaskContext.of("Cache", "Clear"));
     }
 
-    // (기타 get<T>, get(key, Callable) 메서드들도 동일한 L1->L2 로직 적용)
     @Override
     public <T> T get(Object key, Class<T> type) {
-        T value = l1.get(key, type);
-        if (value != null) return value;
-        value = l2.get(key, type);
-        if (value != null) l1.put(key, value);
-        return value;
+        ValueWrapper wrapper = get(key);
+        return wrapper != null ? type.cast(wrapper.get()) : null;
     }
 
+    /**
+     * ✅ P0: try-catch 박멸의 핵심
+     * valueLoader 실행 중 발생하는 예외를 LogicExecutor가 처리하도록 위임
+     */
     @Override
+    @SuppressWarnings("unchecked")
     public <T> T get(Object key, Callable<T> valueLoader) {
-        ValueWrapper wrapper = get(key);
-        if (wrapper != null) return (T) wrapper.get();
-        try {
-            T value = valueLoader.call();
-            put(key, value);
-            return value;
-        } catch (Exception e) {
-            throw new ValueRetrievalException(key, valueLoader, e);
-        }
+        TaskContext context = TaskContext.of("Cache", "GetWithLoader", key.toString());
+
+        // ✅ [패턴 6] executeWithTranslation 사용
+        // try-catch 없이도 ValueRetrievalException이 정확히 던져집니다.
+        return executor.executeWithTranslation(
+                () -> {
+                    ValueWrapper wrapper = get(key);
+                    if (wrapper != null) return (T) wrapper.get();
+
+                    T value = valueLoader.call();
+                    put(key, value);
+                    return value;
+                },
+                ExceptionTranslator.forCache(key, valueLoader), // 전용 번역기 투입
+                context
+        );
     }
 }

@@ -3,8 +3,10 @@ package maple.expectation.service.v2.shutdown;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.global.executor.LogicExecutor;
+import maple.expectation.global.executor.TaskContext;
+import maple.expectation.global.executor.strategy.ExceptionTranslator;
 import maple.expectation.global.shutdown.dto.ShutdownData;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -18,20 +20,15 @@ import java.util.*;
 import java.util.stream.Stream;
 
 /**
- * Shutdown 시 데이터를 로컬 파일로 백업하고 복구하는 서비스
- * <p>
- * Redis/DB 장애 시 데이터 유실을 방지하기 위해 로컬 파일 시스템에
- * JSON 형식으로 데이터를 저장합니다.
- * <p>
- * Atomic write 패턴 (temp + move)을 사용하여 파일 쓰기 중
- * 시스템 장애 발생 시에도 부분 파일이 생성되지 않도록 보장합니다.
+ * 🍁 셧다운 데이터 영속화 서비스
+ * LogicExecutor를 사용하여 try-catch 없이 선언적으로 파일 IO 및 복구 로직을 수행합니다.
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class ShutdownDataPersistenceService {
 
     private final ObjectMapper objectMapper;
+    private final LogicExecutor executor;
 
     @Value("${app.shutdown.backup-directory:/tmp/maple-shutdown}")
     private String backupDirectory;
@@ -39,151 +36,80 @@ public class ShutdownDataPersistenceService {
     @Value("${app.shutdown.archive-directory:/tmp/maple-shutdown/processed}")
     private String archiveDirectory;
 
-    /**
-     * -- GETTER --
-     *  현재 서버 인스턴스 ID를 반환합니다.
-     *
-     */
     @Getter
-    private final String instanceId = resolveInstanceId();
+    private final String instanceId;
 
-    /**
-     * 서비스 초기화 시 백업 디렉토리 생성
-     */
+    public ShutdownDataPersistenceService(ObjectMapper objectMapper, LogicExecutor executor) {
+        this.objectMapper = objectMapper;
+        this.executor = executor;
+        this.instanceId = resolveInstanceId();
+    }
+
     @PostConstruct
     public void init() {
-        try {
-            Path backupPath = Paths.get(backupDirectory);
-            Path archivePath = Paths.get(archiveDirectory);
-
-            Files.createDirectories(backupPath);
-            Files.createDirectories(archivePath);
-
-            log.info("✅ [Shutdown Persistence] 백업 디렉토리 초기화 완료");
-            log.info("   - 백업: {}", backupPath.toAbsolutePath());
-            log.info("   - 아카이브: {}", archivePath.toAbsolutePath());
-            log.info("   - Instance ID: {}", instanceId);
-
-        } catch (IOException e) {
-            log.error("❌ [Shutdown Persistence] 백업 디렉토리 생성 실패", e);
-            throw new IllegalStateException("백업 디렉토리를 생성할 수 없습니다", e);
-        }
+        executor.executeWithTranslation(() -> {
+            Files.createDirectories(Paths.get(backupDirectory));
+            Files.createDirectories(Paths.get(archiveDirectory));
+            log.info("✅ [Shutdown Persistence] 디렉토리 초기화 완료 (ID: {})", instanceId);
+            return null;
+        }, ExceptionTranslator.forFileIO(), TaskContext.of("Persistence", "Init"));
     }
 
     /**
-     * 전체 Shutdown 데이터를 파일로 저장
-     * <p>
-     * Atomic write 패턴을 사용하여 파일 쓰기 중 장애 발생 시에도
-     * 부분 파일이 생성되지 않도록 보장합니다.
-     *
-     * @param data 저장할 Shutdown 데이터
-     * @return 저장된 파일 경로
+     * 데이터를 JSON 파일로 원자적(Atomic)으로 저장합니다.
      */
     public Path saveShutdownData(ShutdownData data) {
-        if (data.isEmpty()) {
-            log.debug("📝 [Shutdown Persistence] 저장할 데이터 없음");
-            return null;
-        }
+        if (data == null || data.isEmpty()) return null;
 
-        try {
-            Path backupPath = Paths.get(backupDirectory);
-            String filename = generateFilename();
-            Path targetFile = backupPath.resolve(filename);
+        TaskContext context = TaskContext.of("Persistence", "SaveData");
+        Path backupPath = Paths.get(backupDirectory);
+        Path targetFile = backupPath.resolve(generateFilename());
 
-            // Atomic write: temp file + move
+        return executor.execute(() -> {
             Path tempFile = Files.createTempFile(backupPath, "shutdown-", ".tmp");
 
-            try {
-                String json = objectMapper.writerWithDefaultPrettyPrinter()
-                        .writeValueAsString(data);
-
-                Files.writeString(tempFile, json, StandardOpenOption.WRITE);
-
-                // Atomic move
-                Files.move(tempFile, targetFile,
-                        StandardCopyOption.REPLACE_EXISTING,
-                        StandardCopyOption.ATOMIC_MOVE);
-
-                log.warn("💾 [Shutdown Persistence] 백업 파일 저장 완료");
-                log.warn("   - 파일: {}", targetFile.getFileName());
-                log.warn("   - 항목: {} 개", data.getTotalItems());
-
-                return targetFile;
-
-            } catch (Exception e) {
-                // Cleanup temp file on failure
-                Files.deleteIfExists(tempFile);
-                throw e;
-            }
-
-        } catch (Exception e) {
-            log.error("❌ [Shutdown Persistence] 백업 파일 저장 실패", e);
-            return null;
-        }
+            return executor.executeWithFinally(
+                    () -> performAtomicWrite(data, tempFile, targetFile, context),
+                    () -> cleanupTempFile(tempFile),
+                    context
+            );
+        }, context);
     }
 
     /**
-     * 개별 좋아요 항목을 파일에 추가
-     * <p>
-     * 기존 백업 파일이 있으면 병합하고, 없으면 새로 생성합니다.
-     * 🚀 [수정] 이슈 #123: 데이터 중복 복구 방지를 위해 새 파일 작성 후 이전 파일들 삭제
-     *
-     * @param userIgn 사용자 IGN
-     * @param count   좋아요 수
+     * 기존 백업 파일에 '좋아요' 데이터를 병합하여 저장합니다.
      */
     public void appendLikeEntry(String userIgn, long count) {
-        try {
-            // 1. 기존 백업 파일 목록 미리 확보
+        TaskContext context = TaskContext.of("Persistence", "AppendLike", userIgn);
+
+        executor.executeVoid(() -> {
             List<Path> oldFiles = findAllBackupFiles();
+            ShutdownData existingData = loadLatestFromList(oldFiles);
 
-            // 2. 가장 최근 데이터 로드 및 병합
-            ShutdownData existingData = oldFiles.isEmpty() ?
-                    ShutdownData.empty(instanceId) :
-                    readBackupFile(oldFiles.get(0)).orElse(ShutdownData.empty(instanceId));
-
-            Map<String, Long> mergedLikeBuffer = new HashMap<>(
+            Map<String, Long> mergedBuffer = new HashMap<>(
                     existingData.likeBuffer() != null ? existingData.likeBuffer() : Map.of()
             );
-            mergedLikeBuffer.merge(userIgn, count, Long::sum);
+            mergedBuffer.merge(userIgn, count, Long::sum);
 
             ShutdownData newData = new ShutdownData(
-                    LocalDateTime.now(),
-                    instanceId,
-                    mergedLikeBuffer,
-                    existingData.equipmentPending()
+                    LocalDateTime.now(), instanceId, mergedBuffer, existingData.equipmentPending()
             );
 
-            // 3. 새 백업 파일 저장
-            Path newFile = saveShutdownData(newData);
-
-            // 💡 [핵심] 성공적으로 새 파일을 썼다면 기존 파일들은 삭제하여 중복 복구 차단
-            if (newFile != null) {
-                for (Path oldFile : oldFiles) {
-                    Files.deleteIfExists(oldFile);
-                }
+            if (saveShutdownData(newData) != null) {
+                deleteFiles(oldFiles);
             }
-
-        } catch (Exception e) {
-            log.error("❌ [Shutdown Persistence] 좋아요 항목 추가 실패: {}", userIgn, e);
-        }
+        }, context);
     }
 
     /**
-     * 미완료 Equipment OCID 목록을 파일에 저장
-     * 🚀 [수정] 이슈 #123: 중복 방지를 위한 병합 및 기존 파일 정리 로직 적용
-     *
-     * @param ocids 미완료 OCID 목록
+     * 처리되지 않은 장비 목록을 백업 파일에 추가합니다.
      */
     public void savePendingEquipment(List<String> ocids) {
-        if (ocids == null || ocids.isEmpty()) {
-            return;
-        }
+        if (ocids == null || ocids.isEmpty()) return;
 
-        try {
+        executor.executeVoid(() -> {
             List<Path> oldFiles = findAllBackupFiles();
-            ShutdownData existingData = oldFiles.isEmpty() ?
-                    ShutdownData.empty(instanceId) :
-                    readBackupFile(oldFiles.get(0)).orElse(ShutdownData.empty(instanceId));
+            ShutdownData existingData = loadLatestFromList(oldFiles);
 
             List<String> mergedEquipment = new ArrayList<>(
                     existingData.equipmentPending() != null ? existingData.equipmentPending() : List.of()
@@ -191,150 +117,114 @@ public class ShutdownDataPersistenceService {
             mergedEquipment.addAll(ocids);
 
             ShutdownData newData = new ShutdownData(
-                    LocalDateTime.now(),
-                    instanceId,
-                    existingData.likeBuffer(),
-                    mergedEquipment
+                    LocalDateTime.now(), instanceId, existingData.likeBuffer(), mergedEquipment
             );
 
-            Path newFile = saveShutdownData(newData);
-
-            // 기존 파편화된 백업 파일 정리
-            if (newFile != null) {
-                for (Path oldFile : oldFiles) {
-                    Files.deleteIfExists(oldFile);
-                }
+            if (saveShutdownData(newData) != null) {
+                deleteFiles(oldFiles);
+                log.warn("💾 [Persistence] Equipment 목록 업데이트 완료: {}건", ocids.size());
             }
-
-            log.warn("💾 [Shutdown Persistence] Equipment 목록 저장 완료: {}건", ocids.size());
-
-        } catch (Exception e) {
-            log.error("❌ [Shutdown Persistence] Equipment 목록 저장 실패", e);
-        }
+        }, TaskContext.of("Persistence", "SavePending", "size:" + ocids.size()));
     }
 
     /**
-     * 백업 디렉토리의 모든 백업 파일을 찾아 반환
-     *
-     * @return 백업 파일 경로 리스트 (생성 시각 역순)
+     * 백업 디렉토리 내의 모든 JSON 파일을 생성 시간 역순으로 조회합니다.
      */
     public List<Path> findAllBackupFiles() {
-        try {
+        return executor.executeWithTranslation(() -> {
             Path backupPath = Paths.get(backupDirectory);
-
-            if (!Files.exists(backupPath)) {
-                return List.of();
-            }
+            if (!Files.exists(backupPath)) return List.of();
 
             try (Stream<Path> paths = Files.walk(backupPath, 1)) {
-                return paths
-                        .filter(Files::isRegularFile)
+                return paths.filter(Files::isRegularFile)
                         .filter(path -> path.toString().endsWith(".json"))
                         .filter(path -> !path.getFileName().toString().startsWith("."))
                         .sorted(Comparator.comparing(this::getFileCreationTime).reversed())
                         .toList();
             }
-
-        } catch (IOException e) {
-            log.error("❌ [Shutdown Persistence] 백업 파일 스캔 실패", e);
-            return List.of();
-        }
+        }, ExceptionTranslator.forFileIO(), TaskContext.of("Persistence", "ScanFiles"));
     }
 
     /**
-     * 백업 파일을 읽어서 ShutdownData로 반환
-     *
-     * @param filePath 백업 파일 경로
-     * @return ShutdownData 객체
+     * 🚀 [수정] executeWithRecovery를 사용하여 파일 손상 시 Optional.empty를 반환합니다.
+     * (try-catch 없이 JSON 파싱 에러를 우아하게 처리)
      */
     public Optional<ShutdownData> readBackupFile(Path filePath) {
-        try {
-            String json = Files.readString(filePath);
-            ShutdownData data = objectMapper.readValue(json, ShutdownData.class);
-            return Optional.of(data);
+        return executor.executeOrCatch(
+                // 1. 시도: 파일 읽기 및 역직렬화
+                () -> Optional.of(objectMapper.readValue(Files.readString(filePath), ShutdownData.class)),
 
-        } catch (IOException e) {
-            log.error("❌ [Shutdown Persistence] 백업 파일 읽기 실패: {}", filePath, e);
-            return Optional.empty();
-        }
+                // 2. 복구: 에러 발생 시(파일 손상 등) 비어있는 Optional 반환
+                (e) -> {
+                    log.error("⚠️ 파일 손상으로 읽기 실패: {} | 사유: {}", filePath, e.getMessage());
+                    return Optional.empty();
+                },
+
+                TaskContext.of("Persistence", "ReadFile", filePath.getFileName().toString())
+        );
     }
 
     /**
-     * 처리 완료된 백업 파일을 아카이브 디렉토리로 이동
-     *
-     * @param filePath 백업 파일 경로
+     * 처리가 완료된 파일을 아카이브 디렉토리로 이동시킵니다.
      */
     public void archiveFile(Path filePath) {
-        try {
-            Path archivePath = Paths.get(archiveDirectory);
-            Path targetPath = archivePath.resolve(filePath.getFileName());
-
-            Files.move(filePath, targetPath,
-                    StandardCopyOption.REPLACE_EXISTING);
-
-            log.info("📦 [Shutdown Persistence] 백업 파일 아카이브: {}", filePath.getFileName());
-
-        } catch (IOException e) {
-            log.error("❌ [Shutdown Persistence] 파일 아카이브 실패: {}", filePath, e);
-        }
+        executor.executeWithTranslation(() -> {
+            Files.move(filePath, Paths.get(archiveDirectory).resolve(filePath.getFileName()), StandardCopyOption.REPLACE_EXISTING);
+            log.info("📦 [Persistence] 아카이브 완료: {}", filePath.getFileName());
+            return null;
+        }, ExceptionTranslator.forFileIO(), TaskContext.of("Persistence", "Archive", filePath.getFileName().toString()));
     }
 
-    /**
-     * 가장 최근 백업 파일을 로드
-     */
-    private Optional<ShutdownData> loadLatestBackup() {
-        List<Path> backupFiles = findAllBackupFiles();
-        if (backupFiles.isEmpty()) {
-            return Optional.empty();
-        }
-        return readBackupFile(backupFiles.get(0));
+    public Path getBackupDirectory() {
+        return Paths.get(backupDirectory);
     }
 
-    /**
-     * 백업 파일명 생성
-     * 패턴: shutdown-{yyyyMMdd-HHmmss}-{uuid}.json
-     */
-    private String generateFilename() {
-        String timestamp = LocalDateTime.now()
-                .format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
-        String uuid = UUID.randomUUID().toString().substring(0, 8);
-        return String.format("shutdown-%s-%s.json", timestamp, uuid);
-    }
-
-    /**
-     * 파일 생성 시각 조회 (정렬용)
-     */
-    private LocalDateTime getFileCreationTime(Path path) {
-        try {
-            return LocalDateTime.ofInstant(
-                    Files.getLastModifiedTime(path).toInstant(),
-                    java.time.ZoneId.systemDefault()
-            );
-        } catch (IOException e) {
-            return LocalDateTime.MIN;
-        }
-    }
-
-    /**
-     * 아카이브 디렉토리 경로를 반환합니다.
-     *
-     * @return 아카이브 디렉토리 Path
-     */
     public Path getArchiveDirectory() {
         return Paths.get(archiveDirectory);
     }
 
-    /**
-     * 서버 인스턴스 ID 생성
-     * 호스트명을 우선 사용하고, 실패 시 UUID 사용
-     */
-    private static String resolveInstanceId() {
-        try {
-            return InetAddress.getLocalHost().getHostName();
-        } catch (Exception e) {
-            String uuid = UUID.randomUUID().toString();
-            log.warn("⚠️ [Shutdown Persistence] 호스트명 조회 실패, UUID 사용: {}", uuid);
-            return uuid;
-        }
+    // --- Private Helper Methods (모두 LogicExecutor 활용) ---
+
+    private Path performAtomicWrite(ShutdownData data, Path tempFile, Path targetFile, TaskContext context) throws IOException {
+        String json = executor.executeWithTranslation(
+                () -> objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(data),
+                ExceptionTranslator.forJson(), context);
+
+        Files.writeString(tempFile, json, StandardOpenOption.WRITE);
+        Files.move(tempFile, targetFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        log.warn("💾 [Persistence] 백업 완료: {}", targetFile.getFileName());
+        return targetFile;
+    }
+
+    private void cleanupTempFile(Path tempFile) {
+        executor.executeVoid(() -> Files.deleteIfExists(tempFile), TaskContext.of("Persistence", "CleanupTemp"));
+    }
+
+    private void deleteFiles(List<Path> files) {
+        files.forEach(file -> executor.executeVoid(() -> Files.deleteIfExists(file), TaskContext.of("Persistence", "DeleteOld")));
+    }
+
+    private ShutdownData loadLatestFromList(List<Path> files) {
+        return files.isEmpty() ? ShutdownData.empty(instanceId) :
+                readBackupFile(files.get(0)).orElse(ShutdownData.empty(instanceId));
+    }
+
+    private LocalDateTime getFileCreationTime(Path path) {
+        return executor.executeOrDefault(() -> LocalDateTime.ofInstant(
+                        Files.getLastModifiedTime(path).toInstant(), java.time.ZoneId.systemDefault()),
+                LocalDateTime.MIN, TaskContext.of("Persistence", "GetFileTime"));
+    }
+
+    private String generateFilename() {
+        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+        return String.format("shutdown-%s-%s.json", timestamp, UUID.randomUUID().toString().substring(0, 8));
+    }
+
+    private String resolveInstanceId() {
+        return executor.executeOrDefault(
+                () -> InetAddress.getLocalHost().getHostName(),
+                UUID.randomUUID().toString(),
+                TaskContext.of("Persistence", "ResolveInstanceId")
+        );
     }
 }

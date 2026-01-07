@@ -1,5 +1,9 @@
 # 🍁 MapleExpectation
 
+## 📈 Performance
+> **RPS 235 & 0% Failure Rate** (High-Intensity CPU Task)
+> [👉 View Benchmark Report](docs/PERFORMANCE_260105.md)
+
 ## 0. Professional Summary
 > **"시스템의 가용성과 확장성을 숫자로 증명하고, 장애 대응 시나리오를 설계하는 엔지니어"**
 >
@@ -83,3 +87,4 @@
 ### 2. 장애 감지 및 알림 Flow (Alerting)
 - **임계치 초과 시:** `DiscordAlertService`를 통해 개발팀 채널로 즉시 Critical Alert 전송.
 - **추적 ID 활용:** 모든 에러 로그는 **MDC 기반 8자리 `requestId`**와 연결되어 빠른 MTTR 확보.
+

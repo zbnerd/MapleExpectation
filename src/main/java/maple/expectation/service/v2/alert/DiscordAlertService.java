@@ -19,7 +19,7 @@ public class DiscordAlertService {
     @Value("${discord.webhook-url}")
     private String webhookUrl;
 
-    public void sendCriticalAlert(String title, String description, Exception e) {
+    public void sendCriticalAlert(String title, String description, Throwable e) {
         // 1. 메시지 생성은 Factory에게 위임
         DiscordMessage payload = messageFactory.createCriticalEmbed(title, description, e);
 
