@@ -122,7 +122,7 @@ public class ResilientNexonApiClient implements NexonApiClient {
         log.error("[Scenario B] 캐시 부재. 알림 발송 시도");
         sendAlertBestEffort(ocid, alertCause);
 
-        // ★ P0-3 금융급: 도메인 예외 cause는 원본 t 유지 (래퍼 컨텍스트 보존)
+        // ★ P0-3 : 도메인 예외 cause는 원본 t 유지 (래퍼 컨텍스트 보존)
         // - 관측(로그/알림): rootCause 사용 (위에서 처리)
         // - 트러블슈팅: wrapper(CompletionException 등)도 의미 있으므로 원본 유지
         return failedFuture(new ExternalServiceException(SERVICE_NEXON, t));
@@ -134,7 +134,7 @@ public class ResilientNexonApiClient implements NexonApiClient {
      * <p>알림 실패가 fallback의 반환 계약을 깨지 않도록 비동기 분리 + 예외 흡수</p>
      * <p>전용 alertTaskExecutor 사용: commonPool 오염/경합 방지</p>
      *
-     * <h4>예외 처리 정책 (금융급)</h4>
+     * <h4>예외 처리 정책 </h4>
      * <ul>
      *   <li><b>RejectedExecutionException</b>: 정책적 드롭 → DEBUG (정상 시나리오)</li>
      *   <li><b>기타 예외</b>: 실제 알림 실패 → WARN</li>

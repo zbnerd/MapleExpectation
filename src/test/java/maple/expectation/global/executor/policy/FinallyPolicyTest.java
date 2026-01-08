@@ -29,7 +29,7 @@ class FinallyPolicyTest {
     class ConstructorAndFailureModeTest {
 
         @Test
-        @DisplayName("기본 생성자는 PROPAGATE 모드여야 한다 (금융급 기본값)")
+        @DisplayName("기본 생성자는 PROPAGATE 모드여야 한다 ( 기본값)")
         void defaultConstructor_mustBe_propagateMode() {
             // given
             FinallyPolicy policy = new FinallyPolicy(() -> {});
@@ -125,7 +125,7 @@ class FinallyPolicyTest {
         }
 
         @Test
-        @DisplayName("SWALLOW: cleanup Error → Error는 반드시 throw (금융급 필수)")
+        @DisplayName("SWALLOW: cleanup Error → Error는 반드시 throw ( 필수)")
         void swallow_cleanupError_mustPropagate() {
             // given: SWALLOW 모드여도 Error는 절대 삼켜지면 안 됨
             OutOfMemoryError cleanupError = new OutOfMemoryError("cleanup OOM");

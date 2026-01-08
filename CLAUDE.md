@@ -264,3 +264,5 @@ private List<Dto> processActiveUser(Long id) {
 - **Update Rule:** 새로운 라이브러리나 기술 스택 추가 시, 해당 분야의 Best Practice를 조사하여 `CLAUDE.md`를 즉시 업데이트합니다.
 - **Definition of Done:** 코드가 작동하는 것을 넘어, 모든 테스트가 통과하고 위 클린 코드 원칙을 준수했을 때 작업을 완료한 것으로 간주합니다.
 - **Context Awareness:** 수정하려는 코드가 TieredCache나 LockStrategy 등 공통 모듈에 영향을 주는지 LogicExecutor의 파급력을 고려하여 작업합니다.
+- **PR base:** PR남길경우 PR base는 반드시 develop으로 해야합니다.
+- **try catch:** 예외처리시 try catch finally를 직접 사용해서는 안되며, 반드시 LogicExecutor또는 CheckedLogicExecutor중에 적절한 메서드를 사용하여 예외처리를 해야합니다. 

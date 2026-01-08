@@ -116,7 +116,7 @@ graph TB
 **해결 목표:**
 - **Zero Try-Catch in Business Layer**: 비즈니스 로직에서 try-catch 완전 제거
 - **Policy 기반 실행**: 예외 처리를 정책으로 표준화
-- **금융급 규약**: Error 우선 전파, Primary 예외 보존, suppressed 체인
+- ** 규약**: Error 우선 전파, Primary 예외 보존, suppressed 체인
 
 ### 3.2 Policy Pipeline 흐름도
 

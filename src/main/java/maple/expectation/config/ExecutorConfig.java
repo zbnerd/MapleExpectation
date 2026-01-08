@@ -34,7 +34,7 @@ public class ExecutorConfig {
     private static final Logger log = LoggerFactory.getLogger(ExecutorConfig.class);
 
     // ========================================
-    // Alert Executor Rejection Policy (P0-1 금융급)
+    // Alert Executor Rejection Policy (P0-1 )
     // ========================================
 
     /** 로그 샘플링 간격: 1초에 1회만 WARN 로그 (log storm 방지) */
@@ -43,7 +43,7 @@ public class ExecutorConfig {
     private static final AtomicLong rejectedSinceLastLog = new AtomicLong(0);
 
     /**
-     * Best-effort + Future 완료 보장 정책 (금융급)
+     * Best-effort + Future 완료 보장 정책 
      *
      * <h4>핵심 계약</h4>
      * <ul>
@@ -151,7 +151,7 @@ public class ExecutorConfig {
      *   <li><b>Best-effort 알림</b>: 알림은 부가 기능이므로, 폭주 시 드롭/종료 시 즉시 종료</li>
      * </ul>
      *
-     * <h4>운영 정책 (금융급)</h4>
+     * <h4>운영 정책 </h4>
      * <ul>
      *   <li><b>RejectedExecution</b>: LOGGING_ABORT_POLICY 사용
      *     <ul>
@@ -165,7 +165,7 @@ public class ExecutorConfig {
      *
      * <h4>⚠️ DiscardPolicy 금지 이유</h4>
      * <p>DiscardPolicy는 조용히 드롭하여 CompletableFuture.runAsync()의 Future가 영원히 pending됨.
-     * 이는 메모리 누수와 관측성 누락을 유발하므로 금융급에서는 사용 금지.</p>
+     * 이는 메모리 누수와 관측성 누락을 유발하므로 에서는 사용 금지.</p>
      */
     @Bean(name = "alertTaskExecutor")
     @ConditionalOnMissingBean(name = "alertTaskExecutor")
@@ -178,7 +178,7 @@ public class ExecutorConfig {
         executor.setAllowCoreThreadTimeOut(true);
         executor.setKeepAliveSeconds(30);
 
-        // Best-effort 정책: 드롭 허용 + Future 완료 보장 + 샘플링 로깅 (금융급)
+        // Best-effort 정책: 드롭 허용 + Future 완료 보장 + 샘플링 로깅 
         executor.setRejectedExecutionHandler(LOGGING_ABORT_POLICY);
 
         // Shutdown 정책: 대기 없이 즉시 종료 (알림은 flush 불필요)

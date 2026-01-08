@@ -3,7 +3,7 @@
 ## 0. 문서 목적
 
 1. LogicExecutor의 실행/관측/정리 로직을 **Policy Pipeline**으로 표준화한다.
-2. 예외 보존(Primary + suppressed), Error 우선, task-only timing, LIFO after를 **"금융급" 규약**으로 고정한다.
+2. 예외 보존(Primary + suppressed), Error 우선, task-only timing, LIFO after를 **"" 규약**으로 고정한다.
 3. 호출부 122개 수정 없이 **내부 구현만 투명하게 교체**한다(Backward Compatibility).
 
 ## 1. 목표(Goals)
@@ -65,7 +65,7 @@
 1. **before()는 성공했을 때만** after 정리가 필요한 상태를 남겨야 한다.
 2. **before() 실패 시** policy 내부에서 자체 정리를 완료해야 한다(entered에 포함되지 않기 때문).
 
-### 4.5 관측 훅 Error 중단 규약 (금융급 안정성)
+### 4.5 관측 훅 Error 중단 규약 ( 안정성)
 
 1. **관측 훅 실행 중 Error 발생 시 추가 관측 훅 호출을 즉시 중단**한다.
 2. 예시 시나리오:
@@ -200,7 +200,7 @@ public interface ExecutionPolicy {
    - FinallyPolicy처럼 실행별로 생성되는 정책은 불변(immutable) 객체로서 **thread-confined 형태로 허용**된다
 2. **before 성공 시에만** after 정리가 필요한 상태를 남긴다(entered pairing)
 
-## 10. ExecutionPipeline 설계(금융급 규약 강제)
+## 10. ExecutionPipeline 설계( 규약 강제)
 
 ### 10.1 안전 가드(Safety Guards)
 
@@ -234,7 +234,7 @@ public ExecutionPipeline(List<ExecutionPolicy> policies) {
 **효과**:
 - Spring 주입 List 변경으로부터 격리
 - null 요소 방지 (List.copyOf는 null 요소 시 NPE)
-- 금융급 안전성 (외부 변경 불가)
+-  안전성 (외부 변경 불가)
 
 ## 11. Pipeline 알고리즘(최종 의사코드)
 
@@ -396,7 +396,7 @@ private void invokeOnFailure(ExecutionPolicy p, Throwable primary, long e, TaskC
         restoreInterruptIfNeeded(t);
         log.warn("⚠️ [Policy:ON_FAILURE] failed. policy={}, context={}",
                  p.getClass().getName(), ctx.toTaskName(), t);
-        // non-Error SWALLOW + 금융급 보존 (Error는 위에서 즉시 throw)
+        // non-Error SWALLOW +  보존 (Error는 위에서 즉시 throw)
         addSuppressedSafely(primary, t); // ✅ self-suppression 방어
     }
 }
@@ -419,7 +419,7 @@ private void invokeAfter(ExecutionPolicy p, ExecutionOutcome outcome, long e, Ta
 }
 ```
 
-### 11.4 suppressed 안전 추가 헬퍼 (금융급 필수)
+### 11.4 suppressed 안전 추가 헬퍼 ( 필수)
 
 ```java
 // ✅ 필수 수정 4 + 6: self-suppression 방어 + suppression disabled 대응
@@ -533,7 +533,7 @@ private void restoreInterruptIfNeeded(Throwable t) {
 
 ## 15. 테스트 전략(필수)
 
-### 15.1 ExecutionPipelineTest (금융급 검증)
+### 15.1 ExecutionPipelineTest ( 검증)
 
 #### 순서 보장 테스트
 
@@ -635,7 +635,7 @@ private void restoreInterruptIfNeeded(Throwable t) {
 - [ ] CheckedLogicExecutor + DefaultCheckedLogicExecutor
 - [ ] DefaultLogicExecutor 내부 Pipeline 전환(호출부 변경 없음)
 
-### 금융급 규약 검증
+###  규약 검증
 
 - [ ] task-only timing + single measurement 통과
 - [ ] after LIFO 통과
@@ -686,17 +686,17 @@ test/
 5. `src/main/java/maple/expectation/global/executor/policy/ExecutionPipeline.java` (3대 Safety Guards 적용)
 6. `src/main/java/maple/expectation/global/executor/policy/LoggingPolicy.java` (Stateless, Duration 통일)
 7. `src/main/java/maple/expectation/global/executor/policy/FinallyPolicy.java` (Stateless)
-8. `src/main/java/maple/expectation/global/executor/function/CheckedSupplier.java` (금융급 문서)
-9. `src/main/java/maple/expectation/global/executor/function/CheckedRunnable.java` (금융급 문서)
-10. `src/main/java/maple/expectation/global/executor/CheckedLogicExecutor.java` (금융급 계약 명세)
-11. `src/main/java/maple/expectation/global/executor/DefaultCheckedLogicExecutor.java` (금융급 구현)
+8. `src/main/java/maple/expectation/global/executor/function/CheckedSupplier.java` ( 문서)
+9. `src/main/java/maple/expectation/global/executor/function/CheckedRunnable.java` ( 문서)
+10. `src/main/java/maple/expectation/global/executor/CheckedLogicExecutor.java` ( 계약 명세)
+11. `src/main/java/maple/expectation/global/executor/DefaultCheckedLogicExecutor.java` ( 구현)
 12. `src/main/java/maple/expectation/config/ExecutorConfig.java` (ExecutionPipeline Bean 설정)
 
 ### 수정 대상
 1. `src/main/java/maple/expectation/global/executor/DefaultLogicExecutor.java` (Safety Guard 1 적용)
 
 ### 테스트 파일
-1. `src/test/java/maple/expectation/global/executor/policy/ExecutionPipelineTest.java` (Safety Guards 2&3 + 금융급 검증)
+1. `src/test/java/maple/expectation/global/executor/policy/ExecutionPipelineTest.java` (Safety Guards 2&3 +  검증)
 2. `src/test/java/maple/expectation/global/executor/policy/LoggingPolicyTest.java`
 3. `src/test/java/maple/expectation/global/executor/policy/FinallyPolicyTest.java`
 4. `src/test/java/maple/expectation/global/executor/DefaultLogicExecutorTest.java` (Safety Guard 1 검증)
@@ -718,7 +718,7 @@ test/
 1. **구현 일관성**: 해석의 여지 없이 구현 가능
 2. **테스트 = 규약**: 각 테이블 행이 테스트 케이스
 3. **면접 방어**: 표 하나로 "왜 관측 실패가 비즈니스를 죽이지 않나", "언제 죽이나", "예외는 왜 보존되나" 설명 가능
-4. **금융급 완결성**: Primary 예외 보존, outcome 타이밍 정확성, entered pairing 모두 명시
+4. ** 완결성**: Primary 예외 보존, outcome 타이밍 정확성, entered pairing 모두 명시
 5. **규약의 구조 강제**: Lifecycle/Observability 훅 분리로 FailureMode 적용 범위를 코드 구조로 고정
 
 ---
@@ -740,7 +740,7 @@ test/
 - @see 상호 참조 추가
 
 #### 2. CheckedLogicExecutor (인터페이스)
-- 금융급 계약에 "RuntimeException 투명 전파" 항목 추가
+-  계약에 "RuntimeException 투명 전파" 항목 추가
 - "checked 예외 계약 타입 보존"으로 표현 정확화
 - expectedExceptionType 파라미터에 계약 위반 동작 명시
 - @throws IllegalArgumentException 추가 (RuntimeException 지정 시)
@@ -750,7 +750,7 @@ test/
 - RuntimeException 링크 표준화 (`{@link RuntimeException}`)
 
 #### 3. DefaultCheckedLogicExecutor (구현체)
-- 금융급 보장사항 문서를 인터페이스와 통일
+-  보장사항 문서를 인터페이스와 통일
   - "checked 예외 계약 타입 보존" 명시
   - "RuntimeException 투명 전파" 추가
   - "계약 타입으로 RuntimeException 지정 금지" 추가
@@ -760,7 +760,7 @@ test/
 
 ### 리뷰 주요 피드백 반영
 1. **Javadoc 표준 준수**: `<p>` 태그 사용 최소화, `{@link}` 표준화
-2. **구현-문서 정합성**: 인터페이스와 구현체의 금융급 계약 표현 통일
+2. **구현-문서 정합성**: 인터페이스와 구현체의  계약 표현 통일
 3. **null 안전성**: 모든 getMessage() 호출에 null 체크
 4. **타입 식별성**: getSimpleName() 대신 getName() 사용 (운영 관측성)
 5. **오용 방지**: RuntimeException 금지 경고를 모든 관련 파일에 일관되게 추가
@@ -797,7 +797,7 @@ if (currentPrimary instanceof Error) {
 **문제:** onSuccess 훅 실행 후 outcome 확정 시, 훅에서 Error 발생 시 outcome이 틀어짐
 **해결:** task.get() 성공 직후 즉시 `taskOutcome = SUCCESS;` 확정
 
-### 필수 수정 4: addSuppressedSafely() 헬퍼 도입 (금융급 필수) ✅
+### 필수 수정 4: addSuppressedSafely() 헬퍼 도입 ( 필수) ✅
 **문제:** `primary.addSuppressed(primary)` self-suppression 시 IllegalArgumentException 발생
 **해결:**
 ```java
@@ -924,7 +924,7 @@ public class ExecutorConfig {
 - ✅ 4.5 onSuccess Error 시 outcome=SUCCESS 고정 검증 (after 훅에 전달되는 outcome이 task 기준으로 고정되는지)
 - **효과**: entered pairing + outcome 고정 규약을 테스트로 직접 검증
 
-### 4차 정밀 보완 완료 ✅ (Final v4 - 금융급 문서 완결)
+### 4차 정밀 보완 완료 ✅ (Final v4 -  문서 완결)
 
 **1. 문서 레벨 정밀화 (모순/공격 포인트 사전 차단)**
 
@@ -943,7 +943,7 @@ public class ExecutorConfig {
   - **효과**: PHASE 4와 패턴 통일, "이론상 null 가능" 질문 원천 차단
 
 - ✅ **SG4 (Policy List Immutability)**: `this.policies = List.copyOf(policies);` 생성자 규약 추가
-  - **효과**: Spring 주입 List 변경 격리 + null 요소 방지 + 금융급 안전성
+  - **효과**: Spring 주입 List 변경 격리 + null 요소 방지 +  안전성
 
 - ✅ **섹션 4.5-5 task Error 시 onFailure 호출 정책**: "task가 Error로 실패해도 onFailure는 best-effort로 실행"
   - **효과**: "Error 상황에서 관측 훅 처리" 문서 결정 완결 (선택 A: 현행 유지)
@@ -956,16 +956,16 @@ public class ExecutorConfig {
 - ✅ **primary=Error 경로 onFailure 호출 검증**: 4.5-5 정책을 테스트로 직접 검증
   - **효과**: "Error 시 관측 훅 처리" 정책 완전 닫힘
 
-### 최종 판정 (Final v4 - 금융급 문서 완결)
+### 최종 판정 (Final v4 -  문서 완결)
 
-✅ **기능/안전성**: 실전 투입 가능 수준 (운영 등급 + 금융급 정밀도)
+✅ **기능/안전성**: 실전 투입 가능 수준 (운영 등급 +  정밀도)
 - Primary 보존, 첫 Error 우선, task-only timing, LIFO after, entered pairing
 - Interrupt 복원, suppression disabled 방어, Error 중단 규약 모두 **phase 분리 구조로 강제**
 - **예외 마스킹 리스크 완전 제거** (PHASE 4 finally throw 제거)
 - **관측성 보장** (@Order 최우선 실행으로 LoggingPolicy Error 시에도 실행 완료)
 - **불변 스냅샷 + null 방어** (SG4 + PHASE 3 elapsedNanos 방어 패턴)
 
-✅ **"모순 0 / 금융급 문서"**: 문서=구현 지시서 수준 달성 (v4 정밀 보완 완료)
+✅ **"모순 0 /  문서"**: 문서=구현 지시서 수준 달성 (v4 정밀 보완 완료)
 - **4.5 규약 ↔ 11.2 의사코드 정합성 확보** (phase 분리)
 - FailureMode 동작 차이 명문화 (BEFORE/AFTER 각각)
 - Stateless 정의 정밀화 (FinallyPolicy 허용 조건)
