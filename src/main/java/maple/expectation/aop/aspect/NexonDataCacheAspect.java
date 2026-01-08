@@ -64,7 +64,6 @@ public class NexonDataCacheAspect {
     }
 
     private Object executeAsLeader(ProceedingJoinPoint joinPoint, String ocid, Class<?> returnType, RCountDownLatch latch) {
-        // ✅ TaskContext 적용: String 오류 해결
         return executor.execute(
                 () -> this.fetchAndCacheData(joinPoint, ocid, returnType, latch),
                 TaskContext.of("NexonCache", "Leader", ocid)
@@ -75,7 +74,7 @@ public class NexonDataCacheAspect {
         Object result = joinPoint.proceed();
 
         if (result instanceof CompletableFuture<?> future) {
-            // ✅ P0-1 수정: 예외 전파 보존 + latch 정리 보장
+            // P0-1 수정: 예외 전파 보존 + latch 정리 보장
             return future.handle((res, ex) -> executor.executeWithFinally(
                     () -> {
                         if (ex != null) throw toRuntimeException(ex);  // 예외 전파 보존
