@@ -1,20 +1,37 @@
 package maple.expectation.global.lock;
 
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.global.common.function.ThrowingSupplier;
+import maple.expectation.global.error.exception.DistributedLockException;
+import maple.expectation.global.error.exception.base.ClientBaseException;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
+import org.redisson.client.RedisException;
+import org.redisson.client.RedisTimeoutException;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
+import java.lang.reflect.UndeclaredThrowableException;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
+
 /**
- * 🛡️ 회복력 있는 락 전략 (Redis 우선, 실패 시 MySQL로 복구)
- * LogicExecutor를 사용하여 모든 try-catch를 제거하고, 2단계 락 메커니즘을 선언적으로 구현했습니다.
- * * [변경 사항]
- * - Redis 락 획득 시 '즉시 시도'가 아닌 'waitTime 대기'로 변경하여
- * 일시적인 락 경합 시 MySQL로 트래픽이 새는 것(Connection Exhaustion)을 방지함.
+ * 회복력 있는 락 전략 (Redis 우선, 실패 시 MySQL로 복구)
+ *
+ * <p>LogicExecutor.executeWithFallback()을 사용하여 단일 파이프라인에서
+ * try-catch/throws 없이 예외 필터링을 구현합니다.
+ *
+ * <p><b>예외 필터링 정책</b>:
+ * <ul>
+ *   <li>비즈니스 예외 (ClientBaseException): Fallback 없이 즉시 전파</li>
+ *   <li>인프라 예외 (Redis/CircuitBreaker): MySQL Fallback 허용</li>
+ *   <li>Unknown 예외 (NPE 등): 즉시 전파 (버그 조기 발견)</li>
+ *   <li>Checked Throwable: 정책 위반이므로 fail-fast (IllegalStateException)</li>
+ * </ul>
  */
 @Slf4j
 @Primary
@@ -29,83 +46,206 @@ public class ResilientLockStrategy extends AbstractLockStrategy {
             @Qualifier("redisDistributedLockStrategy") LockStrategy redisLockStrategy,
             MySqlNamedLockStrategy mysqlLockStrategy,
             CircuitBreakerRegistry circuitBreakerRegistry,
-            LogicExecutor executor) {
-        super(executor); // 부모 추상 클래스에 executor 전달
+            LogicExecutor executor
+    ) {
+        super(executor);
         this.redisLockStrategy = redisLockStrategy;
         this.mysqlLockStrategy = mysqlLockStrategy;
         this.circuitBreaker = circuitBreakerRegistry.circuitBreaker("redisLock");
     }
 
+    // ========================================
+    // 핵심 메서드: executeWithLock Override
+    // ========================================
+
     /**
-     * [Tier 1: Redis] 시도 -> 실패 시 [Tier 2: MySQL]로 복구
-     * executor.executeCheckedWithRecovery를 사용하여 try-catch 없이 흐름을 제어합니다.
+     * Tiered Lock 실행 (Redis → MySQL Fallback)
+     *
+     * <p><b>정책</b>:
+     * <ul>
+     *   <li>Biz(ClientBaseException): fallback 금지, 즉시 전파</li>
+     *   <li>Infra(Redis/CB/DistributedLockException): MySQL fallback</li>
+     *   <li>Unknown: 즉시 전파(버그 조기 발견)</li>
+     * </ul>
+     *
+     * <p><b>제약</b>:
+     * <ul>
+     *   <li>호출부 throws 금지</li>
+     *   <li>prod 코드 try-catch 금지</li>
+     * </ul>
      */
     @Override
-    protected boolean tryLock(String lockKey, long waitTime, long leaseTime) throws Throwable {
-        String originalKey = lockKey.replace("lock:", "");
-        TaskContext context = TaskContext.of("ResilientLock", "TryLockTier", lockKey);
+    public <T> T executeWithLock(String key, long waitTime, long leaseTime, ThrowingSupplier<T> task) {
+        String originalKey = removeLockPrefix(key);
+        TaskContext context = TaskContext.of("ResilientLock", "ExecuteWithLock", originalKey);
 
-        return executor.executeCheckedWithHandler(
-                // 1. Redis 락 시도 (서킷 브레이커 보호)
-                () -> circuitBreaker.executeCheckedSupplier(() -> {
-                    // 🚀 [핵심 수정] tryLockImmediately 대신 executeWithLock을 사용하여 '대기' 기능 활성화
-                    // Redis Pub/Sub을 통해 waitTime 동안 락 획득을 대기합니다.
-                    // 락 획득 성공 시 true를 반환하는 람다를 실행합니다.
-                    return redisLockStrategy.executeWithLock(originalKey, waitTime, leaseTime, () -> true);
-                }),
-
-                // 2. Redis 실패 시 MySQL 락으로 복구 (Fallback)
-                // - CircuitBreaker OPEN (Redis 다운)
-                // - DistributedLockException (Redis 락 획득 타임아웃)
-                (e) -> {
-                    log.warn("🔴 [Resilient Lock] Redis unavailable (State: {}). Falling back to MySQL: {} | Cause: {}",
-                            circuitBreaker.getState(), lockKey, e.getMessage());
-
-                    // 비상시에는 MySQL에서 즉시 시도 (또는 짧은 대기)
-                    return mysqlLockStrategy.tryLockImmediately(originalKey, leaseTime);
-                },
+        return executor.executeWithFallback(
+                // Redis tier 전체 실행 (락+task+해제)
+                () -> circuitBreaker.executeCheckedSupplier(() ->
+                        redisLockStrategy.executeWithLock(originalKey, waitTime, leaseTime, task)
+                ),
+                // 예외 분기: Function<Throwable, T> (throws 불가, checked는 fail-fast)
+                (t) -> handleFallback(
+                        t,
+                        originalKey,
+                        "executeWithLock",
+                        () -> mysqlLockStrategy.executeWithLock(originalKey, waitTime, leaseTime, task)
+                ),
                 context
         );
     }
 
     /**
-     * ✅ [try-catch 제거] executor.executeWithFinally 적용
-     * Redis 해제 시도 후, 성공/실패 여부와 상관없이 MySQL 해제를 보장합니다.
+     * [Tier 1: Redis] 락 획득만 시도 -> 실패 시 [Tier 2: MySQL]로 복구
      */
     @Override
+    protected boolean tryLock(String lockKey, long waitTime, long leaseTime) {
+        String originalKey = removeLockPrefix(lockKey);
+        TaskContext context = TaskContext.of("ResilientLock", "TryLockTier", lockKey);
+
+        return executor.executeWithFallback(
+                () -> circuitBreaker.executeCheckedSupplier(() ->
+                        redisLockStrategy.executeWithLock(originalKey, waitTime, leaseTime, () -> true)
+                ),
+                (t) -> handleFallback(
+                        t,
+                        originalKey,
+                        "tryLock",
+                        () -> mysqlLockStrategy.tryLockImmediately(originalKey, leaseTime)
+                ),
+                context
+        );
+    }
+
+    // ========================================
+    // 예외 필터링 헬퍼 메서드
+    // ========================================
+
+    /**
+     * 래핑된 예외를 unwrap하여 원본 예외 반환
+     */
+    private Throwable unwrap(Throwable t) {
+        Throwable cur = t;
+        while (cur != null) {
+            if ((cur instanceof CompletionException
+                    || cur instanceof ExecutionException
+                    || cur instanceof UndeclaredThrowableException)
+                    && cur.getCause() != null) {
+                cur = cur.getCause();
+                continue;
+            }
+            return cur;
+        }
+        return t;
+    }
+
+    /**
+     * 인프라 예외 여부 판별
+     */
+    private boolean isInfrastructureException(Throwable cause) {
+        return cause instanceof DistributedLockException
+                || cause instanceof CallNotPermittedException
+                || cause instanceof RedisException
+                || cause instanceof RedisTimeoutException;
+    }
+
+    /**
+     * lock: prefix 제거
+     */
+    private String removeLockPrefix(String lockKey) {
+        return lockKey.startsWith("lock:") ? lockKey.substring(5) : lockKey;
+    }
+
+    /**
+     * fallback 분기 (throws / try-catch 없음)
+     *
+     * <p><b>NOTE</b>:
+     * <ul>
+     *   <li>Function&lt;Throwable, T&gt;은 throws 불가</li>
+     *   <li>RuntimeException/Error는 그대로 throw</li>
+     *   <li>Biz 경계에서 checked Throwable은 정책 위반이므로 fail-fast</li>
+     *   <li>mysqlFallback.getUnchecked()로 checked 예외 처리 (인프라 레이어)</li>
+     * </ul>
+     *
+     * @param mysqlFallback ThrowingSupplier - getUnchecked()로 실행
+     */
+    private <T> T handleFallback(
+            Throwable t,
+            String key,
+            String op,
+            ThrowingSupplier<T> mysqlFallback
+    ) {
+        Throwable cause = unwrap(t);
+
+        // InterruptedException은 Lock 도메인 예외로 정규화
+        if (cause instanceof InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw new DistributedLockException(
+                    "락 획득/실행 중 인터럽트 [op=" + op + ", key=" + key + "]", ie);
+        }
+
+        // 1) Biz 예외: fallback 절대 금지
+        if (cause instanceof ClientBaseException) {
+            throwAsRuntime(cause);
+            return null; // unreachable
+        }
+
+        // 2) Infra 예외: MySQL fallback (getUnchecked로 checked는 fail-fast)
+        if (isInfrastructureException(cause)) {
+            log.warn("[TieredLock:{}] Redis failed -> MySQL fallback. key={}, state={}, cause={}:{}",
+                    op, key, circuitBreaker.getState(),
+                    cause.getClass().getSimpleName(), cause.getMessage());
+            return mysqlFallback.getUnchecked();
+        }
+
+        // 3) Unknown: 즉시 전파 (버그 조기 발견)
+        log.error("[TieredLock:{}] Unknown exception -> propagate. key={}, cause={}:{}",
+                op, key, cause.getClass().getName(), cause.getMessage(), cause);
+        throwAsRuntime(cause);
+        return null; // unreachable
+    }
+
+    /**
+     * RuntimeException/Error는 원형 전파, checked Throwable은 정책 위반으로 fail-fast
+     */
+    private static void throwAsRuntime(Throwable t) {
+        if (t instanceof Error e) throw e;
+        if (t instanceof RuntimeException re) throw re;
+        // Biz 경계에서 checked Throwable이 올라오는 것은 설계 위반
+        throw new IllegalStateException(
+                "Unexpected checked Throwable (policy violation): " + t.getClass().getName(), t);
+    }
+
+    // ========================================
+    // unlock / immediate
+    // ========================================
+
+    @Override
     protected void unlockInternal(String lockKey) {
-        String originalKey = lockKey.replace("lock:", "");
+        String originalKey = removeLockPrefix(lockKey);
         TaskContext context = TaskContext.of("ResilientLock", "UnlockInternal", lockKey);
 
         executor.executeWithFinally(
-                // Redis 락 해제 시도 (예외 발생 가능)
                 () -> {
                     circuitBreaker.executeRunnable(() -> redisLockStrategy.unlock(originalKey));
                     return null;
                 },
-                // MySQL 락 해제 (finally 블록에서 반드시 실행됨)
-                // MySqlNamedLockStrategy의 unlock 로그를 DEBUG로 낮췄으므로 안전함
                 () -> mysqlLockStrategy.unlock(originalKey),
                 context
         );
     }
 
-    /**
-     * ✅ [try-catch 제거] executor.executeOrDefault 적용
-     */
     @Override
     public boolean tryLockImmediately(String key, long leaseTime) {
         return executor.executeOrDefault(
                 () -> this.tryLock(buildLockKey(key), 0, leaseTime),
-                false, // 예외 발생 시 기본적으로 실패(false) 반환
+                false,
                 TaskContext.of("ResilientLock", "TryLockImmediate", key)
         );
     }
 
     @Override
     protected boolean shouldUnlock(String lockKey) {
-        // Redis와 MySQL 중 어느 것이 걸려있는지 확신할 수 없으므로,
-        // 항상 unlockInternal(복합 해제 로직)로 진입하도록 설계합니다.
         return true;
     }
 }
