@@ -1,7 +1,7 @@
 package maple.expectation.aop.aspect;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.config.NexonApiProperties;
 import maple.expectation.external.dto.v2.EquipmentResponse;
 import maple.expectation.global.error.exception.InternalSystemException;
 import maple.expectation.global.executor.LogicExecutor;
@@ -23,13 +23,24 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 @Aspect
 @Component
-@RequiredArgsConstructor
 @Order(1)
 public class NexonDataCacheAspect {
 
     private final EquipmentCacheService cacheService;
     private final RedissonClient redissonClient;
     private final LogicExecutor executor;
+    private final NexonApiProperties nexonApiProperties;
+
+    public NexonDataCacheAspect(
+            EquipmentCacheService cacheService,
+            RedissonClient redissonClient,
+            LogicExecutor executor,
+            NexonApiProperties nexonApiProperties) {
+        this.cacheService = cacheService;
+        this.redissonClient = redissonClient;
+        this.executor = executor;
+        this.nexonApiProperties = nexonApiProperties;
+    }
 
     @Around("@annotation(maple.expectation.aop.annotation.NexonDataCache) && args(ocid, ..)")
     public Object handleNexonCache(ProceedingJoinPoint joinPoint, String ocid) {
@@ -45,14 +56,14 @@ public class NexonDataCacheAspect {
         RCountDownLatch latch = redissonClient.getCountDownLatch(latchKey);
 
         if (latch.trySetCount(1)) {
-            redissonClient.getKeys().expire(latchKey, 60, TimeUnit.SECONDS);
+            int initialTtl = nexonApiProperties.getLatchInitialTtlSeconds();
+            redissonClient.getKeys().expire(latchKey, initialTtl, TimeUnit.SECONDS);
             return executeAsLeader(joinPoint, ocid, returnType, latch);
         }
         return executeAsFollower(ocid, returnType, latch);
     }
 
     private Object executeAsLeader(ProceedingJoinPoint joinPoint, String ocid, Class<?> returnType, RCountDownLatch latch) {
-        // ✅ TaskContext 적용: String 오류 해결
         return executor.execute(
                 () -> this.fetchAndCacheData(joinPoint, ocid, returnType, latch),
                 TaskContext.of("NexonCache", "Leader", ocid)
@@ -63,11 +74,21 @@ public class NexonDataCacheAspect {
         Object result = joinPoint.proceed();
 
         if (result instanceof CompletableFuture<?> future) {
-            // ✅ 비동기 평탄화: handle 내부의 try-finally를 processAsyncResult로 격리
-            return future.handle((res, ex) -> this.processAsyncResult(res, ex, ocid, latch));
+            // P0-1 수정: 예외 전파 보존 + latch 정리 보장
+            return future.handle((res, ex) -> executor.executeWithFinally(
+                    () -> {
+                        if (ex != null) throw toRuntimeException(ex);  // 예외 전파 보존
+                        if (res instanceof EquipmentResponse er) {     // null/타입 안전
+                            cacheService.saveCache(ocid, er);
+                        }
+                        return res;  // CF<EquipmentResponse> 유지 (중첩 방지)
+                    },
+                    () -> finalizeLatch(latch),
+                    TaskContext.of("NexonCache", "AsyncCache", ocid)
+            ));
         }
 
-        // ✅ 동기 평탄화: [패턴 1] executeWithFinally 사용으로 try-finally 키워드 박멸
+        // 동기 경로: executeWithFinally로 latch 정리 보장
         return executor.executeWithFinally(
                 () -> this.saveAndWrap(result, ocid, returnType),
                 () -> finalizeLatch(latch),
@@ -76,16 +97,12 @@ public class NexonDataCacheAspect {
     }
 
     /**
-     * 비동기 결과 처리 (평탄화: try 키워드 삭제)
+     * Checked 예외를 RuntimeException으로 변환 (예외 전파 보존용)
      */
-    private Object processAsyncResult(Object res, Throwable ex, String ocid, RCountDownLatch latch) {
-        // executor.executeVoid로 비동기 블록 내부의 로깅과 예외 처리 일원화
-        executor.executeVoid(() -> {
-            if (ex == null) cacheService.saveCache(ocid, (EquipmentResponse) res);
-        }, TaskContext.of("NexonCache", "AsyncSave", ocid));
-
-        finalizeLatch(latch); // 반드시 실행되어야 하는 정리 로직
-        return res;
+    private RuntimeException toRuntimeException(Throwable ex) {
+        if (ex instanceof RuntimeException re) return re;
+        if (ex instanceof Error err) throw err;
+        return new java.util.concurrent.CompletionException(ex);
     }
 
     private Object saveAndWrap(Object result, String ocid, Class<?> returnType) {
@@ -96,8 +113,9 @@ public class NexonDataCacheAspect {
 
     private Object executeAsFollower(String ocid, Class<?> returnType, RCountDownLatch latch) {
         return executor.execute(() -> {
-            log.info("😴 [Follower] 대장 완료 대기 중...: {}", ocid);
-            if (!latch.await(5, TimeUnit.SECONDS)) {
+            log.info("[Follower] 대장 완료 대기 중...: {}", ocid);
+            int timeoutSeconds = nexonApiProperties.getCacheFollowerTimeoutSeconds();
+            if (!latch.await(timeoutSeconds, TimeUnit.SECONDS)) {
                 throw new InternalSystemException("NexonCache Follower Timeout: " + ocid);
             }
 
@@ -108,8 +126,9 @@ public class NexonDataCacheAspect {
 
     private void finalizeLatch(RCountDownLatch latch) {
         latch.countDown();
-        redissonClient.getKeys().expire(latch.getName(), 10, TimeUnit.SECONDS);
-        log.debug("🚀 [Leader] 래치 정리 완료 (10초 뒤 만료)");
+        int finalizeTtl = nexonApiProperties.getLatchFinalizeTtlSeconds();
+        redissonClient.getKeys().expire(latch.getName(), finalizeTtl, TimeUnit.SECONDS);
+        log.debug("[Leader] 래치 정리 완료 ({}초 뒤 만료)", finalizeTtl);
     }
 
     private Optional<Object> getCachedResult(String ocid, Class<?> returnType) {
