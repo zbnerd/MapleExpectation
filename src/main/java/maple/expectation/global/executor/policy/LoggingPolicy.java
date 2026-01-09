@@ -20,7 +20,7 @@ import static maple.expectation.global.executor.policy.TaskLogTags.*;
  */
 @Slf4j
 @Order(PolicyOrder.LOGGING)
-public final class LoggingPolicy implements ExecutionPolicy {
+public class LoggingPolicy implements ExecutionPolicy {
 
     private static final long MAX_SLOW_MS = 60_000L;
 
