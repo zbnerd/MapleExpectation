@@ -85,4 +85,43 @@ public class CubeProbabilityRepository {
                 .flatMap(List::stream)
                 .toList();
     }
+
+    // ========== DP 엔진용 메서드 (TOCTOU 방지) ==========
+
+    /**
+     * 테이블 버전을 포함한 확률 데이터 조회 (TOCTOU 방지)
+     *
+     * <p>현재 구현에서는 CSV 로딩 시점에 버전이 고정되므로
+     * tableVersion 파라미터는 검증용으로만 사용됩니다.</p>
+     *
+     * @param type         큐브 종류
+     * @param level        장비 레벨
+     * @param part         장비 부위
+     * @param grade        잠재능력 등급
+     * @param slot         슬롯 번호 (1, 2, 3)
+     * @param tableVersion 테이블 버전 (현재 무시됨, 미래 확장용)
+     * @return 확률 데이터 리스트
+     */
+    public List<CubeProbability> findProbabilitiesByVersion(
+            CubeType type, int level, String part,
+            String grade, int slot, String tableVersion
+    ) {
+        // 현재 구현: 버전 무시 (CSV는 시작 시 로딩되어 고정)
+        // 향후: tableVersion과 currentVersion 비교 후 불일치 시 예외
+        return findProbabilities(type, level, part, grade, slot);
+    }
+
+    /**
+     * 현재 활성 테이블 버전 반환
+     *
+     * <p>서비스가 계산 시작 시 한 번만 조회하여 전체 계산에 사용합니다.</p>
+     * <p>현재 구현: CSV 로딩 시점의 고정 버전</p>
+     *
+     * @return 테이블 버전 (예: "csv-v1.0")
+     */
+    public String getCurrentTableVersion() {
+        // CSV 기반 구현: 고정 버전
+        // 향후: DB 기반 시 실제 버전 조회
+        return "csv-v1.0";
+    }
 }

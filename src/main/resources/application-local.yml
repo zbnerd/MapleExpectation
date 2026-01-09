@@ -26,3 +26,8 @@ spring:
 
 discord:
   webhook-url: ${DISCORD_WEBHOOK_URL}
+
+# DP 엔진 테이블 검증 설정
+cube:
+  table-mass:
+    policy: LENIENT  # 로컬 환경: 확률 테이블 정규화 허용 (Σp ≈ 1.0)

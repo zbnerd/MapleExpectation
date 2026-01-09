@@ -24,7 +24,9 @@ public class CubeRateCalculator {
         }
 
         // 1. 유효 옵션인지 확인 (StatType 활용)
-        StatType statType = StatType.findType(optionName);
+        // P0 Fix: findType()은 non-percent 타입만 검색하여 보공/크뎀 등이 UNKNOWN 처리됨
+        // findTypeWithUnit()으로 변경하여 퍼센트 스탯도 올바르게 매칭
+        StatType statType = StatType.findTypeWithUnit(optionName);
 
         // UNKNOWN(잡옵)이면 계산 무시 (확률 1.0)
         if (statType == StatType.UNKNOWN) {
