@@ -80,6 +80,7 @@ resilience4j:
         waitDuration: 500ms
         retryExceptions:
           - java.util.concurrent.TimeoutException
+          - io.netty.handler.timeout.ReadTimeoutException  # Reactor Netty responseTimeout 발생 시
           - org.springframework.web.reactive.function.client.WebClientRequestException # 네트워크 단절 대응
           - java.net.UnknownHostException
       nexonLockRetry:
@@ -87,6 +88,15 @@ resilience4j:
         waitDuration: 200ms        # 0.2초 간격으로 다시 시도
         retryExceptions:           # 이 예외가 발생했을 때만 재시도함
           - maple.expectation.global.error.exception.DistributedLockException
+
+  timelimiter:
+    timelimiter-aspect-order: 398 # TimeLimiter → Retry → CircuitBreaker 순서
+    instances:
+      nexonApi:
+        # 상한 예산: maxAttempts*(connect+response) + (maxAttempts-1)*wait + margin
+        # = 3*(3s+5s) + 2*0.5s + 3s = 24 + 1 + 3 = 28s (3회 재시도 최악 시나리오 상한 보장)
+        timeoutDuration: 28s        # 전체 작업 타임아웃 (3회 재시도 상한 보장)
+        cancelRunningFuture: true   # 타임아웃 시 실행 중인 Future 취소
 
 logging:
   level:
@@ -98,10 +108,16 @@ logging:
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %5p [%X{requestId}] --- [%thread] %-40.40logger{39} : %m%n"
 
-# 넥슨 API 키
+# 넥슨 API 설정
 nexon:
   api:
     key: ${NEXON_API_KEY}
+    # 타임아웃 설정 (기본값 - 필요 시 환경별로 오버라이드)
+    connect-timeout: 3s              # TCP 연결 타임아웃
+    response-timeout: 5s             # HTTP 응답 타임아웃
+    cache-follower-timeout-seconds: 32  # 캐시 Follower 대기 타임아웃 (TimeLimiter 28s + 여유 4s)
+    latch-initial-ttl-seconds: 60    # 래치 초기 TTL (리더 크래시 대비)
+    latch-finalize-ttl-seconds: 10   # 래치 정리 후 TTL (팔로워 조회 여유)
 
 server:
   shutdown: graceful

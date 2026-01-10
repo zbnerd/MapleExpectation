@@ -12,6 +12,7 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 
 import java.io.BufferedOutputStream;
 import java.io.OutputStream;
+import java.util.concurrent.CompletableFuture;
 import java.util.zip.GZIPOutputStream;
 
 /**
@@ -47,10 +48,24 @@ public class GameCharacterControllerV3 {
                 .body(responseBody);
     }
 
+    /**
+     * 🚀 장비 기대값 조회 (비동기 - Issue #118 준수)
+     *
+     * <p>Spring MVC의 CompletableFuture 반환 지원을 활용하여
+     * 톰캣 스레드를 즉시 반환하고, Future 완료 시 응답을 전송합니다.</p>
+     *
+     * <h4>비동기 흐름</h4>
+     * <ol>
+     *   <li>톰캣 스레드: 요청 수신 → CompletableFuture 반환 → 즉시 풀 반환</li>
+     *   <li>expectation-* 스레드: 실제 계산 수행</li>
+     *   <li>Future 완료 시: Spring이 자동으로 응답 전송</li>
+     * </ol>
+     */
     @GetMapping("/{userIgn}/expectation")
-    public ResponseEntity<TotalExpectationResponse> getEquipmentExpectation(@PathVariable String userIgn) {
+    public CompletableFuture<ResponseEntity<TotalExpectationResponse>> getEquipmentExpectation(
+            @PathVariable String userIgn) {
 
-        TotalExpectationResponse response = equipmentService.calculateTotalExpectation(userIgn);
-        return ResponseEntity.ok(response);
+        return equipmentService.calculateTotalExpectationAsync(userIgn)
+                .thenApply(ResponseEntity::ok);
     }
 }

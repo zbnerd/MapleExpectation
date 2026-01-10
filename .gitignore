@@ -39,6 +39,5 @@ out/
 # Docker
 .env
 mysql_data/
-/redis_data/dump.rdb
-/redis_data/master/dump.rdb
-/redis_data/slave/dump.rdb
+/redis_data/
+/logs/

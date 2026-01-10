@@ -1,23 +1,31 @@
 package maple.expectation.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import maple.expectation.external.dto.v2.TotalExpectationResponse;
+import maple.expectation.global.cache.RestrictedCacheManager;
 import maple.expectation.global.cache.TieredCacheManager;
-import maple.expectation.global.executor.LogicExecutor; // ✅ 추가됨
+import maple.expectation.global.executor.LogicExecutor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.caffeine.CaffeineCacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
 import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
+import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 @Configuration
@@ -26,8 +34,10 @@ public class CacheConfig {
 
     /**
      * 🏗️ TieredCacheManager 생성 및 LogicExecutor 주입
+     * @Primary: 기존 @Cacheable 인프라 영향 최소화
      */
     @Bean
+    @Primary
     public CacheManager cacheManager(
             RedisConnectionFactory connectionFactory,
             LogicExecutor executor) { // ✅ 스프링이 LogicExecutor 빈을 자동으로 주입합니다.
@@ -90,5 +100,80 @@ public class CacheConfig {
                 .cacheDefaults(defaultConfig)
                 .withInitialCacheConfigurations(configurations)
                 .build();
+    }
+
+    // ==================== Issue #158: Expectation 전용 캐시 인프라 ====================
+
+    /**
+     * Expectation 전용 Typed Serializer (M2 표준 - Spring Data Redis 3.x)
+     *
+     * <h4>설계 의도</h4>
+     * <ul>
+     *   <li>@class 메타데이터 제거 → 5KB 압박 완화</li>
+     *   <li>타입 복원 100% 보장 (LinkedHashMap 복원 리스크 제거)</li>
+     *   <li>Spring Data Redis 3.x: ObjectMapper 생성자 직접 전달 (setObjectMapper deprecated 대응)</li>
+     * </ul>
+     */
+    @Bean
+    @Qualifier("expectationCacheSerializer")
+    public RedisSerializer<Object> expectationCacheSerializer(ObjectMapper objectMapper) {
+        // Spring Data Redis 3.x: new Jackson2JsonRedisSerializer(ObjectMapper, Class)
+        Jackson2JsonRedisSerializer<TotalExpectationResponse> serializer =
+                new Jackson2JsonRedisSerializer<>(objectMapper, TotalExpectationResponse.class);
+        @SuppressWarnings({"rawtypes", "unchecked"})
+        RedisSerializer<Object> casted = (RedisSerializer) serializer;
+        return casted;
+    }
+
+    /**
+     * Expectation 전용 L1 CacheManager (Caffeine)
+     *
+     * <p>Blocker C 해결: Expectation 경로에서 equipment L1-only가 실제로 동작하도록 equipment 캐시도 등록</p>
+     * <p>EquipmentService.resolveEquipmentData()가 getValidCacheL1Only()/saveCacheL1Only() 사용</p>
+     */
+    @Bean(name = "expectationL1CacheManager")
+    public CacheManager expectationL1CacheManager() {
+        CaffeineCacheManager l1Manager = new CaffeineCacheManager();
+
+        // Expectation 결과 캐시
+        l1Manager.registerCustomCache("expectationResult",
+                Caffeine.newBuilder()
+                        .expireAfterWrite(5, TimeUnit.MINUTES)
+                        .maximumSize(1000)
+                        .build());
+
+        // Expectation 경로 equipment L1-only 캐시 (L2 우회용)
+        l1Manager.registerCustomCache("equipment",
+                Caffeine.newBuilder()
+                        .expireAfterWrite(5, TimeUnit.MINUTES)
+                        .maximumSize(5000)
+                        .build());
+
+        return l1Manager;
+    }
+
+    /**
+     * Expectation 전용 L2 CacheManager (Redis + RestrictedCacheManager)
+     * - P0-7/B3: equipment 구조적 봉쇄
+     * - expectationResult만 허용
+     */
+    @Bean(name = "expectationL2CacheManager")
+    public CacheManager expectationL2CacheManager(
+            RedisConnectionFactory connectionFactory,
+            @Qualifier("expectationCacheSerializer") RedisSerializer<Object> serializer) {
+
+        RedisCacheConfiguration config = RedisCacheConfiguration.defaultCacheConfig()
+                .entryTtl(Duration.ofMinutes(30))
+                .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()))
+                .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(serializer));
+
+        // RestrictedCacheManager가 기본 방어이므로 disableCreateOnMissingCache()는 제거 (버전 호환성)
+        RedisCacheManager delegate = RedisCacheManager.builder(connectionFactory)
+                .cacheDefaults(config)
+                .initialCacheNames(Set.of("expectationResult"))
+                .build();
+
+        // 항상 RestrictedCacheManager로 래핑 (버전 무관하게 구조적 봉쇄)
+        return new RestrictedCacheManager(delegate, Set.of("expectationResult"));
     }
 }

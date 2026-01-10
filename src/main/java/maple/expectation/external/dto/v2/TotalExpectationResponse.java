@@ -1,11 +1,22 @@
 package maple.expectation.external.dto.v2;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Builder;
 import lombok.Data;
 import java.util.List;
 
+/**
+ * 기대값 계산 결과 응답 DTO
+ *
+ * <p>Issue #158: Zero-Waste 정책 적용
+ * <ul>
+ *   <li>@JsonInclude(NON_EMPTY): null/빈 값 제외하여 5KB 압박 완화</li>
+ *   <li>NON_DEFAULT 금지: 0이 의미 있는 값일 수 있음</li>
+ * </ul>
+ */
 @Data
 @Builder
+@JsonInclude(JsonInclude.Include.NON_EMPTY)
 public class TotalExpectationResponse {
     private String userIgn;
     private long totalCost; // 총 기대 비용 (메소)
@@ -14,6 +25,7 @@ public class TotalExpectationResponse {
 
     @Data
     @Builder
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
     public static class ItemExpectation {
         private String part;        // 부위 (모자)
         private String itemName;    // 이름 (에테르넬...)

@@ -91,13 +91,29 @@ public class MySqlNamedLockStrategy implements LockStrategy {
         log.debug("🔒 [MySQL Lock] '{}' 해제 완료", lockKey);
     }
 
+    /**
+     * MySQL Named Lock은 세션 기반이므로 "획득만" 패턴 지원 불가
+     *
+     * <p><b>P1 버그 수정 (PR #129 Codex 지적)</b>:
+     * <ul>
+     *   <li>문제: GET_LOCK 후 커넥션이 풀로 반환 → RELEASE_LOCK이 다른 세션에서 실행</li>
+     *   <li>해결: UnsupportedOperationException throw → executeWithLock() 사용 강제</li>
+     * </ul>
+     *
+     * <p><b>MySQL Named Lock 특성</b>:
+     * <ul>
+     *   <li>락은 세션(커넥션)에 종속됨</li>
+     *   <li>다른 커넥션에서 RELEASE_LOCK 불가능</li>
+     *   <li>ConnectionCallback으로 세션 고정된 executeWithLock()만 사용 가능</li>
+     * </ul>
+     *
+     * @throws UnsupportedOperationException 항상 발생
+     */
     @Override
     public boolean tryLockImmediately(String key, long leaseTime) {
-        String lockKey = buildLockKey(key);
-        return executor.executeOrDefault(
-                () -> lockJdbcTemplate.queryForObject("SELECT GET_LOCK(?, 0)", Integer.class, lockKey) == 1,
-                false,
-                TaskContext.of("Lock", "MySqlTryImmediate", key)
+        throw new UnsupportedOperationException(
+                "MySQL Named Lock은 세션 기반이므로 tryLockImmediately() 지원 불가. " +
+                "executeWithLock()을 사용하세요."
         );
     }
 

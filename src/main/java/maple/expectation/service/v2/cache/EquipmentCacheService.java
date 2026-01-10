@@ -1,11 +1,11 @@
 package maple.expectation.service.v2.cache;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.external.dto.v2.EquipmentResponse;
-import maple.expectation.global.executor.LogicExecutor; // ✅ 주입
-import maple.expectation.global.executor.TaskContext; // ✅ 관측성
+import maple.expectation.global.executor.LogicExecutor;
+import maple.expectation.global.executor.TaskContext;
 import maple.expectation.service.v2.worker.EquipmentDbWorker;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
@@ -14,14 +14,26 @@ import java.util.Optional;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class EquipmentCacheService {
-    private final CacheManager cacheManager;
+    private final CacheManager cacheManager;          // Tiered (L1+L2)
+    private final CacheManager l1CacheManager;        // L1 Only (Expectation 경로 전용)
     private final EquipmentDbWorker dbWorker;
-    private final LogicExecutor executor; // ✅ 지능형 실행기 추가
+    private final LogicExecutor executor;
 
+    private static final String CACHE_NAME = "equipment";
     private static final EquipmentResponse NULL_MARKER = new EquipmentResponse();
     static { NULL_MARKER.setCharacterClass("NEGATIVE_MARKER"); }
+
+    public EquipmentCacheService(
+            CacheManager cacheManager,
+            @Qualifier("expectationL1CacheManager") CacheManager l1CacheManager,
+            EquipmentDbWorker dbWorker,
+            LogicExecutor executor) {
+        this.cacheManager = cacheManager;
+        this.l1CacheManager = l1CacheManager;
+        this.dbWorker = dbWorker;
+        this.executor = executor;
+    }
 
     /**
      * ✅ [관측성 확보] 캐시 조회 로직 평탄화
@@ -107,5 +119,51 @@ public class EquipmentCacheService {
         }
         // 그 외의 런타임 예외는 그대로 전파
         throw (RuntimeException) e;
+    }
+
+    // ==================== L1-only API (Expectation 경로 전용) ====================
+
+    /**
+     * L1 캐시에서만 조회 (Expectation 경로 전용 - L2 우회)
+     *
+     * <p>Blocker C: Expectation 경로에서 EquipmentResponse L2 저장/조회를 구조적으로 차단</p>
+     *
+     * @param ocid 캐릭터 OCID
+     * @return L1 캐시된 결과 (없으면 empty)
+     */
+    public Optional<EquipmentResponse> getValidCacheL1Only(String ocid) {
+        return executor.execute(() -> {
+            Cache cache = l1CacheManager.getCache(CACHE_NAME);
+            if (cache == null) {
+                log.warn("[EquipmentCache] L1 cache missing: {}", CACHE_NAME);
+                return Optional.<EquipmentResponse>empty();
+            }
+
+            EquipmentResponse cached = cache.get(ocid, EquipmentResponse.class);
+            if (cached != null && !"NEGATIVE_MARKER".equals(cached.getCharacterClass())) {
+                return Optional.of(cached);
+            }
+            return Optional.empty();
+        }, TaskContext.of("EquipmentCache", "GetValidL1Only", ocid));
+    }
+
+    /**
+     * L1 캐시에만 저장 (Expectation 경로 전용 - L2 우회, DB 저장도 스킵)
+     *
+     * <p>Blocker C: Expectation 경로에서 EquipmentResponse L2 저장을 구조적으로 차단</p>
+     *
+     * @param ocid 캐릭터 OCID
+     * @param response 저장할 응답
+     */
+    public void saveCacheL1Only(String ocid, EquipmentResponse response) {
+        executor.executeVoid(() -> {
+            Cache cache = l1CacheManager.getCache(CACHE_NAME);
+            if (cache != null) {
+                cache.put(ocid, (response == null) ? NULL_MARKER : response);
+                log.debug("[EquipmentCache] L1-only save: {}", ocid);
+            } else {
+                log.warn("[EquipmentCache] L1 cache missing: {}", CACHE_NAME);
+            }
+        }, TaskContext.of("EquipmentCache", "SaveL1Only", ocid));
     }
 }

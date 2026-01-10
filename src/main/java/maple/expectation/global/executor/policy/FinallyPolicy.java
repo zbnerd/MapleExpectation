@@ -77,7 +77,7 @@ public class FinallyPolicy implements ExecutionPolicy {
     /**
      * 지정된 FailureMode로 FinallyPolicy 생성
      *
-     * <h4>FailureMode 선택 가이드 (금융급)</h4>
+     * <h4>FailureMode 선택 가이드 </h4>
      * <ul>
      *   <li><b>PROPAGATE (기본, 권장)</b>: cleanup 실패가 외부로 전파됨
      *     <ul>

@@ -5,9 +5,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.domain.v2.CharacterEquipment;
 import maple.expectation.external.dto.v2.EquipmentResponse;
-import maple.expectation.global.executor.LogicExecutor; // ✅ 주입
-import maple.expectation.global.executor.TaskContext; // ✅ 관측성 확보
-import maple.expectation.global.executor.strategy.ExceptionTranslator; // ✅ 예외 세탁
+import maple.expectation.global.executor.LogicExecutor;
+import maple.expectation.global.executor.TaskContext;
+import maple.expectation.global.executor.strategy.ExceptionTranslator;
 import maple.expectation.repository.v2.CharacterEquipmentRepository;
 import maple.expectation.service.v2.shutdown.EquipmentPersistenceTracker;
 import org.springframework.scheduling.annotation.Async;
@@ -15,19 +15,34 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Equipment 데이터를 비동기로 DB에 저장하는 Worker (LogicExecutor 평탄화 완료)
+ * Equipment DB 계층 전담 Worker (SRP 준수)
+ *
+ * <h4>책임</h4>
+ * <ul>
+ *   <li>DB 조회: 15분 TTL 체크 포함</li>
+ *   <li>DB 저장: 비동기 + Graceful Shutdown 지원</li>
+ * </ul>
+ *
+ * <h4>데이터 소스 계층 (L1 → L2 → DB → API)</h4>
+ * <p>DB는 L2 캐시 뒤, Nexon API 앞에 위치하여 API 호출 최소화</p>
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class EquipmentDbWorker {
+
+    /** DB 데이터 유효 기간 (분) */
+    private static final int DB_TTL_MINUTES = 15;
+
     private final CharacterEquipmentRepository repository;
     private final ObjectMapper objectMapper;
     private final EquipmentPersistenceTracker persistenceTracker;
-    private final LogicExecutor executor; // ✅ 지능형 실행기 주입
+    private final LogicExecutor executor;
 
     /**
      * ✅  비동기 저장 로직 평탄화
@@ -75,5 +90,86 @@ public class EquipmentDbWorker {
 
         entity.updateData(json);
         repository.saveAndFlush(entity); // 즉시 물리적 저장 보장
+    }
+
+    // ==================== DB 조회 API (SRP: DB 계층 전담) ====================
+
+    /**
+     * 유효한 DB 데이터 조회 (15분 TTL 체크)
+     *
+     * <p>updatedAt이 15분 이내인 데이터만 반환</p>
+     *
+     * @param ocid 캐릭터 OCID
+     * @return 유효한 JSON 데이터 (없거나 만료되면 empty)
+     */
+    @Transactional(readOnly = true)
+    public Optional<String> findValidJson(String ocid) {
+        return executor.execute(() -> {
+            LocalDateTime threshold = LocalDateTime.now().minusMinutes(DB_TTL_MINUTES);
+            Optional<CharacterEquipment> result = repository.findByOcidAndUpdatedAtAfter(ocid, threshold);
+
+            if (result.isPresent()) {
+                log.debug("[EquipmentDb] DB HIT (TTL valid): ocid={}", maskOcid(ocid));
+            } else {
+                log.debug("[EquipmentDb] DB MISS or TTL expired: ocid={}", maskOcid(ocid));
+            }
+
+            return result.map(CharacterEquipment::getJsonContent);
+        }, TaskContext.of("EquipmentDb", "FindValid", ocid));
+    }
+
+    // ==================== Raw JSON 저장 API (Expectation 경로용) ====================
+
+    /**
+     * Raw JSON 비동기 저장 (Expectation 경로 전용)
+     *
+     * <p>EquipmentResponse 직렬화 없이 이미 직렬화된 JSON을 저장</p>
+     * <p>Nexon API 호출 후 DB에 저장하여 다음 요청에서 API 호출 최소화</p>
+     *
+     * @param ocid 캐릭터 OCID
+     * @param json 저장할 JSON 문자열
+     * @return 완료 Future
+     */
+    @Async
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public CompletableFuture<Void> persistRawJson(String ocid, String json) {
+        CompletableFuture<Void> future = new CompletableFuture<>();
+        TaskContext context = TaskContext.of("EquipmentDb", "PersistRaw", ocid);
+
+        persistenceTracker.trackOperation(ocid, future);
+
+        return executor.executeOrCatch(
+                () -> {
+                    performRawSave(ocid, json);
+                    log.debug("💾 [DB Save] Raw JSON saved: ocid={}", maskOcid(ocid));
+                    future.complete(null);
+                    return future;
+                },
+                (e) -> {
+                    log.error("❌ [DB Save Error] ocid={} | err={}", maskOcid(ocid), e.getMessage());
+                    future.completeExceptionally(e);
+                    return future;
+                },
+                context
+        );
+    }
+
+    /**
+     * 헬퍼: Raw JSON 저장 로직
+     */
+    private void performRawSave(String ocid, String json) {
+        CharacterEquipment entity = repository.findById(ocid)
+                .orElseGet(() -> CharacterEquipment.builder().ocid(ocid).build());
+
+        entity.updateData(json);
+        repository.saveAndFlush(entity);
+    }
+
+    /**
+     * OCID 마스킹 (로깅용)
+     */
+    private String maskOcid(String value) {
+        if (value == null || value.length() < 8) return "***";
+        return value.substring(0, 4) + "***";
     }
 }
