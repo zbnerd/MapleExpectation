@@ -115,8 +115,10 @@ public class EquipmentDataResolver {
      * <p>fire-and-forget 비동기 처리</p>
      */
     private CompletableFuture<byte[]> fetchFromNexonApiAndSave(String ocid) {
-        return dataProvider.getRawEquipmentData(ocid, expectationExecutor)
-                .thenApply(compressedData -> {
+        return dataProvider.getRawEquipmentData(ocid)
+                // P2 Fix: thenApplyAsync로 ThreadLocal 전파 보장 (PR #160 Codex 지적)
+                // expectationExecutor에 contextPropagatingDecorator가 설정되어 있음
+                .thenApplyAsync(compressedData -> {
                     // DB 저장용 decompress (GzipStringConverter가 저장 시 다시 compress)
                     // fire-and-forget: 비동기 + non-blocking
                     String json = GzipUtils.decompress(compressedData);
@@ -129,7 +131,7 @@ public class EquipmentDataResolver {
                     // Parser에게는 압축 상태로 전달 (스트리밍 의도 유지)
                     // EquipmentStreamingParser가 GZIPInputStream으로 스트리밍 해제
                     return compressedData;
-                })
+                }, expectationExecutor)
                 .orTimeout(NEXON_API_TIMEOUT_SECONDS, TimeUnit.SECONDS);
     }
 

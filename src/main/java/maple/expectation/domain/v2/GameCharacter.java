@@ -1,5 +1,6 @@
 package maple.expectation.domain.v2;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.*;
 import jakarta.persistence.*;
 import org.hibernate.annotations.NotFound;
@@ -21,10 +22,17 @@ public class GameCharacter {
     @Column(nullable = false, unique = true)
     private String ocid;
 
-    // 연관관계 편의 메서드
-    // 💡 String ocid 필드와 별개로 '객체' 연관관계를 정의합니다.
-    // optional = true (기본값)로 두면 장비 데이터가 없어도 캐릭터 생성이 가능해집니다.
+    /**
+     * 장비 데이터 (LAZY 로딩)
+     *
+     * <p><b>P1 버그 수정 (PR #125 Codex 지적)</b>:
+     * {@code @JsonIgnore}로 JSON 응답에서 제외.
+     * 200-400KB blob이 API 응답에 노출되면 보안 및 성능 문제 발생.
+     *
+     * <p>optional = true (기본값)로 두면 장비 데이터가 없어도 캐릭터 생성이 가능해집니다.
+     */
     @Setter
+    @JsonIgnore  // P1 Fix: 장비 blob JSON 노출 방지
     @OneToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     @JoinColumn(name = "ocid", referencedColumnName = "ocid",
             insertable = false, updatable = false,

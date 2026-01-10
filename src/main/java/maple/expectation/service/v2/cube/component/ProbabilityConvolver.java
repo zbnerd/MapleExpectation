@@ -101,8 +101,15 @@ public class ProbabilityConvolver {
         for (int k = 0; k < slot.size(); k++) {
             int value = slot.valueAt(k);
             double prob = slot.probAt(k);
-            int targetIndex = Math.min(currentIndex + value, maxIndex);  // Tail Clamp
 
+            // P2 Fix (PR #159 Codex 지적): 음수 contribution 가드
+            // 상위 파서/추출기 버그 시 ArrayIndexOutOfBoundsException 방지
+            if (value < 0) {
+                throw new ProbabilityInvariantException(
+                        "음수 contribution 감지: value=" + value + " (slot index=" + k + ")");
+            }
+
+            int targetIndex = Math.min(currentIndex + value, maxIndex);  // Tail Clamp
             next[targetIndex] += acc[currentIndex] * prob;
         }
     }

@@ -96,25 +96,66 @@ public class ResilientLockStrategy extends AbstractLockStrategy {
     }
 
     /**
-     * [Tier 1: Redis] 락 획득만 시도 -> 실패 시 [Tier 2: MySQL]로 복구
+     * [Tier 1: Redis] 락 획득만 시도 → 실패 시 [Tier 2: MySQL] 복구
+     *
+     * <p><b>P1 버그 수정 (PR #157, #154 Codex 지적)</b>:
+     * <ul>
+     *   <li>Before: executeWithLock(() → true) 사용 → 락 획득 후 즉시 해제됨</li>
+     *   <li>After: tryLockImmediately() 사용 → 락 획득만, 해제는 unlockInternal()에서</li>
+     * </ul>
+     *
+     * <p><b>제약 사항</b>: waitTime 파라미터 무시됨 (tryLockImmediately는 즉시 시도)
+     *
+     * @see <a href="https://github.com/redisson/redisson/wiki/8.-Distributed-locks-and-synchronizers">Redisson Lock Best Practice</a>
      */
     @Override
     protected boolean tryLock(String lockKey, long waitTime, long leaseTime) {
         String originalKey = removeLockPrefix(lockKey);
-        TaskContext context = TaskContext.of("ResilientLock", "TryLockTier", lockKey);
+        TaskContext context = TaskContext.of("ResilientLock", "TryLock", lockKey);
 
+        // P1 Fix: tryLockImmediately() 사용 (락 획득만, 해제 안 함)
         return executor.executeWithFallback(
                 () -> circuitBreaker.executeCheckedSupplier(() ->
-                        redisLockStrategy.executeWithLock(originalKey, waitTime, leaseTime, () -> true)
+                        redisLockStrategy.tryLockImmediately(originalKey, leaseTime)
                 ),
-                (t) -> handleFallback(
-                        t,
-                        originalKey,
-                        "tryLock",
-                        () -> mysqlLockStrategy.tryLockImmediately(originalKey, leaseTime)
-                ),
+                (t) -> handleTryLockFallback(t, originalKey, leaseTime),
                 context
         );
+    }
+
+    /**
+     * tryLock 전용 fallback 처리
+     *
+     * <p>MySQL Named Lock은 세션 기반이므로 tryLockImmediately() 지원 불가.
+     * Redis 실패 시 DistributedLockException으로 명확한 실패 전달.
+     */
+    private boolean handleTryLockFallback(Throwable t, String key, long leaseTime) {
+        Throwable cause = unwrap(t);
+
+        // Biz 예외: 즉시 전파
+        if (cause instanceof ClientBaseException) {
+            throwAsRuntime(cause);
+            return false; // unreachable
+        }
+
+        // Infra 예외: MySQL fallback 시도 (UnsupportedOperationException 예상)
+        if (isInfrastructureException(cause)) {
+            log.warn("[TieredLock:tryLock] Redis failed, MySQL fallback 불가 (세션 기반). " +
+                    "key={}, state={}, cause={}:{}",
+                    key, circuitBreaker.getState(),
+                    cause.getClass().getSimpleName(), cause.getMessage());
+            // MySQL은 tryLockImmediately 지원 불가 → 락 획득 실패
+            throw new DistributedLockException(
+                    "Tiered Lock 획득 실패: Redis 불가 + MySQL 세션 기반으로 fallback 불가 [key=" + key + "]",
+                    cause
+            );
+        }
+
+        // Unknown: 즉시 전파
+        log.error("[TieredLock:tryLock] Unknown exception. key={}, cause={}:{}",
+                key, cause.getClass().getName(), cause.getMessage(), cause);
+        throwAsRuntime(cause);
+        return false; // unreachable
     }
 
     // ========================================

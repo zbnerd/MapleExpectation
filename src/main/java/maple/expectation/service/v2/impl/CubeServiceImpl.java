@@ -50,9 +50,14 @@ public class CubeServiceImpl implements CubeTrialsProvider {
     public Double calculateExpectedTrials(CubeCalculationInput input, CubeType type) {
         // 1. 이미 DP 모드가 명시적으로 설정된 경우 → Feature Flag에 따라 분기
         if (input.isDpMode()) {
-            return featureFlag.isDpEnabled()
-                    ? calculateWithDpEngine(input, type)
-                    : calculateWithV1AndShadow(input, type);
+            // P2 Fix (PR #159 Codex 지적): dpEnabled=false면 fail fast
+            // v1 엔진은 DP 입력(minTotal 등 누적 확률)을 처리할 수 없음
+            if (!featureFlag.isDpEnabled()) {
+                log.warn("[CubeService] DP 모드 요청이지만 dpEnabled=false. input={}", input);
+                throw new UnsupportedOperationException(
+                        "DP 계산 엔진이 비활성화 상태입니다. 현재 누적 확률 계산(X% 이상)을 지원하지 않습니다.");
+            }
+            return calculateWithDpEngine(input, type);
         }
 
         // 2. DP 모드가 아닌 경우 → 자동 추론 시도

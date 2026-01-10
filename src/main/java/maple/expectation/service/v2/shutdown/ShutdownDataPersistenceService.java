@@ -78,13 +78,15 @@ public class ShutdownDataPersistenceService {
 
     /**
      * 기존 백업 파일에 '좋아요' 데이터를 병합하여 저장합니다.
+     *
+     * <p>P1 Fix: 고정 파일명 + 원자적 교체로 중복 파일 생성 방지</p>
      */
     public void appendLikeEntry(String userIgn, long count) {
         TaskContext context = TaskContext.of("Persistence", "AppendLike", userIgn);
 
         executor.executeVoid(() -> {
-            List<Path> oldFiles = findAllBackupFiles();
-            ShutdownData existingData = loadLatestFromList(oldFiles);
+            // P1 Fix: 현재 인스턴스의 백업 파일만 로드 (고정 파일명)
+            ShutdownData existingData = loadCurrentInstanceBackup();
 
             Map<String, Long> mergedBuffer = new HashMap<>(
                     existingData.likeBuffer() != null ? existingData.likeBuffer() : Map.of()
@@ -95,21 +97,49 @@ public class ShutdownDataPersistenceService {
                     LocalDateTime.now(), instanceId, mergedBuffer, existingData.equipmentPending()
             );
 
-            if (saveShutdownData(newData) != null) {
-                deleteFiles(oldFiles);
-            }
+            // 원자적 교체: 기존 파일이 있으면 자동으로 덮어쓰기
+            saveShutdownData(newData);
         }, context);
     }
 
     /**
+     * P1 Fix: 실패 항목만 저장 (부분 복구 시 사용)
+     *
+     * <p>복구 중 일부 항목만 실패한 경우, 실패 항목만 새 백업 파일로 저장합니다.</p>
+     *
+     * @param failedLikes 실패한 좋아요 항목들
+     * @param pendingEquipment 기존 장비 대기 목록 (그대로 보존)
+     */
+    public void saveFailedEntriesOnly(Map<String, Long> failedLikes, List<String> pendingEquipment) {
+        if (failedLikes == null || failedLikes.isEmpty()) return;
+
+        ShutdownData failedData = new ShutdownData(
+                LocalDateTime.now(),
+                instanceId,
+                failedLikes,
+                pendingEquipment
+        );
+
+        executor.executeVoid(() -> {
+            Path saved = saveShutdownData(failedData);
+            if (saved != null) {
+                log.warn("💾 [Persistence] 실패 항목 백업 완료: {} 항목 → {}",
+                        failedLikes.size(), saved.getFileName());
+            }
+        }, TaskContext.of("Persistence", "SaveFailedOnly", "count:" + failedLikes.size()));
+    }
+
+    /**
      * 처리되지 않은 장비 목록을 백업 파일에 추가합니다.
+     *
+     * <p>P1 Fix: 고정 파일명 + 원자적 교체로 중복 파일 생성 방지</p>
      */
     public void savePendingEquipment(List<String> ocids) {
         if (ocids == null || ocids.isEmpty()) return;
 
         executor.executeVoid(() -> {
-            List<Path> oldFiles = findAllBackupFiles();
-            ShutdownData existingData = loadLatestFromList(oldFiles);
+            // P1 Fix: 현재 인스턴스의 백업 파일만 로드 (고정 파일명)
+            ShutdownData existingData = loadCurrentInstanceBackup();
 
             List<String> mergedEquipment = new ArrayList<>(
                     existingData.equipmentPending() != null ? existingData.equipmentPending() : List.of()
@@ -120,8 +150,8 @@ public class ShutdownDataPersistenceService {
                     LocalDateTime.now(), instanceId, existingData.likeBuffer(), mergedEquipment
             );
 
+            // 원자적 교체: 기존 파일이 있으면 자동으로 덮어쓰기
             if (saveShutdownData(newData) != null) {
-                deleteFiles(oldFiles);
                 log.warn("💾 [Persistence] Equipment 목록 업데이트 완료: {}건", ocids.size());
             }
         }, TaskContext.of("Persistence", "SavePending", "size:" + ocids.size()));
@@ -209,15 +239,31 @@ public class ShutdownDataPersistenceService {
                 readBackupFile(files.get(0)).orElse(ShutdownData.empty(instanceId));
     }
 
+    /**
+     * P1 Fix: 현재 인스턴스의 고정 백업 파일 로드
+     */
+    private ShutdownData loadCurrentInstanceBackup() {
+        Path backupFile = Paths.get(backupDirectory).resolve(generateFilename());
+        if (!Files.exists(backupFile)) {
+            return ShutdownData.empty(instanceId);
+        }
+        return readBackupFile(backupFile).orElse(ShutdownData.empty(instanceId));
+    }
+
     private LocalDateTime getFileCreationTime(Path path) {
         return executor.executeOrDefault(() -> LocalDateTime.ofInstant(
                         Files.getLastModifiedTime(path).toInstant(), java.time.ZoneId.systemDefault()),
                 LocalDateTime.MIN, TaskContext.of("Persistence", "GetFileTime"));
     }
 
+    /**
+     * P1 Fix: 인스턴스당 고정 파일명 사용 (중복 백업 파일 방지)
+     *
+     * <p>변경 전: shutdown-{timestamp}-{uuid}.json → 다중 파일 생성 가능</p>
+     * <p>변경 후: shutdown-{instanceId}.json → 원자적 교체로 단일 파일 유지</p>
+     */
     private String generateFilename() {
-        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
-        return String.format("shutdown-%s-%s.json", timestamp, UUID.randomUUID().toString().substring(0, 8));
+        return String.format("shutdown-%s.json", instanceId);
     }
 
     private String resolveInstanceId() {

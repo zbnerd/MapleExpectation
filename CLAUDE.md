@@ -489,6 +489,49 @@ return executor.executeWithFallback(
 - **try-finally 금지**: `executeWithFinally()` 또는 Policy 사용
 - **MySQL Session 고정**: `ConnectionCallback` 기반으로 GET_LOCK → task → RELEASE_LOCK 원자적 완결
 
+### 분산 락 API 분리 원칙 (Redisson Best Practice)
+
+**참고**: [Redisson Wiki - Distributed Locks](https://github.com/redisson/redisson/wiki/8.-Distributed-locks-and-synchronizers)
+
+| API | 책임 | 해제 시점 |
+| :--- | :--- | :--- |
+| `tryLockImmediately(key, leaseTime)` | 락 획득만 (waitTime=0) | 호출자가 `unlock()` 필요 |
+| `executeWithLock(key, waitTime, leaseTime, task)` | 획득 + 실행 + 해제 | 자동 해제 (finally) |
+
+### 금지 패턴 (P1 버그 사례)
+```java
+// ❌ Bad: executeWithLock()으로 "획득만" 시뮬레이션
+return strategy.executeWithLock(key, time, leaseTime, () -> true);
+// 문제: task 완료 후 락이 즉시 해제됨! → tryLock 실패와 동일
+
+// ✅ Good: tryLockImmediately() 사용
+return strategy.tryLockImmediately(key, leaseTime);
+// 락 해제는 unlockInternal()에서 담당
+```
+
+### MySQL Named Lock 제약 (세션 기반)
+```java
+// MySQL Named Lock은 세션(커넥션)에 종속됨
+// tryLockImmediately() + unlock() 패턴 지원 불가!
+
+// ❌ Bad: 커넥션 분리로 인한 락 누수
+GET_LOCK(key, 0) → 커넥션 A (락 획득)
+[커넥션 A 풀로 반환]
+RELEASE_LOCK(key) → 커넥션 B (실패! 다른 세션)
+
+// ✅ Good: ConnectionCallback으로 세션 고정
+jdbcTemplate.execute((ConnectionCallback<T>) conn -> {
+    GET_LOCK(key, timeout);  // 같은 conn
+    try { return task.get(); }
+    finally { RELEASE_LOCK(key); }  // 같은 conn
+});
+```
+
+### ResilientLockStrategy tryLock 동작
+- Redis 실패 시 MySQL fallback 시도
+- MySQL은 `tryLockImmediately()` 미지원 (`UnsupportedOperationException`)
+- 따라서 tryLock 실패 시 `DistributedLockException` 발생
+
 ---
 
 ## 🛡️ 21. Redis Sentinel HA Configuration
