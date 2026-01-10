@@ -1,0 +1,229 @@
+package maple.expectation.aop.context;
+
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+/**
+ * SkipEquipmentL2CacheContext 단위 테스트
+ *
+ * <h4>검증 대상 (P0-4, B1/B2)</h4>
+ * <ul>
+ *   <li>B1: "진짜 restore" 패턴 - prev==null이면 remove()</li>
+ *   <li>B2: snapshot()/restore() API를 통한 async 전파</li>
+ * </ul>
+ */
+class SkipEquipmentL2CacheContextTest {
+
+    @AfterEach
+    void cleanup() {
+        // 테스트 후 ThreadLocal 상태 정리
+        SkipEquipmentL2CacheContext.restore(null);
+    }
+
+    // ==================== 기본 동작 ====================
+
+    @Nested
+    @DisplayName("기본 동작")
+    class BasicBehavior {
+
+        @Test
+        @DisplayName("초기 상태에서 enabled()는 false")
+        void enabled_shouldReturnFalse_whenNotSet() {
+            // when & then
+            assertThat(SkipEquipmentL2CacheContext.enabled()).isFalse();
+        }
+
+        @Test
+        @DisplayName("withSkip() 블록 내에서 enabled()는 true")
+        void enabled_shouldReturnTrue_insideWithSkipBlock() throws Exception {
+            // when
+            try (var ignored = SkipEquipmentL2CacheContext.withSkip()) {
+                // then
+                assertThat(SkipEquipmentL2CacheContext.enabled()).isTrue();
+            }
+        }
+
+        @Test
+        @DisplayName("withSkip() 블록 종료 후 enabled()는 false로 복원")
+        void enabled_shouldReturnFalse_afterWithSkipBlock() throws Exception {
+            // given
+            assertThat(SkipEquipmentL2CacheContext.enabled()).isFalse();
+
+            // when
+            try (var ignored = SkipEquipmentL2CacheContext.withSkip()) {
+                assertThat(SkipEquipmentL2CacheContext.enabled()).isTrue();
+            }
+
+            // then
+            assertThat(SkipEquipmentL2CacheContext.enabled()).isFalse();
+        }
+    }
+
+    // ==================== B1: 진짜 restore 패턴 ====================
+
+    @Nested
+    @DisplayName("B1: 진짜 restore 패턴 (prev==null이면 remove)")
+    class B1_TrueRestorePattern {
+
+        @Test
+        @DisplayName("중첩 withSkip() 호출 시 외부 블록의 상태로 복원")
+        void nestedWithSkip_shouldRestoreToPreviousState() throws Exception {
+            // given: 초기 상태 false
+            assertThat(SkipEquipmentL2CacheContext.enabled()).isFalse();
+
+            // when: 첫 번째 블록
+            try (var outer = SkipEquipmentL2CacheContext.withSkip()) {
+                assertThat(SkipEquipmentL2CacheContext.enabled()).isTrue();
+
+                // when: 중첩된 두 번째 블록
+                try (var inner = SkipEquipmentL2CacheContext.withSkip()) {
+                    assertThat(SkipEquipmentL2CacheContext.enabled()).isTrue();
+                }
+
+                // then: 내부 블록 종료 후 여전히 true (외부 블록의 상태)
+                assertThat(SkipEquipmentL2CacheContext.enabled()).isTrue();
+            }
+
+            // then: 외부 블록 종료 후 false로 복원
+            assertThat(SkipEquipmentL2CacheContext.enabled()).isFalse();
+        }
+
+        @Test
+        @DisplayName("restore(null)은 ThreadLocal을 완전히 제거")
+        void restore_withNull_shouldRemoveThreadLocal() {
+            // given: 플래그 설정
+            SkipEquipmentL2CacheContext.restore(Boolean.TRUE);
+            assertThat(SkipEquipmentL2CacheContext.enabled()).isTrue();
+
+            // when: null로 복원
+            SkipEquipmentL2CacheContext.restore(null);
+
+            // then: 완전히 제거됨
+            assertThat(SkipEquipmentL2CacheContext.enabled()).isFalse();
+            assertThat(SkipEquipmentL2CacheContext.snapshot()).isNull();
+        }
+    }
+
+    // ==================== B2: snapshot/restore API ====================
+
+    @Nested
+    @DisplayName("B2: snapshot/restore API (async 전파용)")
+    class B2_SnapshotRestoreApi {
+
+        @Test
+        @DisplayName("snapshot()은 현재 상태를 캡처")
+        void snapshot_shouldCaptureCurrentState() throws Exception {
+            // given: 초기 상태
+            assertThat(SkipEquipmentL2CacheContext.snapshot()).isNull();
+
+            // when: withSkip() 내에서 snapshot
+            try (var ignored = SkipEquipmentL2CacheContext.withSkip()) {
+                Boolean snap = SkipEquipmentL2CacheContext.snapshot();
+
+                // then
+                assertThat(snap).isTrue();
+            }
+        }
+
+        @Test
+        @DisplayName("restore()는 이전 상태로 복원")
+        void restore_shouldSetToGivenValue() {
+            // given
+            assertThat(SkipEquipmentL2CacheContext.enabled()).isFalse();
+
+            // when: true로 설정
+            SkipEquipmentL2CacheContext.restore(Boolean.TRUE);
+
+            // then
+            assertThat(SkipEquipmentL2CacheContext.enabled()).isTrue();
+
+            // when: false로 복원
+            SkipEquipmentL2CacheContext.restore(Boolean.FALSE);
+
+            // then
+            assertThat(SkipEquipmentL2CacheContext.enabled()).isFalse();
+        }
+
+        @Test
+        @DisplayName("다른 스레드로 컨텍스트 전파 - snapshot/restore 패턴")
+        void snapshotRestore_shouldPropagateToOtherThread() throws Exception {
+            // given
+            AtomicBoolean workerResult = new AtomicBoolean(false);
+            CountDownLatch latch = new CountDownLatch(1);
+
+            try (var ignored = SkipEquipmentL2CacheContext.withSkip()) {
+                // 메인 스레드에서 snapshot
+                Boolean snap = SkipEquipmentL2CacheContext.snapshot();
+                assertThat(snap).isTrue();
+
+                // when: 다른 스레드에서 restore 후 확인
+                ExecutorService executor = Executors.newSingleThreadExecutor();
+                executor.submit(() -> {
+                    Boolean before = SkipEquipmentL2CacheContext.snapshot();
+                    SkipEquipmentL2CacheContext.restore(snap);
+                    try {
+                        workerResult.set(SkipEquipmentL2CacheContext.enabled());
+                    } finally {
+                        SkipEquipmentL2CacheContext.restore(before);
+                        latch.countDown();
+                    }
+                });
+
+                // then
+                latch.await(5, TimeUnit.SECONDS);
+                assertThat(workerResult.get()).isTrue();
+
+                executor.shutdown();
+            }
+        }
+
+        @Test
+        @DisplayName("스레드풀에서 컨텍스트 누수 방지 - before로 원복")
+        void snapshotRestore_shouldPreventLeakInThreadPool() throws Exception {
+            // given
+            AtomicReference<Boolean> afterTaskSnapshot = new AtomicReference<>();
+            CountDownLatch latch = new CountDownLatch(1);
+
+            ExecutorService executor = Executors.newSingleThreadExecutor();
+
+            try (var ignored = SkipEquipmentL2CacheContext.withSkip()) {
+                Boolean snap = SkipEquipmentL2CacheContext.snapshot();
+
+                // when: 워커에서 작업 후 원복
+                executor.submit(() -> {
+                    Boolean before = SkipEquipmentL2CacheContext.snapshot();
+                    SkipEquipmentL2CacheContext.restore(snap);
+                    try {
+                        // 작업 수행 (enabled() == true)
+                        assertThat(SkipEquipmentL2CacheContext.enabled()).isTrue();
+                    } finally {
+                        SkipEquipmentL2CacheContext.restore(before);
+                    }
+                });
+
+                // 같은 스레드에서 다음 작업 - 이전 작업의 컨텍스트가 남아있으면 안됨
+                executor.submit(() -> {
+                    afterTaskSnapshot.set(SkipEquipmentL2CacheContext.snapshot());
+                    latch.countDown();
+                });
+            }
+
+            // then: 원복되어 null이어야 함
+            latch.await(5, TimeUnit.SECONDS);
+            assertThat(afterTaskSnapshot.get()).isNull();
+
+            executor.shutdown();
+        }
+    }
+}

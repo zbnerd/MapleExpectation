@@ -14,6 +14,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StopWatch;
 
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -41,8 +43,6 @@ public class TraceAspect {
             "|| execution(* maple.expectation.provider..*.*(..))" +
             "|| execution(* maple.expectation.repository..*.*(..))" +
             "|| execution(* maple.expectation.global..*.*(..))" +
-            "|| execution(* maple.expectation.dto..*.*(..))" +
-            "|| execution(* maple.expectation.domain..*.*(..))" +
             "|| execution(* maple.expectation.util..*.*(..))" +
             "|| execution(* maple.expectation.controller..*.*(..))")
     public void autoLog() {}
@@ -60,13 +60,16 @@ public class TraceAspect {
                     "&& !within(maple.expectation.global.filter..*) " +
                     "&& !within(*..*LockStrategy*) " +
                     "&& !execution(* *..*LockStrategy*.executeWithLock(..))" +
-                    "&& !execution(* maple.expectation..RedisBufferRepository.getTotalPendingCount(..))"
+                    "&& !execution(* maple.expectation..RedisBufferRepository.getTotalPendingCount(..))" +
+                    "&& !execution(* *.toString())" +
+                    "&& !execution(* *.hashCode())" +
+                    "&& !execution(* *.equals(..))"
     )
     public void excludeNoise() {}
 
     @Around("(autoLog() || manualLog()) && excludeNoise()")
     public Object doTrace(ProceedingJoinPoint joinPoint) {
-        if (!isTraceEnabled) return executor.execute(joinPoint::proceed, "Trace:Bypass");
+        if (!isTraceEnabled || !log.isInfoEnabled()) return executor.execute(joinPoint::proceed, "Trace:Bypass");
 
         String className = joinPoint.getSignature().getDeclaringType().getSimpleName();
         String methodName = joinPoint.getSignature().getName();
@@ -127,13 +130,20 @@ public class TraceAspect {
         throw new RuntimeException(e);
     }
 
-    // ✅ 수정된 부분: 인자 길이 제한 및 마스킹 적용
     private String formatArgs(Object[] args) {
+        if (args == null || args.length == 0) return ""; // 방어 로직
+
         return Arrays.stream(args)
                 .map(arg -> {
                     if (arg == null) return "null";
+
                     if (arg instanceof byte[]) return "byte[" + ((byte[]) arg).length + "]";
 
+                    // 2. [추가] 컬렉션/맵은 내용 대신 '크기'만 출력 (메모리 폭발 방지 핵심)
+                    if (arg instanceof Collection<?>) return "Collection(size=" + ((Collection<?>) arg).size() + ")";
+                    if (arg instanceof Map<?, ?>) return "Map(size=" + ((Map<?, ?>) arg).size() + ")";
+
+                    // 3. 그 외 객체는 toString() 호출 후 자르기
                     String str = arg.toString();
                     if (str.length() > MAX_ARG_LENGTH) {
                         return str.substring(0, MAX_ARG_LENGTH) + "...(len:" + str.length() + ")";

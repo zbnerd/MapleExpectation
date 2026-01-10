@@ -1,6 +1,7 @@
 package maple.expectation.aop.aspect;
 
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.aop.context.SkipEquipmentL2CacheContext;
 import maple.expectation.config.NexonApiProperties;
 import maple.expectation.external.dto.v2.EquipmentResponse;
 import maple.expectation.global.error.exception.InternalSystemException;
@@ -74,26 +75,68 @@ public class NexonDataCacheAspect {
         Object result = joinPoint.proceed();
 
         if (result instanceof CompletableFuture<?> future) {
-            // P0-1 수정: 예외 전파 보존 + latch 정리 보장
-            return future.handle((res, ex) -> executor.executeWithFinally(
-                    () -> {
-                        if (ex != null) throw toRuntimeException(ex);  // 예외 전파 보존
-                        if (res instanceof EquipmentResponse er) {     // null/타입 안전
-                            cacheService.saveCache(ocid, er);
-                        }
-                        return res;  // CF<EquipmentResponse> 유지 (중첩 방지)
-                    },
-                    () -> finalizeLatch(latch),
-                    TaskContext.of("NexonCache", "AsyncCache", ocid)
-            ));
+            return handleAsyncResult(future, ocid, latch);
         }
 
-        // 동기 경로: executeWithFinally로 latch 정리 보장
+        // 동기 경로
         return executor.executeWithFinally(
-                () -> this.saveAndWrap(result, ocid, returnType),
+                () -> saveAndWrap(result, ocid, returnType),
                 () -> finalizeLatch(latch),
                 TaskContext.of("NexonCache", "SyncCache", ocid)
         );
+    }
+
+    /**
+     * 비동기 결과 처리 (평탄화)
+     */
+    private Object handleAsyncResult(CompletableFuture<?> future, String ocid, RCountDownLatch latch) {
+        Boolean skipContextSnap = SkipEquipmentL2CacheContext.snapshot();
+
+        return future.handle((res, ex) -> executor.executeWithFinally(
+                () -> processAsyncCallback(res, ex, ocid, skipContextSnap),
+                () -> finalizeLatch(latch),
+                TaskContext.of("NexonCache", "AsyncCache", ocid)
+        ));
+    }
+
+    /**
+     * 비동기 콜백 처리 로직 (평탄화)
+     */
+    private Object processAsyncCallback(Object res, Throwable ex, String ocid, Boolean skipContextSnap) {
+        Boolean before = SkipEquipmentL2CacheContext.snapshot();
+        SkipEquipmentL2CacheContext.restore(skipContextSnap);
+
+        return executor.executeWithFinally(
+                () -> doProcessAsyncCallback(res, ex, ocid),
+                () -> SkipEquipmentL2CacheContext.restore(before),
+                TaskContext.of("NexonCache", "AsyncCallback", ocid)
+        );
+    }
+
+    /**
+     * 비동기 콜백 핵심 로직
+     */
+    private Object doProcessAsyncCallback(Object res, Throwable ex, String ocid) {
+        if (ex != null) {
+            throw toRuntimeException(ex);
+        }
+
+        if (res instanceof EquipmentResponse er) {
+            saveEquipmentIfAllowed(ocid, er);
+        }
+
+        return res;
+    }
+
+    /**
+     * Equipment 저장 (Expectation 경로 분기)
+     */
+    private void saveEquipmentIfAllowed(String ocid, EquipmentResponse response) {
+        if (SkipEquipmentL2CacheContext.enabled()) {
+            log.debug("[NexonCache] L2 save skipped (Expectation path): {}", ocid);
+            return;
+        }
+        cacheService.saveCache(ocid, response);
     }
 
     /**
@@ -107,7 +150,12 @@ public class NexonDataCacheAspect {
 
     private Object saveAndWrap(Object result, String ocid, Class<?> returnType) {
         EquipmentResponse response = (EquipmentResponse) result;
-        cacheService.saveCache(ocid, response);
+        // Issue #158: Expectation 경로에서는 L2 저장 스킵
+        if (!SkipEquipmentL2CacheContext.enabled()) {
+            cacheService.saveCache(ocid, response);
+        } else {
+            log.debug("[NexonCache] L2 save skipped (Expectation path): {}", ocid);
+        }
         return wrap(response, returnType);
     }
 

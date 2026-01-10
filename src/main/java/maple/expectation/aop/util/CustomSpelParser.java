@@ -6,10 +6,14 @@ import maple.expectation.global.executor.LogicExecutor; // ✅ 주입
 import maple.expectation.global.executor.TaskContext; // ✅ 관측성
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.reflect.MethodSignature;
+import org.springframework.expression.Expression;
 import org.springframework.expression.ExpressionParser;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.expression.spel.support.StandardEvaluationContext;
 import org.springframework.stereotype.Component;
+
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * SpEL 표현식 파싱 유틸리티 (LogicExecutor 평탄화 완료)
@@ -21,6 +25,7 @@ public class CustomSpelParser {
 
     private final ExpressionParser parser = new SpelExpressionParser();
     private final LogicExecutor executor; // ✅ 지능형 실행기 주입
+    private final Map<String, Expression> expressionCache = new ConcurrentHashMap<>();
 
     /**
      * SpEL 표현식을 파싱하여 String으로 반환
@@ -36,11 +41,15 @@ public class CustomSpelParser {
     public String parseWithFallback(ProceedingJoinPoint joinPoint, String expression, String fallback) {
         TaskContext context = TaskContext.of("SpelParser", "ParseString", expression);
 
-        // [패턴 3] executeOrDefault: 기술적 예외 발생 시 로그를 남기고 기본값 반환
         return executor.executeOrDefault(
                 () -> {
                     StandardEvaluationContext evalContext = createEvaluationContext(joinPoint);
-                    return parser.parseExpression(expression).getValue(evalContext, String.class);
+
+                    // 1. 캐시에서 꺼내거나 없으면 파싱해서 저장 (변수명 수정: expression)
+                    Expression expr = expressionCache.computeIfAbsent(expression, parser::parseExpression);
+
+                    // 2. 캐시된 expr 객체로 바로 평가 (성능 최적화)
+                    return expr.getValue(evalContext, String.class);
                 },
                 fallback,
                 context

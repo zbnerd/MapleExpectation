@@ -515,3 +515,167 @@ spring:
 - [ ] 데이터 무손실 검증
 - [ ] Failover 후 분산 락 정상 동작
 - [ ] Master 복구 후 Slave 재설정
+
+---
+
+## 🔄 22. Async Pipeline Policy (Issue #118 준수)
+
+비즈니스 로직에서 **블로킹 호출을 완전히 제거**하고 `CompletableFuture` 파이프라인으로 전환합니다.
+
+### 핵심 원칙: 비즈니스 로직 내 `.join()` / `.get()` 완전 금지
+
+```java
+// ❌ Bad: 블로킹 호출 (스레드 점유, Throughput 저하)
+T result = future.join();
+T result = future.get();
+T result = future.get(timeout, unit);
+
+// ✅ Good: 논블로킹 체이닝
+future.thenCompose(result -> nextAsyncOperation(result))
+      .exceptionallyCompose(e -> fallbackAsyncOperation(e))
+      .orTimeout(30, TimeUnit.SECONDS)
+      .whenComplete((r, e) -> cleanup());
+```
+
+### Java 9+ CompletableFuture 메서드 가이드
+
+| 메서드 | 용도 | 비동기 버전 |
+| :--- | :--- | :--- |
+| `thenCompose()` | 연속 비동기 작업 체이닝 | `thenComposeAsync(fn, executor)` |
+| `thenApply()` | 결과 변환 | `thenApplyAsync()` |
+| `handle()` | 성공/실패 모두 처리 | `handleAsync()` |
+| `whenComplete()` | 사이드 이펙트 (finally 역할) | `whenCompleteAsync()` |
+| `orTimeout()` | 타임아웃 시 TimeoutException | - |
+| `completeOnTimeout()` | 타임아웃 시 기본값 | - |
+
+### Java 12+ 예외 복구 메서드
+
+| 메서드 | 용도 |
+| :--- | :--- |
+| `exceptionally()` | 예외 시 기본값 반환 |
+| `exceptionallyAsync()` | 비동기로 예외 처리 |
+| `exceptionallyCompose()` | 예외 시 새 Future 반환 (★핵심) |
+| `exceptionallyComposeAsync()` | 비동기로 예외 복구 |
+
+### 즉시 완료 Future
+```java
+CompletableFuture.completedFuture(value)  // 이미 완료된 성공 Future
+CompletableFuture.failedFuture(ex)        // 이미 완료된 실패 Future
+```
+
+### Spring MVC 비동기 컨트롤러
+```java
+// CompletableFuture 직접 반환 (Spring 4.2+)
+@GetMapping("/async")
+public CompletableFuture<ResponseEntity<T>> asyncEndpoint() {
+    return service.processAsync()
+            .thenApply(ResponseEntity::ok);
+}
+
+// DeferredResult 패턴 (수동 완료)
+@GetMapping("/deferred")
+public DeferredResult<T> deferredEndpoint() {
+    DeferredResult<T> result = new DeferredResult<>();
+    service.processAsync()
+            .whenComplete((r, e) -> {
+                if (e != null) result.setErrorResult(e);
+                else result.setResult(r);
+            });
+    return result;
+}
+```
+
+### Resilience4j 비동기 패턴
+```java
+// TimeLimiter + CircuitBreaker + 비동기 조합
+CompletableFuture<String> future = Decorators
+    .ofSupplier(() -> backendService.doSomething())
+    .withThreadPoolBulkhead(threadPoolBulkhead)
+    .withTimeLimiter(timeLimiter, scheduler)
+    .withCircuitBreaker(circuitBreaker)
+    .withFallback(List.of(TimeoutException.class, CallNotPermittedException.class),
+        e -> "Async fallback")
+    .get()
+    .toCompletableFuture();
+
+// 논블로킹 결과 처리
+future.thenAccept(result -> log.info("Result: {}", result));
+
+// Retry 비동기 패턴
+Supplier<CompletionStage<T>> decoratedAsync =
+    Retry.decorateCompletionStage(retry, scheduler, asyncSupplier);
+```
+
+### Single-flight 비동기 패턴
+```java
+private CompletableFuture<T> singleFlightAsync(String key,
+        Supplier<CompletableFuture<T>> asyncSupplier) {
+
+    CompletableFuture<T> promise = new CompletableFuture<>();
+    InFlightEntry existing = inFlight.putIfAbsent(key, new InFlightEntry(promise));
+
+    if (existing == null) {
+        // Leader: 비동기 계산 시작
+        return asyncSupplier.get()
+            .whenComplete((r, e) -> {
+                if (e != null) promise.completeExceptionally(e);
+                else promise.complete(r);
+            })
+            .whenComplete((r, e) -> cleanupEntry(key));
+    }
+
+    // Follower: 비동기 대기 (타임아웃 포함)
+    return existing.future()
+            .orTimeout(5, TimeUnit.SECONDS)
+            .exceptionallyCompose(e -> handleFollowerTimeout(key, e));
+}
+```
+
+### GlobalExceptionHandler CompletionException 처리
+```java
+@ExceptionHandler(CompletionException.class)
+protected ResponseEntity<ErrorResponse> handleCompletionException(CompletionException e) {
+    Throwable cause = e.getCause();
+    if (cause instanceof BaseException be) {
+        return handleBaseException(be);
+    }
+    log.error("Async Pipeline Failure: ", e);
+    return ErrorResponse.toResponseEntity(CommonErrorCode.INTERNAL_SERVER_ERROR);
+}
+```
+
+### ThreadLocal 전파 주의사항
+비동기 체이닝에서 ThreadLocal 전파를 위해 `TaskDecorator` 설정 필수:
+```java
+@Bean
+public TaskDecorator contextPropagatingDecorator() {
+    return runnable -> {
+        // 호출 스레드에서 상태 캡처
+        Boolean snap = SomeContext.snapshot();
+        return () -> {
+            Boolean before = SomeContext.snapshot();
+            SomeContext.restore(snap);
+            try {
+                runnable.run();
+            } finally {
+                SomeContext.restore(before);  // 스레드풀 누수 방지
+            }
+        };
+    };
+}
+```
+
+### 동기 API 허용 범위
+- **비즈니스 로직 내**: `.join()` / `.get()` 완전 금지
+- **컨트롤러/어댑터 레이어**: 레거시 호환 시 제한적 허용 (비권장)
+
+```java
+// 레거시 동기 API (컨트롤러에서만 사용 - 비즈니스 로직 밖)
+public T syncMethod() {
+    return asyncMethod().join();  // 비권장하지만 컨트롤러에서는 허용
+}
+```
+
+---
+
+가장중요 !! 모든작업시 sequential thinking mcp을 사용하도록 합니다.
