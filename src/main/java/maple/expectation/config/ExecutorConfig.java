@@ -16,7 +16,10 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.core.annotation.AnnotationAwareOrderComparator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.task.TaskDecorator;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+
+import maple.expectation.aop.context.SkipEquipmentL2CacheContext;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -142,6 +145,41 @@ public class ExecutorConfig {
         return new DefaultCheckedLogicExecutor(pipeline);
     }
 
+    // ==================== 불변식 3: ThreadLocal 전파 (P0-4/B2) ====================
+
+    /**
+     * SkipEquipmentL2CacheContext 전파용 TaskDecorator
+     *
+     * <p>불변식 3 준수: 모든 비동기 실행 지점에서 ThreadLocal 상태가 전파되어야 함</p>
+     *
+     * <h4>전파 원리 (snapshot/restore 패턴)</h4>
+     * <ol>
+     *   <li>호출 스레드에서 snap = snapshot()</li>
+     *   <li>워커 스레드 진입 시 before = snapshot(); restore(snap);</li>
+     *   <li>작업 완료 후 finally에서 restore(before)로 원복</li>
+     * </ol>
+     *
+     * @return TaskDecorator 인스턴스
+     */
+    @Bean
+    public TaskDecorator contextPropagatingDecorator() {
+        return runnable -> {
+            // 1. 호출 스레드에서 현재 상태 캡처
+            Boolean snap = SkipEquipmentL2CacheContext.snapshot();
+            return () -> {
+                // 2. 워커 스레드에서 기존 상태 백업 후 캡처된 상태로 설정
+                Boolean before = SkipEquipmentL2CacheContext.snapshot();
+                SkipEquipmentL2CacheContext.restore(snap);
+                try {
+                    runnable.run();
+                } finally {
+                    // 3. 작업 완료 후 원래 상태로 복원 (스레드풀 누수 방지)
+                    SkipEquipmentL2CacheContext.restore(before);
+                }
+            };
+        };
+    }
+
     /**
      * 외부 알림(Discord/Slack 등) 전용 비동기 Executor
      *
@@ -169,7 +207,7 @@ public class ExecutorConfig {
      */
     @Bean(name = "alertTaskExecutor")
     @ConditionalOnMissingBean(name = "alertTaskExecutor")
-    public Executor alertTaskExecutor() {
+    public Executor alertTaskExecutor(TaskDecorator contextPropagatingDecorator) {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(2);
         executor.setMaxPoolSize(4);
@@ -178,12 +216,51 @@ public class ExecutorConfig {
         executor.setAllowCoreThreadTimeOut(true);
         executor.setKeepAliveSeconds(30);
 
-        // Best-effort 정책: 드롭 허용 + Future 완료 보장 + 샘플링 로깅 
+        // 불변식 3: ThreadLocal 전파 (P0-4/B2)
+        executor.setTaskDecorator(contextPropagatingDecorator);
+
+        // Best-effort 정책: 드롭 허용 + Future 완료 보장 + 샘플링 로깅
         executor.setRejectedExecutionHandler(LOGGING_ABORT_POLICY);
 
         // Shutdown 정책: 대기 없이 즉시 종료 (알림은 flush 불필요)
         executor.setWaitForTasksToCompleteOnShutdown(false);
 
+        executor.initialize();
+        return executor;
+    }
+
+    // ==================== Expectation compute 데드라인용 전용 Executor ====================
+
+    /**
+     * Expectation compute(파싱/계산/외부 호출 포함) 데드라인 강제를 위한 전용 Executor
+     *
+     * <h4>설계 의도</h4>
+     * <ul>
+     *   <li><b>30초 데드라인 강제</b>: CompletableFuture.orTimeout()과 함께 사용하여
+     *       leader compute가 30초를 초과하면 TimeoutException으로 정리</li>
+     *   <li><b>inFlight 누수 방지</b>: @Scheduled 백그라운드 정리 대신 실제 데드라인 강제</li>
+     * </ul>
+     *
+     * <h4>CallerRunsPolicy 사용 이유</h4>
+     * <ul>
+     *   <li>과부하 시에도 "리더 계산"이 진행되도록 드롭 대신 호출 스레드에서 실행</li>
+     *   <li>Single-flight follower는 5초 timeout 정책 유지</li>
+     * </ul>
+     *
+     * <h4>TaskDecorator 적용</h4>
+     * <p>SkipEquipmentL2CacheContext 등 ThreadLocal 전파 보장</p>
+     */
+    @Bean(name = "expectationComputeExecutor")
+    public Executor expectationComputeExecutor(TaskDecorator contextPropagatingDecorator) {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(4);
+        executor.setMaxPoolSize(8);
+        executor.setQueueCapacity(200);
+        executor.setThreadNamePrefix("expectation-");
+        executor.setAllowCoreThreadTimeOut(true);
+        executor.setKeepAliveSeconds(30);
+        executor.setTaskDecorator(contextPropagatingDecorator);
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
         executor.initialize();
         return executor;
     }

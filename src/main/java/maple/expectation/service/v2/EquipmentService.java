@@ -1,35 +1,83 @@
 package maple.expectation.service.v2;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.aop.annotation.TraceLog;
+import maple.expectation.aop.context.SkipEquipmentL2CacheContext;
 import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.dto.CubeCalculationInput;
 import maple.expectation.external.dto.v2.EquipmentResponse;
 import maple.expectation.external.dto.v2.TotalExpectationResponse;
-import maple.expectation.global.executor.LogicExecutor; // ✅ 주입
-import maple.expectation.global.executor.TaskContext; // ✅ 관측성 확보
-import maple.expectation.global.executor.strategy.ExceptionTranslator; // ✅ JSON 전용 번역기
-import maple.expectation.parser.EquipmentStreamingParser;
+import maple.expectation.global.concurrency.SingleFlightExecutor;
+import maple.expectation.global.error.exception.ExpectationCalculationUnavailableException;
+import maple.expectation.global.executor.LogicExecutor;
+import maple.expectation.global.executor.TaskContext;
 import maple.expectation.provider.EquipmentDataProvider;
+import maple.expectation.parser.EquipmentStreamingParser;
 import maple.expectation.service.v2.cache.EquipmentCacheService;
+import maple.expectation.service.v2.cache.EquipmentDataResolver;
+import maple.expectation.service.v2.cache.EquipmentFingerprintGenerator;
+import maple.expectation.service.v2.cache.TotalExpectationCacheService;
 import maple.expectation.service.v2.calculator.ExpectationCalculator;
 import maple.expectation.service.v2.calculator.ExpectationCalculatorFactory;
 import maple.expectation.service.v2.facade.GameCharacterFacade;
 import maple.expectation.service.v2.mapper.EquipmentMapper;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
+/**
+ * 장비 기대값 계산 서비스 (오케스트레이션)
+ *
+ * <h4>Issue #158 + #118 핵심 변경사항</h4>
+ * <ul>
+ *   <li>TotalExpectationResponse 결과 캐싱 (L1+L2)</li>
+ *   <li>Cache HIT 시 장비 로드/파싱/계산 완전 스킵</li>
+ *   <li>Single-flight 패턴으로 동시 MISS 중복 계산 방지</li>
+ *   <li><b>#118 준수: 비동기 파이프라인 전환 (.join() 완전 제거)</b></li>
+ * </ul>
+ *
+ * <h4>SRP 리팩토링 (v2.5)</h4>
+ * <ul>
+ *   <li>SingleFlightExecutor: 동시성 제어 위임</li>
+ *   <li>EquipmentDataResolver: 데이터 소스 우선순위 처리 위임</li>
+ *   <li>본 서비스: 순수 오케스트레이션만 담당</li>
+ * </ul>
+ */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class EquipmentService {
+
+    // ==================== 상수 ====================
+
+    /** 계산 로직 버전 (캐시 키에 포함) */
+    private static final int LOGIC_VERSION = 3;
+
+    /** 테이블 버전 (cube_tables 변경 시 갱신) */
+    private static final String TABLE_VERSION = "2024.01.15";
+
+    /** Leader compute 데드라인 (초) */
+    private static final int LEADER_DEADLINE_SECONDS = 30;
+
+    /**
+     * Follower 대기 타임아웃 (초)
+     *
+     * <p>Leader 데드라인과 동일하게 설정 (Issue #158 부하테스트 에러 수정)</p>
+     * <p>5초 → 30초: Follower가 Leader 완료 전 timeout되어 S006 에러 폭발 방지</p>
+     */
+    private static final int FOLLOWER_TIMEOUT_SECONDS = LEADER_DEADLINE_SECONDS;
+
+    // ==================== 의존성 ====================
 
     private final GameCharacterFacade gameCharacterFacade;
     private final EquipmentDataProvider equipmentProvider;
@@ -37,65 +85,268 @@ public class EquipmentService {
     private final ExpectationCalculatorFactory calculatorFactory;
     private final EquipmentMapper equipmentMapper;
     private final EquipmentCacheService equipmentCacheService;
-    private final ObjectMapper objectMapper;
-    private final LogicExecutor executor; // ✅ 전역 로직 실행기 주입
+    private final TotalExpectationCacheService expectationCacheService;
+    private final EquipmentFingerprintGenerator fingerprintGenerator;
+    private final EquipmentDataResolver dataResolver;
+    private final LogicExecutor executor;
+    private final TransactionTemplate readOnlyTx;
+    private final Executor expectationComputeExecutor;
+
+    /** Single-flight 동시성 제어 */
+    private final SingleFlightExecutor<TotalExpectationResponse> singleFlightExecutor;
+
+    // ==================== 생성자 ====================
+
+    public EquipmentService(
+            GameCharacterFacade gameCharacterFacade,
+            EquipmentDataProvider equipmentProvider,
+            EquipmentStreamingParser streamingParser,
+            ExpectationCalculatorFactory calculatorFactory,
+            EquipmentMapper equipmentMapper,
+            EquipmentCacheService equipmentCacheService,
+            TotalExpectationCacheService expectationCacheService,
+            EquipmentFingerprintGenerator fingerprintGenerator,
+            EquipmentDataResolver dataResolver,
+            LogicExecutor executor,
+            @Qualifier("readOnlyTransactionTemplate") TransactionTemplate readOnlyTx,
+            @Qualifier("expectationComputeExecutor") Executor expectationComputeExecutor) {
+
+        this.gameCharacterFacade = gameCharacterFacade;
+        this.equipmentProvider = equipmentProvider;
+        this.streamingParser = streamingParser;
+        this.calculatorFactory = calculatorFactory;
+        this.equipmentMapper = equipmentMapper;
+        this.equipmentCacheService = equipmentCacheService;
+        this.expectationCacheService = expectationCacheService;
+        this.fingerprintGenerator = fingerprintGenerator;
+        this.dataResolver = dataResolver;
+        this.executor = executor;
+        this.readOnlyTx = readOnlyTx;
+        this.expectationComputeExecutor = expectationComputeExecutor;
+
+        // SingleFlightExecutor 초기화 (타임아웃 시 캐시 재조회 fallback)
+        this.singleFlightExecutor = new SingleFlightExecutor<>(
+                FOLLOWER_TIMEOUT_SECONDS,
+                expectationComputeExecutor,
+                this::fallbackFromCache
+        );
+    }
+
+    // ==================== 내부 Record (Tx Snapshot) ====================
 
     /**
-     * 🚀 [V3 메인 로직] 기대값 계산
+     * 1차 경량 스냅샷: 캐시 키 생성용
+     */
+    private record LightSnapshot(
+            String userIgn,
+            String ocid,
+            LocalDateTime equipmentUpdatedAt
+    ) {}
+
+    /**
+     * 2차 전체 스냅샷: 계산용 (MISS일 때만 사용)
+     *
+     * <p>Issue #158 리팩토링: equipmentJson 제거</p>
+     * <p>DB 조회는 EquipmentDataResolver → EquipmentDbWorker로 위임 (SRP)</p>
+     */
+    private record FullSnapshot(
+            String userIgn,
+            String ocid,
+            LocalDateTime equipmentUpdatedAt
+    ) {}
+
+    // ==================== 메인 API (비동기) ====================
+
+    /**
+     * 기대값 계산 - 비동기 버전 (Issue #118 준수)
      */
     @TraceLog
-    @Transactional
+    public CompletableFuture<TotalExpectationResponse> calculateTotalExpectationAsync(String userIgn) {
+        Boolean beforeContext = SkipEquipmentL2CacheContext.snapshot();
+
+        return CompletableFuture
+                .supplyAsync(() -> {
+                    SkipEquipmentL2CacheContext.restore(Boolean.TRUE);
+                    return fetchLightSnapshot(userIgn);
+                }, expectationComputeExecutor)
+                .thenCompose(light -> processAfterLightSnapshot(userIgn, light))
+                .orTimeout(LEADER_DEADLINE_SECONDS, TimeUnit.SECONDS)
+                .exceptionally(e -> handleAsyncException(e, userIgn))
+                .whenComplete((r, e) -> SkipEquipmentL2CacheContext.restore(beforeContext));
+    }
+
+    /**
+     * 레거시 동기 API (컨트롤러 호환용)
+     */
+    @TraceLog
     public TotalExpectationResponse calculateTotalExpectation(String userIgn) {
-        TaskContext context = TaskContext.of("EquipmentService", "CalculateTotal", userIgn);
+        return calculateTotalExpectationAsync(userIgn).join();
+    }
 
-        return executor.execute(() -> {
-            GameCharacter character = gameCharacterFacade.findCharacterByUserIgn(userIgn);
-            String ocid = character.getOcid();
-            byte[] targetData;
+    // ==================== 오케스트레이션 ====================
 
-            Optional<EquipmentResponse> cachedResponse = equipmentCacheService.getValidCache(ocid);
+    private CompletableFuture<TotalExpectationResponse> processAfterLightSnapshot(
+            String userIgn, LightSnapshot light) {
 
-            if (cachedResponse.isPresent()) {
-                targetData = serializeToBytes(cachedResponse.get()); // ✅ try-catch 제거됨
-            } else if (character.getEquipment() != null) {
-                String jsonContent = character.getEquipment().getJsonContent();
-                targetData = jsonContent.getBytes(StandardCharsets.UTF_8);
-                equipmentCacheService.saveCache(ocid, deserializeToDto(jsonContent)); // ✅ try-catch 제거됨
-            } else {
-                log.info("🌐 [DB/Cache Miss] 넥슨 API 신규 호출: {}", userIgn);
-                EquipmentResponse response = equipmentProvider.getEquipmentResponse(ocid).join();
-                equipmentCacheService.saveCache(ocid, response);
-                targetData = equipmentProvider.getRawEquipmentData(ocid).join();
+        String cacheKey = buildExpectationCacheKey(light);
+
+        // Early Return: 캐시 HIT
+        Optional<TotalExpectationResponse> cached = expectationCacheService.getValidCache(cacheKey);
+        if (cached.isPresent()) {
+            log.debug("[Expectation] Cache HIT for {}", maskOcid(light.ocid()));
+            return CompletableFuture.completedFuture(cached.get());
+        }
+
+        // MISS: FullSnapshot 로드 → 계산
+        return CompletableFuture
+                .supplyAsync(() -> fetchFullSnapshot(userIgn), expectationComputeExecutor)
+                .thenCompose(full -> processAfterFullSnapshot(light, full, cacheKey));
+    }
+
+    private CompletableFuture<TotalExpectationResponse> processAfterFullSnapshot(
+            LightSnapshot light, FullSnapshot full, String originalCacheKey) {
+
+        String finalCacheKey = validateAndResolveCacheKey(light, full, originalCacheKey);
+
+        // 캐시 키 변경 시 재조회
+        if (!finalCacheKey.equals(originalCacheKey)) {
+            Optional<TotalExpectationResponse> reCached = expectationCacheService.getValidCache(finalCacheKey);
+            if (reCached.isPresent()) {
+                log.debug("[Expectation] Cache HIT after key regeneration");
+                return CompletableFuture.completedFuture(reCached.get());
             }
+        }
 
-            List<CubeCalculationInput> inputs = streamingParser.parseCubeInputs(targetData);
-            return processCalculation(userIgn, inputs);
-        }, context);
-    }
-
-    /**
-     * ✅  try-catch 제거 및 ExceptionTranslator 적용
-     */
-    private byte[] serializeToBytes(EquipmentResponse response) {
-        return executor.executeWithTranslation(
-                () -> objectMapper.writeValueAsBytes(response),
-                ExceptionTranslator.forJson(), // JSON 처리용 세탁기 가동
-                TaskContext.of("EquipmentService", "Serialize")
+        // Single-flight 위임
+        return singleFlightExecutor.executeAsync(
+                finalCacheKey,
+                () -> computeAndCacheAsync(full, finalCacheKey)
         );
     }
 
-    /**
-     * ✅  try-catch 제거 및 ExceptionTranslator 적용
-     */
-    private EquipmentResponse deserializeToDto(String json) {
-        return executor.executeWithTranslation(
-                () -> objectMapper.readValue(json, EquipmentResponse.class),
-                ExceptionTranslator.forJson(),
-                TaskContext.of("EquipmentService", "Deserialize")
+    // ==================== 스냅샷 조회 ====================
+
+    private LightSnapshot fetchLightSnapshot(String userIgn) {
+        LightSnapshot snap = readOnlyTx.execute(status -> {
+            GameCharacter ch = gameCharacterFacade.findCharacterByUserIgn(userIgn);
+            return new LightSnapshot(
+                    ch.getUserIgn(),
+                    ch.getOcid(),
+                    ch.getEquipment() != null ? ch.getEquipment().getUpdatedAt() : null
+            );
+        });
+        if (snap == null) {
+            throw new IllegalStateException("TransactionTemplate returned null for: " + userIgn);
+        }
+        return snap;
+    }
+
+    private FullSnapshot fetchFullSnapshot(String userIgn) {
+        FullSnapshot snap = readOnlyTx.execute(status -> {
+            GameCharacter ch = gameCharacterFacade.findCharacterByUserIgn(userIgn);
+            return new FullSnapshot(
+                    ch.getUserIgn(),
+                    ch.getOcid(),
+                    ch.getEquipment() != null ? ch.getEquipment().getUpdatedAt() : null
+            );
+        });
+        if (snap == null) {
+            throw new IllegalStateException("TransactionTemplate returned null for: " + userIgn);
+        }
+        return snap;
+    }
+
+    // ==================== 캐시 키 ====================
+
+    private String buildExpectationCacheKey(LightSnapshot light) {
+        String fingerprint = fingerprintGenerator.generate(light.equipmentUpdatedAt());
+        String tableVersionHash = fingerprintGenerator.hashTableVersion(TABLE_VERSION);
+        return expectationCacheService.buildCacheKey(
+                light.ocid(), fingerprint, tableVersionHash, LOGIC_VERSION);
+    }
+
+    private String validateAndResolveCacheKey(LightSnapshot light, FullSnapshot full, String originalCacheKey) {
+        if (Objects.equals(light.equipmentUpdatedAt(), full.equipmentUpdatedAt())) {
+            return originalCacheKey;
+        }
+
+        log.info("[Expectation] updatedAt mismatch, regenerating cacheKey");
+        String fingerprint = fingerprintGenerator.generate(full.equipmentUpdatedAt());
+        String tableVersionHash = fingerprintGenerator.hashTableVersion(TABLE_VERSION);
+        return expectationCacheService.buildCacheKey(full.ocid(), fingerprint, tableVersionHash, LOGIC_VERSION);
+    }
+
+    // ==================== 계산 로직 ====================
+
+    private CompletableFuture<TotalExpectationResponse> computeAndCacheAsync(
+            FullSnapshot snap, String cacheKey) {
+
+        // EquipmentDataResolver에 위임 (DB 조회 + API 호출 + DB 저장 모두 내부 처리)
+        return dataResolver.resolveAsync(snap.ocid(), snap.userIgn())
+                .thenApplyAsync(targetData -> {
+                    List<CubeCalculationInput> inputs = streamingParser.parseCubeInputs(targetData);
+                    TotalExpectationResponse result = processCalculation(snap.userIgn(), inputs);
+                    expectationCacheService.saveCache(cacheKey, result);
+                    return result;
+                }, expectationComputeExecutor);
+    }
+
+    private TotalExpectationResponse processCalculation(String userIgn, List<CubeCalculationInput> inputs) {
+        return executor.execute(() -> {
+            List<TotalExpectationResponse.ItemExpectation> details = inputs.stream()
+                    .map(this::mapToItemExpectation)
+                    .toList();
+
+            long totalCost = details.stream()
+                    .mapToLong(TotalExpectationResponse.ItemExpectation::getExpectedCost)
+                    .sum();
+
+            return equipmentMapper.toTotalResponse(userIgn, totalCost, details);
+        }, TaskContext.of("EquipmentService", "ProcessCalculation", userIgn));
+    }
+
+    private TotalExpectationResponse.ItemExpectation mapToItemExpectation(CubeCalculationInput input) {
+        ExpectationCalculator calc = calculatorFactory.createBlackCubeCalculator(input);
+        return equipmentMapper.toItemExpectation(
+                input,
+                calc.calculateCost(),
+                calc.getTrials().orElse(0L)
         );
     }
 
-    // --- 기존 메서드 보존 (이름 유지 / 삭제 없음) ---
+    // ==================== 예외 처리 ====================
+
+    private TotalExpectationResponse handleAsyncException(Throwable e, String userIgn) {
+        Throwable cause = (e instanceof CompletionException) ? e.getCause() : e;
+
+        if (cause instanceof TimeoutException) {
+            throw new ExpectationCalculationUnavailableException(userIgn, cause);
+        }
+        if (cause instanceof RuntimeException re) {
+            throw re;
+        }
+        throw new RuntimeException("Async expectation calculation failed", cause);
+    }
+
+    private TotalExpectationResponse fallbackFromCache(String cacheKey) {
+        log.warn("[Expectation] Follower timeout, fallback to cache lookup");
+        return expectationCacheService.getValidCache(cacheKey)
+                .orElseThrow(() -> new ExpectationCalculationUnavailableException(maskKey(cacheKey)));
+    }
+
+    // ==================== 유틸리티 ====================
+
+    private String maskOcid(String value) {
+        if (value == null || value.length() < 8) return "***";
+        return value.substring(0, 4) + "***";
+    }
+
+    private String maskKey(String key) {
+        if (key == null) return "null";
+        return key.replaceAll("(expectation:v\\d+:)[^:]+", "$1***");
+    }
+
+    // ==================== 레거시 API ====================
 
     public TotalExpectationResponse calculateTotalExpectationLegacy(String userIgn) {
         return executor.execute(() -> {
@@ -108,39 +359,6 @@ public class EquipmentService {
         }, TaskContext.of("EquipmentService", "CalculateLegacy", userIgn));
     }
 
-    private TotalExpectationResponse processCalculation(String userIgn, List<CubeCalculationInput> inputs) {
-        TaskContext context = TaskContext.of("EquipmentService", "ProcessCalculation", userIgn); //
-
-        return executor.execute(() -> { //
-            // 1. 개별 아이템 기대값 계산 (Stream 로직 평탄화)
-            List<TotalExpectationResponse.ItemExpectation> details = inputs.stream()
-                    .map(this::mapToItemExpectation) // 로직 분리 (메서드 추출)
-                    .toList();
-
-            // 2. 전체 비용 합산
-            long totalCost = details.stream()
-                    .mapToLong(TotalExpectationResponse.ItemExpectation::getExpectedCost)
-                    .sum();
-
-            // 3. 결과 Response 매핑 및 반환
-            return equipmentMapper.toTotalResponse(userIgn, totalCost, details);
-        }, context); //
-    }
-
-    /**
-     * 헬퍼 메서드: 단일 아이템에 대한 기대값 계산 및 DTO 매핑
-     */
-    private TotalExpectationResponse.ItemExpectation mapToItemExpectation(CubeCalculationInput input) {
-        // Calculator 생성 및 비용 산출 로직을 격리하여 가독성 확보
-        ExpectationCalculator calc = calculatorFactory.createBlackCubeCalculator(input);
-
-        return equipmentMapper.toItemExpectation(
-                input,
-                calc.calculateCost(),
-                calc.getTrials().orElse(0L)
-        );
-    }
-
     public void streamEquipmentData(String userIgn, OutputStream outputStream) {
         executor.executeVoid(
                 () -> equipmentProvider.streamAndDecompress(getOcid(userIgn), outputStream),
@@ -149,10 +367,7 @@ public class EquipmentService {
     }
 
     public EquipmentResponse getEquipmentByUserIgn(String userIgn) {
-        return executor.execute(
-                () -> equipmentProvider.getEquipmentResponse(getOcid(userIgn)).join(),
-                TaskContext.of("EquipmentService", "GetEquipment", userIgn)
-        );
+        return equipmentProvider.getEquipmentResponse(getOcid(userIgn)).join();
     }
 
     private String getOcid(String userIgn) {

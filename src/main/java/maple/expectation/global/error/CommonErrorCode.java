@@ -19,7 +19,8 @@ public enum CommonErrorCode implements ErrorCode {
     DATA_INITIALIZATION_FAILED("S003", "데이터 초기화 실패 (대상: %s)", HttpStatus.INTERNAL_SERVER_ERROR),
     DATA_PROCESSING_ERROR("S004", "데이터 처리 중 오류 발생 (%s)", HttpStatus.INTERNAL_SERVER_ERROR),
     EXTERNAL_API_ERROR("S005", "외부 API 호출 실패 (%s)", HttpStatus.SERVICE_UNAVAILABLE),
-    SYSTEM_CAPACITY_EXCEEDED("S006", "시스템 부하가 임계치를 초과했습니다. (현재 대기량: %s)", HttpStatus.SERVICE_UNAVAILABLE);
+    SYSTEM_CAPACITY_EXCEEDED("S006", "시스템 부하가 임계치를 초과했습니다. (현재 대기량: %s)", HttpStatus.SERVICE_UNAVAILABLE),
+    SERVICE_UNAVAILABLE("S007", "서비스가 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해주세요.", HttpStatus.SERVICE_UNAVAILABLE);
 
 
     private final String code;

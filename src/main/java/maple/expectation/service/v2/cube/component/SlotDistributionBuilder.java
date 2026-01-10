@@ -87,6 +87,13 @@ public class SlotDistributionBuilder {
                 cubeType, level, part, grade, slot, tableVersion
         );
 
+        // P0-3: 빈 테이블 = 해당 부위에서 해당 스탯 미지원 → 기여도 0 확률 100% 분포 반환
+        if (probs.isEmpty()) {
+            log.warn("[DistBuilder] 데이터 없음: cubeType={}, level={}, part={}, grade={}, slot={}, stat={} → 기여도 0 분포 반환",
+                    cubeType, level, part, grade, slot, targetStat);
+            return SparsePmf.fromMap(Map.of(0, 1.0));
+        }
+
         // 1. 전체 질량 계산 + 정책에 따른 정규화 계수
         double allTotal = calculateTotalMass(probs);
         double normFactor = validateAndGetNormalizationFactor(allTotal);
