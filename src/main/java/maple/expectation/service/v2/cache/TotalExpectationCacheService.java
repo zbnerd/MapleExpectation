@@ -66,11 +66,14 @@ public class TotalExpectationCacheService {
             if (l1 != null) {
                 TotalExpectationResponse l1Result = l1.get(cacheKey, TotalExpectationResponse.class);
                 if (l1Result != null) {
-                    log.debug("[ExpectationCache] L1 HIT maskedKey={}", maskKey(cacheKey));
+                    log.info("[Cache] L1 HIT | dto=TotalExpectationResponse | userIgn={} | totalCost={} | items={}",
+                            l1Result.getUserIgn(),
+                            l1Result.getTotalCost(),
+                            l1Result.getItems() != null ? l1Result.getItems().size() : 0);
                     return Optional.of(l1Result);
                 }
             } else {
-                log.warn("[L1 Cache Missing] cache={}", CACHE_NAME);
+                log.warn("[Cache] L1 unavailable | cache={}", CACHE_NAME);
             }
 
             // 2. L2 조회
@@ -78,18 +81,22 @@ public class TotalExpectationCacheService {
             if (l2 != null) {
                 TotalExpectationResponse l2Result = l2.get(cacheKey, TotalExpectationResponse.class);
                 if (l2Result != null) {
-                    log.debug("[ExpectationCache] L2 HIT maskedKey={}", maskKey(cacheKey));
+                    log.info("[Cache] L2 HIT | dto=TotalExpectationResponse | userIgn={} | totalCost={} | items={}",
+                            l2Result.getUserIgn(),
+                            l2Result.getTotalCost(),
+                            l2Result.getItems() != null ? l2Result.getItems().size() : 0);
                     // L1 warm-up
                     if (l1 != null) {
                         l1.put(cacheKey, l2Result);
+                        log.debug("[Cache] L1 warm-up completed");
                     }
                     return Optional.of(l2Result);
                 }
             } else {
-                log.warn("[L2 Cache Missing] cache={}", CACHE_NAME);
+                log.warn("[Cache] L2 unavailable | cache={}", CACHE_NAME);
             }
 
-            log.debug("[ExpectationCache] MISS maskedKey={}", maskKey(cacheKey));
+            log.info("[Cache] MISS | dto=TotalExpectationResponse | maskedKey={}", maskKey(cacheKey));
             return Optional.empty();
         }, TaskContext.of("ExpectationCache", "GetValid", maskKey(cacheKey)));
     }
@@ -137,9 +144,12 @@ public class TotalExpectationCacheService {
         Cache l1 = l1CacheManager.getCache(CACHE_NAME);
         if (l1 != null) {
             l1.put(cacheKey, response);
-            log.debug("[ExpectationCache] L1 SAVE maskedKey={}", maskKey(cacheKey));
+            log.info("[Cache] L1 SAVE | dto=TotalExpectationResponse | userIgn={} | totalCost={} | items={}",
+                    response.getUserIgn(),
+                    response.getTotalCost(),
+                    response.getItems() != null ? response.getItems().size() : 0);
         } else {
-            log.warn("[L1 Cache Missing] cache={}", CACHE_NAME);
+            log.warn("[Cache] L1 unavailable | cache={}", CACHE_NAME);
         }
     }
 
@@ -169,22 +179,24 @@ public class TotalExpectationCacheService {
     private void saveToL2(String cacheKey, TotalExpectationResponse response, int size) {
         Cache l2 = l2CacheManager.getCache(CACHE_NAME);
         if (l2 == null) {
-            log.warn("[L2 Cache Missing] cache={}", CACHE_NAME);
+            log.warn("[Cache] L2 unavailable | cache={}", CACHE_NAME);
             return;
         }
 
         executor.executeOrCatch(
                 () -> {
                     l2.put(cacheKey, response);
-                    log.debug("[ExpectationCache] L2 SAVE maskedKey={} size={}", maskKey(cacheKey), size);
-                    // TODO: metric - expectation.cache.save.l2.success
+                    log.info("[Cache] L2 SAVE | dto=TotalExpectationResponse | userIgn={} | totalCost={} | items={} | size={}bytes",
+                            response.getUserIgn(),
+                            response.getTotalCost(),
+                            response.getItems() != null ? response.getItems().size() : 0,
+                            size);
                     return null;
                 },
                 e -> {
                     // L2 저장 실패해도 API 실패로 전파 금지 (P0-2)
-                    log.warn("[L2 Save Fail] err={}", e.toString());
-                    log.debug("[L2 Save Fail] maskedKey={}", maskKey(cacheKey));
-                    // TODO: metric - expectation.cache.save.l2.fail
+                    log.warn("[Cache] L2 SAVE FAIL | dto=TotalExpectationResponse | userIgn={} | err={}",
+                            response.getUserIgn(), e.toString());
                     return null;
                 },
                 TaskContext.of("ExpectationCache", "SaveL2", maskKey(cacheKey))

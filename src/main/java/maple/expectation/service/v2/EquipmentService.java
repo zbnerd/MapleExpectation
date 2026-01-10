@@ -66,11 +66,16 @@ public class EquipmentService {
     /** 테이블 버전 (cube_tables 변경 시 갱신) */
     private static final String TABLE_VERSION = "2024.01.15";
 
-    /** Follower 대기 타임아웃 (초) */
-    private static final int FOLLOWER_TIMEOUT_SECONDS = 5;
-
     /** Leader compute 데드라인 (초) */
     private static final int LEADER_DEADLINE_SECONDS = 30;
+
+    /**
+     * Follower 대기 타임아웃 (초)
+     *
+     * <p>Leader 데드라인과 동일하게 설정 (Issue #158 부하테스트 에러 수정)</p>
+     * <p>5초 → 30초: Follower가 Leader 완료 전 timeout되어 S006 에러 폭발 방지</p>
+     */
+    private static final int FOLLOWER_TIMEOUT_SECONDS = LEADER_DEADLINE_SECONDS;
 
     // ==================== 의존성 ====================
 
@@ -140,12 +145,14 @@ public class EquipmentService {
 
     /**
      * 2차 전체 스냅샷: 계산용 (MISS일 때만 사용)
+     *
+     * <p>Issue #158 리팩토링: equipmentJson 제거</p>
+     * <p>DB 조회는 EquipmentDataResolver → EquipmentDbWorker로 위임 (SRP)</p>
      */
     private record FullSnapshot(
             String userIgn,
             String ocid,
-            LocalDateTime equipmentUpdatedAt,
-            String equipmentJson
+            LocalDateTime equipmentUpdatedAt
     ) {}
 
     // ==================== 메인 API (비동기) ====================
@@ -240,8 +247,7 @@ public class EquipmentService {
             return new FullSnapshot(
                     ch.getUserIgn(),
                     ch.getOcid(),
-                    ch.getEquipment() != null ? ch.getEquipment().getUpdatedAt() : null,
-                    ch.getEquipment() != null ? ch.getEquipment().getJsonContent() : null
+                    ch.getEquipment() != null ? ch.getEquipment().getUpdatedAt() : null
             );
         });
         if (snap == null) {
@@ -275,8 +281,8 @@ public class EquipmentService {
     private CompletableFuture<TotalExpectationResponse> computeAndCacheAsync(
             FullSnapshot snap, String cacheKey) {
 
-        // EquipmentDataResolver에 위임
-        return dataResolver.resolveAsync(snap.ocid(), snap.equipmentJson(), snap.userIgn())
+        // EquipmentDataResolver에 위임 (DB 조회 + API 호출 + DB 저장 모두 내부 처리)
+        return dataResolver.resolveAsync(snap.ocid(), snap.userIgn())
                 .thenApplyAsync(targetData -> {
                     List<CubeCalculationInput> inputs = streamingParser.parseCubeInputs(targetData);
                     TotalExpectationResponse result = processCalculation(snap.userIgn(), inputs);
