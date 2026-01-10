@@ -202,7 +202,7 @@ class ShutdownDataPersistenceServiceTest {
     }
 
     @Test
-    @DisplayName("findAllBackupFiles - 백업 파일 스캔 테스트")
+    @DisplayName("findAllBackupFiles - 백업 파일 스캔 테스트 (고정 파일명으로 원자적 교체)")
     void testFindAllBackupFiles() throws Exception {
         // given
         ShutdownData data1 = new ShutdownData(LocalDateTime.now(), "server1", Map.of("u1", 1L), List.of());
@@ -213,10 +213,16 @@ class ShutdownDataPersistenceServiceTest {
         Thread.sleep(100); // 시간 차이를 위해 대기
         service.saveShutdownData(data2);
 
-        // then
+        // then - P1 Fix: 고정 파일명 사용으로 인스턴스당 1개 파일만 유지
+        // 두 번째 저장이 첫 번째를 원자적으로 교체함
         List<Path> backupFiles = service.findAllBackupFiles();
-        assertThat(backupFiles).hasSize(2);
+        assertThat(backupFiles).hasSize(1);
         assertThat(backupFiles).allMatch(path -> path.toString().endsWith(".json"));
+
+        // 최신 데이터(data2)가 저장되어 있어야 함
+        Optional<ShutdownData> loaded = service.readBackupFile(backupFiles.get(0));
+        assertThat(loaded).isPresent();
+        assertThat(loaded.get().likeBuffer()).containsEntry("u2", 2L);
     }
 
     @Test

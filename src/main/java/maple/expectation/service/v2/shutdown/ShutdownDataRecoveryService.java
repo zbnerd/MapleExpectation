@@ -65,6 +65,23 @@ public class ShutdownDataRecoveryService {
         }, fileContext);
     }
 
+    /**
+     * 백업 파일 처리 (P1 Fix: 부분 복구 중복 방지)
+     *
+     * <h4>변경 전 (버그)</h4>
+     * <ol>
+     *   <li>Entry A 복구 성공</li>
+     *   <li>Entry B 복구 실패 → allSuccess=false</li>
+     *   <li>파일 미아카이브 → 재시작 시 A도 재복구 (중복!)</li>
+     * </ol>
+     *
+     * <h4>변경 후</h4>
+     * <ol>
+     *   <li>성공/실패 항목 분리 추적</li>
+     *   <li>실패 항목만 새 백업 파일 저장</li>
+     *   <li>원본 파일은 항상 아카이브 (처리 완료 표시)</li>
+     * </ol>
+     */
     private boolean processBackupFile(Path backupFile) {
         Optional<ShutdownData> dataOpt = persistenceService.readBackupFile(backupFile);
         if (dataOpt.isEmpty()) return false;
@@ -72,46 +89,56 @@ public class ShutdownDataRecoveryService {
         ShutdownData data = dataOpt.get();
         log.info("📝 [Shutdown Recovery] 처리 중: {} (항목: {}개)", backupFile.getFileName(), data.getTotalItems());
 
-        boolean likesRecovered = recoverLikeBuffer(data);
+        // P1 Fix: 실패 항목만 수집
+        Map<String, Long> failedEntries = recoverLikeBufferAndCollectFailures(data);
         recoverEquipmentPending(data);
 
-        return likesRecovered;
+        // 실패 항목이 있으면 새 백업 파일 생성 (성공 항목 제외)
+        if (!failedEntries.isEmpty()) {
+            log.warn("⚠️ [Recovery] 부분 실패: {} 항목 중 {} 실패, 실패 항목만 백업 생성",
+                    data.likeBuffer().size(), failedEntries.size());
+            persistenceService.saveFailedEntriesOnly(failedEntries, data.equipmentPending());
+        }
+
+        // 원본 파일은 항상 처리 완료로 간주 (재복구 방지)
+        return true;
     }
 
     /**
-     * ✅  Redis -> DB Fallback 로직 평탄화
+     * P1 Fix: 실패 항목만 수집하여 반환 (부분 복구 중복 방지)
+     *
+     * @return 복구 실패한 항목들 (성공 시 빈 Map)
      */
-    private boolean recoverLikeBuffer(ShutdownData data) {
+    private Map<String, Long> recoverLikeBufferAndCollectFailures(ShutdownData data) {
         Map<String, Long> likeBuffer = data.likeBuffer();
-        if (likeBuffer == null || likeBuffer.isEmpty()) return true;
+        if (likeBuffer == null || likeBuffer.isEmpty()) return Map.of();
 
-        AtomicBoolean allSuccess = new AtomicBoolean(true);
+        Map<String, Long> failedEntries = new java.util.concurrent.ConcurrentHashMap<>();
 
         likeBuffer.forEach((userIgn, count) -> {
             TaskContext entryContext = TaskContext.of("Recovery", "LikeEntry", userIgn);
 
-            // [패턴 5] executeWithRecovery: Redis 시도 -> 실패 시 DB 시도 (Issue #77)
             executor.executeOrCatch(
                     () -> {
                         redisTemplate.opsForHash().increment(REDIS_HASH_KEY, userIgn, count);
                         log.debug("✅ [Shutdown Recovery] Redis 복구 성공: {} ({}건)", userIgn, count);
                         return null;
                     },
-                    (redisEx) -> {
-                        // Redis 실패 시 DB Fallback 로직 수행
-                        return recoverToDbFallback(userIgn, count, redisEx, allSuccess, entryContext);
-                    },
+                    (redisEx) -> recoverToDbOrCollectFailure(userIgn, count, failedEntries, entryContext),
                     entryContext
             );
         });
 
-        return allSuccess.get();
+        return failedEntries;
     }
 
     /**
-     * 헬퍼: DB로 직접 복구 시도 (복구 시나리오 격리)
+     * DB Fallback 시도, 최종 실패 시 failedEntries에 수집
      */
-    private Void recoverToDbFallback(String userIgn, Long count, Throwable redisEx, AtomicBoolean allSuccess, TaskContext context) {
+    private Void recoverToDbOrCollectFailure(
+            String userIgn, Long count,
+            Map<String, Long> failedEntries,
+            TaskContext context) {
         log.warn("⚠️ [Shutdown Recovery] Redis 복구 실패, DB 직접 반영 시도: {} ({}건)", userIgn, count);
 
         return executor.executeOrCatch(
@@ -121,8 +148,8 @@ public class ShutdownDataRecoveryService {
                     return null;
                 },
                 (dbEx) -> {
-                    log.error("❌ [Shutdown Recovery] 최종 복구 실패 - 수동 처리 필요: {} ({}건)", userIgn, count);
-                    allSuccess.set(false); // 최종 실패 시 파일 보존을 위해 상태 변경
+                    log.error("❌ [Shutdown Recovery] 최종 복구 실패 - 재시도 예정: {} ({}건)", userIgn, count);
+                    failedEntries.put(userIgn, count);  // P1 Fix: 실패 항목만 수집
                     return null;
                 },
                 context
