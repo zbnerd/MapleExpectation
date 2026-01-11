@@ -329,7 +329,7 @@ private List<Dto> processActiveUser(Long id) {
 }
 ```
 
-## 🔄 15. Proactive Refactoring & Quality (ETC)
+## 🔄 16. Proactive Refactoring & Quality (ETC)
 - **Refactoring First:** 
   - 새로운 기능 구현 전, 기존 코드가 위 원칙(Facade, SOLID, Exception 전략 등)을 위반한다면 반드시 **리팩토링을 선행**합니다.
   - 기능 추가 전, 기존 코드가 LogicExecutor 패턴을 따르지 않는다면 우선 리팩토링을 수행합니다.
@@ -340,7 +340,7 @@ private List<Dto> processActiveUser(Long id) {
 
 ---
 
-## 🗄️ 16. TieredCache & Cache Stampede Prevention
+## 🗄️ 17. TieredCache & Cache Stampede Prevention
 
 Multi-Layer Cache(L1: Caffeine, L2: Redis) 환경에서 데이터 일관성과 Cache Stampede 방지를 위한 필수 규칙.
 
@@ -450,13 +450,3 @@ boolean acquired = executor.executeOrDefault(
 **Spring 대안 비교:**
 - `CompositeCacheManager.setFallbackToNoOpCache(true)`: 캐시 없으면 No-Op 사용
 - 우리 구현: No-Op 대신 valueLoader 직접 실행 (더 세밀한 제어)
-
-### 면접 방어 포인트 (금융 수준 6개)
-| 질문 | 답변 |
-|------|------|
-| leaseTime 없으면 무한 락? | Watchdog이 30초마다 자동 연장, 클라이언트 크래시 시 30초 후 자동 만료 (Context7) |
-| 락 실패 시 왜 예외 안 던짐? | 금융 가용성 요구사항. Cache Stampede는 성능 문제, 서비스 장애보다 우선순위 낮음 |
-| Double-check 오버헤드? | L2 조회 1회 ~1ms. 락 경합 상황에서만 발생 |
-| keyStr.hashCode() 충돌? | 동일 캐시 내 충돌 확률 낮음. 충돌 시 불필요한 대기만 발생, 정합성 문제 없음 |
-| tryLock 30초가 너무 길지 않나? | 30초는 락 획득 대기 시간. Leader 완료 시 즉시 해제. 30초 동안 획득 못하면 Fallback |
-| 여러 서버에서 L1 캐시가 다를 수 있는데? | L1 TTL(5분) ≤ L2 TTL(10분) 규칙으로 최대 5분 내 일관성 보장. 기대값 계산은 실시간 금융 거래가 아니므로 허용 범위 |
