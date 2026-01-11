@@ -301,26 +301,12 @@ public class TieredCache implements Cache {
         return "cache:sf:" + l2.getName() + ":" + keyStr.hashCode();
     }
 
-    @SuppressWarnings("unchecked")
-    private <T> T castValue(ValueWrapper wrapper) {
-        return (T) wrapper.get();
-    }
-
     /**
      * Tap 패턴: 값 반환하며 캐시 히트 메트릭 기록
      */
     private ValueWrapper tapCacheHit(ValueWrapper wrapper, String layer) {
         recordCacheHit(layer);
         return wrapper;
-    }
-
-    /**
-     * Tap + Cast: 캐시 히트 기록 후 타입 캐스팅
-     */
-    @SuppressWarnings("unchecked")
-    private <T> T tapAndCast(ValueWrapper wrapper, String layer) {
-        recordCacheHit(layer);
-        return (T) wrapper.get();
     }
 
     // ==================== Metrics (Micrometer 소문자 점 표기법) ====================
