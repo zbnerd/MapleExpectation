@@ -104,6 +104,78 @@ docker exec -it redis_container redis-cli
 - **SOLID 원칙:** SRP, OCP, LSP, ISP, DIP를 엄격히 준수하여 응집도를 높이고 결합도를 낮춥니다.
 - **Modern Java:** Java 17의 Records, Pattern Matching, Switch Expressions 등을 적극 활용합니다.
 
+### Optional Chaining Best Practice (Modern Null Handling)
+null 체크 로직은 **Optional 체이닝**으로 대체하여 선언적이고 가독성 높은 코드를 작성합니다.
+
+**기본 패턴:**
+```java
+// ❌ Bad (Imperative null check)
+ValueWrapper wrapper = l1.get(key);
+if (wrapper != null) {
+    recordHit("L1");
+    return wrapper;
+}
+wrapper = l2.get(key);
+if (wrapper != null) {
+    l1.put(key, wrapper.get());
+    return wrapper;
+}
+return null;
+
+// ✅ Good (Declarative Optional chaining)
+return Optional.ofNullable(l1.get(key))
+        .map(w -> tap(w, "L1"))
+        .or(() -> Optional.ofNullable(l2.get(key))
+                .map(w -> { l1.put(key, w.get()); return tap(w, "L2"); }))
+        .orElse(null);
+```
+
+**Tap 패턴 (Side Effect with Return):**
+```java
+// 값을 반환하면서 부수 효과(메트릭 기록 등) 실행
+private ValueWrapper tap(ValueWrapper wrapper, String layer) {
+    recordCacheHit(layer);
+    return wrapper;
+}
+```
+
+**Checked Exception 구조적 분리 (try-catch/RuntimeException 금지):**
+
+Optional.orElseGet()은 Supplier를 받아 checked exception을 던질 수 없습니다.
+**절대로 try-catch로 감싸거나 RuntimeException으로 변환하지 마십시오.** (섹션 11, 12 위반)
+
+대신 **구조적 분리**로 해결합니다:
+```java
+// ❌ Bad (섹션 11, 12 위반)
+.orElseGet(() -> {
+    try { return loadFromDatabase(key); }
+    catch (Exception e) { throw new RuntimeException(e); }
+})
+
+// ✅ Good (구조적 분리)
+private <T> T getWithFallback(Object key, Callable<T> loader) throws Exception {
+    // 1. Optional은 예외 없는 캐시 조회에만 사용
+    T cached = getCachedValue(key);
+    if (cached != null) {
+        return cached;
+    }
+
+    // 2. 예외 발생 가능한 작업은 Optional 밖에서 직접 호출
+    return loader.call();  // checked exception 자연 전파
+}
+
+private <T> T getCachedValue(Object key) {
+    return Optional.ofNullable(l1.get(key))
+            .map(w -> tapAndCast(w, "L1"))
+            .orElse(null);  // 예외 없음, null 반환
+}
+```
+
+**핵심 원칙:**
+- Optional 체이닝 → 예외 없는 작업만 (캐시 조회, 필터링)
+- checked exception → Optional 밖에서 직접 호출
+- 예외 변환 → LogicExecutor.executeWithTranslation() 사용
+
 ---
 
 ## 🚫 5. Anti-Pattern & Deprecation Prohibition
@@ -189,6 +261,7 @@ return executor.executeOrDefault(
     TaskContext.of("Domain", "FindById", id)
 );
 ```
+단, TraceAspect는 예외로 try-catch-finally 를 허용합니다. (LogicExecutor 순환참조 발생)
 
 ## 🛡️ 12. Circuit Breaker & Resilience Rules
 장애가 전체 시스템으로 전파되는 것을 방지하기 위해 Resilience4j 설정을 준수합니다.
@@ -264,3 +337,126 @@ private List<Dto> processActiveUser(Long id) {
 - **Update Rule:** 새로운 라이브러리나 기술 스택 추가 시, 해당 분야의 Best Practice를 조사하여 `CLAUDE.md`를 즉시 업데이트합니다.
 - **Definition of Done:** 코드가 작동하는 것을 넘어, 모든 테스트가 통과하고 위 클린 코드 원칙을 준수했을 때 작업을 완료한 것으로 간주합니다.
 - **Context Awareness:** 수정하려는 코드가 TieredCache나 LockStrategy 등 공통 모듈에 영향을 주는지 LogicExecutor의 파급력을 고려하여 작업합니다.
+
+---
+
+## 🗄️ 16. TieredCache & Cache Stampede Prevention
+
+Multi-Layer Cache(L1: Caffeine, L2: Redis) 환경에서 데이터 일관성과 Cache Stampede 방지를 위한 필수 규칙.
+
+### Write Order (L2 → L1) - 원자성 보장
+- **필수**: L2(Redis) 저장 성공 후에만 L1(Caffeine) 저장
+- **금지**: L1 먼저 저장 후 L2 저장 (L2 실패 시 불일치 발생)
+- **L2 실패 시**: L1 저장 스킵, 값은 반환 (가용성 유지)
+
+### Redisson Watchdog 규칙 (Context7 공식)
+- **필수**: `tryLock(waitTime, TimeUnit)` - leaseTime 생략하여 Watchdog 모드 활성화
+- **금지**: `tryLock(waitTime, leaseTime, TimeUnit)` - 작업이 leaseTime 초과 시 데드락
+- **원리**: Watchdog이 `lockWatchdogTimeout`(기본 30초)마다 자동 연장
+- **장애 시**: 클라이언트 크래시 → Watchdog 중단 → 30초 후 자동 만료
+
+**Code Example:**
+```java
+// ❌ Bad (leaseTime 지정 → 작업 초과 시 락 해제됨)
+lock.tryLock(30, 5, TimeUnit.SECONDS);
+
+// ✅ Good (Watchdog 모드 → 자동 연장)
+lock.tryLock(30, TimeUnit.SECONDS);
+```
+
+### unlock() 안전 패턴
+- **필수**: `isHeldByCurrentThread()` 체크 후 unlock
+- **이유**: 타임아웃으로 자동 해제된 후 unlock() 호출 시 IllegalMonitorStateException
+
+```java
+// ✅ Good
+finally {
+    if (acquired && lock.isHeldByCurrentThread()) {
+        lock.unlock();
+    }
+}
+```
+
+### 분산 Single-flight 패턴
+- **Leader**: 락 획득 → Double-check L2 → valueLoader 실행 → L2 저장 → L1 저장
+- **Follower**: 락 대기 → L2에서 읽기 → L1 Backfill
+- **락 실패 시**: Fallback으로 직접 실행 (가용성 우선)
+
+### Cache 메트릭 필수 항목 (Micrometer)
+| 메트릭 | 용도 |
+|--------|------|
+| `cache.hit{layer=L1/L2}` | 캐시 히트율 모니터링 |
+| `cache.miss` | Cache Stampede 빈도 확인 |
+| `cache.lock.failure` | 락 경합 상황 감지 |
+| `cache.l2.failure` | Redis 장애 감지 |
+
+### TTL 규칙
+- **필수**: L1 TTL ≤ L2 TTL (L2가 항상 Superset)
+- **이유**: L2 먼저 만료되면 L1에만 데이터 존재 → 불일치
+
+### Spring @Cacheable(sync=true) 호환성 (Context7 Best Practice)
+- **TieredCache.get(key, Callable)** 구현이 sync 모드 지원
+- `@Cacheable(sync=true)` 사용 시 동일 키 동시 요청 → 1회만 계산
+- Spring Framework 공식 권장: 동시성 환경에서 sync=true 사용
+
+```java
+// ✅ 권장: sync=true로 Cache Stampede 방지
+@Cacheable(cacheNames="equipment", sync=true)
+public Equipment findEquipment(String id) { ... }
+```
+
+### Micrometer 메트릭 명명 규칙 (Context7 Best Practice)
+- **필수**: 소문자 점 표기법 (예: `cache.hit`, `cache.miss`)
+- **태그**: 차원 분리용 (예: `layer`, `result`)
+- **금지**: CamelCase, snake_case
+
+```java
+// ✅ Good
+meterRegistry.counter("cache.hit", "layer", "L1").increment();
+meterRegistry.counter("cache.miss").increment();
+
+// ❌ Bad
+meterRegistry.counter("cacheHit").increment();
+meterRegistry.counter("cache_hit").increment();
+```
+
+### Graceful Degradation Pattern (가용성 우선)
+Redis 장애 시에도 서비스 가용성을 유지하기 위한 필수 패턴.
+
+- **원칙**: 캐시 장애가 서비스 장애로 이어지면 안 됨
+- **구현**: `LogicExecutor.executeOrDefault()`로 모든 Redis 호출 래핑
+- **폴백**: 장애 시 null/false 반환 → valueLoader 직접 실행
+
+**적용 대상 (4곳):**
+| 위치 | 래핑 대상 | 기본값 |
+|------|----------|--------|
+| `getCachedValueFromLayers()` | L2.get() | null |
+| `executeWithDistributedLock()` | lock.tryLock() | false |
+| `executeDoubleCheckAndLoad()` | L2.get() (Double-check) | null |
+| `unlockSafely()` | lock.unlock() | null |
+
+```java
+// ❌ Bad (Redis 장애 시 예외 전파 → 서비스 장애)
+boolean acquired = lock.tryLock(30, TimeUnit.SECONDS);
+
+// ✅ Good (Graceful Degradation → 가용성 유지)
+boolean acquired = executor.executeOrDefault(
+        () -> lock.tryLock(30, TimeUnit.SECONDS),
+        false,  // Redis 장애 시 락 획득 실패로 처리 → Fallback 실행
+        TaskContext.of("Cache", "AcquireLock", keyStr)
+);
+```
+
+**Spring 대안 비교:**
+- `CompositeCacheManager.setFallbackToNoOpCache(true)`: 캐시 없으면 No-Op 사용
+- 우리 구현: No-Op 대신 valueLoader 직접 실행 (더 세밀한 제어)
+
+### 면접 방어 포인트 (금융 수준 6개)
+| 질문 | 답변 |
+|------|------|
+| leaseTime 없으면 무한 락? | Watchdog이 30초마다 자동 연장, 클라이언트 크래시 시 30초 후 자동 만료 (Context7) |
+| 락 실패 시 왜 예외 안 던짐? | 금융 가용성 요구사항. Cache Stampede는 성능 문제, 서비스 장애보다 우선순위 낮음 |
+| Double-check 오버헤드? | L2 조회 1회 ~1ms. 락 경합 상황에서만 발생 |
+| keyStr.hashCode() 충돌? | 동일 캐시 내 충돌 확률 낮음. 충돌 시 불필요한 대기만 발생, 정합성 문제 없음 |
+| tryLock 30초가 너무 길지 않나? | 30초는 락 획득 대기 시간. Leader 완료 시 즉시 해제. 30초 동안 획득 못하면 Fallback |
+| 여러 서버에서 L1 캐시가 다를 수 있는데? | L1 TTL(5분) ≤ L2 TTL(10분) 규칙으로 최대 5분 내 일관성 보장. 기대값 계산은 실시간 금융 거래가 아니므로 허용 범위 |
