@@ -8,6 +8,7 @@ import maple.expectation.dto.CubeCalculationInput;
 import maple.expectation.external.dto.v2.EquipmentResponse;
 import maple.expectation.external.dto.v2.TotalExpectationResponse;
 import maple.expectation.global.concurrency.SingleFlightExecutor;
+import maple.expectation.global.error.exception.EquipmentDataProcessingException;
 import maple.expectation.global.error.exception.ExpectationCalculationUnavailableException;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
@@ -176,8 +177,9 @@ public class EquipmentService {
     }
 
     /**
-     * 레거시 동기 API (컨트롤러 호환용)
+     * @deprecated V2 컨트롤러는 {@link #calculateTotalExpectationAsync(String)} 직접 호출 (Issue #118)
      */
+    @Deprecated(since = "2.5", forRemoval = true)
     @TraceLog
     public TotalExpectationResponse calculateTotalExpectation(String userIgn) {
         return calculateTotalExpectationAsync(userIgn).join();
@@ -346,17 +348,46 @@ public class EquipmentService {
         return key.replaceAll("(expectation:v\\d+:)[^:]+", "$1***");
     }
 
-    // ==================== 레거시 API ====================
+    // ==================== 레거시 API (Issue #118: 비동기 전환) ====================
 
-    public TotalExpectationResponse calculateTotalExpectationLegacy(String userIgn) {
+    /**
+     * 기대값 계산 (Legacy) - 비동기 버전 (Issue #118 준수)
+     *
+     * <p>DB 저장 없이 Nexon API 직접 호출하여 계산</p>
+     * <p>신규 코드는 {@link #calculateTotalExpectationAsync(String)} 사용 권장</p>
+     *
+     * @param userIgn 캐릭터 닉네임
+     * @return 기대값 계산 결과 Future
+     */
+    @TraceLog
+    public CompletableFuture<TotalExpectationResponse> calculateTotalExpectationLegacyAsync(String userIgn) {
+        return CompletableFuture
+                .supplyAsync(() -> getOcid(userIgn), expectationComputeExecutor)
+                .thenCompose(ocid -> equipmentProvider.getEquipmentResponse(ocid))
+                .thenApplyAsync(equipment -> processLegacyCalculation(userIgn, equipment), expectationComputeExecutor)
+                .orTimeout(LEADER_DEADLINE_SECONDS, TimeUnit.SECONDS)
+                .exceptionally(e -> handleAsyncException(e, userIgn));
+    }
+
+    /**
+     * Legacy 계산 로직 (Method Extraction - CLAUDE.md Section 15)
+     */
+    private TotalExpectationResponse processLegacyCalculation(String userIgn, EquipmentResponse equipment) {
         return executor.execute(() -> {
-            EquipmentResponse equipment = equipmentProvider.getEquipmentResponse(getOcid(userIgn)).join();
             List<CubeCalculationInput> inputs = equipment.getItemEquipment().stream()
                     .filter(item -> item.getPotentialOptionGrade() != null)
                     .map(equipmentMapper::toCubeInput)
                     .toList();
             return processCalculation(userIgn, inputs);
-        }, TaskContext.of("EquipmentService", "CalculateLegacy", userIgn));
+        }, TaskContext.of("EquipmentService", "ProcessLegacy", userIgn));
+    }
+
+    /**
+     * @deprecated Use {@link #calculateTotalExpectationLegacyAsync(String)} instead (Issue #118)
+     */
+    @Deprecated(since = "2.5", forRemoval = true)
+    public TotalExpectationResponse calculateTotalExpectationLegacy(String userIgn) {
+        return calculateTotalExpectationLegacyAsync(userIgn).join();
     }
 
     public void streamEquipmentData(String userIgn, OutputStream outputStream) {
@@ -366,9 +397,46 @@ public class EquipmentService {
         );
     }
 
-    public EquipmentResponse getEquipmentByUserIgn(String userIgn) {
-        return equipmentProvider.getEquipmentResponse(getOcid(userIgn)).join();
+    /**
+     * 장비 조회 - 비동기 버전 (Issue #118 준수)
+     *
+     * <p>톰캣 스레드를 즉시 반환하고 expectation-* 스레드에서 처리</p>
+     *
+     * @param userIgn 캐릭터 닉네임
+     * @return 장비 응답 Future
+     */
+    @TraceLog
+    public CompletableFuture<EquipmentResponse> getEquipmentByUserIgnAsync(String userIgn) {
+        return CompletableFuture
+                .supplyAsync(() -> getOcid(userIgn), expectationComputeExecutor)
+                .thenCompose(ocid -> equipmentProvider.getEquipmentResponse(ocid))
+                .orTimeout(LEADER_DEADLINE_SECONDS, TimeUnit.SECONDS)
+                .exceptionally(e -> handleEquipmentException(e, userIgn));
     }
+
+    /**
+     * @deprecated Use {@link #getEquipmentByUserIgnAsync(String)} instead (Issue #118)
+     */
+    @Deprecated(since = "2.5", forRemoval = true)
+    public EquipmentResponse getEquipmentByUserIgn(String userIgn) {
+        return getEquipmentByUserIgnAsync(userIgn).join();
+    }
+
+    // ==================== 예외 처리 (Issue #118) ====================
+
+    private EquipmentResponse handleEquipmentException(Throwable e, String userIgn) {
+        Throwable cause = (e instanceof CompletionException) ? e.getCause() : e;
+
+        if (cause instanceof TimeoutException) {
+            throw new ExpectationCalculationUnavailableException(userIgn, cause);
+        }
+        if (cause instanceof RuntimeException re) {
+            throw re;
+        }
+        throw new EquipmentDataProcessingException("Async equipment fetch failed for: " + userIgn, cause);
+    }
+
+    // ==================== 유틸리티 ====================
 
     private String getOcid(String userIgn) {
         return gameCharacterFacade.findCharacterByUserIgn(userIgn).getOcid();
