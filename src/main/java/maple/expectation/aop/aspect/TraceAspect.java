@@ -30,7 +30,7 @@ public class TraceAspect {
     @Value("${app.aop.trace.enabled:false}")
     private boolean isTraceEnabled;
 
-    private static final int MAX_ARG_LENGTH = 100;
+    private static final int MAX_ARG_LENGTH = 30;
 
     // ❌ LogicExecutor 제거 (순환 참조 원인)
     // private final LogicExecutor executor;
@@ -62,6 +62,11 @@ public class TraceAspect {
                     "&& !within(*..*LockStrategy*) " +
                     "&& !execution(* *..*LockStrategy*.executeWithLock(..))" +
                     "&& !execution(* maple.expectation..RedisBufferRepository.getTotalPendingCount(..))" +
+                    // LikeRelation 관련 노이즈 제거 (스케줄러에서 주기적 호출)
+                    "&& !within(maple.expectation.service.v2.LikeRelationSyncService) " +
+                    "&& !within(maple.expectation.service.v2.cache.LikeRelationBuffer) " +
+                    // API Key 노출 방지 (String 파라미터로 전달되어 마스킹 불가)
+//                    "&& !within(maple.expectation.external.impl.RealNexonAuthClient) " +
                     "&& !execution(* *.toString())" +
                     "&& !execution(* *.hashCode())" +
                     "&& !execution(* *.equals(..))"

@@ -131,3 +131,32 @@ app:
   shutdown:
     backup-directory: /tmp/maple-shutdown
     archive-directory: /tmp/maple-shutdown/processed
+
+# SpringDoc OpenAPI (Swagger UI) - Context7 Best Practice
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+    try-it-out-enabled: true
+    persist-authorization: true  # JWT 토큰 유지
+  packages-to-scan: maple.expectation.controller
+  show-actuator: false
+  default-consumes-media-type: application/json
+  default-produces-media-type: application/json
+
+# BYOK 인증 설정 (Issue #146)
+auth:
+  jwt:
+    secret: ${JWT_SECRET:dev-secret-key-must-be-at-least-32-characters-long}
+    expiration: 1800  # 30분 (초)
+  fingerprint:
+    secret: ${FINGERPRINT_SECRET:fingerprint-secret-key-for-hmac-sha256}
+  admin:
+    allowlist: ${ADMIN_FINGERPRINTS:}  # 쉼표 구분 fingerprint 목록
+  session:
+    ttl: 1800  # 30분 (초)

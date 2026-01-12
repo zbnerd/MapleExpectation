@@ -450,3 +450,262 @@ boolean acquired = executor.executeOrDefault(
 **Spring 대안 비교:**
 - `CompositeCacheManager.setFallbackToNoOpCache(true)`: 캐시 없으면 No-Op 사용
 - 우리 구현: No-Op 대신 valueLoader 직접 실행 (더 세밀한 제어)
+
+---
+
+## 🔐 18. Spring Security 6.x Filter Best Practice (Context7)
+
+Spring Security 6.x에서 커스텀 Filter 사용 시 반드시 준수해야 할 규칙입니다.
+
+### CGLIB 프록시 문제 (CRITICAL)
+`OncePerRequestFilter`를 상속한 필터에 `@Component`를 붙이면 CGLIB 프록시 생성 시 부모 클래스의 `logger` 필드가 초기화되지 않아 NPE 발생합니다.
+
+```java
+// ❌ Bad (@Component 사용 시 CGLIB 프록시 문제 발생)
+@Component
+@RequiredArgsConstructor
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
+    // java.lang.NullPointerException: Cannot invoke "Log.isDebugEnabled()"
+    // because "this.logger" is null
+}
+
+// ✅ Good (@Bean으로 수동 등록)
+@RequiredArgsConstructor
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
+    // @Component 제거 → SecurityConfig에서 @Bean 등록
+}
+```
+
+### Filter Bean 등록 패턴 (Context7 공식)
+```java
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig {
+
+    // 1. Filter Bean 직접 등록 (생성자 주입)
+    @Bean
+    public JwtAuthenticationFilter jwtAuthenticationFilter(
+            JwtTokenProvider provider,
+            SessionService service,
+            FingerprintGenerator generator) {
+        return new JwtAuthenticationFilter(provider, service, generator);
+    }
+
+    // 2. 서블릿 컨테이너 중복 등록 방지
+    @Bean
+    public FilterRegistrationBean<JwtAuthenticationFilter> jwtFilterRegistration(
+            JwtAuthenticationFilter filter) {
+        FilterRegistrationBean<JwtAuthenticationFilter> registration =
+                new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false);  // 서블릿 컨테이너 등록 비활성화
+        return registration;
+    }
+
+    // 3. SecurityFilterChain에 필터 추가
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http,
+                                            JwtAuthenticationFilter filter) throws Exception {
+        http.addFilterBefore(filter, UsernamePasswordAuthenticationFilter.class);
+        return http.build();
+    }
+}
+```
+
+### FilterRegistrationBean 필요성
+| 시나리오 | 결과 |
+|---------|------|
+| `@Bean`만 등록 | Spring Boot가 서블릿 컨테이너에도 자동 등록 → 필터 2회 실행 |
+| `FilterRegistrationBean.setEnabled(false)` | Spring Security만 필터 관리 → 1회 실행 |
+
+### SecurityContext 설정 (Context7 Best Practice)
+```java
+// ❌ Bad (기존 컨텍스트 재사용 → 동시성 문제)
+SecurityContextHolder.getContext().setAuthentication(auth);
+
+// ✅ Good (새 컨텍스트 생성 → Thread-Safe)
+SecurityContext context = SecurityContextHolder.createEmptyContext();
+context.setAuthentication(auth);
+SecurityContextHolder.setContext(context);
+```
+
+### 보안 헤더 설정 (Spring Security 6.x Lambda DSL)
+```java
+http.headers(headers -> headers
+    .frameOptions(frame -> frame.deny())           // Clickjacking 방지
+    .contentTypeOptions(Customizer.withDefaults()) // MIME 스니핑 방지
+    .httpStrictTransportSecurity(hsts -> hsts      // HSTS
+        .includeSubDomains(true)
+        .maxAgeInSeconds(31536000)
+    )
+);
+```
+
+---
+
+## 🔒 19. Security Best Practices (Logging & API Client)
+
+민감한 정보 보호와 외부 API 에러 처리를 위한 필수 규칙입니다.
+
+### 민감 데이터 로그 마스킹 (CRITICAL)
+AOP(TraceAspect 등)에서 DTO를 자동 로깅할 때 민감 정보(API Key, 비밀번호 등)가 노출될 수 있습니다.
+**Java Record의 기본 toString()은 모든 필드를 노출**하므로 반드시 오버라이드해야 합니다.
+
+```java
+// ❌ Bad (Record 기본 toString() → API Key 평문 노출)
+public record LoginRequest(String apiKey, String userIgn) {}
+// 로그: LoginRequest[apiKey=live_abcd1234efgh5678, userIgn=닉네임]
+
+// ✅ Good (toString() 오버라이드 → 마스킹)
+public record LoginRequest(String apiKey, String userIgn) {
+    @Override
+    public String toString() {
+        return "LoginRequest[" +
+                "apiKey=" + maskApiKey(apiKey) +
+                ", userIgn=" + userIgn + "]";
+    }
+
+    private String maskApiKey(String key) {
+        if (key == null || key.length() < 8) return "****";
+        return key.substring(0, 4) + "****" + key.substring(key.length() - 4);
+    }
+}
+// 로그: LoginRequest[apiKey=live****5678, userIgn=닉네임]
+```
+
+**마스킹 대상 필드:**
+- API Key, Secret Key
+- 비밀번호, 토큰
+- 개인정보 (주민번호, 전화번호 등)
+
+### WebClient 에러 처리: onErrorResume vs onStatus
+
+| 패턴 | 장점 | 단점 |
+|------|------|------|
+| `onStatus()` | 상태 코드별 분기 간편 | **응답 본문 접근 불가** |
+| `onErrorResume()` | 상태 코드 + 응답 본문 모두 접근 | 약간 더 복잡 |
+
+**디버깅을 위해 외부 API의 실제 에러 메시지를 로깅해야 하므로 `onErrorResume()` 사용 권장.**
+
+```java
+// ❌ Bad (onStatus: 에러 본문 로깅 불가)
+.retrieve()
+.onStatus(
+    HttpStatusCode::is4xxClientError,
+    response -> {
+        log.warn("Error: {}", response.statusCode());  // 상태 코드만
+        return Mono.empty();
+    }
+)
+.bodyToMono(Response.class)
+
+// ✅ Good (onErrorResume: 에러 본문까지 로깅)
+.retrieve()
+.bodyToMono(Response.class)
+.onErrorResume(WebClientResponseException.class, ex -> {
+    if (ex.getStatusCode().is4xxClientError()) {
+        // 상태 코드 + 실제 에러 메시지 로깅
+        log.warn("API Failed. Status: {}, Body: {}",
+                ex.getStatusCode(), ex.getResponseBodyAsString());
+        return Mono.empty();
+    }
+    // 5xx: 서킷브레이커 동작을 위해 상위 전파
+    return Mono.error(ex);
+})
+.timeout(API_TIMEOUT)
+```
+
+**패턴 적용 기준:**
+- **클라이언트 에러 (4xx)**: 로깅 후 Mono.empty() 반환 (비즈니스 예외로 처리)
+- **서버 에러 (5xx)**: Mono.error()로 상위 전파 (서킷브레이커 동작)
+
+### API Key 저장 규칙 (JWT vs Redis)
+- **JWT에 절대 포함 금지**: JWT는 클라이언트에 노출되므로 apiKey 저장 불가
+- **Redis 세션에만 저장**: 서버 측에서만 접근 가능한 Redis 세션에 저장
+- **Fingerprint 사용**: `HMAC-SHA256(serverSecret, apiKey)`로 변환하여 JWT에 저장
+
+---
+
+## 📖 20. SpringDoc OpenAPI (Swagger UI) Best Practice
+
+API 문서 자동화를 위한 SpringDoc OpenAPI 설정 규칙입니다. (Context7 권장)
+
+### 의존성 (Spring Boot 3.x)
+```groovy
+// build.gradle
+implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.13'
+```
+
+**주의**: Spring Boot 3.x는 `springdoc-openapi-starter-webmvc-ui` 사용 (2.x는 `springdoc-openapi-ui`)
+
+### OpenAPI 설정 패턴 (어노테이션 기반)
+```java
+@Configuration
+@OpenAPIDefinition(
+    info = @Info(
+        title = "API Title",
+        version = "2.0.0",
+        description = "API 설명"
+    ),
+    servers = {
+        @Server(url = "http://localhost:8080", description = "Local"),
+        @Server(url = "https://api.example.com", description = "Production")
+    },
+    security = @SecurityRequirement(name = "bearerAuth")
+)
+@SecurityScheme(
+    name = "bearerAuth",
+    type = SecuritySchemeType.HTTP,
+    scheme = "bearer",
+    bearerFormat = "JWT"
+)
+public class OpenApiConfig {}
+```
+
+### application.yml 설정
+```yaml
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    operations-sorter: method    # GET/POST/PUT/DELETE 순 정렬
+    tags-sorter: alpha           # 태그 알파벳 순
+    try-it-out-enabled: true     # "Try it out" 버튼 활성화
+    persist-authorization: true  # JWT 토큰 세션 유지
+  packages-to-scan: maple.expectation.controller
+```
+
+### 테스트 환경 설정 (비활성화)
+```yaml
+# src/test/resources/application.yml
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+```
+
+### SecurityConfig 통합
+```java
+// Swagger UI 엔드포인트 permitAll
+.requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+```
+
+### Controller 어노테이션 (선택)
+```java
+@Tag(name = "Character", description = "캐릭터 관련 API")
+@Operation(summary = "캐릭터 조회", description = "캐릭터 정보를 조회합니다")
+@ApiResponse(responseCode = "200", description = "성공")
+@ApiResponse(responseCode = "404", description = "캐릭터 없음")
+public ResponseEntity<CharacterDto> getCharacter(@PathVariable String ign) { ... }
+```
+
+### 접근 경로
+| 경로 | 설명 |
+|------|------|
+| `/swagger-ui.html` | Swagger UI (리다이렉트) |
+| `/swagger-ui/index.html` | Swagger UI (직접) |
+| `/v3/api-docs` | OpenAPI JSON |
+| `/v3/api-docs.yaml` | OpenAPI YAML |

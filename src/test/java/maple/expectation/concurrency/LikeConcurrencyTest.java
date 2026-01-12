@@ -2,12 +2,12 @@ package maple.expectation.concurrency;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
-import jakarta.transaction.Transactional;
 import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.service.v2.GameCharacterService;
+import maple.expectation.service.v2.LikeProcessor;
 import maple.expectation.service.v2.LikeSyncService;
 import maple.expectation.support.IntegrationTestSupport;
-import maple.expectation.support.EnableTimeLogging; // 통계 측정을 위한 커스텀 어노테이션
+import maple.expectation.support.EnableTimeLogging;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -27,11 +27,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * 🚀 [Issue #133] 계층형 쓰기 지연 및 장애 복원력 테스트
  * - IntegrationTestSupport 상속으로 컨텍스트 공유 최적화
  * - SpringBootTestWithTimeLogging 적용으로 동시성 통계 측정
+ *
+ * <p>Note: 좋아요 버퍼링 검증이 목적이므로 LikeProcessor를 직접 사용</p>
  */
 @EnableTimeLogging
 public class LikeConcurrencyTest extends IntegrationTestSupport {
 
     @Autowired private GameCharacterService gameCharacterService;
+    @Autowired private LikeProcessor likeProcessor;
     @Autowired private LikeSyncService likeSyncService;
     @Autowired private TransactionTemplate transactionTemplate;
     @PersistenceContext private EntityManager entityManager;
@@ -67,7 +70,7 @@ public class LikeConcurrencyTest extends IntegrationTestSupport {
 
         for (int i = 0; i < userCount; i++) {
             executorService.submit(() -> {
-                try { gameCharacterService.clickLikeCache(targetUserIgn); }
+                try { likeProcessor.processLike(targetUserIgn); }
                 finally { latch.countDown(); }
             });
         }
@@ -89,7 +92,7 @@ public class LikeConcurrencyTest extends IntegrationTestSupport {
         failMaster(); // Redis 차단
 
         try {
-            gameCharacterService.clickLikeCache(targetUserIgn);
+            likeProcessor.processLike(targetUserIgn);
             likeSyncService.flushLocalToRedis(); // L1→L2 시도 (Redis 장애로 실패)
             likeSyncService.syncRedisToDatabase(); // L2→L3 동기화 (Redis 장애 시 직접 DB 반영)
 

@@ -52,6 +52,17 @@ dependencies {
 
     implementation 'org.redisson:redisson-spring-boot-starter:3.27.0'
 
+    // Spring Security
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    testImplementation 'org.springframework.security:spring-security-test'
+
+    // JJWT (0.12.x - Context7 권장)
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
+
+    // SpringDoc OpenAPI (Swagger UI) - Context7 Best Practice
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.13'
 
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'com.h2database:h2'
