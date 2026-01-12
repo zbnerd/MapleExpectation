@@ -1066,6 +1066,207 @@ return CompletableFuture
 ### 참고 문서
 - `docs/expectation-sequence-diagram.md` - 전체 데이터 흐름 시각화
 
+---
+
+## 🧵 22. Thread Pool Backpressure Best Practice (Issue #168)
+
+ThreadPoolTaskExecutor의 RejectedExecutionHandler 설정 및 메트릭 수집을 위한 필수 규칙입니다.
+
+### CallerRunsPolicy 금지 (Critical)
+
+```java
+// ❌ Bad (톰캣 스레드 고갈 → 전체 API 마비)
+executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+
+// ✅ Good (즉시 거부 → 503 응답 → 클라이언트 재시도)
+executor.setRejectedExecutionHandler(CUSTOM_ABORT_POLICY);
+```
+
+**CallerRunsPolicy 문제점:**
+- "backpressure" 의도였으나 실제로는 **톰캣 스레드 고갈** 유발
+- 큐 포화 시 요청 처리 시간 비정상 증가 (SLA 위반)
+- 메트릭 기록 불가 (rejected count = 0으로 보임)
+- 서킷브레이커 동작 불가 (예외가 발생하지 않음)
+
+### AbortPolicy + 샘플링 로깅 패턴
+
+```java
+private static final AtomicLong rejectedCount = new AtomicLong(0);
+private static final AtomicLong lastRejectNanos = new AtomicLong(0);
+private static final long REJECT_LOG_INTERVAL_NANOS = TimeUnit.SECONDS.toNanos(1);
+
+private static final RejectedExecutionHandler CUSTOM_ABORT_POLICY = (r, executor) -> {
+    // 1. Shutdown 구분
+    if (executor.isShutdown() || executor.isTerminating()) {
+        throw new RejectedExecutionException("Executor rejected (shutdown)");
+    }
+
+    // 2. 샘플링 로깅 (1초 1회, log storm 방지)
+    long dropped = rejectedCount.incrementAndGet();
+    long now = System.nanoTime();
+    long prev = lastRejectNanos.get();
+
+    if (now - prev >= REJECT_LOG_INTERVAL_NANOS &&
+        lastRejectNanos.compareAndSet(prev, now)) {
+        long count = rejectedCount.getAndSet(0);
+        log.warn("[Executor] Task rejected. droppedInLastWindow={}, poolSize={}, queueSize={}",
+                count, executor.getPoolSize(), executor.getQueue().size());
+    }
+
+    // 3. 예외 던지기 (Future 완료 보장)
+    throw new RejectedExecutionException("Executor queue full");
+};
+```
+
+### Micrometer 메트릭 등록 (Context7 공식)
+
+```java
+// ExecutorServiceMetrics 등록
+new ExecutorServiceMetrics(
+    executor.getThreadPoolExecutor(),
+    "executor.name",
+    Collections.emptyList()
+).bindTo(meterRegistry);
+
+// rejected Counter 추가 (ExecutorServiceMetrics 미제공)
+Counter rejectedCounter = Counter.builder("executor.rejected")
+        .tag("name", "executor.name")
+        .description("Number of tasks rejected due to queue full")
+        .register(meterRegistry);
+```
+
+**제공 메트릭:**
+| 메트릭 | 설명 |
+|--------|------|
+| `executor.completed` | 완료된 작업 수 |
+| `executor.active` | 현재 활성 스레드 수 |
+| `executor.queued` | 큐에 대기 중인 작업 수 |
+| `executor.pool.size` | 현재 스레드 풀 크기 |
+| `executor.rejected` | 거부된 작업 수 (커스텀) |
+
+### 503 응답 + Retry-After 헤더 (HTTP 표준)
+
+```java
+// GlobalExceptionHandler에서 처리
+@ExceptionHandler(CompletionException.class)
+protected ResponseEntity<ErrorResponse> handleCompletionException(CompletionException e) {
+    if (e.getCause() instanceof RejectedExecutionException) {
+        return ResponseEntity
+            .status(HttpStatus.SERVICE_UNAVAILABLE)
+            .header("Retry-After", "60")  // 60초 후 재시도 권장
+            .body(errorResponse);
+    }
+    // ...
+}
+```
+
+### ⚠️ Write-Behind 패턴 주의 (Critical)
+
+AbortPolicy는 **읽기 전용 작업에만** 적용하세요!
+
+```java
+// ❌ DANGER: Write-Behind + AbortPolicy = 데이터 유실
+CompletableFuture.runAsync(() -> {
+    dbWorker.persist(ocid, data);  // DB 저장
+}, writeExecutor);  // AbortPolicy 적용 시 거부 = 데이터 유실!
+
+// ✅ Safe: Write-Behind에는 CallerRunsPolicy 또는 DLQ 패턴
+executor.setRejectedExecutionHandler(new CallerRunsPolicy());  // 지연 > 유실
+```
+
+**적용 가이드:**
+| Executor 용도 | 권장 정책 | 이유 |
+|--------------|----------|------|
+| 조회/계산 (읽기) | AbortPolicy | 재시도 가능, 멱등성 |
+| DB 저장 (쓰기) | CallerRunsPolicy/DLQ | 데이터 유실 방지 |
+| 알림 전송 | AbortPolicy | Best-effort 허용 |
+
+---
+
+## 🧪 23. ExecutorService 동시성 테스트 Best Practice
+
+동시성 테스트에서 Race Condition을 방지하기 위한 필수 패턴입니다.
+
+### shutdown() vs awaitTermination() (Critical)
+
+`ExecutorService.shutdown()`은 **새로운 작업 제출만 막고 즉시 반환**됩니다.
+기존 작업 완료를 보장하려면 반드시 `awaitTermination()`을 호출해야 합니다.
+
+```java
+// ❌ Bad (Race Condition 발생)
+executorService.shutdown();
+// 아직 작업 실행 중인데 결과 검증!
+assertEquals(expected, actualResult);
+
+// ✅ Good (모든 작업 완료 보장)
+executorService.shutdown();
+executorService.awaitTermination(5, TimeUnit.SECONDS);
+// 이제 안전하게 검증 가능
+assertEquals(expected, actualResult);
+```
+
+### CountDownLatch + awaitTermination 조합 (Recommended)
+
+```java
+int taskCount = 100;
+ExecutorService executor = Executors.newFixedThreadPool(16);
+CountDownLatch latch = new CountDownLatch(taskCount);
+
+for (int i = 0; i < taskCount; i++) {
+    executor.submit(() -> {
+        try {
+            // 비즈니스 로직
+            service.process();
+        } finally {
+            latch.countDown();  // 작업 완료 신호
+        }
+    });
+}
+
+// Step 1: 모든 작업이 finally 블록까지 도달 대기
+latch.await(10, TimeUnit.SECONDS);
+
+// Step 2: Executor 종료 및 완료 대기 (추가 안전장치)
+executor.shutdown();
+executor.awaitTermination(5, TimeUnit.SECONDS);
+
+// Step 3: 결과 검증
+assertResult();
+```
+
+### 왜 둘 다 필요한가?
+
+| 단계 | latch.await() | awaitTermination() |
+|------|--------------|-------------------|
+| 목적 | 작업 완료 **신호** 대기 | 스레드 종료 대기 |
+| 보장 | finally 블록 실행 완료 | 스레드 리소스 정리 |
+| 누락 시 | 일부 작업 미완료 상태 검증 | 스레드 누수 가능 |
+
+### Caffeine Cache + AtomicLong 동시성 패턴
+
+```java
+// LikeBufferStorage.java - Thread-Safe 패턴
+private final Cache<String, AtomicLong> likeCache = Caffeine.newBuilder()
+        .expireAfterAccess(1, TimeUnit.MINUTES)
+        .build();
+
+// Caffeine.get()은 원자적이지만, 반환된 AtomicLong 조작과
+// 후속 처리(Redis 전송) 사이에는 Race 가능
+public AtomicLong getCounter(String userIgn) {
+    return likeCache.get(userIgn, key -> new AtomicLong(0));
+}
+
+// flushLocalToRedis() 호출 전 반드시 awaitTermination() 필요!
+```
+
+### Flaky Test 방지 체크리스트
+
+- [ ] `shutdown()` 후 `awaitTermination()` 호출
+- [ ] latch.await() 타임아웃 충분히 설정 (10초 이상)
+- [ ] 테스트 간 상태 격리 (캐시/DB 초기화)
+- [ ] 비동기 AOP 사용 시 실제 작업 완료 시점 검증
+
+---
 
 # 🤖 MapleExpectation Multi-Agent Protocol
 

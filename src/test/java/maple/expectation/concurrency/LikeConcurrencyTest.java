@@ -76,6 +76,8 @@ public class LikeConcurrencyTest extends IntegrationTestSupport {
         }
         latch.await(10, TimeUnit.SECONDS);
         executorService.shutdown();
+        // 5-Agent 합의: 모든 작업 완료 대기 (incrementAndGet 완료 보장)
+        executorService.awaitTermination(5, TimeUnit.SECONDS);
 
         likeSyncService.flushLocalToRedis();
         likeSyncService.syncRedisToDatabase();

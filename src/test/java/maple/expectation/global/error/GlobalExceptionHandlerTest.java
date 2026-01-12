@@ -11,9 +11,14 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeoutException;
+
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -51,6 +56,67 @@ class GlobalExceptionHandlerTest {
         given(gameCharacterFacade.findCharacterByUserIgn(anyString()))
                 .willThrow(new RuntimeException("알 수 없는 서버 오류"));
 
+        mockMvc.perform(get("/api/v1/characters/anyIgn"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code").value("S001"));
+    }
+
+    // ==================== Issue #168: CompletionException 처리 테스트 ====================
+
+    @Test
+    @DisplayName("CompletionException(RejectedExecutionException) → 503 + Retry-After 60s (Issue #168)")
+    void handleCompletionException_RejectedExecution_Returns503WithRetryAfter() throws Exception {
+        // Given: RejectedExecutionException을 감싼 CompletionException
+        given(gameCharacterFacade.findCharacterByUserIgn(anyString()))
+                .willThrow(new CompletionException(
+                        new RejectedExecutionException("ExpectationExecutor queue full")));
+
+        // When & Then: 503 + Retry-After 헤더 + S007 코드
+        mockMvc.perform(get("/api/v1/characters/anyIgn"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(header().string("Retry-After", "60"))
+                .andExpect(jsonPath("$.code").value("S007"))
+                .andExpect(jsonPath("$.status").value(503));
+    }
+
+    @Test
+    @DisplayName("CompletionException(TimeoutException) → 503 + Retry-After 30s")
+    void handleCompletionException_Timeout_Returns503WithRetryAfter() throws Exception {
+        // Given: TimeoutException을 감싼 CompletionException
+        given(gameCharacterFacade.findCharacterByUserIgn(anyString()))
+                .willThrow(new CompletionException(
+                        new TimeoutException("Async operation timeout")));
+
+        // When & Then: 503 + Retry-After 30초 헤더
+        mockMvc.perform(get("/api/v1/characters/anyIgn"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(header().string("Retry-After", "30"))
+                .andExpect(jsonPath("$.code").value("S007"));
+    }
+
+    @Test
+    @DisplayName("CompletionException(CharacterNotFoundException) → 404 (비즈니스 예외 위임)")
+    void handleCompletionException_BusinessException_DelegatesHandler() throws Exception {
+        // Given: BaseException을 감싼 CompletionException
+        given(gameCharacterFacade.findCharacterByUserIgn(anyString()))
+                .willThrow(new CompletionException(
+                        new CharacterNotFoundException("유령캐릭터")));
+
+        // When & Then: 비즈니스 예외 핸들러로 위임 → 404
+        mockMvc.perform(get("/api/v1/characters/anyIgn"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("C002"));
+    }
+
+    @Test
+    @DisplayName("CompletionException(RuntimeException) → 500 (일반 시스템 예외)")
+    void handleCompletionException_RuntimeException_Returns500() throws Exception {
+        // Given: 일반 RuntimeException을 감싼 CompletionException
+        given(gameCharacterFacade.findCharacterByUserIgn(anyString()))
+                .willThrow(new CompletionException(
+                        new RuntimeException("Unknown system error")));
+
+        // When & Then: 500 Internal Server Error
         mockMvc.perform(get("/api/v1/characters/anyIgn"))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.code").value("S001"));
