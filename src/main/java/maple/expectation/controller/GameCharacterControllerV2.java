@@ -11,6 +11,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.concurrent.CompletableFuture;
+
 /**
  * 캐릭터 API 컨트롤러 V2
  *
@@ -33,18 +35,26 @@ public class GameCharacterControllerV2 {
 
     /**
      * 캐릭터 장비 조회 (Public)
+     *
+     * <p>Issue #118: 비동기 파이프라인 전환 - 톰캣 스레드 즉시 반환</p>
      */
     @GetMapping("/{userIgn}/equipment")
-    public ResponseEntity<EquipmentResponse> getCharacterEquipment(@PathVariable String userIgn) {
-        return ResponseEntity.ok(equipmentService.getEquipmentByUserIgn(userIgn));
+    public CompletableFuture<ResponseEntity<EquipmentResponse>> getCharacterEquipment(
+            @PathVariable String userIgn) {
+        return equipmentService.getEquipmentByUserIgnAsync(userIgn)
+                .thenApply(ResponseEntity::ok);
     }
 
     /**
      * 기대 비용 시뮬레이션 (Public)
+     *
+     * <p>Issue #118: 비동기 파이프라인 전환 - calculateTotalExpectationAsync (모던 캐싱 버전) 사용</p>
      */
     @GetMapping("/{userIgn}/expectation")
-    public ResponseEntity<TotalExpectationResponse> calculateTotalCost(@PathVariable String userIgn) {
-        return ResponseEntity.ok(equipmentService.calculateTotalExpectationLegacy(userIgn));
+    public CompletableFuture<ResponseEntity<TotalExpectationResponse>> calculateTotalCost(
+            @PathVariable String userIgn) {
+        return equipmentService.calculateTotalExpectationAsync(userIgn)
+                .thenApply(ResponseEntity::ok);
     }
 
     /**
