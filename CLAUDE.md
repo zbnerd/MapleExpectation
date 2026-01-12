@@ -206,6 +206,232 @@ AOP 적용 시 프록시 메커니즘 한계 극복을 위해 반드시 **Facade
 
 ---
 
+## 🔧 8-1. Redis Lua Script & Cluster Hash Tag (Context7 Best Practice)
+
+금융수준 데이터 안전을 위한 Redis Lua Script 원자적 연산 및 Cluster 호환성 규칙입니다.
+
+### Lua Script 원자적 연산 (Redisson RScript)
+
+Redis 단일 스레드에서 복수 명령을 원자적으로 실행해야 할 때 Lua Script를 사용합니다.
+
+**Redisson RScript 사용 패턴:**
+```java
+// ✅ Good (원자적 RENAME + EXPIRE + HGETALL)
+private static final String LUA_ATOMIC_MOVE = """
+        local exists = redis.call('EXISTS', KEYS[1])
+        if exists == 0 then return {} end
+        redis.call('RENAME', KEYS[1], KEYS[2])
+        redis.call('EXPIRE', KEYS[2], ARGV[1])
+        return redis.call('HGETALL', KEYS[2])
+        """;
+
+RScript script = redissonClient.getScript(StringCodec.INSTANCE);
+List<Object> result = script.eval(
+        RScript.Mode.READ_WRITE,          // 데이터 변경 시
+        LUA_ATOMIC_MOVE,
+        RScript.ReturnType.MULTI,         // 복수 결과 반환 시
+        Arrays.asList(sourceKey, tempKey), // KEYS[1], KEYS[2]
+        String.valueOf(ttlSeconds)         // ARGV[1]
+);
+```
+
+**RScript.Mode 선택:**
+| Mode | 용도 |
+|------|------|
+| `READ_ONLY` | 조회만 (GET, HGETALL 등) |
+| `READ_WRITE` | 데이터 변경 (SET, DEL, RENAME 등) |
+
+**RScript.ReturnType 선택:**
+| Type | 반환값 |
+|------|--------|
+| `INTEGER` | 단일 정수 |
+| `STATUS` | "OK" 등 상태 |
+| `VALUE` | 단일 값 |
+| `MULTI` | 리스트 (HGETALL 등) |
+
+### Redis Cluster Hash Tag 규칙 (CRITICAL)
+
+Redis Cluster에서 다중 키 연산(RENAME, Lua Script 등)은 **모든 키가 동일 슬롯**에 있어야 합니다.
+Hash Tag `{...}` 패턴을 사용하면 중괄호 내부만 해싱되어 같은 슬롯을 보장합니다.
+
+```java
+// ❌ Bad (다른 해시값 → Cluster에서 실패)
+String sourceKey = "buffer:likes";
+String tempKey = "buffer:likes:sync:uuid";
+// CRC16("buffer:likes") ≠ CRC16("buffer:likes:sync:uuid")
+
+// ✅ Good (Hash Tag → 같은 슬롯 보장)
+String sourceKey = "{buffer:likes}";
+String tempKey = "{buffer:likes}:sync:" + UUID.randomUUID();
+// CRC16("buffer:likes") == CRC16("buffer:likes") → 동일 슬롯
+```
+
+**Hash Tag 적용 대상:**
+- **RENAME 키 쌍**: `{domain}:source` ↔ `{domain}:target`
+- **Lua Script 다중 키**: 모든 KEYS는 같은 Hash Tag
+- **MGET/MSET 키들**: 같은 Hash Tag 사용
+
+### ExceptionTranslator.forRedisScript() 사용
+
+Lua Script 예외를 도메인 예외로 변환할 때 사용합니다.
+
+```java
+// ✅ Good (예외 변환 적용)
+return executor.executeWithTranslation(
+        () -> executeLuaScript(sourceKey, tempKey),
+        ExceptionTranslator.forRedisScript(),  // Redis 예외 → AtomicFetchException
+        TaskContext.of("AtomicFetch", "fetchAndMove", sourceKey)
+);
+```
+
+### Orphan Key Recovery (JVM 크래시 대응)
+
+JVM 크래시 시 임시 키에 데이터가 남아있을 수 있습니다.
+서버 시작 시 자동 복구를 위해 `@PostConstruct`와 패턴 검색을 사용합니다.
+
+```java
+@PostConstruct
+public void recoverOrphanKeys() {
+    RKeys keys = redissonClient.getKeys();
+    Iterable<String> orphans = keys.getKeysByPattern("{buffer:likes}:sync:*");
+
+    for (String orphanKey : orphans) {
+        // 임시 키 → 원본 키로 복원
+        atomicFetchStrategy.restore(orphanKey, SOURCE_KEY);
+    }
+}
+```
+
+### 임시 키 TTL 안전장치 (메모리 누수 방지)
+
+복구 로직이 실패하더라도 임시 키가 영구적으로 남지 않도록 TTL을 설정합니다.
+
+```java
+// ✅ Good (1시간 TTL → 영구 메모리 누수 방지)
+redis.call('EXPIRE', KEYS[2], 3600)
+
+// application.yml 설정화
+like:
+  sync:
+    temp-key-ttl-seconds: 3600  # 1시간
+```
+
+### 보상 트랜잭션 패턴 (Command Pattern)
+
+DB 저장 실패 시 원자적 Fetch 결과를 원본 키로 복원하는 보상 명령입니다.
+
+```java
+// CompensationCommand 인터페이스
+public interface CompensationCommand {
+    void save(FetchResult result);     // 상태 저장
+    void compensate();                  // 실패 시 복원
+    void commit();                      // 성공 시 정리
+    boolean isPending();                // 보상 필요 여부
+}
+
+// 사용 패턴 (executeWithFinally)
+CompensationCommand cmd = new RedisCompensationCommand(sourceKey, strategy, executor);
+executor.executeWithFinally(
+        () -> {
+            FetchResult result = strategy.fetchAndMove(sourceKey, tempKey);
+            cmd.save(result);
+            processDatabase(result);  // DB 저장
+            cmd.commit();             // 성공 → 임시 키 삭제
+            return null;
+        },
+        () -> {
+            if (cmd.isPending()) {
+                cmd.compensate();     // 실패 → 원본 키 복원
+            }
+        },
+        context
+);
+```
+
+### DLQ (Dead Letter Queue) 패턴 (P0 - 데이터 영구 손실 방지)
+
+보상 트랜잭션(compensate) 실행마저 실패하면 데이터가 영구 손실됩니다.
+Spring Event + Listener로 DLQ 패턴을 구현하여 **최후의 안전망**을 제공합니다.
+
+**구현 요소:**
+| 컴포넌트 | 역할 |
+|----------|------|
+| `LikeSyncFailedEvent` | 실패 데이터 Record (불변) |
+| `RedisCompensationCommand` | 복구 실패 시 이벤트 발행 |
+| `LikeSyncEventListener` | 파일 백업 + Discord 알림 + 메트릭 |
+
+```java
+// 보상 실패 시 DLQ 이벤트 발행
+private void compensate() {
+    executor.executeOrCatch(
+            () -> strategy.restore(tempKey, sourceKey),
+            e -> {
+                // P0 FIX: 복구 실패 시 DLQ 이벤트 발행
+                LikeSyncFailedEvent event = LikeSyncFailedEvent.fromFetchResult(result, sourceKey, e);
+                eventPublisher.publishEvent(event);
+                return null;
+            },
+            context
+    );
+}
+
+// Listener: 파일 백업 + 알림
+@Async
+@EventListener
+public void handleSyncFailure(LikeSyncFailedEvent event) {
+    // 1. 파일 백업 (데이터 보존 최우선)
+    persistenceService.appendLikeEntry(event.userIgn(), event.lostCount());
+    // 2. 메트릭 기록
+    meterRegistry.counter("like.sync.dlq.triggered").increment();
+    // 3. Discord 알림 (운영팀 인지)
+    discordAlertService.sendCriticalAlert("DLQ 발생", event.errorMessage());
+}
+```
+
+**DLQ 처리 우선순위:**
+1. **파일 백업** (데이터 보존 최우선)
+2. **메트릭 기록** (모니터링)
+3. **알림 발송** (운영팀 인지)
+
+### 루프 내 유틸리티 메서드 최적화 (P1 - Performance)
+
+LogicExecutor의 `TaskContext.of()` 호출은 매번 새 객체를 생성합니다.
+**루프 내 반복 호출되는 유틸리티 메서드**에서는 성능 오버헤드가 발생합니다.
+
+```java
+// ❌ Bad (루프 내 TaskContext 오버헤드)
+private long parseLongSafe(Object value) {
+    return executor.executeOrDefault(
+            () -> Long.parseLong(String.valueOf(value)),
+            0L,
+            TaskContext.of("Parse", "long", value)  // 매번 새 객체
+    );
+}
+
+// ✅ Good (Pattern Matching + 직접 예외 처리)
+private long parseLongSafe(Object value) {
+    if (value == null) return 0L;
+    if (value instanceof Number n) return n.longValue();
+    if (value instanceof String s) {
+        try {
+            return Long.parseLong(s);
+        } catch (NumberFormatException e) {
+            log.warn("Malformed data ignored: value={}", s);
+            recordParseFailure();  // 메트릭으로 모니터링
+            return 0L;
+        }
+    }
+    return 0L;
+}
+```
+
+**적용 기준:**
+- **루프 내 호출**: 직접 처리 (오버헤드 제거)
+- **단일 호출**: LogicExecutor 사용 (일관성 유지)
+- **예외 메트릭**: 실패 시 카운터 기록 (데이터 품질 모니터링)
+
+---
+
 ## 📈 9. Observability & Validation
 - **Logging:** @Slf4j 사용. INFO(주요 지점), DEBUG(장애 추적), ERROR(오류) 레벨을 엄격히 구분합니다.
 - **Validation:** Controller(DTO 형식)와 Service(비즈니스 규칙)의 검증 책임을 분리합니다.
@@ -709,3 +935,169 @@ public ResponseEntity<CharacterDto> getCharacter(@PathVariable String ign) { ...
 | `/swagger-ui/index.html` | Swagger UI (직접) |
 | `/v3/api-docs` | OpenAPI JSON |
 | `/v3/api-docs.yaml` | OpenAPI YAML |
+
+---
+
+## 🚀 21. Async Non-Blocking Pipeline Pattern (Critical)
+
+고처리량 API를 위한 비동기 논블로킹 파이프라인 설계 패턴입니다. (Trace Log 분석 기반)
+
+### 핵심 원칙: 톰캣 스레드 즉시 반환 (0ms)
+
+```java
+// ❌ Bad (톰캣 스레드 블로킹 → 동시성 저하)
+@GetMapping("/{userIgn}/expectation")
+public ResponseEntity<Response> getExpectation(@PathVariable String userIgn) {
+    Response result = service.calculate(userIgn);  // 블로킹 호출
+    return ResponseEntity.ok(result);
+}
+
+// ✅ Good (톰캣 스레드 즉시 반환 → RPS 240+ 달성)
+@GetMapping("/{userIgn}/expectation")
+public CompletableFuture<ResponseEntity<Response>> getExpectation(@PathVariable String userIgn) {
+    return service.calculateAsync(userIgn)  // 비동기 호출
+            .thenApply(ResponseEntity::ok);
+}
+```
+
+### Two-Phase Snapshot 패턴
+
+캐시 HIT 시 불필요한 DB 조회를 방지하는 단계적 데이터 로드 패턴입니다.
+
+| Phase | 목적 | 로드 데이터 |
+|-------|------|------------|
+| **LightSnapshot** | 캐시 키 생성 | 최소 필드 (ocid, fingerprint) |
+| **FullSnapshot** | 계산 (MISS 시만) | 전체 필드 |
+
+```java
+// ✅ Good (Two-Phase Snapshot)
+return CompletableFuture
+        .supplyAsync(() -> fetchLightSnapshot(userIgn), executor)  // Phase 1
+        .thenCompose(light -> {
+            // 캐시 HIT → 즉시 반환 (FullSnapshot 스킵)
+            Optional<Response> cached = cacheService.get(light.cacheKey());
+            if (cached.isPresent()) {
+                return CompletableFuture.completedFuture(cached.get());
+            }
+            // 캐시 MISS → Phase 2
+            return CompletableFuture
+                    .supplyAsync(() -> fetchFullSnapshot(userIgn), executor)
+                    .thenCompose(full -> compute(full));
+        });
+```
+
+### Write-Behind 패턴 (비동기 DB 저장)
+
+API 응답 시간 단축을 위해 DB 저장을 응답 후 비동기로 처리합니다.
+
+```java
+// ✅ Good (응답 즉시 반환, DB 저장은 백그라운드)
+return nexonApiClient.getEquipment(ocid)
+        .thenApply(response -> {
+            // 캐시 저장 (동기 - 응답에 필요)
+            cacheService.put(ocid, response);
+
+            // DB 저장 (비동기 - Fire-and-Forget)
+            CompletableFuture.runAsync(() -> dbWorker.persist(ocid, response),
+                    asyncTaskExecutor);
+
+            return response;
+        });
+```
+
+### 스레드 풀 분리 원칙
+
+| Thread Pool | 역할 | 설정 기준 |
+|-------------|------|----------|
+| `http-nio-*` | 톰캣 요청 | 즉시 반환 (0ms 목표) |
+| `expectation-*` | 계산 전용 | CPU 코어 수 기반 |
+| `SimpleAsyncTaskExecutor-*` | Fire-and-Forget | @Async 비동기 |
+| `ForkJoinPool.commonPool-*` | CompletableFuture 기본 | JVM 관리 |
+
+```java
+// ✅ Good (전용 스레드 풀 지정)
+@Bean("expectationComputeExecutor")
+public Executor expectationComputeExecutor() {
+    ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+    executor.setCorePoolSize(Runtime.getRuntime().availableProcessors());
+    executor.setMaxPoolSize(Runtime.getRuntime().availableProcessors() * 2);
+    executor.setQueueCapacity(100);
+    executor.setThreadNamePrefix("expectation-");
+    executor.initialize();
+    return executor;
+}
+```
+
+### .join() 완전 제거 규칙 (Issue #118)
+
+```java
+// ❌ Bad (.join()은 호출 스레드 블로킹)
+return service.calculateAsync(userIgn).join();
+
+// ✅ Good (체이닝으로 논블로킹 유지)
+return service.calculateAsync(userIgn)
+        .thenApply(this::postProcess)
+        .orTimeout(30, TimeUnit.SECONDS)
+        .exceptionally(this::handleException);
+```
+
+### CompletableFuture 체이닝 Best Practice
+
+| 메서드 | 용도 | 예외 전파 |
+|--------|------|----------|
+| `thenApply()` | 동기 변환 | O |
+| `thenApplyAsync()` | 비동기 변환 (다른 스레드) | O |
+| `thenCompose()` | Future 평탄화 | O |
+| `orTimeout()` | 데드라인 설정 | TimeoutException |
+| `exceptionally()` | 예외 복구 | 복구 값 반환 |
+| `whenComplete()` | 완료 후 정리 (결과 변경 불가) | X |
+
+```java
+// ✅ Good (완전한 비동기 파이프라인)
+return CompletableFuture
+        .supplyAsync(() -> step1(), executor)
+        .thenComposeAsync(r -> step2(r), executor)
+        .thenApplyAsync(this::step3, executor)
+        .orTimeout(DEADLINE_SECONDS, TimeUnit.SECONDS)
+        .exceptionally(e -> handleException(e, context))
+        .whenComplete((r, e) -> cleanup(context));
+```
+
+### 참고 문서
+- `docs/expectation-sequence-diagram.md` - 전체 데이터 흐름 시각화
+
+
+# 🤖 MapleExpectation Multi-Agent Protocol
+
+## 1. The Council of Five (Agent Roles)
+이 프로젝트는 5개의 특화된 에이전트 페르소나를 통해 개발 및 검증됩니다. 작업 요청 시 적절한 에이전트를 호출하거나, 복합적인 작업 시 아래 순서대로 검토를 거쳐야 합니다.
+
+* **🟦 Blue: Spring-Architect (The Designer)**
+    * **Mandate:** SOLID 원칙, 디자인 패턴(Strategy, Facade, Factory 등), DDD, Clean Architecture 준수.
+    * **Check:** "코드가 유지보수 가능한 구조인가?", "의존성 역전(DIP)이 지켜졌는가?"
+* **🟩 Green: Performance-Guru (The Optimizer)**
+    * **Mandate:** O(1) 지향, Redis Lua Script, SQL Tuning, Non-blocking I/O.
+    * **Check:** "이 로직이 10만 RPS를 견디는가?", "불필요한 객체 생성이나 루프가 없는가?"
+* **🟨 Yellow: QA-Master (The Tester)**
+    * **Mandate:** JUnit 5, Mockito, Testcontainers, Locust, Edge Case 발굴.
+    * **Check:** "테스트 커버리지가 충분한가?", "경계값(Boundary)에서 터지지 않는가?"
+* **🟪 Purple: Financial-Grade-Auditor (The Sheriff)**
+    * **Mandate:** 무결성(Integrity), 보안(Security), BigDecimal 연산, 트랜잭션 검증.
+    * **Check:** "돈/확률 계산에 오차가 없는가?", "PII 정보가 로그에 남지 않는가?"
+* **🟥 Red: SRE-Gatekeeper (The Guardian)**
+    * **Mandate:** Resilience(Circuit Breaker, Timeout), Thread Pool, Config, Infra.
+    * **Check:** "서버가 죽지 않는 설정인가?", "CallerRunsPolicy 같은 폭탄이 없는가?"
+
+## 2. Best Practice: The "Pentagonal Pipeline" Workflow
+모든 주요 기능 구현(Feature) 및 리팩토링은 다음 파이프라인을 거쳐야 한다.
+
+1.  **Draft (Blue):** 아키텍트가 인터페이스와 패턴을 설계하여 구조를 잡는다.
+2.  **Optimize (Green):** 퍼포먼스 구루가 쿼리와 알고리즘을 최적화한다.
+3.  **Test (Yellow):** QA 마스터가 테스트 케이스(TC)를 작성하고 검증한다.
+4.  **Audit (Purple):** 오디터가 데이터 무결성과 보안을 최종 승인한다.
+5.  **Deploy Check (Red):** 게이트키퍼가 설정 파일과 안정성 장치를 검토한다.
+
+## 3. Core Principles (Context7)
+* **Sequential Thinking:** 문제 해결 시 `배경 -> 정의 -> 분석 -> 설계 -> 구현 -> 검증 -> 회고`의 단계를 건너뛰지 않는다.
+* **SOLID:** 특히 SRP(단일 책임)와 OCP(개방 폐쇄)를 철저히 지킨다.
+* **Design Patterns:** 관습적인 사용이 아니라, 문제 해결을 위한 적절한 패턴(예: 복잡한 분기 처리는 Strategy, 외부 통신은 Facade)을 적용한다.

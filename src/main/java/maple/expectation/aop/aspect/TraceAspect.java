@@ -30,7 +30,7 @@ public class TraceAspect {
     @Value("${app.aop.trace.enabled:false}")
     private boolean isTraceEnabled;
 
-    private static final int MAX_ARG_LENGTH = 30;
+    private static final int MAX_ARG_LENGTH = 100;
 
     // ❌ LogicExecutor 제거 (순환 참조 원인)
     // private final LogicExecutor executor;

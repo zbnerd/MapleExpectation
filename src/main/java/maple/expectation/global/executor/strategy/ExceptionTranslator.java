@@ -1,6 +1,7 @@
 package maple.expectation.global.executor.strategy;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import maple.expectation.global.error.exception.AtomicFetchException;
 import maple.expectation.global.error.exception.DistributedLockException;
 import maple.expectation.global.error.exception.EquipmentDataProcessingException;
 import maple.expectation.global.error.exception.InternalSystemException;
@@ -130,6 +131,38 @@ public interface ExceptionTranslator {
 
             // Spring의 표준 규약에 따른 예외 반환
             return new Cache.ValueRetrievalException(key, loader, e);
+        };
+    }
+
+    /**
+     * Redis Lua Script 예외 변환기 (Context7 Best Practice)
+     *
+     * <p>금융수준 안전 설계:
+     * <ul>
+     *   <li>Error는 즉시 폭발 (OOM 등)</li>
+     *   <li>BaseException은 그대로 전파</li>
+     *   <li>기타 예외는 AtomicFetchException으로 변환</li>
+     * </ul>
+     * </p>
+     */
+    static ExceptionTranslator forRedisScript() {
+        return (e, context) -> {
+            // P0: Error 격리 (OOM 등은 상위로 즉시 폭발)
+            if (e instanceof Error) {
+                throw (Error) e;
+            }
+
+            // BaseException은 그대로 전파
+            if (e instanceof BaseException) {
+                return (BaseException) e;
+            }
+
+            // Redis Script 실행 실패 → AtomicFetchException
+            return new AtomicFetchException(
+                    context.operation(),
+                    context.dynamicValue(),
+                    e
+            );
         };
     }
 

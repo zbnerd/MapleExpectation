@@ -1,12 +1,18 @@
 package maple.expectation.service.v2;
 
 import io.github.resilience4j.retry.Retry;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.DistributionSummary;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import maple.expectation.global.common.function.ThrowingSupplier;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.global.executor.function.ThrowingRunnable;
 import maple.expectation.repository.v2.RedisBufferRepository;
 import maple.expectation.service.v2.cache.LikeBufferStorage;
+import maple.expectation.service.v2.like.dto.FetchResult;
+import maple.expectation.service.v2.like.strategy.AtomicFetchStrategy;
 import maple.expectation.service.v2.shutdown.ShutdownDataPersistenceService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -14,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
@@ -28,6 +35,8 @@ import static org.mockito.Mockito.*;
 
 /**
  * ✅ LogicExecutor 계약 기반 테스트 (본연의 비즈니스 로직 검증)
+ *
+ * <p>리팩토링 후: AtomicFetchStrategy 기반 원자적 동기화 검증</p>
  */
 @ExtendWith(MockitoExtension.class)
 class LikeSyncServiceTest {
@@ -41,13 +50,19 @@ class LikeSyncServiceTest {
     @Mock private ShutdownDataPersistenceService shutdownDataPersistenceService;
     @Mock private HashOperations<String, Object, Object> hashOperations;
     @Mock private LogicExecutor executor;
+    @Mock private AtomicFetchStrategy atomicFetchStrategy;
+    @Mock private MeterRegistry meterRegistry;
+    @Mock private Counter mockCounter;
+    @Mock private Timer mockTimer;
+    @Mock private DistributionSummary mockSummary;
+    @Mock private ApplicationEventPublisher eventPublisher;
 
     private final Retry likeSyncRetry = Retry.ofDefaults("testRetry");
-    private static final String REDIS_HASH_KEY = "buffer:likes";
+    private static final String SOURCE_KEY = "{buffer:likes}";
 
     @BeforeEach
     void setUp() {
-        // ✅ LogicExecutor 계약 stub (3가지 패턴)
+        // ✅ LogicExecutor 계약 stub (4가지 패턴)
 
         // [패턴 1] executeWithFinally: task 실행 후 finalizer 반드시 실행
         lenient().doAnswer(inv -> {
@@ -84,18 +99,24 @@ class LikeSyncServiceTest {
             }
         }).when(executor).executeOrDefault(any(), any(), any());
 
-        // [패턴 4] executeOrHandle: Task 실행 시도 -> 예외 시 Handler 실행
+        // [패턴 4] executeOrCatch: Task 실행 시도 -> 예외 시 Handler 실행
         lenient().doAnswer(inv -> {
             ThrowingSupplier<?> task = inv.getArgument(0);
-            Function<Throwable, ?> handler = inv.getArgument(1); // 두 번째 인자는 핸들러
+            Function<Throwable, ?> handler = inv.getArgument(1);
             try {
                 return task.get();
             } catch (Error err) {
                 throw err; // Error는 복구 금지
             } catch (Throwable t) {
-                return handler.apply(t); // 예외 발생 시 핸들러 결과 반환
+                return handler.apply(t);
             }
         }).when(executor).executeOrCatch(any(), any(), any());
+
+        // MeterRegistry mock 설정
+        lenient().when(meterRegistry.counter(anyString())).thenReturn(mockCounter);
+        lenient().when(meterRegistry.counter(anyString(), any(String[].class))).thenReturn(mockCounter);
+        lenient().when(meterRegistry.timer(anyString(), any(String[].class))).thenReturn(mockTimer);
+        lenient().when(meterRegistry.summary(anyString())).thenReturn(mockSummary);
 
         likeSyncService = new LikeSyncService(
                 likeBufferStorage,
@@ -104,53 +125,57 @@ class LikeSyncServiceTest {
                 redisBufferRepository,
                 likeSyncRetry,
                 shutdownDataPersistenceService,
-                executor
+                executor,
+                atomicFetchStrategy,
+                meterRegistry,
+                eventPublisher
         );
 
         lenient().when(redisTemplate.opsForHash()).thenReturn(hashOperations);
     }
 
     @Test
-    @DisplayName("성공 시나리오: Rename 후 데이터를 DB에 반영하고 전역 카운터를 차감한다")
+    @DisplayName("성공 시나리오: AtomicFetch 후 데이터를 DB에 반영하고 전역 카운터를 차감한다")
     void syncRedisToDatabase_SuccessScenario() {
         // [Given]
         String userIgn = "Gamer";
-        Map<Object, Object> redisData = Map.of(userIgn, "5");
+        Map<String, Long> fetchedData = Map.of(userIgn, 5L);
+        FetchResult fetchResult = new FetchResult("{buffer:likes}:sync:test-uuid", fetchedData);
 
-        // BEFORE rename: REDIS_HASH_KEY 존재
-        given(redisTemplate.hasKey(REDIS_HASH_KEY)).willReturn(true);
-        given(hashOperations.entries(anyString())).willReturn(redisData);
-        // AFTER doSyncProcess delete: tempKey 존재하지 않음 (cleanup skip)
-        given(redisTemplate.hasKey(argThat(key -> key.contains(":sync:")))).willReturn(false);
+        // AtomicFetchStrategy mock: fetchAndMove 호출 시 FetchResult 반환
+        given(atomicFetchStrategy.fetchAndMove(eq(SOURCE_KEY), anyString()))
+                .willReturn(fetchResult);
 
         // [When]
         likeSyncService.syncRedisToDatabase();
 
         // [Then]
-        verify(redisTemplate, times(1)).rename(eq(REDIS_HASH_KEY), anyString());
+        // ✅ [핵심] AtomicFetchStrategy.fetchAndMove() 호출 검증
+        verify(atomicFetchStrategy, times(1)).fetchAndMove(eq(SOURCE_KEY), anyString());
+
+        // ✅ [핵심] DB 동기화 실행
         verify(syncExecutor, times(1)).executeIncrement(eq(userIgn), eq(5L));
+
+        // ✅ [핵심] 성공 시 전역 카운터 차감
         verify(redisBufferRepository, times(1)).decrementGlobalCount(5L);
 
-        // ✅ [핵심] 성공한 항목은 tempKey field에서 삭제됨 (HDEL)
-        verify(hashOperations, times(1)).delete(anyString(), eq(userIgn));
-
-        // ✅ [핵심] 정상 경로는 doSyncProcess에서 tempKey 삭제 (cleanup skip)
-        verify(redisTemplate, times(1)).delete(argThat((String k) -> k.contains(":sync:")));
+        // ✅ [핵심] 성공 시 임시 키 삭제 (commit)
+        verify(atomicFetchStrategy, times(1)).deleteTempKey(anyString());
     }
 
     @Test
-    @DisplayName("실패 시나리오: DB 반영 실패 시 전역 카운터를 차감하지 않는다")
+    @DisplayName("실패 시나리오: DB 반영 실패 시 전역 카운터를 차감하지 않고 원본 키로 복구한다")
     void syncRedisToDatabase_FailureScenario() {
         // [Given]
         String userIgn = "Gamer";
-        Map<Object, Object> redisData = Map.of(userIgn, "10");
+        Map<String, Long> fetchedData = Map.of(userIgn, 10L);
+        FetchResult fetchResult = new FetchResult("{buffer:likes}:sync:test-uuid", fetchedData);
 
-        given(redisTemplate.hasKey(REDIS_HASH_KEY)).willReturn(true);
-        given(hashOperations.entries(anyString())).willReturn(redisData);
-        // AFTER doSyncProcess: tempKey는 여전히 존재 (실패 항목이 남아있지 않음)
-        // 실패 항목은 doSyncProcess에서 즉시 원본 버퍼로 복구했으므로 tempKey는 비어있음
-        given(redisTemplate.hasKey(argThat(key -> key.contains(":sync:")))).willReturn(false);
+        // AtomicFetchStrategy mock
+        given(atomicFetchStrategy.fetchAndMove(eq(SOURCE_KEY), anyString()))
+                .willReturn(fetchResult);
 
+        // DB 동기화 실패
         willThrow(new RuntimeException("DB Fail"))
                 .given(syncExecutor).executeIncrement(anyString(), anyLong());
 
@@ -158,17 +183,36 @@ class LikeSyncServiceTest {
         likeSyncService.syncRedisToDatabase();
 
         // [Then]
-        // 비즈니스 로직: 실패 시 차감하지 않음
+        // ✅ [핵심] 실패 시 전역 카운터 차감하지 않음
         verify(redisBufferRepository, never()).decrementGlobalCount(anyLong());
 
-        // ✅ [핵심] 실패 항목은 원본 버퍼로 즉시 복구
-        verify(hashOperations, times(1)).increment(eq(REDIS_HASH_KEY), eq(userIgn), eq(10L));
+        // ✅ [핵심] 실패 항목은 원본 버퍼로 즉시 복구 (restoreSingleEntry)
+        verify(hashOperations, times(1)).increment(eq(SOURCE_KEY), eq(userIgn), eq(10L));
 
-        // ✅ [핵심] 실패 항목도 tempKey field에서 제거됨 (HDEL)
-        verify(hashOperations, times(1)).delete(anyString(), eq(userIgn));
+        // ✅ [핵심] 실패해도 commit은 호출됨 (finally에서 compensation 체크 후 결정)
+        // compensation.isPending() == false (save() 후 실패해도 restoreSingleEntry로 개별 복구됨)
+        verify(atomicFetchStrategy, times(1)).deleteTempKey(anyString());
+    }
 
-        // ✅ [핵심] doSyncProcess에서 tempKey 삭제 (cleanup skip)
-        verify(redisTemplate, times(1)).delete(argThat((String k) -> k.contains(":sync:")));
+    @Test
+    @DisplayName("빈 데이터 시나리오: 동기화할 데이터가 없으면 아무 작업도 하지 않는다")
+    void syncRedisToDatabase_EmptyData() {
+        // [Given]
+        given(atomicFetchStrategy.fetchAndMove(eq(SOURCE_KEY), anyString()))
+                .willReturn(FetchResult.empty());
+
+        // [When]
+        likeSyncService.syncRedisToDatabase();
+
+        // [Then]
+        // ✅ [핵심] 빈 데이터 시 DB 동기화 스킵
+        verify(syncExecutor, never()).executeIncrement(anyString(), anyLong());
+
+        // ✅ [핵심] 빈 데이터 시 전역 카운터 차감 스킵
+        verify(redisBufferRepository, never()).decrementGlobalCount(anyLong());
+
+        // ✅ [핵심] 빈 데이터 시 임시 키 삭제 스킵
+        verify(atomicFetchStrategy, never()).deleteTempKey(anyString());
     }
 
 }
