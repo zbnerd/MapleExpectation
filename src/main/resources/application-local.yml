@@ -31,3 +31,8 @@ discord:
 cube:
   table-mass:
     policy: LENIENT  # 로컬 환경: 확률 테이블 정규화 허용 (Σp ≈ 1.0)
+
+# Bootstrap Admin 설정 (첫 번째 관리자)
+auth:
+  admin:
+    allowlist: "ahzQRmenBwQcgIQuzsb9kZ58zCjwlTv4v1IfvpXxCSE"  # 긱델 계정

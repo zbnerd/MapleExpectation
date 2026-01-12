@@ -11,11 +11,8 @@ import maple.expectation.global.error.exception.auth.InvalidApiKeyException;
 import maple.expectation.global.error.exception.auth.CharacterNotOwnedException;
 import maple.expectation.global.security.FingerprintGenerator;
 import maple.expectation.global.security.jwt.JwtTokenProvider;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -43,9 +40,7 @@ public class AuthService {
     private final FingerprintGenerator fingerprintGenerator;
     private final SessionService sessionService;
     private final JwtTokenProvider jwtTokenProvider;
-
-    @Value("${auth.admin.allowlist:}")
-    private String adminAllowlist;
+    private final AdminService adminService;
 
     /**
      * 로그인 처리
@@ -80,8 +75,8 @@ public class AuthService {
         // 4. Fingerprint 생성
         String fingerprint = fingerprintGenerator.generate(apiKey);
 
-        // 5. ADMIN 여부 판별
-        String role = isAdmin(fingerprint) ? Session.ROLE_ADMIN : Session.ROLE_USER;
+        // 5. ADMIN 여부 판별 (AdminService에서 Bootstrap + Redis 확인)
+        String role = adminService.isAdmin(fingerprint) ? Session.ROLE_ADMIN : Session.ROLE_USER;
 
         // 6. 세션 생성
         Session session = sessionService.createSession(fingerprint, apiKey, myOcids, role);
@@ -93,12 +88,18 @@ public class AuthService {
             session.role()
         );
 
-        log.info("Login successful: userIgn={}, role={}", userIgn, role);
+        // fingerprint는 로컬에서만 로깅 (운영환경 보안)
+        if (log.isDebugEnabled()) {
+            log.debug("Login successful: userIgn={}, role={}, fingerprint={}", userIgn, role, fingerprint);
+        } else {
+            log.info("Login successful: userIgn={}, role={}", userIgn, role);
+        }
 
         return LoginResponse.of(
             accessToken,
             jwtTokenProvider.getExpirationSeconds(),
-            role
+            role,
+            fingerprint  // 본인 fingerprint 반환 (Admin 등록 요청용)
         );
     }
 
@@ -110,21 +111,5 @@ public class AuthService {
     public void logout(String sessionId) {
         sessionService.deleteSession(sessionId);
         log.info("Logout successful: sessionId={}", sessionId);
-    }
-
-    /**
-     * ADMIN 여부 판별 (fingerprint allowlist 기반)
-     */
-    private boolean isAdmin(String fingerprint) {
-        if (adminAllowlist == null || adminAllowlist.isBlank()) {
-            return false;
-        }
-
-        Set<String> allowedFingerprints = Arrays.stream(adminAllowlist.split(","))
-            .map(String::trim)
-            .filter(s -> !s.isEmpty())
-            .collect(Collectors.toSet());
-
-        return allowedFingerprints.contains(fingerprint);
     }
 }

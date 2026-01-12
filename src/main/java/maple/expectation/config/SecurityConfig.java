@@ -114,7 +114,8 @@ public class SecurityConfig {
                 // Swagger UI (개발용)
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
 
-                // Admin endpoints
+                // Admin endpoints (Issue #146: /api/admin/** 보호)
+                .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers("/admin/**").hasRole("ADMIN")
 
                 // ★ 좋아요 API는 인증 필요 (더 구체적인 규칙이 먼저!)
