@@ -42,3 +42,5 @@ mysql_data/
 /redis_data/
 /logs/
 *.http
+/.claude/agents/
+/locust*.*

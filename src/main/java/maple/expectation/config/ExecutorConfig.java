@@ -21,7 +21,12 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import maple.expectation.aop.context.SkipEquipmentL2CacheContext;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.binder.jvm.ExecutorServiceMetrics;
+
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
@@ -84,6 +89,60 @@ public class ExecutorConfig {
 
         // ★ 핵심: throw하여 runAsync Future가 exceptionally 완료되도록 함
         throw new RejectedExecutionException("AlertExecutor queue full (dropped=" + dropped + ")");
+    };
+
+    // ========================================
+    // Expectation Executor Rejection Policy (Issue #168)
+    // ========================================
+
+    /** Expectation Executor용 샘플링 카운터 (AlertExecutor와 분리) */
+    private static final AtomicLong expectationLastRejectNanos = new AtomicLong(0);
+    private static final AtomicLong expectationRejectedSinceLastLog = new AtomicLong(0);
+
+    /**
+     * Expectation 계산 전용 AbortPolicy (Issue #168)
+     *
+     * <h4>CallerRunsPolicy 제거 이유</h4>
+     * <ul>
+     *   <li><b>톰캣 스레드 고갈</b>: 큐 포화 시 톰캣 스레드에서 작업 실행 → 전체 API 마비</li>
+     *   <li><b>메트릭 불가</b>: rejected count = 0으로 보임 (서킷브레이커 동작 불가)</li>
+     *   <li><b>SLA 위반</b>: 요청 처리 시간 비정상 증가</li>
+     * </ul>
+     *
+     * <h4>AbortPolicy 적용 효과</h4>
+     * <ul>
+     *   <li><b>즉시 거부</b>: O(1) 시간 복잡도, 톰캣 스레드 보호</li>
+     *   <li><b>503 응답</b>: GlobalExceptionHandler에서 Retry-After 헤더와 함께 반환</li>
+     *   <li><b>메트릭 가시성</b>: Micrometer executor.rejected Counter로 모니터링</li>
+     * </ul>
+     *
+     * <h4>⚠️ Write-Behind 패턴 주의</h4>
+     * <p>이 정책은 <b>읽기 전용 작업에만</b> 적용하세요.
+     * DB 저장 등 쓰기 작업에 적용하면 데이터 유실 위험!</p>
+     */
+    private static final RejectedExecutionHandler EXPECTATION_ABORT_POLICY = (r, executor) -> {
+        // 종료 중 거절은 정상 시나리오
+        if (executor.isShutdown() || executor.isTerminating()) {
+            throw new RejectedExecutionException("ExpectationExecutor rejected (shutdown in progress)");
+        }
+
+        // 샘플링: 1초에 1회만 WARN 로그 (log storm 방지)
+        long dropped = expectationRejectedSinceLastLog.incrementAndGet();
+        long now = System.nanoTime();
+        long prev = expectationLastRejectNanos.get();
+
+        if (now - prev >= REJECT_LOG_INTERVAL_NANOS && expectationLastRejectNanos.compareAndSet(prev, now)) {
+            long count = expectationRejectedSinceLastLog.getAndSet(0);
+            log.warn("[ExpectationExecutor] Task rejected (queue full). " +
+                            "droppedInLastWindow={}, poolSize={}, activeCount={}, queueSize={}",
+                    count,
+                    executor.getPoolSize(),
+                    executor.getActiveCount(),
+                    executor.getQueue().size());
+        }
+
+        // Future 완료 보장을 위해 예외 throw
+        throw new RejectedExecutionException("ExpectationExecutor queue full (capacity exceeded)");
     };
 
     @Bean
@@ -189,25 +248,30 @@ public class ExecutorConfig {
      *   <li><b>Best-effort 알림</b>: 알림은 부가 기능이므로, 폭주 시 드롭/종료 시 즉시 종료</li>
      * </ul>
      *
-     * <h4>운영 정책 </h4>
+     * <h4>운영 정책</h4>
      * <ul>
-     *   <li><b>RejectedExecution</b>: LOGGING_ABORT_POLICY 사용
-     *     <ul>
-     *       <li>드롭 허용: 큐(200) 초과 시 신규 알림 드롭</li>
-     *       <li>Future 완료 보장: RejectedExecutionException throw → runAsync Future가 exceptionally 완료</li>
-     *       <li>Log storm 방지: 1초에 1회만 WARN 로그 (샘플링)</li>
-     *     </ul>
-     *   </li>
+     *   <li><b>RejectedExecution</b>: AbortPolicy + 샘플링 로깅 + rejected 메트릭</li>
      *   <li><b>Shutdown</b>: 대기 없이 즉시 종료 (알림은 flush 불필요)</li>
      * </ul>
      *
-     * <h4>⚠️ DiscardPolicy 금지 이유</h4>
-     * <p>DiscardPolicy는 조용히 드롭하여 CompletableFuture.runAsync()의 Future가 영원히 pending됨.
-     * 이는 메모리 누수와 관측성 누락을 유발하므로 에서는 사용 금지.</p>
+     * <h4>Issue #168 수정사항</h4>
+     * <ul>
+     *   <li>Micrometer ExecutorServiceMetrics 등록</li>
+     *   <li>rejected Counter 추가 (ExecutorServiceMetrics 미제공)</li>
+     * </ul>
      */
     @Bean(name = "alertTaskExecutor")
     @ConditionalOnMissingBean(name = "alertTaskExecutor")
-    public Executor alertTaskExecutor(TaskDecorator contextPropagatingDecorator) {
+    public Executor alertTaskExecutor(
+            TaskDecorator contextPropagatingDecorator,
+            MeterRegistry meterRegistry) {
+
+        // Context7 Best Practice: rejected Counter 등록 (ExecutorServiceMetrics 미제공)
+        Counter alertRejectedCounter = Counter.builder("executor.rejected")
+                .tag("name", "alert")
+                .description("Number of tasks rejected due to queue full")
+                .register(meterRegistry);
+
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(2);
         executor.setMaxPoolSize(4);
@@ -219,13 +283,24 @@ public class ExecutorConfig {
         // 불변식 3: ThreadLocal 전파 (P0-4/B2)
         executor.setTaskDecorator(contextPropagatingDecorator);
 
-        // Best-effort 정책: 드롭 허용 + Future 완료 보장 + 샘플링 로깅
-        executor.setRejectedExecutionHandler(LOGGING_ABORT_POLICY);
+        // Best-effort 정책: 드롭 허용 + Future 완료 보장 + 메트릭 기록
+        executor.setRejectedExecutionHandler((r, e) -> {
+            alertRejectedCounter.increment();
+            LOGGING_ABORT_POLICY.rejectedExecution(r, e);
+        });
 
         // Shutdown 정책: 대기 없이 즉시 종료 (알림은 flush 불필요)
         executor.setWaitForTasksToCompleteOnShutdown(false);
 
         executor.initialize();
+
+        // 🟥 Red 권고: Micrometer ExecutorServiceMetrics 등록
+        new ExecutorServiceMetrics(
+                executor.getThreadPoolExecutor(),
+                "alert",
+                Collections.emptyList()
+        ).bindTo(meterRegistry);
+
         return executor;
     }
 
@@ -241,17 +316,32 @@ public class ExecutorConfig {
      *   <li><b>inFlight 누수 방지</b>: @Scheduled 백그라운드 정리 대신 실제 데드라인 강제</li>
      * </ul>
      *
-     * <h4>CallerRunsPolicy 사용 이유</h4>
+     * <h4>Issue #168 수정사항</h4>
      * <ul>
-     *   <li>과부하 시에도 "리더 계산"이 진행되도록 드롭 대신 호출 스레드에서 실행</li>
-     *   <li>Single-flight follower는 5초 timeout 정책 유지</li>
+     *   <li>CallerRunsPolicy → AbortPolicy (톰캣 스레드 고갈 방지)</li>
+     *   <li>503 응답 + Retry-After 헤더 반환</li>
+     *   <li>rejected Counter 추가 (ExecutorServiceMetrics 미제공)</li>
      * </ul>
      *
-     * <h4>TaskDecorator 적용</h4>
-     * <p>SkipEquipmentL2CacheContext 등 ThreadLocal 전파 보장</p>
+     * <h4>Micrometer 메트릭</h4>
+     * <ul>
+     *   <li>{@code executor.completed} - 완료된 작업 수</li>
+     *   <li>{@code executor.active} - 현재 활성 스레드 수</li>
+     *   <li>{@code executor.queued} - 큐에 대기 중인 작업 수</li>
+     *   <li>{@code executor.rejected} - 거부된 작업 수 (커스텀)</li>
+     * </ul>
      */
     @Bean(name = "expectationComputeExecutor")
-    public Executor expectationComputeExecutor(TaskDecorator contextPropagatingDecorator) {
+    public Executor expectationComputeExecutor(
+            TaskDecorator contextPropagatingDecorator,
+            MeterRegistry meterRegistry) {
+
+        // Context7 Best Practice: rejected Counter 등록 (ExecutorServiceMetrics 미제공)
+        Counter expectationRejectedCounter = Counter.builder("executor.rejected")
+                .tag("name", "expectation.compute")
+                .description("Number of tasks rejected due to queue full")
+                .register(meterRegistry);
+
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(4);
         executor.setMaxPoolSize(8);
@@ -259,9 +349,30 @@ public class ExecutorConfig {
         executor.setThreadNamePrefix("expectation-");
         executor.setAllowCoreThreadTimeOut(true);
         executor.setKeepAliveSeconds(30);
+
+        // 불변식 3: ThreadLocal 전파 (P0-4/B2)
         executor.setTaskDecorator(contextPropagatingDecorator);
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+
+        // Issue #168: CallerRunsPolicy → AbortPolicy + rejected 메트릭 기록
+        executor.setRejectedExecutionHandler((r, e) -> {
+            expectationRejectedCounter.increment();
+            EXPECTATION_ABORT_POLICY.rejectedExecution(r, e);
+        });
+
+        // Graceful Shutdown: 진행 중인 계산 작업 완료 대기
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(30);
+
         executor.initialize();
+
+        // Context7 Best Practice: Micrometer ExecutorServiceMetrics 등록
+        // 제공 메트릭: executor.completed, executor.active, executor.queued, executor.pool.size
+        new ExecutorServiceMetrics(
+                executor.getThreadPoolExecutor(),
+                "expectation.compute",
+                Collections.emptyList()
+        ).bindTo(meterRegistry);
+
         return executor;
     }
 }
