@@ -3,9 +3,11 @@ package maple.expectation.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import maple.expectation.external.dto.v2.TotalExpectationResponse;
+import io.micrometer.core.instrument.MeterRegistry;
 import maple.expectation.global.cache.RestrictedCacheManager;
 import maple.expectation.global.cache.TieredCacheManager;
 import maple.expectation.global.executor.LogicExecutor;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
@@ -33,19 +35,30 @@ import java.util.concurrent.TimeUnit;
 public class CacheConfig {
 
     /**
-     * 🏗️ TieredCacheManager 생성 및 LogicExecutor 주입
-     * @Primary: 기존 @Cacheable 인프라 영향 최소화
+     * TieredCacheManager 생성 및 의존성 주입
+     *
+     * <h4>Issue #148: 분산 락 및 메트릭 지원</h4>
+     * <ul>
+     *   <li>RedissonClient: 분산 락 기반 Single-flight 패턴</li>
+     *   <li>MeterRegistry: 캐시 히트/미스 메트릭 수집</li>
+     * </ul>
+     *
+     * @Primary 기존 @Cacheable 인프라 영향 최소화
      */
     @Bean
     @Primary
     public CacheManager cacheManager(
             RedisConnectionFactory connectionFactory,
-            LogicExecutor executor) { // ✅ 스프링이 LogicExecutor 빈을 자동으로 주입합니다.
+            LogicExecutor executor,
+            RedissonClient redissonClient,  // Issue #148: 분산 락용
+            MeterRegistry meterRegistry) {  // Issue #148: 메트릭 수집용
 
         return new TieredCacheManager(
                 createL1Manager(),
                 createL2Manager(connectionFactory),
-                executor // ✅ TieredCacheManager 생성자에 전달하여 컴파일 오류 해결!
+                executor,
+                redissonClient,
+                meterRegistry
         );
     }
 

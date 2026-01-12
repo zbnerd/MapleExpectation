@@ -2,8 +2,6 @@ package maple.expectation.aop.aspect;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.global.executor.LogicExecutor;
-import maple.expectation.global.executor.TaskContext;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
@@ -16,11 +14,11 @@ import org.springframework.util.StopWatch;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 /**
- * 트레이스 어스펙트 (LogicExecutor 기반 평탄화 완료)
+ * 트레이스 어스펙트
+ * - 순환 참조 방지를 위해 LogicExecutor 의존성을 제거하고 try-catch-finally 패턴 적용
  */
 @Slf4j
 @Aspect
@@ -32,9 +30,11 @@ public class TraceAspect {
     @Value("${app.aop.trace.enabled:false}")
     private boolean isTraceEnabled;
 
-    private static final int MAX_ARG_LENGTH = 100; // 인자 최대 길이 (넘어가면 잘림)
+    private static final int MAX_ARG_LENGTH = 100;
 
-    private final LogicExecutor executor;
+    // ❌ LogicExecutor 제거 (순환 참조 원인)
+    // private final LogicExecutor executor;
+
     private final ThreadLocal<Integer> depthHolder = ThreadLocal.withInitial(() -> 0);
 
     @Pointcut("execution(* maple.expectation.service..*.*(..)) " +
@@ -56,6 +56,7 @@ public class TraceAspect {
                     "&& !execution(* maple.expectation..LikeSyncService.*(..)) " +
                     "&& !execution(* maple.expectation.monitoring..*(..)) " +
                     "&& !@annotation(org.springframework.scheduling.annotation.Scheduled) " +
+                    // LogicExecutor 내부 로직은 로깅 대상에서 제외 (재귀 호출 방지)
                     "&& !within(maple.expectation.global.executor..*)" +
                     "&& !within(maple.expectation.global.filter..*) " +
                     "&& !within(*..*LockStrategy*) " +
@@ -68,20 +69,27 @@ public class TraceAspect {
     public void excludeNoise() {}
 
     @Around("(autoLog() || manualLog()) && excludeNoise()")
-    public Object doTrace(ProceedingJoinPoint joinPoint) {
-        if (!isTraceEnabled || !log.isInfoEnabled()) return executor.execute(joinPoint::proceed, "Trace:Bypass");
+    public Object doTrace(ProceedingJoinPoint joinPoint) throws Throwable {
+        if (!isTraceEnabled || !log.isInfoEnabled()) {
+            return joinPoint.proceed();
+        }
 
         String className = joinPoint.getSignature().getDeclaringType().getSimpleName();
         String methodName = joinPoint.getSignature().getName();
-        TaskContext context = TaskContext.of("Trace", "Execute", className + "." + methodName);
 
         TraceState state = prepareTrace(joinPoint, className, methodName);
 
-        return executor.executeWithFinally(
-                () -> this.proceedAndLog(joinPoint, state),
-                () -> this.cleanupTrace(state),
-                context
-        );
+        try {
+            // [핵심] LogicExecutor 대신 직접 proceed 호출
+            Object result = joinPoint.proceed();
+            state.onSuccess(); // 성공 표시
+            return result;
+        } catch (Throwable e) {
+            handleTraceException(state, e);
+            throw e; // 예외를 숨기지 않고 상위로 전파 (투명성 보장)
+        } finally {
+            cleanupTrace(state);
+        }
     }
 
     private TraceState prepareTrace(ProceedingJoinPoint joinPoint, String className, String methodName) {
@@ -95,26 +103,14 @@ public class TraceAspect {
         StopWatch sw = new StopWatch();
         sw.start();
 
-        return new TraceState(depth, indent, className, methodName, sw, new AtomicBoolean(false));
-    }
-
-    private Object proceedAndLog(ProceedingJoinPoint joinPoint, TraceState state) throws Throwable {
-        return executor.executeOrCatch(
-                () -> {
-                    Object result = joinPoint.proceed();
-                    state.success.set(true);
-                    return result;
-                },
-                ex -> this.handleTraceException(state, ex),
-                TaskContext.of("Trace", "Proceed", state.methodName)
-        );
+        return new TraceState(depth, indent, className, methodName, sw);
     }
 
     private void cleanupTrace(TraceState state) {
         state.sw.stop();
         long tookMs = state.sw.getTotalTimeMillis();
 
-        if (state.success.get()) {
+        if (state.isSuccess) {
             log.info("{}<-- [END] {}.{} ({} ms)", state.indent, state.className, state.methodName, tookMs);
         }
 
@@ -122,28 +118,21 @@ public class TraceAspect {
         else depthHolder.remove();
     }
 
-    private Object handleTraceException(TraceState state, Throwable e) {
+    private void handleTraceException(TraceState state, Throwable e) {
         log.error("{}<X- [EXCEPTION] {}.{} throws {}",
                 state.indent, state.className, state.methodName, e.getClass().getSimpleName());
-
-        if (e instanceof RuntimeException) throw (RuntimeException) e;
-        throw new RuntimeException(e);
     }
 
     private String formatArgs(Object[] args) {
-        if (args == null || args.length == 0) return ""; // 방어 로직
+        if (args == null || args.length == 0) return "";
 
         return Arrays.stream(args)
                 .map(arg -> {
                     if (arg == null) return "null";
-
                     if (arg instanceof byte[]) return "byte[" + ((byte[]) arg).length + "]";
-
-                    // 2. [추가] 컬렉션/맵은 내용 대신 '크기'만 출력 (메모리 폭발 방지 핵심)
                     if (arg instanceof Collection<?>) return "Collection(size=" + ((Collection<?>) arg).size() + ")";
                     if (arg instanceof Map<?, ?>) return "Map(size=" + ((Map<?, ?>) arg).size() + ")";
 
-                    // 3. 그 외 객체는 toString() 호출 후 자르기
                     String str = arg.toString();
                     if (str.length() > MAX_ARG_LENGTH) {
                         return str.substring(0, MAX_ARG_LENGTH) + "...(len:" + str.length() + ")";
@@ -153,12 +142,25 @@ public class TraceAspect {
                 .collect(Collectors.joining(", "));
     }
 
-    private record TraceState(
-            int depth,
-            String indent,
-            String className,
-            String methodName,
-            StopWatch sw,
-            AtomicBoolean success
-    ) {}
+    // 상태 관리용 클래스 (Record 아님 - 가변 상태 isSuccess 변경 필요)
+    private static class TraceState {
+        final int depth;
+        final String indent;
+        final String className;
+        final String methodName;
+        final StopWatch sw;
+        boolean isSuccess = false; // 기본 실패 가정
+
+        TraceState(int depth, String indent, String className, String methodName, StopWatch sw) {
+            this.depth = depth;
+            this.indent = indent;
+            this.className = className;
+            this.methodName = methodName;
+            this.sw = sw;
+        }
+
+        void onSuccess() {
+            this.isSuccess = true;
+        }
+    }
 }
