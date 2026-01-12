@@ -2,7 +2,6 @@ package maple.expectation.service.v2;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.aop.annotation.LogExecutionTime;
 import maple.expectation.aop.annotation.ObservedTransaction;
 import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.external.NexonApiClient;
@@ -10,7 +9,6 @@ import maple.expectation.global.error.exception.CharacterNotFoundException;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.repository.v2.GameCharacterRepository;
-import maple.expectation.service.v2.impl.DatabaseLikeProcessor;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
@@ -19,6 +17,19 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 
+/**
+ * 캐릭터 도메인 서비스
+ *
+ * <p>책임:
+ * <ul>
+ *   <li>캐릭터 조회/생성</li>
+ *   <li>Negative/Positive 캐싱</li>
+ *   <li>좋아요 버퍼 동기화 지원 (getCharacterForUpdate)</li>
+ * </ul>
+ * </p>
+ *
+ * <p>Note: 좋아요 API는 CharacterLikeService로 이관됨 (Self-Like/중복 방지 포함)</p>
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -26,10 +37,8 @@ public class GameCharacterService {
 
     private final GameCharacterRepository gameCharacterRepository;
     private final NexonApiClient nexonApiClient;
-    private final LikeProcessor likeProcessor;
-    private final DatabaseLikeProcessor databaseLikeProcessor;
     private final CacheManager cacheManager;
-    private final LogicExecutor executor; // ✅ 지능형 실행 엔진 주입
+    private final LogicExecutor executor;
 
     /**
      * ⚡ [Negative Cache 확인]
@@ -107,25 +116,10 @@ public class GameCharacterService {
         );
     }
 
-    @LogExecutionTime
-    @ObservedTransaction("service.v2.GameCharacterService.clickLikeCache")
-    public void clickLikeCache(String userIgn) {
-        executor.executeVoid(
-                () -> likeProcessor.processLike(userIgn),
-                TaskContext.of("Like", "ProcessCache", userIgn)
-        );
-    }
-
-    @LogExecutionTime
-    @Transactional
-    @ObservedTransaction("service.v2.GameCharacterService.clickLikePessimistic")
-    public void clickLikePessimistic(String userIgn) {
-        executor.executeVoid(
-                () -> databaseLikeProcessor.processLike(userIgn),
-                TaskContext.of("Like", "ProcessPessimistic", userIgn)
-        );
-    }
-
+    /**
+     * 좋아요 버퍼 동기화용 Pessimistic Lock 조회
+     * LikeSyncExecutor에서 호출하여 likeCount 업데이트에 사용
+     */
     @Transactional
     @ObservedTransaction("service.v2.GameCharacterService.getCharacterForUpdate")
     public GameCharacter getCharacterForUpdate(String userIgn) {

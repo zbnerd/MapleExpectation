@@ -72,3 +72,22 @@ app:
   aop:
     trace:
       enabled: false
+
+# BYOK 인증 설정 (테스트용)
+auth:
+  jwt:
+    secret: test-secret-key-must-be-at-least-32-characters-long-for-hs256
+    expiration: 1800
+  fingerprint:
+    secret: test-fingerprint-secret-key-for-hmac-sha256
+  admin:
+    allowlist: ""
+  session:
+    ttl: 1800
+
+# SpringDoc 비활성화 (테스트)
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
