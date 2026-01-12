@@ -149,6 +149,14 @@ springdoc:
   default-consumes-media-type: application/json
   default-produces-media-type: application/json
 
+# Like Sync 설정 (Issue #147: Redis 원자성)
+like:
+  sync:
+    strategy: lua  # lua(기본) | rename(폴백) - Lua Script 미지원 환경용
+    recovery:
+      enabled: true  # 서버 시작 시 Orphan Key 자동 복구 (@PostConstruct)
+    temp-key-ttl-seconds: 3600  # 임시 키 TTL (1시간) - JVM 크래시 대비 안전장치
+
 # BYOK 인증 설정 (Issue #146)
 auth:
   jwt:
