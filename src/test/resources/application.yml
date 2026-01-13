@@ -91,3 +91,8 @@ springdoc:
     enabled: false
   swagger-ui:
     enabled: false
+
+# 🟨 Yellow Agent Fix: 테스트 시 스케줄러 비활성화 (Flaky Test 방지)
+scheduler:
+  like-sync:
+    enabled: false
