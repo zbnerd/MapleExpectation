@@ -168,3 +168,11 @@ auth:
     allowlist: ${ADMIN_FINGERPRINTS:}  # 쉼표 구분 fingerprint 목록
   session:
     ttl: 1800  # 30분 (초)
+
+# CORS 설정 (Issue #172: 환경별 분리)
+# 주의: 반드시 환경별 프로필(local/prod)에서 allowed-origins 오버라이드 필요
+cors:
+  allowed-origins:
+    - "http://localhost:3000"  # 기본값 (환경별 오버라이드 필수)
+  allow-credentials: true
+  max-age: 3600  # 1시간
