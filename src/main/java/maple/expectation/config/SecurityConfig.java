@@ -1,9 +1,11 @@
 package maple.expectation.config;
 
+import lombok.RequiredArgsConstructor;
 import maple.expectation.global.security.FingerprintGenerator;
 import maple.expectation.global.security.filter.JwtAuthenticationFilter;
 import maple.expectation.global.security.jwt.JwtTokenProvider;
 import maple.expectation.service.v2.auth.SessionService;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -21,7 +23,6 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
-import java.util.List;
 
 /**
  * Spring Security 설정 (6.x Lambda DSL)
@@ -42,10 +43,16 @@ import java.util.List;
  *   <li>@Bean으로 수동 등록 + FilterRegistrationBean으로 서블릿 컨테이너 중복 등록 방지</li>
  * </ul>
  * </p>
+ *
+ * <p>Issue #172: CORS 와일드카드 제거 - CorsProperties로 환경별 설정 분리</p>
  */
 @Configuration
 @EnableWebSecurity
+@EnableConfigurationProperties(CorsProperties.class)
+@RequiredArgsConstructor
 public class SecurityConfig {
+
+    private final CorsProperties corsProperties;
 
     /**
      * JWT 인증 필터 Bean 등록
@@ -162,12 +169,29 @@ public class SecurityConfig {
         return http.build();
     }
 
+    /**
+     * CORS 설정 (환경별 분리)
+     *
+     * <h4>Issue #172: 와일드카드 제거</h4>
+     * <ul>
+     *   <li><b>변경 전</b>: setAllowedOriginPatterns(List.of("*")) - CSRF 취약점</li>
+     *   <li><b>변경 후</b>: CorsProperties 주입 - 환경별 명시적 오리진</li>
+     * </ul>
+     *
+     * <h4>5-Agent Council Round 2 결정</h4>
+     * <ul>
+     *   <li><b>Red Agent</b>: 빈 리스트 시 앱 시작 실패 (fail-fast)</li>
+     *   <li><b>Purple Agent</b>: 와일드카드 + credentials 조합 금지</li>
+     *   <li><b>Blue Agent</b>: @ConfigurationProperties로 DIP 준수</li>
+     * </ul>
+     */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // 허용 오리진 (프로덕션에서는 환경변수로 관리)
-        configuration.setAllowedOriginPatterns(List.of("*"));
+        // ✅ Issue #172: 환경별 허용 오리진 (하드코딩 제거)
+        // CorsProperties.allowedOrigins는 @NotEmpty로 검증됨 (fail-fast)
+        configuration.setAllowedOrigins(corsProperties.getAllowedOrigins());
 
         // 허용 메서드
         configuration.setAllowedMethods(Arrays.asList(
@@ -183,11 +207,11 @@ public class SecurityConfig {
             "Origin"
         ));
 
-        // 자격 증명 허용
-        configuration.setAllowCredentials(true);
+        // ✅ credentials 설정 (CorsProperties에서 주입)
+        configuration.setAllowCredentials(corsProperties.getAllowCredentials());
 
-        // 캐시 시간
-        configuration.setMaxAge(3600L);
+        // ✅ 캐시 시간 (CorsProperties에서 주입)
+        configuration.setMaxAge(corsProperties.getMaxAge());
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

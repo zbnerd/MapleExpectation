@@ -96,3 +96,10 @@ springdoc:
 scheduler:
   like-sync:
     enabled: false
+
+# CORS 설정 (테스트 환경)
+cors:
+  allowed-origins:
+    - "http://localhost:3000"
+  allow-credentials: true
+  max-age: 3600

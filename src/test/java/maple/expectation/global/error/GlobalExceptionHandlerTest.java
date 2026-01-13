@@ -1,17 +1,28 @@
 package maple.expectation.global.error;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import maple.expectation.controller.dto.admin.AddAdminRequest;
 import maple.expectation.global.error.exception.ApiTimeoutException;
 import maple.expectation.global.error.exception.CharacterNotFoundException;
+import maple.expectation.global.security.AuthenticatedUser;
+import maple.expectation.service.v2.auth.AdminService;
 import maple.expectation.service.v2.facade.GameCharacterFacade;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeoutException;
@@ -19,6 +30,7 @@ import java.util.concurrent.TimeoutException;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -35,8 +47,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class GlobalExceptionHandlerTest {
 
     @Autowired private MockMvc mockMvc;
+    @Autowired private ObjectMapper objectMapper;
 
     @MockitoBean private GameCharacterFacade gameCharacterFacade;
+    @MockitoBean private AdminService adminService;
 
     @Test
     @DisplayName("CharacterNotFoundException → 404 NOT_FOUND + C002 (스프링 wiring 검증)")
@@ -153,5 +167,66 @@ class GlobalExceptionHandlerTest {
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(header().string("Retry-After", "30"))
                 .andExpect(jsonPath("$.code").value("S010"));
+    }
+
+    // ==================== Issue #151: Bean Validation 처리 테스트 ====================
+
+    @Nested
+    @DisplayName("Issue #151: Validation Exception 처리")
+    class ValidationExceptionTests {
+
+        @Test
+        @DisplayName("TC-151-09: MethodArgumentNotValidException 발생 → 400 + C001 + 필드명 포함")
+        void handleMethodArgumentNotValidException_Returns400WithFieldName() throws Exception {
+            // Given: 잘못된 fingerprint로 Admin 추가 요청
+            setupAdminAuthentication();
+            AddAdminRequest invalidRequest = new AddAdminRequest("");  // 빈 문자열
+
+            // When & Then: 400 + C001 + 필드명(fingerprint) 포함
+            mockMvc.perform(post("/api/admin/admins")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(invalidRequest)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("C001"))
+                    .andExpect(jsonPath("$.message").exists());
+        }
+
+        @Test
+        @DisplayName("TC-151-10: 복합 검증 실패 시 모든 필드 오류 메시지 포함")
+        void handleMethodArgumentNotValidException_MultipleErrors() throws Exception {
+            // Given: 패턴과 길이 모두 위반하는 fingerprint
+            setupAdminAuthentication();
+            String jsonWithInvalidFingerprint = "{\"fingerprint\":\"xyz\"}";  // 너무 짧고 패턴 위반
+
+            // When & Then: 400 + C001
+            mockMvc.perform(post("/api/admin/admins")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(jsonWithInvalidFingerprint))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("C001"));
+        }
+
+        /**
+         * ADMIN 권한으로 SecurityContext 설정
+         *
+         * <p>AuthenticatedUser 필드: sessionId, fingerprint, apiKey, myOcids, role</p>
+         */
+        private void setupAdminAuthentication() {
+            AuthenticatedUser user = new AuthenticatedUser(
+                    "test-session-id",    // sessionId
+                    "test-fingerprint-for-validation-test-1234567890abcdef12345678",  // fingerprint
+                    "test-api-key",        // apiKey
+                    Collections.emptySet(),// myOcids
+                    "ADMIN"                // role
+            );
+
+            UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
+                    user,
+                    null,
+                    List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))
+            );
+
+            SecurityContextHolder.getContext().setAuthentication(auth);
+        }
     }
 }

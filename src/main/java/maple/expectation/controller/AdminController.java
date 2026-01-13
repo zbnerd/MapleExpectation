@@ -1,11 +1,14 @@
 package maple.expectation.controller;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import maple.expectation.controller.dto.admin.AddAdminRequest;
 import maple.expectation.global.response.ApiResponse;
 import maple.expectation.global.security.AuthenticatedUser;
 import maple.expectation.service.v2.auth.AdminService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Set;
@@ -15,6 +18,13 @@ import java.util.Set;
  *
  * <p>권한: ADMIN만 접근 가능 (SecurityConfig에서 설정)</p>
  *
+ * <h4>Issue #151: Bean Validation 적용</h4>
+ * <ul>
+ *   <li>@Validated: 클래스 레벨 검증 활성화 (@PathVariable 검증)</li>
+ *   <li>@Valid: @RequestBody DTO 검증</li>
+ *   <li>AddAdminRequest: 별도 파일로 분리 (SRP 준수)</li>
+ * </ul>
+ *
  * <p>엔드포인트:
  * <ul>
  *   <li>GET /api/admin/admins - Admin 목록 조회</li>
@@ -23,6 +33,7 @@ import java.util.Set;
  * </ul>
  * </p>
  */
+@Validated  // ✅ Issue #151: @PathVariable 검증 활성화
 @RestController
 @RequestMapping("/api/admin")
 @RequiredArgsConstructor
@@ -42,17 +53,20 @@ public class AdminController {
     /**
      * 새 Admin 추가
      *
-     * @param request fingerprint가 담긴 요청
+     * <h4>Issue #151: @Valid 적용</h4>
+     * <p>AddAdminRequest에 @NotBlank, @Size, @Pattern 검증 적용</p>
+     *
+     * @param request fingerprint가 담긴 요청 (검증됨)
      */
     @PostMapping("/admins")
     public ResponseEntity<ApiResponse<String>> addAdmin(
-            @RequestBody AddAdminRequest request,
+            @Valid @RequestBody AddAdminRequest request,  // ✅ @Valid 추가
             @AuthenticationPrincipal AuthenticatedUser currentUser) {
 
         adminService.addAdmin(request.fingerprint());
 
         return ResponseEntity.ok(ApiResponse.success(
-            "Admin added successfully: " + maskFingerprint(request.fingerprint())
+            "Admin added successfully: " + request.maskedFingerprint()  // DTO의 마스킹 메서드 사용
         ));
     }
 
@@ -84,15 +98,15 @@ public class AdminController {
         ));
     }
 
+    /**
+     * Fingerprint 마스킹 유틸리티
+     *
+     * <p>AddAdminRequest 외부에서 사용되는 경우를 위한 내부 메서드</p>
+     */
     private String maskFingerprint(String fingerprint) {
         if (fingerprint == null || fingerprint.length() < 8) {
             return "****";
         }
         return fingerprint.substring(0, 4) + "****" + fingerprint.substring(fingerprint.length() - 4);
     }
-
-    /**
-     * Admin 추가 요청 DTO
-     */
-    public record AddAdminRequest(String fingerprint) {}
 }

@@ -1,10 +1,12 @@
 package maple.expectation.global.error;
 
+import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.error.dto.ErrorResponse;
 import maple.expectation.global.error.exception.base.BaseException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -12,6 +14,7 @@ import java.time.LocalDateTime;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 
 @Slf4j
 @RestControllerAdvice
@@ -106,6 +109,77 @@ public class GlobalExceptionHandler {
                 .status(HttpStatus.SERVICE_UNAVAILABLE)
                 .header("Retry-After", String.valueOf(retryAfterSeconds))
                 .body(body);
+    }
+
+    // ==================== Issue #151: Bean Validation 처리 ====================
+
+    /**
+     * [Issue #151] Bean Validation 검증 실패 처리 (@RequestBody + @Valid)
+     *
+     * <p>@Valid 어노테이션이 적용된 DTO의 검증 실패 시 발생</p>
+     *
+     * <h4>5-Agent Council Round 2 결정</h4>
+     * <ul>
+     *   <li><b>Blue Agent</b>: Controller 책임 - DTO 형식 검증</li>
+     *   <li><b>Yellow Agent</b>: 필드명 + 메시지 동적 생성</li>
+     *   <li><b>Purple Agent</b>: ErrorResponse(C001) 표준 형식 준수</li>
+     * </ul>
+     *
+     * @return 400 Bad Request + C001 에러코드
+     */
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    protected ResponseEntity<ErrorResponse> handleMethodArgumentNotValid(
+            MethodArgumentNotValidException e) {
+
+        // 검증 실패 필드 정보 수집
+        String errorMessage = e.getBindingResult().getFieldErrors().stream()
+                .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
+                .collect(Collectors.joining(", "));
+
+        log.warn("Validation failed: {}", errorMessage);
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ErrorResponse.builder()
+                        .status(HttpStatus.BAD_REQUEST.value())
+                        .code(CommonErrorCode.INVALID_INPUT_VALUE.getCode())
+                        .message(String.format(CommonErrorCode.INVALID_INPUT_VALUE.getMessage(), errorMessage))
+                        .timestamp(LocalDateTime.now())
+                        .build());
+    }
+
+    /**
+     * [Issue #151] @PathVariable, @RequestParam 검증 실패 처리
+     *
+     * <p>@Validated 클래스의 @NotBlank 등 검증 실패 시 발생</p>
+     *
+     * <h4>적용 대상</h4>
+     * <ul>
+     *   <li>@PathVariable + @NotBlank</li>
+     *   <li>@RequestParam + @Min/@Max</li>
+     *   <li>Controller 클래스에 @Validated 필수</li>
+     * </ul>
+     *
+     * @return 400 Bad Request + C001 에러코드
+     */
+    @ExceptionHandler(ConstraintViolationException.class)
+    protected ResponseEntity<ErrorResponse> handleConstraintViolation(
+            ConstraintViolationException e) {
+
+        String errorMessage = e.getConstraintViolations().stream()
+                .map(cv -> cv.getPropertyPath() + ": " + cv.getMessage())
+                .collect(Collectors.joining(", "));
+
+        log.warn("Constraint violation: {}", errorMessage);
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ErrorResponse.builder()
+                        .status(HttpStatus.BAD_REQUEST.value())
+                        .code(CommonErrorCode.INVALID_INPUT_VALUE.getCode())
+                        .message(String.format(CommonErrorCode.INVALID_INPUT_VALUE.getMessage(), errorMessage))
+                        .timestamp(LocalDateTime.now())
+                        .build());
     }
 
     /**
