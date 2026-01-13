@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import maple.expectation.aop.context.SkipEquipmentL2CacheContext;
 import maple.expectation.config.NexonApiProperties;
 import maple.expectation.external.dto.v2.EquipmentResponse;
+import maple.expectation.global.error.exception.ExternalServiceException;
 import maple.expectation.global.error.exception.InternalSystemException;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
@@ -19,6 +20,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
@@ -118,7 +120,7 @@ public class NexonDataCacheAspect {
      */
     private Object doProcessAsyncCallback(Object res, Throwable ex, String ocid) {
         if (ex != null) {
-            throw toRuntimeException(ex);
+            throw toRuntimeException(ex, ocid);
         }
 
         if (res instanceof EquipmentResponse er) {
@@ -140,12 +142,51 @@ public class NexonDataCacheAspect {
     }
 
     /**
-     * Checked 예외를 RuntimeException으로 변환 (예외 전파 보존용)
+     * Checked 예외를 RuntimeException으로 변환
+     *
+     * <h4>Issue #166: 5-Agent Council Decision</h4>
+     * <p>CompletionException 대신 프로젝트 예외 계층 사용으로 원본 타입 보존</p>
+     *
+     * <h4>변환 규칙 (CLAUDE.md 섹션 11, 12)</h4>
+     * <ol>
+     *   <li>Error → 즉시 throw (복구 불가)</li>
+     *   <li>RuntimeException (BaseException 포함) → 그대로 반환</li>
+     *   <li>TimeoutException → ExternalServiceException (🚨 Red Agent: HTTP 503 보존)</li>
+     *   <li>InterruptedException → 인터럽트 플래그 복원 후 InternalSystemException</li>
+     *   <li>기타 Checked Exception → InternalSystemException</li>
+     * </ol>
+     *
+     * <h4>메시지 포맷 (Purple Agent)</h4>
+     * <p>{@code NexonCache:AsyncCallback:{type}:{ocid}}</p>
+     *
+     * @param ex   원본 예외
+     * @param ocid 캐릭터 OCID (디버깅용)
+     * @return RuntimeException (원본 또는 변환된 예외)
      */
-    private RuntimeException toRuntimeException(Throwable ex) {
-        if (ex instanceof RuntimeException re) return re;
-        if (ex instanceof Error err) throw err;
-        return new java.util.concurrent.CompletionException(ex);
+    private RuntimeException toRuntimeException(Throwable ex, String ocid) {
+        // P0: Error는 즉시 전파 (OOM, StackOverflow 등)
+        if (ex instanceof Error err) {
+            throw err;
+        }
+
+        // P1: RuntimeException (BaseException 포함)은 타입 보존
+        if (ex instanceof RuntimeException re) {
+            return re;
+        }
+
+        // P2: TimeoutException → ExternalServiceException (🚨 CRITICAL: HTTP 503 보존)
+        if (ex instanceof TimeoutException) {
+            return new ExternalServiceException("NexonCache:AsyncCallback:timeout:" + ocid, ex);
+        }
+
+        // P3: InterruptedException 특수 처리 - 인터럽트 플래그 복원
+        if (ex instanceof InterruptedException) {
+            Thread.currentThread().interrupt();
+            return new InternalSystemException("NexonCache:AsyncCallback:interrupted:" + ocid, ex);
+        }
+
+        // P4: 기타 Checked Exception → InternalSystemException
+        return new InternalSystemException("NexonCache:AsyncCallback:" + ocid, ex);
     }
 
     private Object saveAndWrap(Object result, String ocid, Class<?> returnType) {

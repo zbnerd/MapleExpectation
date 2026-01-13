@@ -7,6 +7,7 @@ import maple.expectation.global.executor.TaskContext;
 import maple.expectation.global.lock.LockStrategy;
 import maple.expectation.service.v2.LikeRelationSyncService;
 import maple.expectation.service.v2.LikeSyncService;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -30,6 +31,11 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@ConditionalOnProperty(
+        name = "scheduler.like-sync.enabled",
+        havingValue = "true",
+        matchIfMissing = true  // 프로덕션에서는 기본 활성화
+)
 public class LikeSyncScheduler {
 
     private final LikeSyncService likeSyncService;
