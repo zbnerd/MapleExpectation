@@ -19,11 +19,30 @@ public class GlobalExceptionHandler {
 
     /**
      * [1순위 가치] 비즈니스 예외 처리 (동적 메시지 포함)
-     * BaseException 객체를 직접 넘겨서 가공된 메시지(예: IGN 포함)를 활용합니다.
+     *
+     * <p>BaseException 객체를 직접 넘겨서 가공된 메시지(예: IGN 포함)를 활용합니다.</p>
+     *
+     * <h4>Issue #169: 503 응답에 Retry-After 헤더 추가</h4>
+     * <p>5-Agent Council Round 2 결정: ApiTimeoutException 등 503 응답 시
+     * HTTP 표준 Retry-After 헤더를 포함하여 클라이언트에게 재시도 시점을 안내합니다.</p>
      */
     @ExceptionHandler(BaseException.class)
     protected ResponseEntity<ErrorResponse> handleBaseException(BaseException e) {
         log.warn("Business Exception: {} | Message: {}", e.getErrorCode().getCode(), e.getMessage());
+
+        // Issue #169: 503 응답에 Retry-After 헤더 추가 (Red Agent P0-2)
+        if (e.getErrorCode().getStatus() == HttpStatus.SERVICE_UNAVAILABLE) {
+            return ResponseEntity
+                    .status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .header("Retry-After", "30")
+                    .body(ErrorResponse.builder()
+                            .status(e.getErrorCode().getStatus().value())
+                            .code(e.getErrorCode().getCode())
+                            .message(e.getMessage())
+                            .timestamp(LocalDateTime.now())
+                            .build());
+        }
+
         return ErrorResponse.toResponseEntity(e);
     }
 
