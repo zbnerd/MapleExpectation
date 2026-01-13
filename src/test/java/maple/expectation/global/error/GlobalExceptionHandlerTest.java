@@ -1,5 +1,6 @@
 package maple.expectation.global.error;
 
+import maple.expectation.global.error.exception.ApiTimeoutException;
 import maple.expectation.global.error.exception.CharacterNotFoundException;
 import maple.expectation.service.v2.facade.GameCharacterFacade;
 import org.junit.jupiter.api.DisplayName;
@@ -120,5 +121,37 @@ class GlobalExceptionHandlerTest {
         mockMvc.perform(get("/api/v1/characters/anyIgn"))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.code").value("S001"));
+    }
+
+    // ==================== Issue #169: ApiTimeoutException 처리 테스트 ====================
+
+    @Test
+    @DisplayName("ApiTimeoutException → 503 + Retry-After 30s + S010 (Issue #169)")
+    void handleApiTimeoutException_Returns503WithRetryAfterAndS010() throws Exception {
+        // Given: ApiTimeoutException (CircuitBreakerRecordMarker 구현)
+        given(gameCharacterFacade.findCharacterByUserIgn(anyString()))
+                .willThrow(new ApiTimeoutException("NexonEquipmentAPI"));
+
+        // When & Then: 503 + Retry-After 30초 헤더 + S010 코드
+        mockMvc.perform(get("/api/v1/characters/anyIgn"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(header().string("Retry-After", "30"))
+                .andExpect(jsonPath("$.code").value("S010"))
+                .andExpect(jsonPath("$.status").value(503));
+    }
+
+    @Test
+    @DisplayName("ApiTimeoutException with cause → 503 + Retry-After 30s (cause 포함)")
+    void handleApiTimeoutException_WithCause_Returns503() throws Exception {
+        // Given: TimeoutException을 원인으로 가진 ApiTimeoutException
+        given(gameCharacterFacade.findCharacterByUserIgn(anyString()))
+                .willThrow(new ApiTimeoutException("NexonEquipmentAPI",
+                        new java.util.concurrent.TimeoutException("Connection timeout")));
+
+        // When & Then: 503 + Retry-After 30초 헤더 + S010 코드
+        mockMvc.perform(get("/api/v1/characters/anyIgn"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(header().string("Retry-After", "30"))
+                .andExpect(jsonPath("$.code").value("S010"));
     }
 }

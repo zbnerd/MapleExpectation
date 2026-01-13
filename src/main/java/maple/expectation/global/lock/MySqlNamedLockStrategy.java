@@ -3,6 +3,7 @@ package maple.expectation.global.lock;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.common.function.ThrowingSupplier;
+import maple.expectation.global.error.exception.DatabaseNamedLockException;
 import maple.expectation.global.error.exception.DistributedLockException;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
@@ -14,9 +15,10 @@ import org.springframework.jdbc.datasource.SingleConnectionDataSource;
 import org.springframework.stereotype.Component;
 
 import java.sql.Connection;
+import java.util.Optional;
 
 /**
- * MySQL Named Lock 전략 (100% 평탄화 및 보일러플레이트 박멸 버전)
+ * MySQL Named Lock 전략
  */
 @Slf4j
 @Component
@@ -79,16 +81,32 @@ public class MySqlNamedLockStrategy implements LockStrategy {
     }
 
     private boolean tryAcquire(JdbcTemplate sessionJdbc, String lockKey, long waitTime) {
-        return sessionJdbc.queryForObject(
-                "SELECT GET_LOCK(?, ?)", Integer.class, lockKey, waitTime) == 1;
+
+        Integer acquiredFlag = sessionJdbc.queryForObject(
+                "SELECT GET_LOCK(?, ?)", Integer.class, lockKey, waitTime);
+
+        if (acquiredFlag == null) {
+            throw new DatabaseNamedLockException("GET_LOCK", lockKey, waitTime);
+        }
+
+        return acquiredFlag == 1;
     }
 
     private void releaseLock(JdbcTemplate sessionJdbc, String lockKey, TaskContext context) {
-        executor.executeVoid(
-                () -> sessionJdbc.queryForObject("SELECT RELEASE_LOCK(?)", Integer.class, lockKey),
-                context
-        );
-        log.debug("🔒 [MySQL Lock] '{}' 해제 완료", lockKey);
+        executor.executeVoid(() -> {
+            Integer r = sessionJdbc.queryForObject(
+                    "SELECT RELEASE_LOCK(?)", Integer.class, lockKey
+            );
+
+            if (r == null) {
+                throw new DatabaseNamedLockException("RELEASE_LOCK", lockKey, null);
+            }
+            if (r != 1) { // 0 포함
+                throw new DatabaseNamedLockException("RELEASE_LOCK(non-owner)", lockKey, null);
+            }
+
+            log.debug("🔒 [MySQL Lock] '{}' 해제 완료", lockKey);
+        }, context);
     }
 
     /**

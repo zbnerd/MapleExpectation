@@ -1,6 +1,7 @@
 package maple.expectation.service.v2.cache;
 
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.global.error.exception.ApiTimeoutException;
 import maple.expectation.provider.EquipmentDataProvider;
 import maple.expectation.service.v2.worker.EquipmentDbWorker;
 import maple.expectation.util.GzipUtils;
@@ -9,8 +10,10 @@ import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * 장비 데이터 확보 우선순위 처리기 (Issue #158: EquipmentResponse 캐싱 제거)
@@ -103,6 +106,13 @@ public class EquipmentDataResolver {
     /**
      * Nexon API에서 장비 데이터 조회 후 DB 저장
      *
+     * <h4>Issue #173: orTimeout() Race Condition 해결</h4>
+     * <p>orTimeout()을 API 호출 직후로 이동하여 DB 저장과의 race condition 방지</p>
+     * <ul>
+     *   <li><b>변경 전</b>: orTimeout()이 체인 끝에 위치 → 타임아웃 후에도 DB 저장 계속</li>
+     *   <li><b>변경 후</b>: orTimeout()이 API 호출에만 적용 → DB 저장은 타임아웃 범위 밖</li>
+     * </ul>
+     *
      * <h4>스트리밍 의도 준수</h4>
      * <ul>
      *   <li>Parser에게는 압축 상태(compressedData)로 전달</li>
@@ -113,9 +123,25 @@ public class EquipmentDataResolver {
      * <h4>DB 저장</h4>
      * <p>GzipStringConverter가 저장 시 다시 압축하므로 decompress 필요</p>
      * <p>fire-and-forget 비동기 처리</p>
+     *
+     * @see ApiTimeoutException 서킷브레이커 기록되는 타임아웃 예외
      */
     private CompletableFuture<byte[]> fetchFromNexonApiAndSave(String ocid) {
         return dataProvider.getRawEquipmentData(ocid)
+                // Issue #173: orTimeout()을 API 호출 직후로 이동 (race condition 해결)
+                .orTimeout(NEXON_API_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                // Issue #169: TimeoutException → ApiTimeoutException 변환 (서킷브레이커 기록)
+                .exceptionally(e -> {
+                    Throwable cause = (e instanceof CompletionException) ? e.getCause() : e;
+                    if (cause instanceof TimeoutException) {
+                        throw new ApiTimeoutException("NexonEquipmentAPI", cause);
+                    }
+                    // 다른 예외는 그대로 전파
+                    if (e instanceof RuntimeException re) {
+                        throw re;
+                    }
+                    throw new CompletionException(e);
+                })
                 // P2 Fix: thenApplyAsync로 ThreadLocal 전파 보장 (PR #160 Codex 지적)
                 // expectationExecutor에 contextPropagatingDecorator가 설정되어 있음
                 .thenApplyAsync(compressedData -> {
@@ -123,16 +149,15 @@ public class EquipmentDataResolver {
                     // fire-and-forget: 비동기 + non-blocking
                     String json = GzipUtils.decompress(compressedData);
                     dbWorker.persistRawJson(ocid, json)
-                            .exceptionally(e -> {
-                                log.warn("[DataResolver] DB save failed (non-blocking): {}", e.getMessage());
+                            .exceptionally(ex -> {
+                                log.warn("[DataResolver] DB save failed (non-blocking): {}", ex.getMessage());
                                 return null;
                             });
 
                     // Parser에게는 압축 상태로 전달 (스트리밍 의도 유지)
                     // EquipmentStreamingParser가 GZIPInputStream으로 스트리밍 해제
                     return compressedData;
-                }, expectationExecutor)
-                .orTimeout(NEXON_API_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                }, expectationExecutor);
     }
 
     /**
