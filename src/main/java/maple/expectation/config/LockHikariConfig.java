@@ -25,7 +25,7 @@ import javax.sql.DataSource;
  */
 @Slf4j
 @Configuration
-@Profile("!test")  // 테스트 환경에서는 로드하지 않음
+@Profile("!test")
 public class LockHikariConfig {
 
     @Value("${spring.datasource.url}")
@@ -37,11 +37,6 @@ public class LockHikariConfig {
     @Value("${spring.datasource.password}")
     private String password;
 
-    /**
-     * MySQL Named Lock 전용 DataSource
-     *
-     * @return 전용 HikariDataSource
-     */
     @Bean(name = "lockDataSource")
     public DataSource lockDataSource() {
         HikariConfig config = new HikariConfig();
@@ -53,27 +48,24 @@ public class LockHikariConfig {
         config.setDriverClassName("com.mysql.cj.jdbc.Driver");
 
         // Lock 전용 풀 설정
-        config.setMaximumPoolSize(50);           // 작은 전용 풀 (락은 가벼운 작업)
-        config.setMinimumIdle(2);                 // 최소 2개 유지 (즉시 사용 가능)
-        config.setConnectionTimeout(5000);        // 5초 - 커넥션 획득 타임아웃
-        config.setIdleTimeout(300000);            // 5분 - 유휴 커넥션 타임아웃
-        config.setMaxLifetime(600000);            // 10분 - 커넥션 최대 수명
-        config.setPoolName("MySQLLockPool");      // 모니터링용 풀 이름
+        // [수정 1] 주석 의도(작은 풀)에 맞춰 50 -> 10으로 축소
+        config.setMaximumPoolSize(10);
+        config.setMinimumIdle(2);
+        config.setConnectionTimeout(5000);
+        config.setIdleTimeout(300000);
+        config.setMaxLifetime(600000);
+        config.setPoolName("MySQLLockPool");
 
         // 검증 설정
-        config.setConnectionTestQuery("SELECT 1");
-        config.setValidationTimeout(3000);        // 3초 - 검증 타임아웃
+        // [수정 2] setConnectionTestQuery("SELECT 1") 제거
+        // MySQL Connector/J는 JDBC4 표준 isValid()를 지원하므로 제거하는 것이 성능상 유리합니다.
+        config.setValidationTimeout(3000);
 
         log.info("✅ [Lock Pool] Initialized dedicated MySQL lock connection pool (max: 10)");
 
         return new HikariDataSource(config);
     }
 
-    /**
-     * MySQL Named Lock 전용 JdbcTemplate
-     *
-     * @return lockDataSource를 사용하는 JdbcTemplate
-     */
     @Bean(name = "lockJdbcTemplate")
     public JdbcTemplate lockJdbcTemplate() {
         return new JdbcTemplate(lockDataSource());
