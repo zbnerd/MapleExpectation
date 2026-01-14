@@ -14,6 +14,8 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       register-mbeans: true # JMX를 통해 지표 노출 활성화
+      connection-timeout: 3000      # 커넥션 획득 타임아웃 3초 (Red Agent P1 Fix)
+      leak-detection-threshold: 60000  # 60초 이상 반납 안되면 누수 의심 로그
 
   # 공통 JPA 설정
   jpa:
@@ -59,6 +61,7 @@ resilience4j:
     instances:
       nexonApi:
         baseConfig: default
+        minimumNumberOfCalls: 10        # 최소 10번 호출 후 통계 산출 (Red Agent P1 Fix)
       redisLock:  # Redis 분산 락 전용 Circuit Breaker
         slidingWindowSize: 20              # 락 작업은 빈번하므로 더 많은 샘플 수집
         failureRateThreshold: 60           # 60% 실패율에서 Open (락 경합은 정상적일 수 있음)
