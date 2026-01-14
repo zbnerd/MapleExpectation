@@ -7,8 +7,8 @@
 **테스트 조건 상세:**
 - **Target API:** `GET /api/v3/characters/{ign}/expectation`
 - **Warm Cache:** `expectationResult`/`ocid`/`equipment` 캐시가 프라이밍된 상태 (테스트 시작 전 각 캐릭터 1회 호출)
-- **Cold Cache:** 첫 요청 기준 (프라임 포함, Nexon API 호출 1회 발생)
-- **External API:** Warm에서는 캐시 HIT로 Nexon API 호출 차단, Cold 첫 요청에서만 포함
+- **Cold Cache:** 첫 요청 기준 (프라임 포함, Nexon API 호출 1회 발생 가능)
+- **External API:** Warm에서는 캐시 HIT로 Nexon API 호출이 차단(또는 최소화), Cold 첫 요청에서만 포함될 수 있음
 - **Dataset:** `TEST_CHARACTERS` 12개 라운드로빈 ([`locust/locustfile.py`](locust/locustfile.py) 참조)
 - **검증 범위:** 현재 VUser 100 검증 완료 / 설계 목표 1,000명 (수평 확장 시)
 
@@ -30,8 +30,8 @@
 **캐시 시나리오별 응답 시간:**
 | 시나리오 | p50 | p95 | p99 | 설명 |
 |----------|-----|-----|-----|------|
-| Warm Cache (HIT) | 27ms | 100ms | 200ms | 캐시 적중 (Nexon API 호출 없음) |
-| Cold Cache (MISS) | 290ms | 620ms | 690ms | 첫 요청 (Nexon API 1회 포함) |
+| Warm Cache (HIT) | 27ms | 100ms | 200ms | 캐시 적중 (Nexon API 호출 없음 또는 최소화) |
+| Cold Cache (MISS) | 290ms | 620ms | 690ms | 첫 요청 (프라임 포함, Nexon API 1회 포함 가능) |
 
 > ⚠️ **주의**: 위 벤치마크는 **로컬 개발 환경**에서 측정되었습니다.
 > 프로덕션 환경(AWS t3.small: 2vCPU, 2GB)에서는 네트워크 지연, 리소스 제약 등으로 인해 성능이 달라질 수 있습니다.
@@ -122,8 +122,9 @@ locust -f locust/locustfile.py --tags like_sync_test --headless -u 50 -r 10 -t 6
 
 **보안:**
 - API Key는 환경변수(`NEXON_API_KEY`)로만 주입되며 코드에 하드코딩 금지
-- `LoginRequest.toString()`에서 마스킹 처리 ([`dto/LoginRequest.java`](src/main/java/maple/expectation/controller/auth/dto/LoginRequest.java) 참조)
+- `LoginRequest.toString()`에서 마스킹 처리 ([`src/main/java/maple/expectation/controller/auth/dto/LoginRequest.java`](src/main/java/maple/expectation/controller/auth/dto/LoginRequest.java) 참조)
 - 테스트 중 로그에 API Key 평문 노출 없음
+
 
 ---
 

@@ -66,4 +66,29 @@ public record Session(
     public boolean isAdmin() {
         return ROLE_ADMIN.equals(role);
     }
+
+    /**
+     * API Key 마스킹된 문자열 반환
+     *
+     * <p><b>CLAUDE.md 섹션 19 준수:</b> AOP 로깅 시 API Key 평문 노출 방지</p>
+     * <p><b>Purple Agent P1 FIX:</b> Record 기본 toString()은 모든 필드를 노출하므로 오버라이드 필수</p>
+     */
+    @Override
+    public String toString() {
+        return "Session[" +
+                "sessionId=" + sessionId +
+                ", fingerprint=" + fingerprint +
+                ", apiKey=" + maskApiKey(apiKey) +
+                ", myOcids=" + myOcids +
+                ", role=" + role +
+                ", createdAt=" + createdAt +
+                ", lastAccessedAt=" + lastAccessedAt + "]";
+    }
+
+    private static String maskApiKey(String key) {
+        if (key == null || key.length() < 8) {
+            return "****";
+        }
+        return key.substring(0, 4) + "****" + key.substring(key.length() - 4);
+    }
 }
