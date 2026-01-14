@@ -4,14 +4,16 @@ package maple.expectation.global.redis.script;
  * Redis Lua Script 상수 클래스
  *
  * <p>Redis 싱글 스레드 특성을 활용하여 원자적 연산을 보장합니다.
- * 모든 스크립트는 Hash Tag {likes}를 사용하여 Redis Cluster CROSSSLOT 에러를 방지합니다.</p>
+ * 모든 스크립트는 Hash Tag {buffer:likes}를 사용하여 Redis Cluster CROSSSLOT 에러를 방지합니다.</p>
  *
- * <h2>Key Naming Convention</h2>
+ * <h2>Key Naming Convention (CRITICAL FIX - PR #175, #164)</h2>
  * <pre>
- * buffer:{likes}:hash        - Hash (사용자별 좋아요 카운트)
- * buffer:{likes}:total_count - String (전역 대기 카운트)
- * buffer:{likes}:sync:{uuid} - Hash (동기화 임시 키)
+ * {buffer:likes}              - Hash (사용자별 좋아요 카운트) - LikeSyncService.SOURCE_KEY
+ * {buffer:likes}:total_count  - String (전역 대기 카운트)
+ * {buffer:likes}:sync:{uuid}  - Hash (동기화 임시 키)
  * </pre>
+ *
+ * <p>Hash Tag는 {buffer:likes} 전체를 감싸야 같은 슬롯 보장됨</p>
  */
 public final class LuaScripts {
 
@@ -20,12 +22,17 @@ public final class LuaScripts {
     }
 
     /**
-     * Redis Key 상수
+     * Redis Key 상수 (LikeSyncService.SOURCE_KEY와 동기화)
+     *
+     * <p>CRITICAL: Hash Tag 패턴 - {buffer:likes}가 해시 대상</p>
      */
     public static final class Keys {
-        public static final String HASH = "buffer:{likes}:hash";
-        public static final String TOTAL_COUNT = "buffer:{likes}:total_count";
-        public static final String SYNC_PREFIX = "buffer:{likes}:sync:";
+        /** 사용자별 좋아요 버퍼 (Hash) - LikeSyncService.SOURCE_KEY와 동일 */
+        public static final String HASH = "{buffer:likes}";
+        /** 전역 대기 카운트 (String) */
+        public static final String TOTAL_COUNT = "{buffer:likes}:total_count";
+        /** 동기화 임시 키 접두사 */
+        public static final String SYNC_PREFIX = "{buffer:likes}:sync:";
 
         private Keys() {
             throw new UnsupportedOperationException("Utility class");
@@ -38,8 +45,8 @@ public final class LuaScripts {
      * <p>로컬 버퍼에서 Redis로 원자적 전송</p>
      *
      * <pre>
-     * KEYS[1] = buffer:{likes}:hash (Hash)
-     * KEYS[2] = buffer:{likes}:total_count (String)
+     * KEYS[1] = {buffer:likes} (Hash)
+     * KEYS[2] = {buffer:likes}:total_count (String)
      * ARGV[1] = userIgn (사용자 식별자)
      * ARGV[2] = count (증가할 값)
      *
@@ -61,8 +68,8 @@ public final class LuaScripts {
      * <p>동기화 완료 후 임시 키에서 엔트리 삭제 및 전역 카운터 차감</p>
      *
      * <pre>
-     * KEYS[1] = tempKey (동기화 임시 키)
-     * KEYS[2] = buffer:{likes}:total_count (String)
+     * KEYS[1] = tempKey ({buffer:likes}:sync:{uuid})
+     * KEYS[2] = {buffer:likes}:total_count (String)
      * ARGV[1] = userIgn (사용자 식별자)
      * ARGV[2] = count (차감할 값)
      *
@@ -88,8 +95,8 @@ public final class LuaScripts {
      * <p>DB 반영 실패 시 원본 버퍼로 데이터 복구</p>
      *
      * <pre>
-     * KEYS[1] = buffer:{likes}:hash (원본 Hash)
-     * KEYS[2] = tempKey (동기화 임시 키)
+     * KEYS[1] = {buffer:likes} (원본 Hash)
+     * KEYS[2] = tempKey ({buffer:likes}:sync:{uuid})
      * ARGV[1] = userIgn (사용자 식별자)
      * ARGV[2] = count (복구할 값)
      *

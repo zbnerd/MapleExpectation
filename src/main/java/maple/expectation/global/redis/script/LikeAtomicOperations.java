@@ -29,8 +29,8 @@ public interface LikeAtomicOperations {
      *
      * <pre>
      * 수행 연산:
-     * 1. HINCRBY buffer:{likes}:hash userIgn count
-     * 2. INCRBY buffer:{likes}:total_count count
+     * 1. HINCRBY {buffer:likes} userIgn count
+     * 2. INCRBY {buffer:likes}:total_count count
      * </pre>
      *
      * @param userIgn 사용자 식별자 (not null, not blank)
@@ -49,7 +49,7 @@ public interface LikeAtomicOperations {
      * <pre>
      * 수행 연산:
      * 1. deleted = HDEL tempKey userIgn
-     * 2. if deleted > 0: DECRBY buffer:{likes}:total_count count
+     * 2. if deleted > 0: DECRBY {buffer:likes}:total_count count
      * </pre>
      *
      * @param tempKey 동기화 임시 키 (not null, not blank)
@@ -67,7 +67,7 @@ public interface LikeAtomicOperations {
      *
      * <pre>
      * 수행 연산:
-     * 1. HINCRBY buffer:{likes}:hash userIgn count
+     * 1. HINCRBY {buffer:likes} userIgn count
      * 2. HDEL tempKey userIgn
      * </pre>
      *
