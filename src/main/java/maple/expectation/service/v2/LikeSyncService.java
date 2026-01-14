@@ -1,16 +1,21 @@
 package maple.expectation.service.v2;
 
 import io.github.resilience4j.retry.Retry;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.aop.annotation.ObservedTransaction;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
-import maple.expectation.global.redis.script.LikeAtomicOperations;
-import maple.expectation.global.redis.script.LuaScripts;
 import maple.expectation.global.shutdown.dto.FlushResult;
+import maple.expectation.repository.v2.RedisBufferRepository;
 import maple.expectation.service.v2.cache.LikeBufferStorage;
+import maple.expectation.service.v2.like.compensation.CompensationCommand;
+import maple.expectation.service.v2.like.compensation.RedisCompensationCommand;
+import maple.expectation.service.v2.like.dto.FetchResult;
+import maple.expectation.service.v2.like.strategy.AtomicFetchStrategy;
 import maple.expectation.service.v2.shutdown.ShutdownDataPersistenceService;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -20,23 +25,20 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * 좋아요 동기화 서비스
+ * 좋아요 동기화 서비스 (리팩토링: 금융수준 원자성)
  *
- * <p>3-Layer Write-Back Cache 아키텍처의 동기화를 담당합니다.</p>
+ * <p>이슈 #147: Redis → DB 동기화 중 데이터 유실 방지
  *
- * <pre>
- * L1 (Caffeine) → L2 (Redis) → L3 (MySQL)
- * </pre>
+ * <p>금융수준 안전 설계:
+ * <ul>
+ *   <li><b>원자적 Fetch</b>: Lua Script로 RENAME + HGETALL 원자적 실행</li>
+ *   <li><b>보상 트랜잭션</b>: DB 실패 시 임시 키 → 원본 키 복원</li>
+ *   <li><b>JVM 크래시 대응</b>: 임시 키 보존 + OrphanKeyRecoveryService</li>
+ *   <li><b>TTL 안전장치</b>: 임시 키 1시간 TTL로 메모리 누수 방지</li>
+ * </ul>
+ * </p>
  *
- * <h2>원자성 보장 (Issue #147)</h2>
- * <p>모든 Redis 연산은 Lua Script 기반 {@link LikeAtomicOperations}를 통해
- * 원자적으로 실행되어 데이터 유실을 방지합니다.</p>
- *
- * <h2>멱등성 보장</h2>
- * <p>Cleanup 연산은 중복 실행 시 카운터 중복 차감을 방지합니다.</p>
- *
- * @see LikeAtomicOperations 원자적 Redis 연산
- * @see LuaScripts Lua 스크립트 상수
+ * @since 2.0.0
  */
 @Slf4j
 @Service
@@ -46,15 +48,26 @@ public class LikeSyncService {
     private final LikeBufferStorage likeBufferStorage;
     private final LikeSyncExecutor syncExecutor;
     private final StringRedisTemplate redisTemplate;
-    private final LikeAtomicOperations atomicOperations;
+    private final RedisBufferRepository redisBufferRepository;
     private final Retry likeSyncRetry;
     private final ShutdownDataPersistenceService shutdownDataPersistenceService;
     private final LogicExecutor executor;
+    private final AtomicFetchStrategy atomicFetchStrategy;
+    private final MeterRegistry meterRegistry;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
-     * L1 → L2 원자적 전송
+     * Hash Tag 패턴 적용 (Redis Cluster 호환)
      *
-     * <p>로컬 버퍼(Caffeine)의 모든 엔트리를 Redis로 원자적으로 전송합니다.</p>
+     * <p>Context7 Best Practice: {prefix}:suffix 패턴으로 같은 슬롯 보장</p>
+     */
+    private static final String SOURCE_KEY = "{buffer:likes}";
+    private static final String TEMP_KEY_PREFIX = "{buffer:likes}:sync:";
+
+    // ========== L1 -> L2 Flush (변경 없음) ==========
+
+    /**
+     * L1 -> L2 전송
      */
     public void flushLocalToRedis() {
         Map<String, AtomicLong> snapshot = likeBufferStorage.getCache().asMap();
@@ -63,11 +76,7 @@ public class LikeSyncService {
     }
 
     /**
-     * Graceful Shutdown용 L1 → L2 전송 (파일 백업 Fallback)
-     *
-     * <p>Redis 전송 실패 시 파일로 백업하여 데이터 유실을 방지합니다.</p>
-     *
-     * @return 전송 결과 (성공/백업 건수)
+     * Graceful Shutdown용 전송
      */
     public FlushResult flushLocalToRedisWithFallback() {
         Map<String, AtomicLong> snapshot = likeBufferStorage.getCache().asMap();
@@ -76,150 +85,197 @@ public class LikeSyncService {
         AtomicInteger redisSuccessCount = new AtomicInteger(0);
         AtomicInteger fileBackupCount = new AtomicInteger(0);
 
-        snapshot.forEach((userIgn, atomicCount) -> {
-            long count = atomicCount.getAndSet(0);
-            if (count <= 0) return;
-
-            transferOrBackup(userIgn, count, redisSuccessCount, fileBackupCount);
-        });
+        snapshot.forEach((userIgn, atomicCount) ->
+                processShutdownFlushEntry(userIgn, atomicCount, redisSuccessCount, fileBackupCount)
+        );
 
         return new FlushResult(redisSuccessCount.get(), fileBackupCount.get());
     }
 
+    // ========== L2 -> L3 Sync (금융수준 리팩토링) ==========
+
     /**
-     * L2 → L3 동기화 (Redis → MySQL)
+     * Redis -> DB 동기화 (금융수준 원자성)
      *
-     * <p>Redis의 모든 좋아요 데이터를 MySQL에 반영합니다.
-     * 실패한 엔트리는 원본 버퍼로 복구됩니다.</p>
+     * <p>변경 사항:
+     * <ul>
+     *   <li>기존: rename → forEach → 개별 복구</li>
+     *   <li>변경: Lua Script → 일괄 처리 → 보상 트랜잭션</li>
+     * </ul>
+     * </p>
      */
     @ObservedTransaction("scheduler.like.redis_to_db")
     public void syncRedisToDatabase() {
-        String tempKey = LuaScripts.Keys.SYNC_PREFIX + UUID.randomUUID();
+        String tempKey = generateTempKey();
         TaskContext context = TaskContext.of("LikeSync", "RedisToDb", tempKey);
 
+        // 보상 명령 생성 (DLQ 패턴 적용)
+        CompensationCommand compensation = new RedisCompensationCommand(
+                SOURCE_KEY, atomicFetchStrategy, executor, meterRegistry, eventPublisher);
+
+        // executeWithFinally: 성공/실패 여부와 관계없이 finally 블록 실행 보장
         executor.executeWithFinally(
-                () -> {
-                    doSyncProcess(tempKey);
-                    return null;
-                },
-                () -> cleanupTempKey(tempKey),
+                () -> doAtomicSyncProcess(tempKey, compensation),
+                () -> executeCompensationIfNeeded(compensation),
                 context
         );
     }
 
-    private void transferOrBackup(String userIgn, long count,
-                                   AtomicInteger successCount, AtomicInteger backupCount) {
-        boolean success = executor.executeOrDefault(
-                () -> atomicOperations.atomicTransfer(userIgn, count),
-                false,
-                TaskContext.of("LikeSync", "ShutdownFlush", userIgn)
-        );
+    // ========== Private Methods (3-Line Rule 준수) ==========
 
-        if (success) {
-            successCount.incrementAndGet();
-        } else {
-            backupToFile(userIgn, count, backupCount);
-        }
-    }
+    /**
+     * 원자적 동기화 프로세스 (메인 로직)
+     *
+     * <p>P1 Enhancement: Micrometer 메트릭 기록 (SRE 모니터링)</p>
+     */
+    private Void doAtomicSyncProcess(String tempKey, CompensationCommand compensation) {
+        long startTime = System.nanoTime();
 
-    private void backupToFile(String userIgn, long count, AtomicInteger backupCount) {
-        log.warn("⚠️ [Shutdown Flush] Redis 전송 실패, 파일 백업: {} ({}건)", userIgn, count);
-        shutdownDataPersistenceService.appendLikeEntry(userIgn, count);
-        backupCount.incrementAndGet();
-    }
-
-    private void doSyncProcess(String tempKey) {
-        if (Boolean.FALSE.equals(redisTemplate.hasKey(LuaScripts.Keys.HASH))) return;
-
-        var ops = redisTemplate.opsForHash();
-        redisTemplate.rename(LuaScripts.Keys.HASH, tempKey);
-
-        Map<Object, Object> entries = ops.entries(tempKey);
-        if (entries.isEmpty()) {
-            redisTemplate.delete(tempKey);
-            return;
+        // Step 1: 원자적 Fetch (Lua Script)
+        FetchResult fetchResult = atomicFetchStrategy.fetchAndMove(SOURCE_KEY, tempKey);
+        if (fetchResult.isEmpty()) {
+            log.debug("No data to sync from Redis");
+            recordSyncMetrics(0, 0, 0, startTime, "empty");
+            return null;
         }
 
-        boolean needsCleanup = false;
+        // Step 2: 보상 명령에 상태 저장 (실패 시 복구용)
+        compensation.save(fetchResult);
 
-        for (Map.Entry<Object, Object> entry : entries.entrySet()) {
-            String userIgn = (String) entry.getKey();
-            long count = parseToLong(entry.getValue());
+        // Step 3: DB 저장 처리
+        long successTotal = processDatabaseSync(fetchResult);
+        long failedEntries = fetchResult.size() - countSuccessfulEntries(fetchResult, successTotal);
 
-            boolean dbSuccess = syncWithRetry(userIgn, count);
+        // Step 4: GlobalCount 차감 (성공분만)
+        if (successTotal > 0) {
+            redisBufferRepository.decrementGlobalCount(successTotal);
+        }
 
-            if (dbSuccess) {
-                handleDbSyncSuccess(tempKey, userIgn, count);
-                continue;
+        // Step 5: 커밋 (임시 키 삭제)
+        compensation.commit();
+
+        // Step 6: 메트릭 기록 (P1 Enhancement)
+        recordSyncMetrics(fetchResult.size(), successTotal, failedEntries, startTime, "success");
+
+        log.info("Redis → DB sync completed: entries={}, totalCount={}",
+                fetchResult.size(), successTotal);
+
+        return null;
+    }
+
+    /**
+     * 성공 엔트리 수 계산 (근사치)
+     */
+    private long countSuccessfulEntries(FetchResult fetchResult, long successTotal) {
+        if (fetchResult.isEmpty() || successTotal == 0) return 0;
+        // 전체 count 대비 성공 count 비율로 엔트리 수 추정
+        long totalCount = fetchResult.data().values().stream().mapToLong(Long::longValue).sum();
+        return totalCount > 0 ? (long) Math.ceil((double) successTotal / totalCount * fetchResult.size()) : 0;
+    }
+
+    /**
+     * DB 동기화 처리 (Retry 포함)
+     *
+     * @return 성공적으로 동기화된 총 count
+     */
+    private long processDatabaseSync(FetchResult fetchResult) {
+        AtomicLong successTotal = new AtomicLong(0);
+
+        fetchResult.data().forEach((userIgn, count) -> {
+            boolean success = syncWithRetry(userIgn, count);
+            if (success) {
+                successTotal.addAndGet(count);
+            } else {
+                // 실패 시 개별 복구 (원본 버퍼로)
+                restoreSingleEntry(userIgn, count);
             }
+        });
 
-            needsCleanup = handleDbSyncFailure(tempKey, userIgn, count) || needsCleanup;
+        return successTotal.get();
+    }
+
+    /**
+     * 단일 엔트리 복구 (DB 동기화 실패 시)
+     *
+     * <p>P1 Enhancement: 복구 메트릭 기록</p>
+     */
+    private void restoreSingleEntry(String userIgn, long count) {
+        executor.executeOrCatch(
+                () -> {
+                    redisTemplate.opsForHash().increment(SOURCE_KEY, userIgn, count);
+                    recordRestoreMetrics("success", count);
+                    log.warn("♻️ [Sync Recovery] DB 반영 실패로 Redis 복구: {} ({}건)", userIgn, count);
+                    return null;
+                },
+                e -> {
+                    recordRestoreMetrics("failure", count);
+                    log.error("‼️ [Sync Recovery] Redis 복구 실패: {} ({}건)", userIgn, count, e);
+                    return null;
+                },
+                TaskContext.of("LikeSync", "RestoreSingleEntry", userIgn)
+        );
+    }
+
+    /**
+     * 보상 트랜잭션 실행 (finally에서 호출)
+     */
+    private void executeCompensationIfNeeded(CompensationCommand compensation) {
+        if (compensation.isPending()) {
+            log.warn("Compensation triggered due to abnormal termination");
+            compensation.compensate();
         }
-
-        if (!needsCleanup) {
-            redisTemplate.delete(tempKey);
-        }
     }
 
-    private void handleDbSyncSuccess(String tempKey, String userIgn, long count) {
-        long deleted = atomicOperations.atomicDeleteAndDecrement(tempKey, userIgn, count);
-        if (deleted == 0) {
-            log.debug("🔄 [Sync] 이미 처리된 엔트리 (멱등성): {} ({}건)", userIgn, count);
-        }
+    /**
+     * 임시 키 생성 (Hash Tag 패턴)
+     */
+    private String generateTempKey() {
+        return TEMP_KEY_PREFIX + UUID.randomUUID();
     }
 
-    private boolean handleDbSyncFailure(String tempKey, String userIgn, long count) {
-        boolean compensated = atomicOperations.atomicCompensation(tempKey, userIgn, count);
-
-        if (compensated) {
-            log.warn("♻️ [Sync Recovery] DB 반영 실패로 원본 버퍼 복구: {} ({}건)", userIgn, count);
-            return false;
-        }
-
-        log.error("‼️ [Sync Recovery] 원본 버퍼 복구 실패: {} ({}건) - cleanup에서 재시도", userIgn, count);
-        return true;
-    }
-
-    private long parseToLong(Object value) {
-        if (value == null) return 0L;
-        if (value instanceof Number n) return n.longValue();
-        return Long.parseLong(String.valueOf(value));
-    }
-
-    private void cleanupTempKey(String tempKey) {
-        executor.executeVoid(() -> {
-            if (Boolean.FALSE.equals(redisTemplate.hasKey(tempKey))) return;
-
-            var ops = redisTemplate.opsForHash();
-            Map<Object, Object> strandedEntries = ops.entries(tempKey);
-
-            strandedEntries.forEach((key, value) -> {
-                String userIgn = (String) key;
-                long count = parseToLong(value);
-                atomicOperations.atomicCompensation(tempKey, userIgn, count);
-            });
-
-            redisTemplate.delete(tempKey);
-            log.info("♻️ [Sync Cleanup] 임시 키 데이터를 원본 버퍼로 병합 완료 ({}건)", strandedEntries.size());
-        }, TaskContext.of("LikeSync", "Cleanup", tempKey));
-    }
+    // ========== L1 -> L2 Helper Methods ==========
 
     private void processLocalBufferEntry(String userIgn, AtomicLong atomicCount) {
         long count = atomicCount.getAndSet(0);
         if (count <= 0) return;
 
-        boolean success = executor.executeOrDefault(
-                () -> atomicOperations.atomicTransfer(userIgn, count),
-                false,
+        executor.executeOrCatch(
+                () -> {
+                    redisTemplate.opsForHash().increment(SOURCE_KEY, userIgn, count);
+                    redisBufferRepository.incrementGlobalCount(count);
+                    return null;
+                },
+                e -> {
+                    handleRedisFailure(userIgn, count, e);
+                    return null;
+                },
                 TaskContext.of("LikeSync", "L1toL2", userIgn)
         );
-
-        if (!success) {
-            handleRedisFailure(userIgn, count);
-        }
     }
 
-    private void handleRedisFailure(String userIgn, long count) {
+    private void processShutdownFlushEntry(String userIgn, AtomicLong atomicCount,
+                                           AtomicInteger redisSuccessCount, AtomicInteger fileBackupCount) {
+        long count = atomicCount.getAndSet(0);
+        if (count <= 0) return;
+
+        executor.executeOrCatch(
+                () -> {
+                    redisTemplate.opsForHash().increment(SOURCE_KEY, userIgn, count);
+                    redisBufferRepository.incrementGlobalCount(count);
+                    redisSuccessCount.incrementAndGet();
+                    return null;
+                },
+                e -> {
+                    log.warn("⚠️ [Shutdown Flush] Redis 전송 실패, 파일 백업: {} ({}건)", userIgn, count);
+                    shutdownDataPersistenceService.appendLikeEntry(userIgn, count);
+                    fileBackupCount.incrementAndGet();
+                    return null;
+                },
+                TaskContext.of("LikeSync", "ShutdownFlush", userIgn)
+        );
+    }
+
+    private void handleRedisFailure(String userIgn, long count, Throwable e) {
         log.error("🚑 [Redis Down] L2 전송 실패. DB 직접 반영 시도: {}", userIgn);
         executor.executeOrCatch(
                 () -> {
@@ -242,5 +298,51 @@ public class LikeSyncService {
             ).run();
             return true;
         }, false, TaskContext.of("LikeSync", "DbSyncWithRetry", userIgn));
+    }
+
+    // ========== Metrics (Micrometer) - P1 Enhancement ==========
+
+    /**
+     * LikeSync 메트릭 기록 (SRE 모니터링)
+     *
+     * <p>기록 항목:
+     * <ul>
+     *   <li><b>like.sync.duration</b>: 동기화 소요 시간 (Timer)</li>
+     *   <li><b>like.sync.entries</b>: 배치당 엔트리 수 (Distribution)</li>
+     *   <li><b>like.sync.total.count</b>: 배치당 총 좋아요 수</li>
+     *   <li><b>like.sync.failed.entries</b>: 실패 엔트리 수</li>
+     * </ul>
+     * </p>
+     */
+    private void recordSyncMetrics(int entries, long totalCount, long failedEntries, long startNanos, String result) {
+        long durationNanos = System.nanoTime() - startNanos;
+
+        // Timer: 동기화 소요 시간
+        meterRegistry.timer("like.sync.duration", "result", result)
+                .record(durationNanos, java.util.concurrent.TimeUnit.NANOSECONDS);
+
+        // Distribution Summary: 배치당 엔트리 수
+        meterRegistry.summary("like.sync.entries").record(entries);
+
+        // Counter: 총 좋아요 수
+        if (totalCount > 0) {
+            meterRegistry.counter("like.sync.total.count", "result", result).increment(totalCount);
+        }
+
+        // Counter: 실패 엔트리 수
+        if (failedEntries > 0) {
+            meterRegistry.counter("like.sync.failed.entries").increment(failedEntries);
+        }
+    }
+
+    /**
+     * 개별 복구 메트릭 기록
+     *
+     * @param result  success | failure
+     * @param count   복구된/실패한 좋아요 수
+     */
+    private void recordRestoreMetrics(String result, long count) {
+        meterRegistry.counter("like.sync.restore.count", "result", result).increment();
+        meterRegistry.counter("like.sync.restore.likes", "result", result).increment(count);
     }
 }

@@ -1,14 +1,20 @@
 package maple.expectation.global.error;
 
+import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.error.dto.ErrorResponse;
 import maple.expectation.global.error.exception.base.BaseException;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.time.LocalDateTime;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 
 @Slf4j
 @RestControllerAdvice
@@ -16,16 +22,35 @@ public class GlobalExceptionHandler {
 
     /**
      * [1순위 가치] 비즈니스 예외 처리 (동적 메시지 포함)
-     * BaseException 객체를 직접 넘겨서 가공된 메시지(예: IGN 포함)를 활용합니다.
+     *
+     * <p>BaseException 객체를 직접 넘겨서 가공된 메시지(예: IGN 포함)를 활용합니다.</p>
+     *
+     * <h4>Issue #169: 503 응답에 Retry-After 헤더 추가</h4>
+     * <p>5-Agent Council Round 2 결정: ApiTimeoutException 등 503 응답 시
+     * HTTP 표준 Retry-After 헤더를 포함하여 클라이언트에게 재시도 시점을 안내합니다.</p>
      */
     @ExceptionHandler(BaseException.class)
     protected ResponseEntity<ErrorResponse> handleBaseException(BaseException e) {
         log.warn("Business Exception: {} | Message: {}", e.getErrorCode().getCode(), e.getMessage());
+
+        // Issue #169: 503 응답에 Retry-After 헤더 추가 (Red Agent P0-2)
+        if (e.getErrorCode().getStatus() == HttpStatus.SERVICE_UNAVAILABLE) {
+            return ResponseEntity
+                    .status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .header("Retry-After", "30")
+                    .body(ErrorResponse.builder()
+                            .status(e.getErrorCode().getStatus().value())
+                            .code(e.getErrorCode().getCode())
+                            .message(e.getMessage())
+                            .timestamp(LocalDateTime.now())
+                            .build());
+        }
+
         return ErrorResponse.toResponseEntity(e);
     }
 
     /**
-     * [Issue #118] CompletionException 처리 (비동기 파이프라인 예외 unwrap)
+     * [Issue #118 + #168] CompletionException 처리 (비동기 파이프라인 예외 unwrap)
      *
      * <p>CompletableFuture.join()에서 발생하는 CompletionException을 unwrap하여
      * 원래 예외 타입에 맞는 핸들러로 위임합니다.</p>
@@ -33,7 +58,8 @@ public class GlobalExceptionHandler {
      * <h4>처리 순서</h4>
      * <ol>
      *   <li>cause가 BaseException → handleBaseException으로 위임</li>
-     *   <li>cause가 TimeoutException → 503 Service Unavailable</li>
+     *   <li>cause가 RejectedExecutionException → 503 + Retry-After 60s (Issue #168)</li>
+     *   <li>cause가 TimeoutException → 503 + Retry-After 30s</li>
      *   <li>그 외 → 500 Internal Server Error</li>
      * </ol>
      */
@@ -46,15 +72,114 @@ public class GlobalExceptionHandler {
             return handleBaseException(be);
         }
 
-        // 2. TimeoutException → 503 Service Unavailable
-        if (cause instanceof TimeoutException) {
-            log.warn("Async operation timeout: {}", cause.getMessage());
-            return ErrorResponse.toResponseEntity(CommonErrorCode.SERVICE_UNAVAILABLE);
+        // 2. RejectedExecutionException → 503 + Retry-After 60초 (Issue #168)
+        // 5-Agent 합의: 톰캣 스레드 보호를 위해 큐 포화 시 즉시 거부 후 503 반환
+        if (cause instanceof RejectedExecutionException) {
+            log.warn("Task rejected (executor queue full): {}", cause.getMessage());
+            return buildServiceUnavailableResponse(60);  // 60초 후 재시도 권장
         }
 
-        // 3. 그 외 시스템 예외 → 500 (cause를 로깅)
+        // 3. TimeoutException → 503 + Retry-After 30초
+        if (cause instanceof TimeoutException) {
+            log.warn("Async operation timeout: {}", cause.getMessage());
+            return buildServiceUnavailableResponse(30);  // 30초 후 재시도 권장
+        }
+
+        // 4. 그 외 시스템 예외 → 500 (cause를 로깅)
         log.error("CompletionException unwrapped - cause: ", cause);
         return ErrorResponse.toResponseEntity(CommonErrorCode.INTERNAL_SERVER_ERROR);
+    }
+
+    /**
+     * [Issue #168] 503 Service Unavailable 응답 빌더 (Retry-After 헤더 포함)
+     *
+     * <p>HTTP 표준 Retry-After 헤더를 포함하여 클라이언트에게 재시도 시점을 안내합니다.</p>
+     *
+     * @param retryAfterSeconds 재시도 권장 시간 (초)
+     * @return 503 응답 + Retry-After 헤더
+     */
+    private ResponseEntity<ErrorResponse> buildServiceUnavailableResponse(int retryAfterSeconds) {
+        ErrorResponse body = ErrorResponse.builder()
+                .status(CommonErrorCode.SERVICE_UNAVAILABLE.getStatus().value())
+                .code(CommonErrorCode.SERVICE_UNAVAILABLE.getCode())
+                .message(CommonErrorCode.SERVICE_UNAVAILABLE.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build();
+        return ResponseEntity
+                .status(HttpStatus.SERVICE_UNAVAILABLE)
+                .header("Retry-After", String.valueOf(retryAfterSeconds))
+                .body(body);
+    }
+
+    // ==================== Issue #151: Bean Validation 처리 ====================
+
+    /**
+     * [Issue #151] Bean Validation 검증 실패 처리 (@RequestBody + @Valid)
+     *
+     * <p>@Valid 어노테이션이 적용된 DTO의 검증 실패 시 발생</p>
+     *
+     * <h4>5-Agent Council Round 2 결정</h4>
+     * <ul>
+     *   <li><b>Blue Agent</b>: Controller 책임 - DTO 형식 검증</li>
+     *   <li><b>Yellow Agent</b>: 필드명 + 메시지 동적 생성</li>
+     *   <li><b>Purple Agent</b>: ErrorResponse(C001) 표준 형식 준수</li>
+     * </ul>
+     *
+     * @return 400 Bad Request + C001 에러코드
+     */
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    protected ResponseEntity<ErrorResponse> handleMethodArgumentNotValid(
+            MethodArgumentNotValidException e) {
+
+        // 검증 실패 필드 정보 수집
+        String errorMessage = e.getBindingResult().getFieldErrors().stream()
+                .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
+                .collect(Collectors.joining(", "));
+
+        log.warn("Validation failed: {}", errorMessage);
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ErrorResponse.builder()
+                        .status(HttpStatus.BAD_REQUEST.value())
+                        .code(CommonErrorCode.INVALID_INPUT_VALUE.getCode())
+                        .message(String.format(CommonErrorCode.INVALID_INPUT_VALUE.getMessage(), errorMessage))
+                        .timestamp(LocalDateTime.now())
+                        .build());
+    }
+
+    /**
+     * [Issue #151] @PathVariable, @RequestParam 검증 실패 처리
+     *
+     * <p>@Validated 클래스의 @NotBlank 등 검증 실패 시 발생</p>
+     *
+     * <h4>적용 대상</h4>
+     * <ul>
+     *   <li>@PathVariable + @NotBlank</li>
+     *   <li>@RequestParam + @Min/@Max</li>
+     *   <li>Controller 클래스에 @Validated 필수</li>
+     * </ul>
+     *
+     * @return 400 Bad Request + C001 에러코드
+     */
+    @ExceptionHandler(ConstraintViolationException.class)
+    protected ResponseEntity<ErrorResponse> handleConstraintViolation(
+            ConstraintViolationException e) {
+
+        String errorMessage = e.getConstraintViolations().stream()
+                .map(cv -> cv.getPropertyPath() + ": " + cv.getMessage())
+                .collect(Collectors.joining(", "));
+
+        log.warn("Constraint violation: {}", errorMessage);
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ErrorResponse.builder()
+                        .status(HttpStatus.BAD_REQUEST.value())
+                        .code(CommonErrorCode.INVALID_INPUT_VALUE.getCode())
+                        .message(String.format(CommonErrorCode.INVALID_INPUT_VALUE.getMessage(), errorMessage))
+                        .timestamp(LocalDateTime.now())
+                        .build());
     }
 
     /**

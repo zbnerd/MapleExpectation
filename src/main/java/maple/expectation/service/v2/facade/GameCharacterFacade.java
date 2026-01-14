@@ -4,7 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.global.error.exception.CharacterNotFoundException;
-import maple.expectation.global.error.exception.ExternalServiceException;
+import maple.expectation.global.error.exception.InternalSystemException;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.service.v2.GameCharacterService;
@@ -14,8 +14,10 @@ import org.redisson.api.RedissonClient;
 import org.springframework.stereotype.Component;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 @Slf4j
 @Component
@@ -71,8 +73,21 @@ public class GameCharacterFacade {
     }
 
     /**
-     * ✅  executeWithTranslation을 사용하여 try-catch 완전 제거
-     * 기술적 예외(Timeout 등)를 도메인 예외(ExternalServiceException)로 즉시 세탁합니다.
+     * Issue #169: TimeoutException 전파 수정
+     *
+     * <h4>5-Agent Council Round 2 결정</h4>
+     * <p>TimeoutException을 CompletionException으로 래핑하여 GlobalExceptionHandler가 처리</p>
+     * <ul>
+     *   <li><b>변경 전</b>: TimeoutException → ExternalServiceException (cause 누락, 서킷브레이커 오동작)</li>
+     *   <li><b>변경 후</b>: TimeoutException → CompletionException (GlobalExceptionHandler → 503 + Retry-After)</li>
+     * </ul>
+     *
+     * <h4>Purple Agent 피드백 반영</h4>
+     * <ul>
+     *   <li>Exception chain 보존 (cause 정보 유지)</li>
+     *   <li>cause null 체크 추가 (방어적 코딩)</li>
+     *   <li>InterruptedException 처리 + 인터럽트 플래그 복원</li>
+     * </ul>
      */
     private GameCharacter awaitFuture(CompletableFuture<GameCharacter> future, String userIgn, TaskContext context) {
         return executor.executeWithTranslation(
@@ -82,16 +97,33 @@ public class GameCharacterFacade {
                 // 🚀 2. 번역: 발생한 Throwable을 여기서 요리합니다.
                 (e, ctx) -> {
                     // 비동기 실행 중 발생한 실제 원인(cause)을 추출합니다.
-                    Throwable cause = (e instanceof ExecutionException) ? e.getCause() : e;
+                    // Purple Agent: null 체크 추가 (방어적 코딩)
+                    Throwable cause = (e instanceof ExecutionException && e.getCause() != null)
+                            ? e.getCause()
+                            : e;
 
                     // 이미 도메인 예외(404 등)라면 그대로 던집니다.
-                    if (cause instanceof CharacterNotFoundException) {
-                        return (CharacterNotFoundException) cause;
+                    if (cause instanceof CharacterNotFoundException cnfe) {
+                        return cnfe;
                     }
 
-                    // 그 외 기술적 예외(TimeoutException, InterruptedException 등) 처리
-                    log.error("⏳ [Timeout/Error] 캐릭터 생성 대기 실패 (IGN: {}): {}", userIgn, cause.getMessage());
-                    return new ExternalServiceException("현재 요청이 많습니다. 잠시 후 다시 확인해주세요.");
+                    // Issue #169: TimeoutException → CompletionException으로 래핑하여 GlobalExceptionHandler가 처리
+                    // GlobalExceptionHandler.handleCompletionException()에서 503 + Retry-After 30초 응답
+                    if (cause instanceof TimeoutException te) {
+                        log.warn("⏳ [Timeout] 캐릭터 생성 대기 실패 (IGN: {}): {}", userIgn, te.getMessage());
+                        throw new CompletionException(te);
+                    }
+
+                    // InterruptedException 처리: 인터럽트 플래그 복원 후 CompletionException으로 래핑
+                    if (cause instanceof InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        log.warn("⏳ [Interrupted] 캐릭터 생성 대기 중단 (IGN: {})", userIgn);
+                        throw new CompletionException(ie);
+                    }
+
+                    // 그 외 예상치 못한 예외: InternalSystemException으로 변환 (cause chain 보존)
+                    log.error("⏳ [Error] 캐릭터 생성 대기 실패 (IGN: {}): {}", userIgn, cause.getMessage());
+                    return new InternalSystemException("CharacterFacade:WaitWorker:" + userIgn, cause);
                 },
                 context
         );

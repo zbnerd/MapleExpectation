@@ -204,62 +204,231 @@ AOP 적용 시 프록시 메커니즘 한계 극복을 위해 반드시 **Facade
 - **Distributed Lock:** 동시성 제어 시 `RLock`을 사용하며 `try-finally`로 데드락을 방지합니다.
 - **Naming:** Redis 키는 `domain:sub-domain:id` 형식을 따르며 모든 데이터에 TTL을 설정합니다.
 
-### Lua Script Atomicity (Context7 Best Practice)
+---
 
-Redis는 싱글 스레드로 동작하므로 Lua Script 실행 중 다른 명령이 개입할 수 없습니다.
-이 특성을 활용하여 원자적 연산을 보장합니다.
+## 🔧 8-1. Redis Lua Script & Cluster Hash Tag (Context7 Best Practice)
 
-**원자적 연산 보장:**
-- `scriptLoad()` + `evalSha()`: SHA 캐싱으로 네트워크 최소화
-- `useScriptCache: true`: 서버 측 캐싱 활성화 (Redisson 설정)
+금융수준 데이터 안전을 위한 Redis Lua Script 원자적 연산 및 Cluster 호환성 규칙입니다.
 
-**NOSCRIPT 에러 핸들링:**
+### Lua Script 원자적 연산 (Redisson RScript)
+
+Redis 단일 스레드에서 복수 명령을 원자적으로 실행해야 할 때 Lua Script를 사용합니다.
+
+**Redisson RScript 사용 패턴:**
 ```java
-// Redis 재시작 시 스크립트 캐시가 사라질 수 있음
-try {
-    return script.evalSha(sha, ...);
-} catch (RedisException e) {
-    if (isNoScriptError(e)) {
-        sha = script.scriptLoad(luaScript);  // 재로드
-        return script.evalSha(sha, ...);     // 재시도
+// ✅ Good (원자적 RENAME + EXPIRE + HGETALL)
+private static final String LUA_ATOMIC_MOVE = """
+        local exists = redis.call('EXISTS', KEYS[1])
+        if exists == 0 then return {} end
+        redis.call('RENAME', KEYS[1], KEYS[2])
+        redis.call('EXPIRE', KEYS[2], ARGV[1])
+        return redis.call('HGETALL', KEYS[2])
+        """;
+
+RScript script = redissonClient.getScript(StringCodec.INSTANCE);
+List<Object> result = script.eval(
+        RScript.Mode.READ_WRITE,          // 데이터 변경 시
+        LUA_ATOMIC_MOVE,
+        RScript.ReturnType.MULTI,         // 복수 결과 반환 시
+        Arrays.asList(sourceKey, tempKey), // KEYS[1], KEYS[2]
+        String.valueOf(ttlSeconds)         // ARGV[1]
+);
+```
+
+**RScript.Mode 선택:**
+| Mode | 용도 |
+|------|------|
+| `READ_ONLY` | 조회만 (GET, HGETALL 등) |
+| `READ_WRITE` | 데이터 변경 (SET, DEL, RENAME 등) |
+
+**RScript.ReturnType 선택:**
+| Type | 반환값 |
+|------|--------|
+| `INTEGER` | 단일 정수 |
+| `STATUS` | "OK" 등 상태 |
+| `VALUE` | 단일 값 |
+| `MULTI` | 리스트 (HGETALL 등) |
+
+### Redis Cluster Hash Tag 규칙 (CRITICAL)
+
+Redis Cluster에서 다중 키 연산(RENAME, Lua Script 등)은 **모든 키가 동일 슬롯**에 있어야 합니다.
+Hash Tag `{...}` 패턴을 사용하면 중괄호 내부만 해싱되어 같은 슬롯을 보장합니다.
+
+```java
+// ❌ Bad (다른 해시값 → Cluster에서 실패)
+String sourceKey = "buffer:likes";
+String tempKey = "buffer:likes:sync:uuid";
+// CRC16("buffer:likes") ≠ CRC16("buffer:likes:sync:uuid")
+
+// ✅ Good (Hash Tag → 같은 슬롯 보장)
+String sourceKey = "{buffer:likes}";
+String tempKey = "{buffer:likes}:sync:" + UUID.randomUUID();
+// CRC16("buffer:likes") == CRC16("buffer:likes") → 동일 슬롯
+```
+
+**Hash Tag 적용 대상:**
+- **RENAME 키 쌍**: `{domain}:source` ↔ `{domain}:target`
+- **Lua Script 다중 키**: 모든 KEYS는 같은 Hash Tag
+- **MGET/MSET 키들**: 같은 Hash Tag 사용
+
+### ExceptionTranslator.forRedisScript() 사용
+
+Lua Script 예외를 도메인 예외로 변환할 때 사용합니다.
+
+```java
+// ✅ Good (예외 변환 적용)
+return executor.executeWithTranslation(
+        () -> executeLuaScript(sourceKey, tempKey),
+        ExceptionTranslator.forRedisScript(),  // Redis 예외 → AtomicFetchException
+        TaskContext.of("AtomicFetch", "fetchAndMove", sourceKey)
+);
+```
+
+### Orphan Key Recovery (JVM 크래시 대응)
+
+JVM 크래시 시 임시 키에 데이터가 남아있을 수 있습니다.
+서버 시작 시 자동 복구를 위해 `@PostConstruct`와 패턴 검색을 사용합니다.
+
+```java
+@PostConstruct
+public void recoverOrphanKeys() {
+    RKeys keys = redissonClient.getKeys();
+    Iterable<String> orphans = keys.getKeysByPattern("{buffer:likes}:sync:*");
+
+    for (String orphanKey : orphans) {
+        // 임시 키 → 원본 키로 복원
+        atomicFetchStrategy.restore(orphanKey, SOURCE_KEY);
     }
-    throw e;
 }
 ```
 
-**Redis Cluster CROSSSLOT 방지:**
-```
-buffer:{likes}:hash        # Hash Tag {likes}로 동일 슬롯 보장
-buffer:{likes}:total_count # 모든 관련 키가 같은 슬롯에 배치
-buffer:{likes}:sync:{uuid} # 임시 키도 동일 슬롯
-```
+### 임시 키 TTL 안전장치 (메모리 누수 방지)
 
-**멱등성 보장 패턴:**
-```lua
--- 중복 실행 시 HDEL이 0을 반환하면 DECRBY 스킵
-local deleted = redis.call('HDEL', KEYS[1], ARGV[1])
-if deleted > 0 then
-    redis.call('DECRBY', KEYS[2], ARGV[2])
-end
-return deleted  -- 0=이미 삭제됨, 1=정상 삭제
-```
+복구 로직이 실패하더라도 임시 키가 영구적으로 남지 않도록 TTL을 설정합니다.
 
-**AtomicReference 스레드 안전 패턴:**
 ```java
-// volatile 대신 AtomicReference 사용 (레이스 컨디션 방지)
-private final AtomicReference<String> shaRef = new AtomicReference<>();
+// ✅ Good (1시간 TTL → 영구 메모리 누수 방지)
+redis.call('EXPIRE', KEYS[2], 3600)
 
-public String getSha() {
-    return shaRef.updateAndGet(current ->
-        current != null ? current : reloadScript()
+// application.yml 설정화
+like:
+  sync:
+    temp-key-ttl-seconds: 3600  # 1시간
+```
+
+### 보상 트랜잭션 패턴 (Command Pattern)
+
+DB 저장 실패 시 원자적 Fetch 결과를 원본 키로 복원하는 보상 명령입니다.
+
+```java
+// CompensationCommand 인터페이스
+public interface CompensationCommand {
+    void save(FetchResult result);     // 상태 저장
+    void compensate();                  // 실패 시 복원
+    void commit();                      // 성공 시 정리
+    boolean isPending();                // 보상 필요 여부
+}
+
+// 사용 패턴 (executeWithFinally)
+CompensationCommand cmd = new RedisCompensationCommand(sourceKey, strategy, executor);
+executor.executeWithFinally(
+        () -> {
+            FetchResult result = strategy.fetchAndMove(sourceKey, tempKey);
+            cmd.save(result);
+            processDatabase(result);  // DB 저장
+            cmd.commit();             // 성공 → 임시 키 삭제
+            return null;
+        },
+        () -> {
+            if (cmd.isPending()) {
+                cmd.compensate();     // 실패 → 원본 키 복원
+            }
+        },
+        context
+);
+```
+
+### DLQ (Dead Letter Queue) 패턴 (P0 - 데이터 영구 손실 방지)
+
+보상 트랜잭션(compensate) 실행마저 실패하면 데이터가 영구 손실됩니다.
+Spring Event + Listener로 DLQ 패턴을 구현하여 **최후의 안전망**을 제공합니다.
+
+**구현 요소:**
+| 컴포넌트 | 역할 |
+|----------|------|
+| `LikeSyncFailedEvent` | 실패 데이터 Record (불변) |
+| `RedisCompensationCommand` | 복구 실패 시 이벤트 발행 |
+| `LikeSyncEventListener` | 파일 백업 + Discord 알림 + 메트릭 |
+
+```java
+// 보상 실패 시 DLQ 이벤트 발행
+private void compensate() {
+    executor.executeOrCatch(
+            () -> strategy.restore(tempKey, sourceKey),
+            e -> {
+                // P0 FIX: 복구 실패 시 DLQ 이벤트 발행
+                LikeSyncFailedEvent event = LikeSyncFailedEvent.fromFetchResult(result, sourceKey, e);
+                eventPublisher.publishEvent(event);
+                return null;
+            },
+            context
     );
 }
+
+// Listener: 파일 백업 + 알림
+@Async
+@EventListener
+public void handleSyncFailure(LikeSyncFailedEvent event) {
+    // 1. 파일 백업 (데이터 보존 최우선)
+    persistenceService.appendLikeEntry(event.userIgn(), event.lostCount());
+    // 2. 메트릭 기록
+    meterRegistry.counter("like.sync.dlq.triggered").increment();
+    // 3. Discord 알림 (운영팀 인지)
+    discordAlertService.sendCriticalAlert("DLQ 발생", event.errorMessage());
+}
 ```
 
-**Lua Script 복잡도 제한:**
-- **O(1) 유지**: 루프, 조건문 최소화
-- **청킹**: 대량 배치 시 chunk size 제한 (100개)
-- **lua-time-limit**: 5초 내 완료 보장 (기본 설정 권장)
+**DLQ 처리 우선순위:**
+1. **파일 백업** (데이터 보존 최우선)
+2. **메트릭 기록** (모니터링)
+3. **알림 발송** (운영팀 인지)
+
+### 루프 내 유틸리티 메서드 최적화 (P1 - Performance)
+
+LogicExecutor의 `TaskContext.of()` 호출은 매번 새 객체를 생성합니다.
+**루프 내 반복 호출되는 유틸리티 메서드**에서는 성능 오버헤드가 발생합니다.
+
+```java
+// ❌ Bad (루프 내 TaskContext 오버헤드)
+private long parseLongSafe(Object value) {
+    return executor.executeOrDefault(
+            () -> Long.parseLong(String.valueOf(value)),
+            0L,
+            TaskContext.of("Parse", "long", value)  // 매번 새 객체
+    );
+}
+
+// ✅ Good (Pattern Matching + 직접 예외 처리)
+private long parseLongSafe(Object value) {
+    if (value == null) return 0L;
+    if (value instanceof Number n) return n.longValue();
+    if (value instanceof String s) {
+        try {
+            return Long.parseLong(s);
+        } catch (NumberFormatException e) {
+            log.warn("Malformed data ignored: value={}", s);
+            recordParseFailure();  // 메트릭으로 모니터링
+            return 0L;
+        }
+    }
+    return 0L;
+}
+```
+
+**적용 기준:**
+- **루프 내 호출**: 직접 처리 (오버헤드 제거)
+- **단일 호출**: LogicExecutor 사용 (일관성 유지)
+- **예외 메트릭**: 실패 시 카운터 기록 (데이터 품질 모니터링)
 
 ---
 
@@ -510,745 +679,626 @@ boolean acquired = executor.executeOrDefault(
 
 ---
 
-## 🔄 18. 분산 트랜잭션 전략 (Distributed Transaction Strategy)
+## 🔐 18. Spring Security 6.x Filter Best Practice (Context7)
 
-현재 모놀리식 아키텍처에서 MSA 확장 시 분산 트랜잭션 처리 전략.
+Spring Security 6.x에서 커스텀 Filter 사용 시 반드시 준수해야 할 규칙입니다.
 
-### 현재 아키텍처: 분산 트랜잭션 불필요
-
-**불필요 근거:**
-| 항목 | 현재 상태 | 결론 |
-|------|----------|------|
-| **쓰기 대상** | MySQL 단일 DB | 분산 TX 불필요 |
-| **Redis 역할** | 캐시 + 락 (쓰기 손실 허용) | 보상 패턴으로 충분 |
-| **외부 API** | Nexon API (읽기 전용) | 트랜잭션 경계 없음 |
-| **성능 요구** | 1000+ RPS, t3.small | 분산 TX 도입 시 성능 급락 |
-
-**현재 보상 패턴 구현:**
-```java
-// 1. LogicExecutor 복구 패턴
-executor.executeWithRecovery(
-    () -> donationProcessor.execute(transfer),
-    ex -> eventPublisher.publishEvent(new DonationFailedEvent(transfer)),
-    TaskContext.of("Donation", "Transfer", guestUuid)
-);
-
-// 2. Redis 임시 키 롤백 (LikeSyncService) - LogicExecutor 패턴 적용
-executor.executeWithFinally(
-    () -> {
-        syncToDatabase(tempKey);
-        redis.delete(tempKey);
-        return null;
-    },
-    () -> {
-        // 실패 시에도 정리: 임시 키가 남아있으면 복원
-        if (redis.exists(tempKey)) {
-            redis.rename(tempKey, originalKey);
-        }
-    },
-    TaskContext.of("LikeSync", "SyncToDb", tempKey)
-);
-
-// 3. Graceful Shutdown 파일 백업 (Redis 실패 시 파일로 Fallback)
-boolean flushedToRedis = executor.executeOrDefault(
-    () -> { flushToRedis(); return true; },
-    false,
-    TaskContext.of("Shutdown", "FlushToRedis")
-);
-if (!flushedToRedis) {
-    persistToFile();  // Fallback: 파일로 백업
-}
-```
-
-### MSA 확장 시: Saga + Outbox 패턴 (Context7 Best Practice)
-
-**Kafka + DB 트랜잭션 동기화 (Spring Kafka 권장):**
-```java
-// DB 트랜잭션이 먼저 커밋 → Kafka 실패 시 재배달
-@KafkaListener(id = "orderListener", topics = "orders")
-@Transactional("dataSourceTransactionManager")
-public void processOrder(OrderEvent event) {
-    // 1. DB 저장 (TX 내)
-    orderRepository.save(event.toEntity());
-
-    // 2. Kafka 발행 (TX 내, 실패 시 재배달)
-    kafkaTemplate.send("order-completed", event.toCompletedEvent());
-
-    // ⚠️ Idempotent 처리 필수 (requestId 중복 체크)
-}
-```
-
-**Outbox Pattern (권장):**
-→ 상세 구현은 "Transactional Outbox Pattern 구현" 섹션 참조
-
-핵심 원칙:
-- 비즈니스 TX 내에서 Outbox 테이블 저장 (원자성)
-- Kafka 발행은 TX 밖에서 (분리)
-- 발행 성공 후 별도 TX로 마킹 (REQUIRES_NEW)
-
-### Saga 패턴 선택 가이드
-
-| 패턴 | 장점 | 단점 | 적합 케이스 |
-|------|------|------|-----------|
-| **Choreography** | 느슨한 결합, 확장 용이 | 추적 어려움, 순환 위험 | 단순 워크플로우, 이벤트 중심 |
-| **Orchestration** | 명확한 흐름, 디버깅 용이 | 중앙 집중, SPOF 위험 | 복잡한 워크플로우, 보상 다수 |
-
-**MapleExpectation 권장: Choreography Saga**
-- 현재 `ApplicationEventPublisher` 패턴과 호환
-- Kafka로 전환 시 최소 변경
-- 기대값 계산은 보상 로직 불필요 (읽기 중심)
-
-### Kafka 필수 설정 (Context7 - Spring Kafka Best Practice)
-
-**Consumer 설정 (Exactly-Once 필수):**
-```yaml
-spring:
-  kafka:
-    consumer:
-      enable-auto-commit: false          # 수동 오프셋 관리 필수
-      properties:
-        isolation.level: read_committed  # 커밋된 메시지만 읽기
-    producer:
-      transaction-id-prefix: tx-         # Producer 멱등성 활성화
-      acks: all                          # 모든 복제본 확인
-```
-
-**왜 이 설정이 필수인가?**
-| 설정 | 미설정 시 문제 | 효과 |
-|------|--------------|------|
-| `enable-auto-commit=false` | 처리 전 오프셋 커밋 → 메시지 유실 | 처리 완료 후 커밋 |
-| `isolation.level=read_committed` | 롤백된 메시지 읽음 → 데이터 불일치 | 커밋된 것만 읽음 |
-| `transaction-id-prefix` | Producer 중복 발행 가능 | 멱등성 보장 |
-
-### Dead Letter Queue (DLQ) 패턴 (Context7 - Spring Kafka Best Practice)
-
-실패 이벤트 무한 루프 방지:
+### CGLIB 프록시 문제 (CRITICAL)
+`OncePerRequestFilter`를 상속한 필터에 `@Component`를 붙이면 CGLIB 프록시 생성 시 부모 클래스의 `logger` 필드가 초기화되지 않아 NPE 발생합니다.
 
 ```java
-// ✅ @RetryableTopic으로 자동 DLQ 설정 (Spring Kafka 2.7+)
-@KafkaListener(topics = "character.update.requested")
-@RetryableTopic(
-    attempts = "3",                                    // 최대 3회 시도
-    backoff = @Backoff(delay = 1000, multiplier = 2),  // 1초, 2초, 4초
-    dltTopicSuffix = ".DLT",                           // DLQ 토픽명
-    autoCreateTopics = "true"
-)
-public void processUpdateRequest(UpdateRequestEvent event) {
-    // 3회 실패 시 자동으로 character.update.requested.DLT로 이동
-    updateProcessor.processUpdate(event.getUserIgn(), event.getId());
-}
-
-// DLQ Consumer: 수동 처리 또는 알림
-@KafkaListener(topics = "character.update.requested.DLT")
-public void handleDlt(UpdateRequestEvent event) {
-    log.error("DLT received: {}", event.getId());
-    alertService.notifyOperator("DLT event: " + event.getId());
-}
-```
-
-**DLQ가 없으면?**
-- 처리 불가 이벤트 무한 재시도 → Consumer 멈춤
-- 후속 이벤트 처리 지연 → 전체 시스템 영향
-
-### Idempotent 처리 필수화 (Context7 Best Practice)
-
-Kafka 재배달 시 중복 처리 방지:
-
-**Kafka 파티셔닝 보호 + DB 최종 방어선:**
-```java
-// Kafka Consumer Group은 파티션별 단일 Consumer 보장
-// → 같은 eventId(같은 파티션)는 동시 처리 불가
-// → 하지만 Consumer 재시작 시 재배달로 중복 가능
-// → DB Unique Constraint가 최종 방어선!
-
-@KafkaListener(topics = "donations")
-@Transactional
-public void processDonation(DonationEvent event) {
-    // 1차 방어: 조회 (빠른 필터링)
-    if (historyRepository.existsByRequestId(event.getRequestId())) {
-        log.debug("Duplicate event ignored: {}", event.getRequestId());
-        return;
-    }
-    // 2차 방어: DB Unique Constraint (동시성 보호)
-    // → INSERT 실패 시 DataIntegrityViolationException
-    // → @Transactional 롤백 → Kafka 재배달 없음 (이미 처리됨)
-    historyRepository.save(new DonationHistory(event.getRequestId(), ...));
-}
-
-// ✅ Good: DB Unique Constraint (최종 방어선)
-@Table(uniqueConstraints = @UniqueConstraint(columnNames = "request_id"))
-public class DonationHistory { ... }
-```
-
-**중복 처리 방어 계층:**
-| 계층 | 메커니즘 | 보호 범위 |
-|------|---------|----------|
-| 1차 | Kafka 파티셔닝 | 같은 파티션 동시 처리 방지 |
-| 2차 | existsBy 조회 | 빠른 필터링 (99% 중복 차단) |
-| 3차 | DB Unique Constraint | 레이스 컨디션 최종 방어 |
-
-### Query/Worker 분리 아키텍처 (Issue #126)
-
-**목표 아키텍처 (Pragmatic CQRS):**
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                                                                 │
-│  ┌─────────────────┐         ┌─────────────────────────────┐   │
-│  │  Query Server   │         │      Worker Server          │   │
-│  │  (조회 전용)     │  Kafka  │      (처리 전용)            │   │
-│  ├─────────────────┤ ──────▶ ├─────────────────────────────┤   │
-│  │ • 캐시 조회     │         │ • Nexon API 호출            │   │
-│  │ • 빠른 응답     │         │ • 350KB JSON 파싱           │   │
-│  │ • Outbox 발행   │         │ • 기대값 계산               │   │
-│  │ • "업데이트 중" │         │ • 17KB 압축 → DB 저장       │   │
-│  └────────┬────────┘         └────────────┬────────────────┘   │
-│           │                               │                     │
-│           └───────────────┬───────────────┘                     │
-│                           │                                     │
-│                   ┌───────▼───────┐                             │
-│                   │  Shared MySQL │  ← 공유 DB (핵심!)          │
-│                   │  + Outbox     │                             │
-│                   └───────────────┘                             │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-**분산 TX 불필요 이유:**
-| 서버 | 트랜잭션 범위 | 분산 TX |
-|------|-------------|---------|
-| Query Server | Outbox + 상태 = 단일 MySQL TX | 불필요 ✅ |
-| Worker Server | 계산결과 + 상태 = 단일 MySQL TX | 불필요 ✅ |
-| 서버 간 통신 | Kafka (비동기) | 불필요 ✅ |
-
-### Transactional Outbox Pattern 구현 (Context7 - Debezium Best Practice)
-
-**방법 1: Polling 기반 (단순, 권장 시작점)**
-
-⚠️ **TX 경계 주의**: Kafka 발행과 DB 마킹은 반드시 분리해야 함!
-
-```java
-// 1. 비즈니스 로직 + Outbox 저장 (단일 TX) ✅
-@Transactional
-public void requestUpdate(String userIgn) {
-    characterRepository.updateStatus(userIgn, Status.UPDATING);
-    outboxRepository.save(new OutboxEvent(
-        "character.update.requested",
-        userIgn,
-        Map.of("userIgn", userIgn, "requestedAt", Instant.now())
-    ));
-}
-
-// 2. Polling으로 Kafka 발행 (TX 없음!) ✅
-@Scheduled(fixedDelay = 500)  // 100ms는 너무 공격적, 500ms 권장
-public void publishOutboxEvents() {
-    // TX 밖에서 조회
-    List<OutboxEvent> events = outboxRepository.findUnpublishedWithLimit(50);
-
-    for (OutboxEvent event : events) {
-        executor.executeOrDefault(
-            () -> {
-                // Kafka 발행 (TX 밖, 동기 대기)
-                kafkaTemplate.send(event.getTopic(), event.getAggregateId(),
-                    event.getPayload()).get(5, TimeUnit.SECONDS);
-                // 성공 시 별도 TX로 마킹
-                markAsPublished(event.getId());
-                return true;
-            },
-            false,  // 실패 시 다음 폴링에서 재시도
-            TaskContext.of("Outbox", "Publish", event.getId())
-        );
-    }
-}
-
-// 별도 TX로 마킹 (발행 성공 후에만 호출)
-@Transactional(propagation = Propagation.REQUIRES_NEW)
-public void markAsPublished(Long eventId) {
-    outboxRepository.updatePublishedAt(eventId, Instant.now());
-}
-```
-
-**왜 TX를 분리해야 하는가?**
-| 시나리오 | TX 내 발행 | TX 분리 발행 |
-|---------|-----------|-------------|
-| Kafka 성공 → DB 실패 | ❌ 이벤트 중복 | ✅ 재시도 시 재발행 (Idempotent로 처리) |
-| DB 성공 → Kafka 실패 | ❌ 이벤트 누락 | ✅ 다음 폴링에서 재시도 |
-
-**방법 2: CDC 기반 (Debezium, 고급)**
-```properties
-# Debezium Connector 설정
-transforms=outbox
-transforms.outbox.type=io.debezium.transforms.outbox.EventRouter
-transforms.outbox.table.expand.json.payload=true
-
-# Exactly-Once Delivery
-exactly.once.support=required
-transaction.boundary=poll
-```
-
-**Outbox 테이블 스키마:**
-```sql
-CREATE TABLE outbox_events (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    aggregate_type VARCHAR(100) NOT NULL,
-    aggregate_id VARCHAR(255) NOT NULL,
-    event_type VARCHAR(100) NOT NULL,
-    payload JSON NOT NULL,
-    created_at TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP(6),  -- 마이크로초 정밀도
-    published_at TIMESTAMP(6) NULL,
-    retry_count TINYINT DEFAULT 0,
-
-    -- 순서 보장: 같은 aggregate_id는 생성 순서대로 처리
-    INDEX idx_unpublished_ordered (published_at, aggregate_id, created_at),
-    -- 파티션 키로 사용할 aggregate_id 인덱스
-    INDEX idx_aggregate (aggregate_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-```
-
-**메시지 순서 보장:**
-```java
-// Kafka 파티션 키 = aggregate_id
-// 같은 캐릭터의 이벤트는 같은 파티션 → 순서 보장
-kafkaTemplate.send(topic, event.getAggregateId(), payload);
-```
-
-### Worker Server Idempotent Consumer
-
-⚠️ **실패 처리 필수**: 외부 API 실패 시 상태 고착 방지!
-
-```java
-@KafkaListener(topics = "character.update.requested")
-public void processUpdateRequest(UpdateRequestEvent event) {
-    String userIgn = event.getUserIgn();
-    String eventId = event.getId();
-
-    // 1. 중복 체크 (Idempotent) - TX 밖에서 먼저 체크
-    if (processedEventRepository.existsByEventId(eventId)) {
-        log.debug("Duplicate event ignored: {}", eventId);
-        return;
-    }
-
-    // 2. 처리 실행 (실패 시 FAILED 상태로 전환)
-    executor.executeWithRecovery(
-        () -> updateProcessor.processUpdate(userIgn, eventId),
-        ex -> updateProcessor.handleFailure(userIgn, eventId, ex),
-        TaskContext.of("Worker", "ProcessUpdate", userIgn)
-    );
-}
-
-// ⚠️ @Transactional은 반드시 public 메서드에만 적용 (Spring AOP 프록시 한계)
-// 내부 호출 시 프록시를 우회하므로, 별도 @Component로 분리 권장
+// ❌ Bad (@Component 사용 시 CGLIB 프록시 문제 발생)
 @Component
 @RequiredArgsConstructor
-class UpdateProcessor {
-    private final ProcessedEventRepository processedEventRepository;
-    private final NexonApiClient nexonApiClient;
-    private final ExpectationCalculator calculator;
-    private final DataCompressor compressor;
-    private final CharacterRepository characterRepository;
-    private final RetryCountRepository retryCountRepository;
-    private final AlertService alertService;  // DLQ 알림용
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
+    // java.lang.NullPointerException: Cannot invoke "Log.isDebugEnabled()"
+    // because "this.logger" is null
+}
 
-    @Transactional
-    public void processUpdate(String userIgn, String eventId) {
-        // 처리 기록 먼저 저장 (재시도 시 중복 방지)
-        processedEventRepository.save(new ProcessedEvent(eventId));
-
-        // ⚠️ TX 내 외부 API 호출 주의:
-        // - DB Connection 점유 시간 증가 (API 응답 시간만큼)
-        // - 고부하 환경에서는 TX 분리 권장 (API 호출 → 별도 TX로 저장)
-        // - 현재 구조: API 실패 시 TX 롤백 → 재시도 가능 (의도된 동작)
-        EquipmentData data = nexonApiClient.fetchEquipment(userIgn);
-        ExpectationResult result = calculator.calculate(data);
-        byte[] compressed = compressor.compress(result);
-
-        // DB 저장 + 상태 업데이트 (단일 TX 내)
-        characterRepository.updateEquipmentData(userIgn, compressed);
-        characterRepository.updateStatus(userIgn, Status.SUCCESS);
-    }
-
-    private static final int MAX_RETRY = 3;
-
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void handleFailure(String userIgn, String eventId, Throwable ex) {
-        log.error("Processing failed for {}: {}", userIgn, ex.getMessage());
-
-        int retryCount = retryCountRepository.incrementAndGet(eventId);
-
-        if (retryCount >= MAX_RETRY) {
-            // 최대 재시도 초과 → 수동 처리 필요
-            log.error("Max retry exceeded for {}, moving to DLQ", eventId);
-            characterRepository.updateStatusWithError(
-                userIgn, Status.FAILED_PERMANENT,
-                "Max retry exceeded: " + ex.getMessage()
-            );
-            // DLQ 또는 알림 처리
-            alertService.notifyOperator("Permanent failure: " + eventId);
-        } else {
-            // 재시도 가능 상태
-            characterRepository.updateStatusWithError(
-                userIgn, Status.FAILED,
-                String.format("Retry %d/%d: %s", retryCount, MAX_RETRY, ex.getMessage())
-            );
-        }
-    }
-}  // UpdateProcessor 클래스 종료
+// ✅ Good (@Bean으로 수동 등록)
+@RequiredArgsConstructor
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
+    // @Component 제거 → SecurityConfig에서 @Bean 등록
+}
 ```
 
-**실패 시나리오별 처리:**
-| 실패 지점 | 상태 | 재시도 가능 |
-|----------|------|-----------|
-| Nexon API 타임아웃 | FAILED | ✅ 별도 재시도 큐 |
-| 계산 중 예외 | FAILED | ❌ 수동 확인 필요 |
-| DB 저장 실패 | TX 롤백 → UPDATING | ✅ 다음 이벤트로 재처리 |
-
-### 상태 관리 (Eventual Consistency UI/UX)
-
+### Filter Bean 등록 패턴 (Context7 공식)
 ```java
-public enum UpdateStatus {
-    NONE,             // 데이터 없음 → "조회하기" 버튼 표시
-    UPDATING,         // 업데이트 중 → "업데이트 중..." + 스피너
-    SUCCESS,          // 완료 → 결과 표시
-    FAILED,           // 실패 → "재시도" 버튼 표시 (자동 재시도 대기)
-    FAILED_PERMANENT  // 영구 실패 → "문의하기" 버튼 표시 (수동 처리 필요)
-}
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig {
 
-// Query Server 응답
-@GetMapping("/character/{userIgn}")
-public ResponseEntity<CharacterResponse> getCharacter(@PathVariable String userIgn) {
-    return characterRepository.findByUserIgn(userIgn)
-        .map(c -> switch(c.getStatus()) {
-            case UPDATING -> ResponseEntity.accepted()
-                .body(CharacterResponse.updating(c.getUpdatedAt()));
-            case SUCCESS -> ResponseEntity.ok(CharacterResponse.success(c));
-            case FAILED -> ResponseEntity.ok(CharacterResponse.retryable(c.getErrorMessage()));
-            case FAILED_PERMANENT -> ResponseEntity.ok(
-                CharacterResponse.permanentFailure(c.getErrorMessage()));
-            default -> ResponseEntity.notFound().build();
-        })
-        .orElseGet(() -> {
-            requestUpdateAsync(userIgn);  // Outbox에 이벤트 발행
-            return ResponseEntity.accepted()
-                .body(CharacterResponse.updating(Instant.now()));
-        });
+    // 1. Filter Bean 직접 등록 (생성자 주입)
+    @Bean
+    public JwtAuthenticationFilter jwtAuthenticationFilter(
+            JwtTokenProvider provider,
+            SessionService service,
+            FingerprintGenerator generator) {
+        return new JwtAuthenticationFilter(provider, service, generator);
+    }
+
+    // 2. 서블릿 컨테이너 중복 등록 방지
+    @Bean
+    public FilterRegistrationBean<JwtAuthenticationFilter> jwtFilterRegistration(
+            JwtAuthenticationFilter filter) {
+        FilterRegistrationBean<JwtAuthenticationFilter> registration =
+                new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false);  // 서블릿 컨테이너 등록 비활성화
+        return registration;
+    }
+
+    // 3. SecurityFilterChain에 필터 추가
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http,
+                                            JwtAuthenticationFilter filter) throws Exception {
+        http.addFilterBefore(filter, UsernamePasswordAuthenticationFilter.class);
+        return http.build();
+    }
 }
+```
+
+### FilterRegistrationBean 필요성
+| 시나리오 | 결과 |
+|---------|------|
+| `@Bean`만 등록 | Spring Boot가 서블릿 컨테이너에도 자동 등록 → 필터 2회 실행 |
+| `FilterRegistrationBean.setEnabled(false)` | Spring Security만 필터 관리 → 1회 실행 |
+
+### SecurityContext 설정 (Context7 Best Practice)
+```java
+// ❌ Bad (기존 컨텍스트 재사용 → 동시성 문제)
+SecurityContextHolder.getContext().setAuthentication(auth);
+
+// ✅ Good (새 컨텍스트 생성 → Thread-Safe)
+SecurityContext context = SecurityContextHolder.createEmptyContext();
+context.setAuthentication(auth);
+SecurityContextHolder.setContext(context);
+```
+
+### 보안 헤더 설정 (Spring Security 6.x Lambda DSL)
+```java
+http.headers(headers -> headers
+    .frameOptions(frame -> frame.deny())           // Clickjacking 방지
+    .contentTypeOptions(Customizer.withDefaults()) // MIME 스니핑 방지
+    .httpStrictTransportSecurity(hsts -> hsts      // HSTS
+        .includeSubDomains(true)
+        .maxAgeInSeconds(31536000)
+    )
+);
 ```
 
 ---
 
-## 🚀 19. MSA 전환 준비 가이드 (CQRS + Event Sourcing)
+## 🔒 19. Security Best Practices (Logging & API Client)
 
-Kafka 도입 및 MSA 전환 시 준수해야 할 아키텍처 가이드라인.
+민감한 정보 보호와 외부 API 에러 처리를 위한 필수 규칙입니다.
 
-### CQRS 패턴 적용 (Context7 - OpenCQRS Best Practice)
-
-**Command/Query 분리:**
-```java
-// Command: 쓰기 모델 (현재 Service 메서드)
-public record PurchaseBookCommand(String isbn, String author) implements Command {
-    @Override
-    public String getSubject() { return "/book/" + isbn; }
-
-    @Override
-    public SubjectCondition getSubjectCondition() {
-        return SubjectCondition.PRISTINE;  // 신규 생성만 허용
-    }
-}
-
-// Command Handler: 이벤트 발행
-@CommandHandling(sourcingMode = SourcingMode.LOCAL)
-public String purchase(PurchaseBookCommand cmd, CommandEventPublisher<Book> publisher) {
-    publisher.publish(new BookPurchasedEvent(cmd.isbn(), cmd.author()));
-    return cmd.isbn();
-}
-
-// Query: 읽기 모델 (현재 Cache 조회)
-@QueryHandler
-public BookDto getBook(GetBookQuery query) {
-    return bookReadRepository.findById(query.isbn());
-}
-```
-
-**MapleExpectation 현재 구조 → CQRS 매핑:**
-| 현재 | CQRS 개념 | 전환 방향 |
-|------|----------|----------|
-| `GameCharacterService.createNewCharacter()` | Command Handler | CommandRouter 사용 |
-| `EquipmentService.calculateExpectation()` | Query Handler | ReadModel 조회 |
-| `TotalExpectationCacheService` | Read Model | Kafka Consumer로 갱신 |
-| `ApplicationEventPublisher` | Event Publisher | Kafka Producer로 전환 |
-
-### 이벤트 발행 추상화 (MSA 준비)
-
-현재 Spring 이벤트 → Kafka 전환을 위한 인터페이스 분리:
+### 민감 데이터 로그 마스킹 (CRITICAL)
+AOP(TraceAspect 등)에서 DTO를 자동 로깅할 때 민감 정보(API Key, 비밀번호 등)가 노출될 수 있습니다.
+**Java Record의 기본 toString()은 모든 필드를 노출**하므로 반드시 오버라이드해야 합니다.
 
 ```java
-// ✅ Good: 추상화된 이벤트 발행자
-public interface DomainEventPublisher {
-    void publish(DomainEvent event);
-}
+// ❌ Bad (Record 기본 toString() → API Key 평문 노출)
+public record LoginRequest(String apiKey, String userIgn) {}
+// 로그: LoginRequest[apiKey=live_abcd1234efgh5678, userIgn=닉네임]
 
-// 현재 구현: Spring ApplicationEvent
-@Component
-public class SpringEventPublisher implements DomainEventPublisher {
-    private final ApplicationEventPublisher publisher;
-
+// ✅ Good (toString() 오버라이드 → 마스킹)
+public record LoginRequest(String apiKey, String userIgn) {
     @Override
-    public void publish(DomainEvent event) {
-        publisher.publishEvent(event);
+    public String toString() {
+        return "LoginRequest[" +
+                "apiKey=" + maskApiKey(apiKey) +
+                ", userIgn=" + userIgn + "]";
+    }
+
+    private String maskApiKey(String key) {
+        if (key == null || key.length() < 8) return "****";
+        return key.substring(0, 4) + "****" + key.substring(key.length() - 4);
     }
 }
-
-// MSA 전환 시: Kafka Producer
-@Component
-@Profile("msa")
-public class KafkaEventPublisher implements DomainEventPublisher {
-    private final KafkaTemplate<String, DomainEvent> template;
-
-    @Override
-    public void publish(DomainEvent event) {
-        template.send(event.getTopic(), event.getKey(), event);
-    }
-}
+// 로그: LoginRequest[apiKey=live****5678, userIgn=닉네임]
 ```
 
-### Aggregate 경계 정의 (DDD)
+**마스킹 대상 필드:**
+- API Key, Secret Key
+- 비밀번호, 토큰
+- 개인정보 (주민번호, 전화번호 등)
 
-MSA 분리 시 서비스 경계:
+### WebClient 에러 처리: onErrorResume vs onStatus
 
-```
-┌─────────────────────────────────────────────────────────┐
-│ MapleExpectation (현재 모놀리스)                         │
-├─────────────────────────────────────────────────────────┤
-│                                                         │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
-│  │ Character    │  │ Equipment    │  │ Donation     │  │
-│  │ Aggregate    │  │ Aggregate    │  │ Aggregate    │  │
-│  ├──────────────┤  ├──────────────┤  ├──────────────┤  │
-│  │ - GameChar   │  │ - Item       │  │ - Transfer   │  │
-│  │ - Like       │  │ - Expectation│  │ - History    │  │
-│  │ - Profile    │  │ - Cube       │  │ - Developer  │  │
-│  └──────────────┘  └──────────────┘  └──────────────┘  │
-│         │                 │                 │          │
-│         ▼                 ▼                 ▼          │
-│  ┌─────────────────────────────────────────────────┐   │
-│  │              Kafka Topics (MSA 전환 시)          │   │
-│  │  character.events | equipment.events | donation │   │
-│  └─────────────────────────────────────────────────┘   │
-│                                                         │
-└─────────────────────────────────────────────────────────┘
-```
+| 패턴 | 장점 | 단점 |
+|------|------|------|
+| `onStatus()` | 상태 코드별 분기 간편 | **응답 본문 접근 불가** |
+| `onErrorResume()` | 상태 코드 + 응답 본문 모두 접근 | 약간 더 복잡 |
 
-### Exactly-Once Semantics (Spring Kafka Best Practice)
-
-⚠️ **ChainedTransactionManager 사용 금지** (Spring 5.3+ Deprecated)
-
-**왜 Chained TX가 안 되는가?**
-```
-1. DB 커밋 성공
-2. Kafka 커밋 실패  ← 여기서 실패하면?
-   → DB는 이미 커밋됨, 롤백 불가!
-   → 데이터 불일치 발생
-```
-
-**올바른 방법: Outbox Pattern**
-```java
-// ❌ Bad: ChainedTransactionManager (Deprecated, 불일치 가능)
-@Bean
-public ChainedTransactionManager chainedTxManager(...) { ... }
-
-// ✅ Good: Outbox Pattern (섹션 18 참조)
-// 1. DB TX 내에서 Outbox 테이블에 이벤트 저장
-// 2. 별도 프로세스가 Outbox → Kafka 발행
-// 3. 발행 성공 시 Outbox 마킹 (별도 TX)
-```
-
-**Consumer 측 Exactly-Once (읽기 측):**
-```properties
-# Kafka Consumer 설정
-spring.kafka.consumer.enable-auto-commit=false
-spring.kafka.consumer.properties.isolation.level=read_committed
-
-# Idempotent Consumer로 중복 처리 방지 (섹션 18 참조)
-```
-
-### 전환 체크리스트
-
-MSA 전환 전 필수 준비 사항:
-
-- [ ] **이벤트 발행 추상화**: `DomainEventPublisher` 인터페이스 도입
-- [ ] **Idempotent 처리**: 모든 핸들러에 `requestId` 중복 체크
-- [ ] **Aggregate 경계**: DDD 기반 서비스 분리 설계
-- [ ] **Outbox 테이블**: 이벤트 발행 보장 메커니즘
-- [ ] **Read Model 분리**: Query 전용 데이터 저장소 (현재 Redis 캐시 활용)
-- [ ] **Saga 패턴 선택**: Choreography vs Orchestration 결정
-- [ ] **Kafka 토픽 설계**: Aggregate 당 1개 토픽 원칙
-
-### 성능 고려사항
-
-⚠️ **벤치마크 없이 수치 예측 금지** - 실측 후 판단
-
-| 패턴 | 현재 성능 | MSA 전환 시 |
-|------|----------|------------|
-| **동기 호출** | 측정 필요 | 네트워크 레이턴시 추가 |
-| **Kafka 발행** | N/A | 파티션/복제 설정에 따라 상이 |
-| **Saga 완료** | N/A | 참여 서비스 수에 비례 |
-| **전체 RPS** | Locust로 측정 | 분리 후 재측정 필수 |
-
-**권장**: MSA 전환은 트래픽 증가 또는 팀 분리 시에만 고려.
-현재 모놀리스 + 보상 패턴으로 충분한 성능과 안정성 확보.
-
-**전환 전 필수 측정:**
-1. 현재 API별 P50/P95/P99 레이턴시
-2. 현재 최대 RPS (부하 테스트)
-3. 병목 지점 프로파일링 (CPU/메모리/IO)
-
-### 권장 서비스 분리 전략 (3개 서버) ⭐
-
-**분산 TX 없이 MSA 전환이 가능한 Aggregate 경계:**
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    권장 서비스 분리 (3개)                         │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  서버 1: Character-Equipment Service                            │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │ GameCharacter + CharacterEquipment + Like               │   │
-│  │ DB: character_db                                        │   │
-│  │ 트랜잭션: 내부 TX로 충분 ✅                               │   │
-│  └─────────────────────────────────────────────────────────┘   │
-│                                                                 │
-│  서버 2: Member-Donation Service                                │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │ Member + Point + DonationHistory                        │   │
-│  │ DB: donation_db                                         │   │
-│  │ 트랜잭션: 내부 TX로 충분 ✅ (강결합 유지)                  │   │
-│  └─────────────────────────────────────────────────────────┘   │
-│                                                                 │
-│  서버 3: Calculation Service (Stateless)                        │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │ 기대값 계산 엔진 + Redis 캐시                            │   │
-│  │ DB: 없음 (읽기 전용, 캐시만)                             │   │
-│  │ 트랜잭션: 불필요 ✅                                      │   │
-│  └─────────────────────────────────────────────────────────┘   │
-│                                                                 │
-│  ⚠️ 주의: Member와 Donation을 분리하면 분산 TX(Saga) 필요!     │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-| 서비스 | Aggregate Root | 포함 엔티티 | DB | 분산 TX |
-|--------|---------------|------------|----|---------|
-| Character-Equipment | GameCharacter | CharacterEquipment (1:1), Like | character_db | 불필요 |
-| Member-Donation | Member | Point, DonationHistory | donation_db | 불필요 |
-| Calculation | (Stateless) | 없음 | 없음 | 불필요 |
-
-**⚠️ 주의**: `CharacterEquipment`는 `GameCharacter`의 일부 (CASCADE ALL)
-→ 별도 서비스로 분리 시 분산 TX 필요!
-
-### 지금 준비할 것 vs 나중에 할 것
-
-**🔴 지금 준비해야 할 것 (모놀리스에서도 유용):**
-
-| 항목 | 이유 | 현재 상태 |
-|------|------|----------|
-| **이벤트 발행 추상화** | Kafka 전환 시 최소 변경 | ⚠️ 미구현 |
-| **Idempotent 처리** | 중복 요청 방지 | ✅ DonationService에 구현됨 |
-| **Aggregate 경계 문서화** | 서비스 분리 기준 명확화 | ⚠️ 본 문서로 정의 |
-| **인터페이스 분리** | 서비스 간 계약 명확화 | ✅ Strategy 패턴 적용됨 |
+**디버깅을 위해 외부 API의 실제 에러 메시지를 로깅해야 하므로 `onErrorResume()` 사용 권장.**
 
 ```java
-// ✅ 지금 구현 권장: 이벤트 발행 추상화
-public interface DomainEventPublisher {
-    /** 동기 발행 (트랜잭션 내 사용) */
-    void publish(DomainEvent event);
-
-    /** 비동기 발행 (트랜잭션 밖 사용) */
-    CompletableFuture<Void> publishAsync(DomainEvent event);
-
-    /** 배치 발행 */
-    void publishAll(List<? extends DomainEvent> events);
-}
-
-// 현재: Spring Event (동기 전용)
-@Component
-public class SpringDomainEventPublisher implements DomainEventPublisher {
-    private final ApplicationEventPublisher publisher;
-    private final LogicExecutor executor;
-
-    @Override
-    public void publish(DomainEvent event) {
-        publisher.publishEvent(event);
+// ❌ Bad (onStatus: 에러 본문 로깅 불가)
+.retrieve()
+.onStatus(
+    HttpStatusCode::is4xxClientError,
+    response -> {
+        log.warn("Error: {}", response.statusCode());  // 상태 코드만
+        return Mono.empty();
     }
+)
+.bodyToMono(Response.class)
 
-    @Override
-    public CompletableFuture<Void> publishAsync(DomainEvent event) {
-        return CompletableFuture.runAsync(() -> publish(event));
+// ✅ Good (onErrorResume: 에러 본문까지 로깅)
+.retrieve()
+.bodyToMono(Response.class)
+.onErrorResume(WebClientResponseException.class, ex -> {
+    if (ex.getStatusCode().is4xxClientError()) {
+        // 상태 코드 + 실제 에러 메시지 로깅
+        log.warn("API Failed. Status: {}, Body: {}",
+                ex.getStatusCode(), ex.getResponseBodyAsString());
+        return Mono.empty();
     }
-
-    @Override
-    public void publishAll(List<? extends DomainEvent> events) {
-        events.forEach(this::publish);
-    }
-}
-
-// MSA 전환 시: Outbox 기반 발행자
-@Component
-@Profile("msa")
-public class OutboxDomainEventPublisher implements DomainEventPublisher {
-    private final OutboxRepository outboxRepository;
-
-    @Override
-    @Transactional  // 비즈니스 TX에 참여
-    public void publish(DomainEvent event) {
-        outboxRepository.save(OutboxEvent.from(event));
-    }
-    // ... 나머지 구현
-}
+    // 5xx: 서킷브레이커 동작을 위해 상위 전파
+    return Mono.error(ex);
+})
+.timeout(API_TIMEOUT)
 ```
 
-**🟢 MSA 전환 시 도입해도 될 것:**
+**패턴 적용 기준:**
+- **클라이언트 에러 (4xx)**: 로깅 후 Mono.empty() 반환 (비즈니스 예외로 처리)
+- **서버 에러 (5xx)**: Mono.error()로 상위 전파 (서킷브레이커 동작)
 
-| 항목 | 이유 | 도입 시점 |
-|------|------|----------|
-| **Seata/Saga 프레임워크** | 복잡도 증가, 현재 불필요 | 별도 DB 분리 시 |
-| **Kafka 인프라** | 운영 부담 | Query/Worker 분리 시 (Issue #126) |
-| **분산 추적 (Zipkin/Jaeger)** | 모놀리스에선 로그로 충분 | 서비스 분리 후 |
-| **Service Mesh (Istio)** | K8s 환경 필수 | K8s 도입 시 |
+### API Key 저장 규칙 (JWT vs Redis)
+- **JWT에 절대 포함 금지**: JWT는 클라이언트에 노출되므로 apiKey 저장 불가
+- **Redis 세션에만 저장**: 서버 측에서만 접근 가능한 Redis 세션에 저장
+- **Fingerprint 사용**: `HMAC-SHA256(serverSecret, apiKey)`로 변환하여 JWT에 저장
 
-**🟡 Kafka와 함께 도입할 것:**
+---
 
-| 항목 | 이유 |
+## 📖 20. SpringDoc OpenAPI (Swagger UI) Best Practice
+
+API 문서 자동화를 위한 SpringDoc OpenAPI 설정 규칙입니다. (Context7 권장)
+
+### 의존성 (Spring Boot 3.x)
+```groovy
+// build.gradle
+implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.13'
+```
+
+**주의**: Spring Boot 3.x는 `springdoc-openapi-starter-webmvc-ui` 사용 (2.x는 `springdoc-openapi-ui`)
+
+### OpenAPI 설정 패턴 (어노테이션 기반)
+```java
+@Configuration
+@OpenAPIDefinition(
+    info = @Info(
+        title = "API Title",
+        version = "2.0.0",
+        description = "API 설명"
+    ),
+    servers = {
+        @Server(url = "http://localhost:8080", description = "Local"),
+        @Server(url = "https://api.example.com", description = "Production")
+    },
+    security = @SecurityRequirement(name = "bearerAuth")
+)
+@SecurityScheme(
+    name = "bearerAuth",
+    type = SecuritySchemeType.HTTP,
+    scheme = "bearer",
+    bearerFormat = "JWT"
+)
+public class OpenApiConfig {}
+```
+
+### application.yml 설정
+```yaml
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    operations-sorter: method    # GET/POST/PUT/DELETE 순 정렬
+    tags-sorter: alpha           # 태그 알파벳 순
+    try-it-out-enabled: true     # "Try it out" 버튼 활성화
+    persist-authorization: true  # JWT 토큰 세션 유지
+  packages-to-scan: maple.expectation.controller
+```
+
+### 테스트 환경 설정 (비활성화)
+```yaml
+# src/test/resources/application.yml
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+```
+
+### SecurityConfig 통합
+```java
+// Swagger UI 엔드포인트 permitAll
+.requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+```
+
+### Controller 어노테이션 (선택)
+```java
+@Tag(name = "Character", description = "캐릭터 관련 API")
+@Operation(summary = "캐릭터 조회", description = "캐릭터 정보를 조회합니다")
+@ApiResponse(responseCode = "200", description = "성공")
+@ApiResponse(responseCode = "404", description = "캐릭터 없음")
+public ResponseEntity<CharacterDto> getCharacter(@PathVariable String ign) { ... }
+```
+
+### 접근 경로
+| 경로 | 설명 |
 |------|------|
-| **Outbox 테이블** | 이벤트 발행 보장 (At-least-once) |
-| **Idempotent Consumer** | 중복 이벤트 처리 방지 |
-| **Dead Letter Queue** | 처리 불가 이벤트 격리 |
+| `/swagger-ui.html` | Swagger UI (리다이렉트) |
+| `/swagger-ui/index.html` | Swagger UI (직접) |
+| `/v3/api-docs` | OpenAPI JSON |
+| `/v3/api-docs.yaml` | OpenAPI YAML |
 
-### MSA 전환 의사결정 기준
+---
 
-**전환해야 할 때:**
-- [ ] 단일 서버로 트래픽 감당 불가 (수평 확장 필요)
-- [ ] 팀이 분리되어 독립 배포 필요
-- [ ] 특정 기능만 스케일 아웃 필요 (예: 계산 서비스만)
-- [ ] 기술 스택 다양화 필요 (Python ML 서비스 등)
+## 🚀 21. Async Non-Blocking Pipeline Pattern (Critical)
 
-**전환하지 말아야 할 때:**
-- [ ] 현재 성능으로 충분 (240+ RPS)
-- [ ] 팀 규모가 작음 (1-3명)
-- [ ] 운영 복잡도 증가를 감당할 인력 부족
-- [ ] 단순히 "MSA가 트렌드라서"
+고처리량 API를 위한 비동기 논블로킹 파이프라인 설계 패턴입니다. (Trace Log 분석 기반)
 
-### 분산 TX 솔루션 비교 (Context7 - Seata Best Practice)
+### 핵심 원칙: 톰캣 스레드 즉시 반환 (0ms)
 
-MSA 전환 후 분산 TX가 필요해지면:
+```java
+// ❌ Bad (톰캣 스레드 블로킹 → 동시성 저하)
+@GetMapping("/{userIgn}/expectation")
+public ResponseEntity<Response> getExpectation(@PathVariable String userIgn) {
+    Response result = service.calculate(userIgn);  // 블로킹 호출
+    return ResponseEntity.ok(result);
+}
 
-| 솔루션 | 모드 | 적합 케이스 | 복잡도 |
-|--------|------|-----------|--------|
-| **Seata AT** | 자동 보상 (Undo Log) | 기존 코드 변경 최소화 | 낮음 |
-| **Seata TCC** | Try-Confirm-Cancel | 높은 성능, 명시적 보상 | 중간 |
-| **Seata Saga** | 장기 트랜잭션 | 비동기, 복잡한 워크플로우 | 높음 |
-| **Spring Kafka** | Outbox + CDC | 이벤트 기반 | 중간 |
+// ✅ Good (톰캣 스레드 즉시 반환 → RPS 240+ 달성)
+@GetMapping("/{userIgn}/expectation")
+public CompletableFuture<ResponseEntity<Response>> getExpectation(@PathVariable String userIgn) {
+    return service.calculateAsync(userIgn)  // 비동기 호출
+            .thenApply(ResponseEntity::ok);
+}
+```
 
-**MapleExpectation 권장: Spring Kafka + Outbox**
-- Seata 없이 Kafka만으로 충분
-- 현재 보상 패턴과 자연스럽게 연결
-- 추가 인프라(Seata Server) 불필요
+### Two-Phase Snapshot 패턴
+
+캐시 HIT 시 불필요한 DB 조회를 방지하는 단계적 데이터 로드 패턴입니다.
+
+| Phase | 목적 | 로드 데이터 |
+|-------|------|------------|
+| **LightSnapshot** | 캐시 키 생성 | 최소 필드 (ocid, fingerprint) |
+| **FullSnapshot** | 계산 (MISS 시만) | 전체 필드 |
+
+```java
+// ✅ Good (Two-Phase Snapshot)
+return CompletableFuture
+        .supplyAsync(() -> fetchLightSnapshot(userIgn), executor)  // Phase 1
+        .thenCompose(light -> {
+            // 캐시 HIT → 즉시 반환 (FullSnapshot 스킵)
+            Optional<Response> cached = cacheService.get(light.cacheKey());
+            if (cached.isPresent()) {
+                return CompletableFuture.completedFuture(cached.get());
+            }
+            // 캐시 MISS → Phase 2
+            return CompletableFuture
+                    .supplyAsync(() -> fetchFullSnapshot(userIgn), executor)
+                    .thenCompose(full -> compute(full));
+        });
+```
+
+### Write-Behind 패턴 (비동기 DB 저장)
+
+API 응답 시간 단축을 위해 DB 저장을 응답 후 비동기로 처리합니다.
+
+```java
+// ✅ Good (응답 즉시 반환, DB 저장은 백그라운드)
+return nexonApiClient.getEquipment(ocid)
+        .thenApply(response -> {
+            // 캐시 저장 (동기 - 응답에 필요)
+            cacheService.put(ocid, response);
+
+            // DB 저장 (비동기 - Fire-and-Forget)
+            CompletableFuture.runAsync(() -> dbWorker.persist(ocid, response),
+                    asyncTaskExecutor);
+
+            return response;
+        });
+```
+
+### 스레드 풀 분리 원칙
+
+| Thread Pool | 역할 | 설정 기준 |
+|-------------|------|----------|
+| `http-nio-*` | 톰캣 요청 | 즉시 반환 (0ms 목표) |
+| `expectation-*` | 계산 전용 | CPU 코어 수 기반 |
+| `SimpleAsyncTaskExecutor-*` | Fire-and-Forget | @Async 비동기 |
+| `ForkJoinPool.commonPool-*` | CompletableFuture 기본 | JVM 관리 |
+
+```java
+// ✅ Good (전용 스레드 풀 지정)
+@Bean("expectationComputeExecutor")
+public Executor expectationComputeExecutor() {
+    ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+    executor.setCorePoolSize(Runtime.getRuntime().availableProcessors());
+    executor.setMaxPoolSize(Runtime.getRuntime().availableProcessors() * 2);
+    executor.setQueueCapacity(100);
+    executor.setThreadNamePrefix("expectation-");
+    executor.initialize();
+    return executor;
+}
+```
+
+### .join() 완전 제거 규칙 (Issue #118)
+
+```java
+// ❌ Bad (.join()은 호출 스레드 블로킹)
+return service.calculateAsync(userIgn).join();
+
+// ✅ Good (체이닝으로 논블로킹 유지)
+return service.calculateAsync(userIgn)
+        .thenApply(this::postProcess)
+        .orTimeout(30, TimeUnit.SECONDS)
+        .exceptionally(this::handleException);
+```
+
+### CompletableFuture 체이닝 Best Practice
+
+| 메서드 | 용도 | 예외 전파 |
+|--------|------|----------|
+| `thenApply()` | 동기 변환 | O |
+| `thenApplyAsync()` | 비동기 변환 (다른 스레드) | O |
+| `thenCompose()` | Future 평탄화 | O |
+| `orTimeout()` | 데드라인 설정 | TimeoutException |
+| `exceptionally()` | 예외 복구 | 복구 값 반환 |
+| `whenComplete()` | 완료 후 정리 (결과 변경 불가) | X |
+
+```java
+// ✅ Good (완전한 비동기 파이프라인)
+return CompletableFuture
+        .supplyAsync(() -> step1(), executor)
+        .thenComposeAsync(r -> step2(r), executor)
+        .thenApplyAsync(this::step3, executor)
+        .orTimeout(DEADLINE_SECONDS, TimeUnit.SECONDS)
+        .exceptionally(e -> handleException(e, context))
+        .whenComplete((r, e) -> cleanup(context));
+```
+
+### 참고 문서
+- `docs/expectation-sequence-diagram.md` - 전체 데이터 흐름 시각화
+
+---
+
+## 🧵 22. Thread Pool Backpressure Best Practice (Issue #168)
+
+ThreadPoolTaskExecutor의 RejectedExecutionHandler 설정 및 메트릭 수집을 위한 필수 규칙입니다.
+
+### CallerRunsPolicy 금지 (Critical)
+
+```java
+// ❌ Bad (톰캣 스레드 고갈 → 전체 API 마비)
+executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+
+// ✅ Good (즉시 거부 → 503 응답 → 클라이언트 재시도)
+executor.setRejectedExecutionHandler(CUSTOM_ABORT_POLICY);
+```
+
+**CallerRunsPolicy 문제점:**
+- "backpressure" 의도였으나 실제로는 **톰캣 스레드 고갈** 유발
+- 큐 포화 시 요청 처리 시간 비정상 증가 (SLA 위반)
+- 메트릭 기록 불가 (rejected count = 0으로 보임)
+- 서킷브레이커 동작 불가 (예외가 발생하지 않음)
+
+### AbortPolicy + 샘플링 로깅 패턴
+
+```java
+private static final AtomicLong rejectedCount = new AtomicLong(0);
+private static final AtomicLong lastRejectNanos = new AtomicLong(0);
+private static final long REJECT_LOG_INTERVAL_NANOS = TimeUnit.SECONDS.toNanos(1);
+
+private static final RejectedExecutionHandler CUSTOM_ABORT_POLICY = (r, executor) -> {
+    // 1. Shutdown 구분
+    if (executor.isShutdown() || executor.isTerminating()) {
+        throw new RejectedExecutionException("Executor rejected (shutdown)");
+    }
+
+    // 2. 샘플링 로깅 (1초 1회, log storm 방지)
+    long dropped = rejectedCount.incrementAndGet();
+    long now = System.nanoTime();
+    long prev = lastRejectNanos.get();
+
+    if (now - prev >= REJECT_LOG_INTERVAL_NANOS &&
+        lastRejectNanos.compareAndSet(prev, now)) {
+        long count = rejectedCount.getAndSet(0);
+        log.warn("[Executor] Task rejected. droppedInLastWindow={}, poolSize={}, queueSize={}",
+                count, executor.getPoolSize(), executor.getQueue().size());
+    }
+
+    // 3. 예외 던지기 (Future 완료 보장)
+    throw new RejectedExecutionException("Executor queue full");
+};
+```
+
+### Micrometer 메트릭 등록 (Context7 공식)
+
+```java
+// ExecutorServiceMetrics 등록
+new ExecutorServiceMetrics(
+    executor.getThreadPoolExecutor(),
+    "executor.name",
+    Collections.emptyList()
+).bindTo(meterRegistry);
+
+// rejected Counter 추가 (ExecutorServiceMetrics 미제공)
+Counter rejectedCounter = Counter.builder("executor.rejected")
+        .tag("name", "executor.name")
+        .description("Number of tasks rejected due to queue full")
+        .register(meterRegistry);
+```
+
+**제공 메트릭:**
+| 메트릭 | 설명 |
+|--------|------|
+| `executor.completed` | 완료된 작업 수 |
+| `executor.active` | 현재 활성 스레드 수 |
+| `executor.queued` | 큐에 대기 중인 작업 수 |
+| `executor.pool.size` | 현재 스레드 풀 크기 |
+| `executor.rejected` | 거부된 작업 수 (커스텀) |
+
+### 503 응답 + Retry-After 헤더 (HTTP 표준)
+
+```java
+// GlobalExceptionHandler에서 처리
+@ExceptionHandler(CompletionException.class)
+protected ResponseEntity<ErrorResponse> handleCompletionException(CompletionException e) {
+    if (e.getCause() instanceof RejectedExecutionException) {
+        return ResponseEntity
+            .status(HttpStatus.SERVICE_UNAVAILABLE)
+            .header("Retry-After", "60")  // 60초 후 재시도 권장
+            .body(errorResponse);
+    }
+    // ...
+}
+```
+
+### ⚠️ Write-Behind 패턴 주의 (Critical)
+
+AbortPolicy는 **읽기 전용 작업에만** 적용하세요!
+
+```java
+// ❌ DANGER: Write-Behind + AbortPolicy = 데이터 유실
+CompletableFuture.runAsync(() -> {
+    dbWorker.persist(ocid, data);  // DB 저장
+}, writeExecutor);  // AbortPolicy 적용 시 거부 = 데이터 유실!
+
+// ✅ Safe: Write-Behind에는 CallerRunsPolicy 또는 DLQ 패턴
+executor.setRejectedExecutionHandler(new CallerRunsPolicy());  // 지연 > 유실
+```
+
+**적용 가이드:**
+| Executor 용도 | 권장 정책 | 이유 |
+|--------------|----------|------|
+| 조회/계산 (읽기) | AbortPolicy | 재시도 가능, 멱등성 |
+| DB 저장 (쓰기) | CallerRunsPolicy/DLQ | 데이터 유실 방지 |
+| 알림 전송 | AbortPolicy | Best-effort 허용 |
+
+---
+
+## 🧪 23. ExecutorService 동시성 테스트 Best Practice
+
+동시성 테스트에서 Race Condition을 방지하기 위한 필수 패턴입니다.
+
+### shutdown() vs awaitTermination() (Critical)
+
+`ExecutorService.shutdown()`은 **새로운 작업 제출만 막고 즉시 반환**됩니다.
+기존 작업 완료를 보장하려면 반드시 `awaitTermination()`을 호출해야 합니다.
+
+```java
+// ❌ Bad (Race Condition 발생)
+executorService.shutdown();
+// 아직 작업 실행 중인데 결과 검증!
+assertEquals(expected, actualResult);
+
+// ✅ Good (모든 작업 완료 보장)
+executorService.shutdown();
+executorService.awaitTermination(5, TimeUnit.SECONDS);
+// 이제 안전하게 검증 가능
+assertEquals(expected, actualResult);
+```
+
+### CountDownLatch + awaitTermination 조합 (Recommended)
+
+```java
+int taskCount = 100;
+ExecutorService executor = Executors.newFixedThreadPool(16);
+CountDownLatch latch = new CountDownLatch(taskCount);
+
+for (int i = 0; i < taskCount; i++) {
+    executor.submit(() -> {
+        try {
+            // 비즈니스 로직
+            service.process();
+        } finally {
+            latch.countDown();  // 작업 완료 신호
+        }
+    });
+}
+
+// Step 1: 모든 작업이 finally 블록까지 도달 대기
+latch.await(10, TimeUnit.SECONDS);
+
+// Step 2: Executor 종료 및 완료 대기 (추가 안전장치)
+executor.shutdown();
+executor.awaitTermination(5, TimeUnit.SECONDS);
+
+// Step 3: 결과 검증
+assertResult();
+```
+
+### 왜 둘 다 필요한가?
+
+| 단계 | latch.await() | awaitTermination() |
+|------|--------------|-------------------|
+| 목적 | 작업 완료 **신호** 대기 | 스레드 종료 대기 |
+| 보장 | finally 블록 실행 완료 | 스레드 리소스 정리 |
+| 누락 시 | 일부 작업 미완료 상태 검증 | 스레드 누수 가능 |
+
+### Caffeine Cache + AtomicLong 동시성 패턴
+
+```java
+// LikeBufferStorage.java - Thread-Safe 패턴
+private final Cache<String, AtomicLong> likeCache = Caffeine.newBuilder()
+        .expireAfterAccess(1, TimeUnit.MINUTES)
+        .build();
+
+// Caffeine.get()은 원자적이지만, 반환된 AtomicLong 조작과
+// 후속 처리(Redis 전송) 사이에는 Race 가능
+public AtomicLong getCounter(String userIgn) {
+    return likeCache.get(userIgn, key -> new AtomicLong(0));
+}
+
+// flushLocalToRedis() 호출 전 반드시 awaitTermination() 필요!
+```
+
+### Flaky Test 방지 체크리스트
+
+- [ ] `shutdown()` 후 `awaitTermination()` 호출
+- [ ] latch.await() 타임아웃 충분히 설정 (10초 이상)
+- [ ] 테스트 간 상태 격리 (캐시/DB 초기화)
+- [ ] 비동기 AOP 사용 시 실제 작업 완료 시점 검증
+
+---
+
+# 🤖 MapleExpectation Multi-Agent Protocol
+
+## 1. The Council of Five (Agent Roles)
+이 프로젝트는 5개의 특화된 에이전트 페르소나를 통해 개발 및 검증됩니다. 작업 요청 시 적절한 에이전트를 호출하거나, 복합적인 작업 시 아래 순서대로 검토를 거쳐야 합니다.
+
+* **🟦 Blue: Spring-Architect (The Designer)**
+    * **Mandate:** SOLID 원칙, 디자인 패턴(Strategy, Facade, Factory 등), DDD, Clean Architecture 준수.
+    * **Check:** "코드가 유지보수 가능한 구조인가?", "의존성 역전(DIP)이 지켜졌는가?"
+* **🟩 Green: Performance-Guru (The Optimizer)**
+    * **Mandate:** O(1) 지향, Redis Lua Script, SQL Tuning, Non-blocking I/O.
+    * **Check:** "이 로직이 10만 RPS를 견디는가?", "불필요한 객체 생성이나 루프가 없는가?"
+* **🟨 Yellow: QA-Master (The Tester)**
+    * **Mandate:** JUnit 5, Mockito, Testcontainers, Locust, Edge Case 발굴.
+    * **Check:** "테스트 커버리지가 충분한가?", "경계값(Boundary)에서 터지지 않는가?"
+* **🟪 Purple: Financial-Grade-Auditor (The Sheriff)**
+    * **Mandate:** 무결성(Integrity), 보안(Security), BigDecimal 연산, 트랜잭션 검증.
+    * **Check:** "돈/확률 계산에 오차가 없는가?", "PII 정보가 로그에 남지 않는가?"
+* **🟥 Red: SRE-Gatekeeper (The Guardian)**
+    * **Mandate:** Resilience(Circuit Breaker, Timeout), Thread Pool, Config, Infra.
+    * **Check:** "서버가 죽지 않는 설정인가?", "CallerRunsPolicy 같은 폭탄이 없는가?"
+
+## 2. Best Practice: The "Pentagonal Pipeline" Workflow
+모든 주요 기능 구현(Feature) 및 리팩토링은 다음 파이프라인을 거쳐야 한다.
+
+1.  **Draft (Blue):** 아키텍트가 인터페이스와 패턴을 설계하여 구조를 잡는다.
+2.  **Optimize (Green):** 퍼포먼스 구루가 쿼리와 알고리즘을 최적화한다.
+3.  **Test (Yellow):** QA 마스터가 테스트 케이스(TC)를 작성하고 검증한다.
+4.  **Audit (Purple):** 오디터가 데이터 무결성과 보안을 최종 승인한다.
+5.  **Deploy Check (Red):** 게이트키퍼가 설정 파일과 안정성 장치를 검토한다.
+
+## 3. Core Principles (Context7)
+* **Sequential Thinking:** 문제 해결 시 `배경 -> 정의 -> 분석 -> 설계 -> 구현 -> 검증 -> 회고`의 단계를 건너뛰지 않는다.
+* **SOLID:** 특히 SRP(단일 책임)와 OCP(개방 폐쇄)를 철저히 지킨다.
+* **Design Patterns:** 관습적인 사용이 아니라, 문제 해결을 위한 적절한 패턴(예: 복잡한 분기 처리는 Strategy, 외부 통신은 Facade)을 적용한다.

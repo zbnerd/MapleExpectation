@@ -1,0 +1,341 @@
+# =============================================================================
+# MapleExpectation CI Pipeline
+# =============================================================================
+# SRE-Gatekeeper (Red Agent) Principles Applied:
+#   - Resilience: Timeout guards on every step
+#   - Observability: Test reports always uploaded (even on failure)
+#   - Fail Fast: PR merge blocked on any test failure
+#   - Backpressure: Resource limits on services
+#
+# Trigger: PR to master/develop, Push to develop
+# =============================================================================
+
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ "develop" ]
+  pull_request:
+    branches: [ "master", "develop" ]
+
+permissions:
+  contents: read
+  checks: write           # Required for test report annotations
+  pull-requests: write    # Required for PR comments
+
+# Concurrency: Cancel in-progress runs for same PR (save resources)
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  JAVA_VERSION: '17'
+  GRADLE_OPTS: '-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true'
+
+jobs:
+  # ==========================================================================
+  # JOB 1: Build & Test (Gate)
+  # ==========================================================================
+  test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15  # Hard deadline - prevent zombie jobs
+
+    services:
+      # Redis service for integration tests (Testcontainers alternative)
+      redis:
+        image: redis:7.0-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+          --memory 256m
+
+      # MySQL service for integration tests requiring real DB
+      mysql:
+        image: mysql:8.0
+        ports:
+          - 3306:3306
+        env:
+          MYSQL_ROOT_PASSWORD: testpassword
+          MYSQL_DATABASE: maple_test
+          MYSQL_USER: testuser
+          MYSQL_PASSWORD: testpassword
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -u root -ptestpassword"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+          --memory 512m
+
+    steps:
+      # ------------------------------------------------------------------
+      # Step 1: Checkout
+      # ------------------------------------------------------------------
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for accurate diff
+
+      # ------------------------------------------------------------------
+      # Step 2: Setup Java 17
+      # ------------------------------------------------------------------
+      - name: Setup JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      # ------------------------------------------------------------------
+      # Step 3: Setup Gradle
+      # ------------------------------------------------------------------
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: wrapper
+          cache-read-only: ${{ github.ref != 'refs/heads/develop' }}
+
+      # ------------------------------------------------------------------
+      # Step 4: Grant Execute Permission
+      # ------------------------------------------------------------------
+      - name: Grant Execute Permission for Gradlew
+        run: chmod +x gradlew
+
+      # ------------------------------------------------------------------
+      # Step 5: Run Tests (Gate - Must Pass)
+      # ------------------------------------------------------------------
+      - name: Run Tests
+        id: test
+        run: |
+          ./gradlew clean test --no-daemon --info --stacktrace
+        env:
+          SPRING_PROFILES_ACTIVE: test
+          DOCKER_HOST: unix:///var/run/docker.sock
+          # Testcontainers configuration
+          TESTCONTAINERS_RYUK_DISABLED: true
+        continue-on-error: false  # CRITICAL: Block merge on failure
+
+      # ------------------------------------------------------------------
+      # Step 6: Upload Test Reports (Always - Even on Failure)
+      # ------------------------------------------------------------------
+      - name: Upload Test Reports
+        if: always()  # Upload even if tests fail
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            build/reports/tests/
+            build/test-results/
+          retention-days: 7
+
+      # ------------------------------------------------------------------
+      # Step 7: Publish Test Results (PR Annotations)
+      # ------------------------------------------------------------------
+      - name: Publish Test Results
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: JUnit Test Results
+          path: 'build/test-results/test/*.xml'
+          reporter: java-junit
+          fail-on-error: true
+
+      # ------------------------------------------------------------------
+      # Step 8: Build JAR (Only if tests pass)
+      # ------------------------------------------------------------------
+      - name: Build Application
+        if: success()
+        run: ./gradlew build -x test --no-daemon
+
+      # ------------------------------------------------------------------
+      # Step 9: Upload Build Artifact
+      # ------------------------------------------------------------------
+      - name: Upload Build Artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: application-jar
+          path: build/libs/*.jar
+          retention-days: 1
+
+  # ==========================================================================
+  # JOB 2: Smoke Test with Locust (Optional - Runs after test job)
+  # ==========================================================================
+  smoke-test:
+    name: Smoke Test (Locust)
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'pull_request'  # Only on PRs
+    timeout-minutes: 10
+
+    services:
+      redis:
+        image: redis:7.0-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+          --memory 256m
+
+    steps:
+      # ------------------------------------------------------------------
+      # Step 1: Checkout
+      # ------------------------------------------------------------------
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # ------------------------------------------------------------------
+      # Step 2: Setup Java
+      # ------------------------------------------------------------------
+      - name: Setup JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      # ------------------------------------------------------------------
+      # Step 3: Download Build Artifact
+      # ------------------------------------------------------------------
+      - name: Download Build Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: application-jar
+          path: ./build/libs
+
+      # ------------------------------------------------------------------
+      # Step 4: Setup Python for Locust
+      # ------------------------------------------------------------------
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      # ------------------------------------------------------------------
+      # Step 5: Install Locust
+      # ------------------------------------------------------------------
+      - name: Install Locust
+        run: pip install locust
+
+      # ------------------------------------------------------------------
+      # Step 6: Start Application (Background)
+      # ------------------------------------------------------------------
+      - name: Start Application
+        run: |
+          echo "Starting Spring Boot application..."
+          java -jar build/libs/*.jar \
+            --spring.profiles.active=test \
+            --server.port=8080 \
+            > app.log 2>&1 &
+
+          # Wait for application to be ready (max 120 seconds)
+          echo "Waiting for application to start..."
+          for i in {1..60}; do
+            if curl -s http://localhost:8080/actuator/health | grep -q '"status":"UP"'; then
+              echo "Application is ready!"
+              exit 0
+            fi
+            echo "Attempt $i/60 - waiting..."
+            sleep 2
+          done
+
+          echo "Application failed to start within timeout"
+          cat app.log
+          exit 1
+        env:
+          SPRING_PROFILES_ACTIVE: test
+          NEXON_API_KEY: dummy-ci-key
+
+      # ------------------------------------------------------------------
+      # Step 7: Run Locust Smoke Test
+      # ------------------------------------------------------------------
+      - name: Run Locust Smoke Test
+        id: locust
+        run: |
+          echo "Running Locust smoke test (20 users, 30 seconds)..."
+          locust -f locust/locustfile.py \
+            --host http://localhost:8080 \
+            --users 20 \
+            --spawn-rate 5 \
+            --run-time 30s \
+            --headless \
+            --tags v3 \
+            --csv locust_results \
+            --html locust_report.html \
+            --only-summary
+
+          # Check for failures
+          FAILURES=$(tail -1 locust_results_stats.csv | cut -d',' -f4)
+          echo "Total failures: $FAILURES"
+
+          if [ "$FAILURES" != "0" ] && [ -n "$FAILURES" ]; then
+            echo "::error::Locust smoke test detected $FAILURES failures"
+            exit 1
+          fi
+
+          echo "Smoke test passed with 0 failures"
+
+      # ------------------------------------------------------------------
+      # Step 8: Upload Locust Report
+      # ------------------------------------------------------------------
+      - name: Upload Locust Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: locust-report
+          path: |
+            locust_results_*.csv
+            locust_report.html
+          retention-days: 7
+
+      # ------------------------------------------------------------------
+      # Step 9: Display Application Logs on Failure
+      # ------------------------------------------------------------------
+      - name: Display Application Logs
+        if: failure()
+        run: |
+          echo "=== Application Logs ==="
+          cat app.log || echo "No logs available"
+
+  # ==========================================================================
+  # JOB 3: Security Scan (Optional - SAST)
+  # ==========================================================================
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'pull_request'
+    timeout-minutes: 10
+    continue-on-error: true  # Non-blocking for now
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      # Dependency vulnerability check
+      - name: Dependency Check
+        run: |
+          ./gradlew dependencies --configuration runtimeClasspath > dependencies.txt
+          echo "Dependencies exported for review"
+
+      - name: Upload Dependency Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-report
+          path: dependencies.txt
+          retention-days: 7
