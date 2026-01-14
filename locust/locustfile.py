@@ -1,34 +1,205 @@
-from locust import HttpUser, task, between, tag
+"""
+MapleExpectation Load Test Suite
+
+사용법:
+    # V3 기대값 API 테스트 (기본)
+    locust -f locustfile.py --tags v3 -u 50 -r 10 -t 60s --host http://localhost:8080
+
+    # V2 좋아요 API (인증 필요)
+    export NEXON_API_KEY="your_api_key"
+    export LOGIN_IGN="your_character_name"
+    locust -f locustfile.py --tags like_sync_test -u 50 -r 10 -t 60s --host http://localhost:8080
+
+    # 전체 시나리오 (Web UI)
+    locust -f locustfile.py --host http://localhost:8080
+
+재현성 보장:
+    - 테스트 전 캐시 상태 확인: curl http://localhost:8080/actuator/metrics/cache.hit
+    - Warm-up: 각 캐릭터 1회씩 호출 후 본 테스트 진행
+    - 환경 고정: JVM -Xmx512m, Redis maxmemory 256mb, MySQL 기본 설정
+"""
+from locust import HttpUser, task, between, tag, events
+from locust.runners import MasterRunner
+from urllib.parse import quote
 import random
 import os
+import time
+import logging
+
+# 로깅 설정
+logger = logging.getLogger(__name__)
+
+# ============== 응답 검증 유틸리티 ==============
+
+class ResponseValidator:
+    """API 응답 검증 유틸리티"""
+
+    @staticmethod
+    def validate_expectation_response(response, request_name):
+        """
+        기대값 API 응답 검증
+
+        실패 정의:
+        - HTTP 5xx: 서버 오류 (심각)
+        - HTTP 4xx: 클라이언트 오류 (설정 문제)
+        - success=false: 비즈니스 로직 실패 (ApiResponse 래핑 시)
+        - 필수 필드 누락: API 스키마 불일치
+        - expectedCount <= 0: 비정상 계산 결과
+
+        Returns:
+            (is_valid, error_message)
+        """
+        if response.status_code >= 500:
+            return False, f"Server Error: {response.status_code}"
+
+        if response.status_code >= 400:
+            return False, f"Client Error: {response.status_code}"
+
+        try:
+            data = response.json()
+        except Exception as e:
+            return False, f"JSON Parse Error: {str(e)}"
+
+        # ApiResponse 래핑 형식 vs 직접 반환 형식 모두 지원
+        # ApiResponse: {"success": true, "data": {...}}
+        # Direct: {"userIgn": "...", "items": [...]}
+        if "success" in data:
+            # ApiResponse 형식
+            if not data.get("success", False):
+                error_msg = data.get("error", {}).get("message", "Unknown error")
+                return False, f"Business Error: {error_msg}"
+            result = data.get("data", {})
+        else:
+            # Direct 형식 (V3 API)
+            result = data
+
+        # 필수 필드 존재 검증
+        required_fields = ["userIgn", "totalCost", "items"]
+        missing = [f for f in required_fields if f not in result]
+        if missing:
+            return False, f"Missing fields: {missing}"
+
+        # 값 범위 검증 (expectedCount >= 0, 0은 최적 잠재능력 보유 시 정상)
+        items = result.get("items", [])
+        for item in items:
+            expected_count = item.get("expectedCount", -1)
+            if expected_count < 0:
+                return False, f"Invalid expectedCount: {expected_count} for {item.get('itemName')}"
+
+        return True, None
+
+    @staticmethod
+    def validate_like_response(response, request_name):
+        """좋아요 API 응답 검증"""
+        if response.status_code >= 500:
+            return False, f"Server Error: {response.status_code}"
+
+        # 401/403은 인증 문제 (테스트 설정 오류)
+        if response.status_code in [401, 403]:
+            return False, f"Auth Error: {response.status_code} - Check NEXON_API_KEY"
+
+        if response.status_code >= 400:
+            return False, f"Client Error: {response.status_code}"
+
+        try:
+            data = response.json()
+        except Exception as e:
+            return False, f"JSON Parse Error: {str(e)}"
+
+        if not data.get("success", False):
+            # 중복 좋아요, 자기 좋아요 등은 비즈니스 예외 (실패로 카운트 안함)
+            error_code = data.get("error", {}).get("code", "")
+            if error_code in ["DUPLICATE_LIKE", "SELF_LIKE_NOT_ALLOWED"]:
+                return True, None  # 예상된 비즈니스 예외
+            return False, f"Business Error: {data.get('error', {}).get('message', 'Unknown')}"
+
+        return True, None
+
+
+# ============== 테스트 데이터 ==============
+
+# 실제 DB에 존재하는 캐릭터 닉네임 (캐시 상태 확인 용이)
+TEST_CHARACTERS = [
+    "아델", "진격캐넌", "글자", "뉴비렌붕잉", "긱델",
+    "고딩", "물주", "쯔단", "강은호", "팀에이컴퍼니", "흡혈", "꾸장"
+]
+
+# Warm-up용 (캐시 프라이밍)
+WARMUP_CHARACTERS = ["강은호", "아델"]  # 가장 많이 사용되는 캐릭터
+
+
+# ============== 부하 테스트 클래스 ==============
 
 class MapleExpectationLoadTest(HttpUser):
-    """기본 부하 테스트 (인증 없음)"""
-    abstract = True  # 태그 필터링 시 에러 방지
+    """
+    기본 부하 테스트 (인증 없음)
 
-    # 각 작업 사이의 대기 시간 (1~3초 랜덤)
+    테스트 대상:
+    - V3 기대값 API (비동기 파이프라인)
+    - V2 기대값 API (레거시)
+
+    검증 항목:
+    - HTTP 상태 코드 (2xx 성공)
+    - success=true
+    - 필수 필드 존재
+    - expectedCount > 0
+    """
+    # abstract = True 제거 - 실제 실행되도록 변경
+
     wait_time = between(1, 3)
 
-    # 테스트 데이터 (실제 DB에 있는 닉네임으로 설정하면 좋습니다)
-    user_names = ["아델", "진격캐넌", "글자", "뉴비렌붕잉", "긱델", "고딩", "물주", "쯔단", "강은호", "팀에이컴퍼니", "흡혈", "꾸장"]
+    def on_start(self):
+        """테스트 시작 시 Warm-up 실행"""
+        logger.info("[Locust] Starting warm-up phase...")
+        for char in WARMUP_CHARACTERS:
+            try:
+                encoded_char = quote(char, safe='')
+                resp = self.client.get(
+                    f"/api/v3/characters/{encoded_char}/expectation",
+                    name="/warmup/v3/expectation"
+                )
+                logger.info(f"[Warmup] {char}: {resp.status_code}")
+            except Exception as e:
+                logger.warning(f"[Warmup] {char} failed: {e}")
+        logger.info("[Locust] Warm-up completed")
 
-    @tag('v3') # V3 태그 설정
-    @task
+    @tag('v3')
+    @task(3)  # V3가 주요 API이므로 가중치 높임
     def test_v3_expectation(self):
-        user_ign = random.choice(self.user_names)
-        self.client.get(f"/api/v3/characters/{user_ign}/expectation", name="/v3/expectation")
+        """V3 기대값 API 테스트 (비동기 파이프라인)"""
+        user_ign = random.choice(TEST_CHARACTERS)
+        encoded_ign = quote(user_ign, safe='')
+        with self.client.get(
+            f"/api/v3/characters/{encoded_ign}/expectation",
+            name="/v3/expectation",
+            catch_response=True
+        ) as response:
+            is_valid, error_msg = ResponseValidator.validate_expectation_response(
+                response, "/v3/expectation"
+            )
+            if not is_valid:
+                response.failure(error_msg)
+            else:
+                response.success()
 
-    @tag('v2') # V2 태그 설정
-    @task
+    @tag('v2')
+    @task(1)
     def test_v2_expectation_legacy(self):
-        user_ign = random.choice(self.user_names)
-        self.client.get(f"/api/v2/characters/{user_ign}/expectation", name="/v2/expectation")
-
-    @tag('v2_like')
-    @task
-    def test_v2_like_buffering(self):
-        user_ign = random.choice(self.user_names)
-        self.client.post(f"/api/v2/characters/{user_ign}/like", name="/v2/like")
+        """V2 기대값 API 테스트 (레거시)"""
+        user_ign = random.choice(TEST_CHARACTERS)
+        encoded_ign = quote(user_ign, safe='')
+        with self.client.get(
+            f"/api/v2/characters/{encoded_ign}/expectation",
+            name="/v2/expectation",
+            catch_response=True
+        ) as response:
+            is_valid, error_msg = ResponseValidator.validate_expectation_response(
+                response, "/v2/expectation"
+            )
+            if not is_valid:
+                response.failure(error_msg)
+            else:
+                response.success()
 
 
 class LikeSyncLoadTest(HttpUser):
@@ -37,15 +208,19 @@ class LikeSyncLoadTest(HttpUser):
 
     목표: 1,000 TPS 부하 중 동기화 작업 시 유실률 0%
 
+    환경 변수:
+        NEXON_API_KEY: Nexon Open API 키
+        LOGIN_IGN: 로그인용 캐릭터 닉네임
+
     사용법:
         export NEXON_API_KEY="your_api_key"
         export LOGIN_IGN="your_character_name"
         locust -f locustfile.py --tags like_sync_test -u 50 -r 10 -t 60s
     """
+    abstract = True  # --tags v3 필터링 시 인스턴스화 방지
     wait_time = between(0.1, 0.5)  # 고부하를 위해 짧은 대기 시간
 
-    # 좋아요 대상 캐릭터들
-    target_characters = ["아델", "진격캐넌", "글자", "뉴비렌붕잉", "고딩", "물주", "쯔단", "강은호", "팀에이컴퍼니", "흡혈", "꾸장"]
+    target_characters = [c for c in TEST_CHARACTERS if c != os.environ.get("LOGIN_IGN", "긱델")]
 
     def on_start(self):
         """테스트 시작 시 로그인하여 JWT 토큰 획득"""
@@ -53,7 +228,7 @@ class LikeSyncLoadTest(HttpUser):
         login_ign = os.environ.get("LOGIN_IGN", "긱델")
 
         if not api_key:
-            print("[Locust] ERROR: NEXON_API_KEY environment variable not set!")
+            logger.error("[Locust] ERROR: NEXON_API_KEY environment variable not set!")
             self.token = None
             return
 
@@ -70,13 +245,13 @@ class LikeSyncLoadTest(HttpUser):
                     self.client.headers.update({
                         "Authorization": f"Bearer {self.token}"
                     })
-                    print(f"[Locust] Login successful, token acquired")
+                    logger.info(f"[Locust] Login successful for {login_ign}")
                 else:
-                    print(f"[Locust] Login response missing accessToken: {data}")
+                    logger.error(f"[Locust] Login response missing accessToken: {data}")
             else:
-                print(f"[Locust] Login failed: {data}")
+                logger.error(f"[Locust] Login failed: {data}")
         else:
-            print(f"[Locust] Login HTTP error: {response.status_code} - {response.text}")
+            logger.error(f"[Locust] Login HTTP error: {response.status_code}")
             self.token = None
 
     @tag('like_sync_test')
@@ -87,7 +262,37 @@ class LikeSyncLoadTest(HttpUser):
             return
 
         user_ign = random.choice(self.target_characters)
-        self.client.post(
-            f"/api/v2/characters/{user_ign}/like",
-            name="/v2/like (authenticated)"
-        )
+        encoded_ign = quote(user_ign, safe='')
+        with self.client.post(
+            f"/api/v2/characters/{encoded_ign}/like",
+            name="/v2/like (authenticated)",
+            catch_response=True
+        ) as response:
+            is_valid, error_msg = ResponseValidator.validate_like_response(
+                response, "/v2/like"
+            )
+            if not is_valid:
+                response.failure(error_msg)
+            else:
+                response.success()
+
+
+# ============== 테스트 리포트 이벤트 ==============
+
+@events.quitting.add_listener
+def on_quitting(environment, **kwargs):
+    """테스트 종료 시 요약 리포트 출력"""
+    if environment.stats.total.fail_ratio > 0.01:  # 1% 초과 실패
+        logger.warning(f"[ALERT] Failure rate exceeded 1%: {environment.stats.total.fail_ratio:.2%}")
+
+    logger.info("=" * 60)
+    logger.info("Test Summary")
+    logger.info("=" * 60)
+    logger.info(f"Total Requests: {environment.stats.total.num_requests}")
+    logger.info(f"Failures: {environment.stats.total.num_failures}")
+    logger.info(f"Failure Rate: {environment.stats.total.fail_ratio:.2%}")
+    logger.info(f"Median Response Time: {environment.stats.total.median_response_time}ms")
+    logger.info(f"P95 Response Time: {environment.stats.total.get_response_time_percentile(0.95)}ms")
+    logger.info(f"P99 Response Time: {environment.stats.total.get_response_time_percentile(0.99)}ms")
+    logger.info(f"RPS: {environment.stats.total.current_rps}")
+    logger.info("=" * 60)
