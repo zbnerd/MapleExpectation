@@ -10,10 +10,10 @@ import org.springframework.stereotype.Repository;
  *
  * <p>좋아요 동기화를 위한 전역 카운터 관리를 담당합니다.</p>
  *
- * <h2>키 구조 (Hash Tag로 CROSSSLOT 방지)</h2>
+ * <h2>키 구조 (Hash Tag로 CROSSSLOT 방지) - PR #175, #164 수정</h2>
  * <pre>
- * buffer:{likes}:hash        - Hash (사용자별 카운트)
- * buffer:{likes}:total_count - String (전역 대기 카운트)
+ * {buffer:likes}              - Hash (사용자별 카운트)
+ * {buffer:likes}:total_count  - String (전역 대기 카운트)
  * </pre>
  *
  * @see LuaScripts.Keys 키 상수 정의

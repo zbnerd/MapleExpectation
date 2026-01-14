@@ -153,12 +153,29 @@ public class SingleFlightExecutor<T> {
 
     /**
      * Follower 비동기 대기 (타임아웃 + fallback)
+     *
+     * <p><b>P1 Fix (PR #160 Codex 지적):</b>
+     * orTimeout()이 공유 promise를 직접 수정하면 다른 follower에게 전파됨.
+     * 각 follower에게 독립적인 Future를 생성하여 timeout 격리.</p>
+     *
+     * <p>변경 전: leaderFuture.orTimeout() → 공유 promise 오염</p>
+     * <p>변경 후: 독립 Future 생성 후 orTimeout() → follower 간 격리</p>
      */
     private CompletableFuture<T> executeAsFollower(
             String key,
             CompletableFuture<T> leaderFuture) {
 
-        return leaderFuture
+        // P1 Fix: 각 follower에게 독립적인 Future 생성 (공유 promise 보호)
+        CompletableFuture<T> isolatedFuture = new CompletableFuture<>();
+        leaderFuture.whenComplete((result, error) -> {
+            if (error != null) {
+                isolatedFuture.completeExceptionally(error);
+            } else {
+                isolatedFuture.complete(result);
+            }
+        });
+
+        return isolatedFuture
                 .orTimeout(followerTimeoutSeconds, TimeUnit.SECONDS)
                 .exceptionallyCompose(e -> handleFollowerException(key, e));
     }

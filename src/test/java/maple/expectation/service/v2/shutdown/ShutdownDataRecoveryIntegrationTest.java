@@ -41,7 +41,8 @@ class ShutdownDataRecoveryIntegrationTest extends IntegrationTestSupport {
     @Autowired private LikeBufferStorage likeBufferStorage;
     @Autowired private EquipmentPersistenceTracker persistenceTracker;
 
-    private static final String REDIS_HASH_KEY = "buffer:likes";
+    /** Hash Tag 패턴 적용 (LikeSyncService.SOURCE_KEY와 동일) */
+    private static final String REDIS_HASH_KEY = "{buffer:likes}";
 
     @BeforeEach
     void setUp() throws IOException {

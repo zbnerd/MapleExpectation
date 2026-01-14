@@ -26,7 +26,13 @@ public class ShutdownDataRecoveryService {
     private final StringRedisTemplate redisTemplate;
     private final LogicExecutor executor; // ✅ 지능형 실행기 주입
 
-    private static final String REDIS_HASH_KEY = "buffer:likes";
+    /**
+     * Redis Hash Key (LikeSyncService.SOURCE_KEY와 동일)
+     *
+     * <p>CRITICAL FIX (PR #175, #164 Codex 지적):
+     * Hash Tag 패턴 적용으로 LikeSyncService와 키 일치 보장</p>
+     */
+    private static final String REDIS_HASH_KEY = "{buffer:likes}";
 
     @PostConstruct
     public void recoverFromBackup() {
