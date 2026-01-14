@@ -14,6 +14,38 @@
 
 ---
 
+## 🚀 QuickStart (2-3분)
+
+> Docker와 JDK 17이 설치되어 있어야 합니다.
+
+### Step 1: 인프라 + 서버 구동
+
+```bash
+# 터미널 1: 인프라 구동 (MySQL, Redis)
+docker-compose up -d
+
+# 터미널 2: 애플리케이션 시작 (첫 실행 시 빌드 포함)
+./gradlew bootRun --args='--spring.profiles.active=local'
+```
+
+### Step 2: 동작 확인
+
+```bash
+# Health Check (서버 준비 확인)
+curl http://localhost:8080/actuator/health
+
+# 핵심 API 호출 (V3 기대값 계산 - 인증 불필요)
+curl "http://localhost:8080/api/v3/characters/%EA%B0%95%EC%9D%80%ED%98%B8/expectation"
+```
+
+**예상 결과:**
+- Health: `{"status":"UP"}`
+- API: `{"userIgn":"강은호", "totalCost":..., "items":[...]}`
+
+> ⚠️ **첫 호출 시 Cold Cache**로 인해 290ms~690ms 소요될 수 있습니다. (Nexon API 호출 포함)
+
+---
+
 ## ⚠️ Engineering Standards & Operational Reality
 
 ### 1. Performance Context (Benchmark Conditions)
