@@ -2,7 +2,7 @@
 
 ## 개요
 
-동적 프로그래밍(DP)으로 큐브 기대값을 계산합니다. 확률 조합 및 기대 횟수 계산에 BigDecimal을 사용하여 정밀도를 보장합니다.
+동적 프로그래밍(DP)으로 큐브 기대값을 계산합니다. Kahan Summation Algorithm을 적용한 double 연산으로 부동소수점 오차를 최소화합니다. (재미용 서비스 특성상 금융급 BigDecimal 정확도 불필요)
 
 ## 전체 계산 시퀀스
 
@@ -35,13 +35,13 @@ sequenceDiagram
 
         CS->>RC: getOptionRate(cubeType, level, part, grade, line, option)
         RC->>RP: findProbabilities(...)
-        RP-->>RC: Map<String, BigDecimal>
-        RC-->>CS: BigDecimal rate
+        RP-->>RC: Map<String, Double>
+        RC-->>CS: Double rate
 
         CS->>DP: calculateWithCache(input, cubeType, tableVersion)
         DP->>PC: convolve(probabilities, targetSum)
         Note over PC: O(slots × target × K)
-        PC-->>DP: BigDecimal expectedTrials
+        PC-->>DP: Double expectedTrials
         DP-->>CS: expectedTrials
 
         CS-->>SV: expectedTrials
@@ -100,7 +100,7 @@ sequenceDiagram
     PC->>PC: 1 - Σ P(X >= target)
     Note over PC: 기대 횟수 = 1 / P(success)
 
-    PC-->>DP: BigDecimal expectedTrials
+    PC-->>DP: Double expectedTrials
 ```
 
 **복잡도:** O(slots × target × K)
@@ -126,31 +126,25 @@ sequenceDiagram
 
 ## 정밀도 보장
 
-### BigDecimal 사용
+### Kahan Summation Algorithm (double 기반)
+
+고성능 double 연산을 사용하되, Kahan Summation으로 부동소수점 오차 누적을 최소화합니다.
 
 ```java
-// ❌ Bad (double 정밀도 손실)
-double probability = 0.1 + 0.2;  // 0.30000000000000004
+// Kahan Summation: 부동소수점 합산 시 오차 누적 방지
+double sum = 0.0;
+double c = 0.0;  // 보정값
 
-// ✅ Good (BigDecimal 정밀도)
-BigDecimal probability = new BigDecimal("0.1")
-    .add(new BigDecimal("0.2"));  // 0.3
-```
-
-### Kahan Summation
-
-```java
-// 부동소수점 합산 시 오차 누적 방지
-BigDecimal sum = BigDecimal.ZERO;
-BigDecimal c = BigDecimal.ZERO;  // 보정값
-
-for (BigDecimal value : values) {
-    BigDecimal y = value.subtract(c);
-    BigDecimal t = sum.add(y);
-    c = t.subtract(sum).subtract(y);
+for (double value : values) {
+    double y = value - c;
+    double t = sum + y;
+    c = (t - sum) - y;  // 손실된 정밀도 보정
     sum = t;
 }
 ```
+
+> **설계 결정:** 금융급 정확도가 필요한 서비스가 아니므로 BigDecimal 대신 고성능 double + Kahan Summation 조합을 선택했습니다.
+> 확률 계산에서 10^-12 수준의 오차는 기대값 시뮬레이션에 무시 가능한 영향만 미칩니다.
 
 ## 캐시 키 구조
 

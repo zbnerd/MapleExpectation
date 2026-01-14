@@ -192,9 +192,9 @@ locust -f locustfile.py --tags v3 -u 50 -t 60s
 
 | 테스트 | 검증 내용 |
 |--------|----------|
-| BigDecimal 정밀도 | double vs BigDecimal 비교 |
+| Kahan Summation 정밀도 | double 오차 누적 방지 검증 |
 | API Key 마스킹 | toString() 평문 노출 금지 |
-| RoundingMode 명시 | 비결정적 나눗셈 방지 |
+| 확률 합계 불변식 | Σprob = 1.0 (오차범위 10^-12) |
 
 ### 5.5 Red Agent (SRE-Gatekeeper)
 

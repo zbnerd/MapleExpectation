@@ -1283,8 +1283,8 @@ public AtomicLong getCounter(String userIgn) {
     * **Mandate:** JUnit 5, Mockito, Testcontainers, Locust, Edge Case 발굴.
     * **Check:** "테스트 커버리지가 충분한가?", "경계값(Boundary)에서 터지지 않는가?"
 * **🟪 Purple: Financial-Grade-Auditor (The Sheriff)**
-    * **Mandate:** 무결성(Integrity), 보안(Security), BigDecimal 연산, 트랜잭션 검증.
-    * **Check:** "돈/확률 계산에 오차가 없는가?", "PII 정보가 로그에 남지 않는가?"
+    * **Mandate:** 무결성(Integrity), 보안(Security), Kahan Summation 정밀도, 트랜잭션 검증.
+    * **Check:** "확률 계산에 오차 누적이 없는가?", "PII 정보가 로그에 남지 않는가?"
 * **🟥 Red: SRE-Gatekeeper (The Guardian)**
     * **Mandate:** Resilience(Circuit Breaker, Timeout), Thread Pool, Config, Infra.
     * **Check:** "서버가 죽지 않는 설정인가?", "CallerRunsPolicy 같은 폭탄이 없는가?"

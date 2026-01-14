@@ -266,8 +266,8 @@ locust -f locust/locustfile.py --tags like_sync_test --headless -u 50 -r 10 -t 6
 
 
 **정밀도 보장:**
-- BigDecimal 연산 (double 변환 금지)
-- Kahan Summation Algorithm
+- Kahan Summation Algorithm (부동소수점 오차 최소화)
+- double 기반 고성능 연산 (재미용 서비스 특성상 금융급 정확도 불필요)
 
 **시퀀스 다이어그램:** [docs/dp-calculator-sequence.md](docs/dp-calculator-sequence.md)
 
