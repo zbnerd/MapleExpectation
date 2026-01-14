@@ -41,24 +41,8 @@
 
 시스템 과부하 시 **503 Service Unavailable + Retry-After 헤더**로 클라이언트에 재시도를 안내합니다.
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                 Backpressure Response Flow                   │
-│                                                              │
-│   요청 ───▶ ThreadPool Queue ───▶ Queue Full?                │
-│                                       │                      │
-│                    ┌─────────────────┴───────────────┐       │
-│                    │ YES                          NO │       │
-│                    ▼                                 ▼       │
-│           RejectedExecutionException          정상 처리     │
-│                    │                                         │
-│                    ▼                                         │
-│           GlobalExceptionHandler                             │
-│                    │                                         │
-│                    ▼                                         │
-│   HTTP 503 + Header: Retry-After: 60                        │
-└──────────────────────────────────────────────────────────────┘
-```
+<img width="771" height="503" alt="image" src="https://github.com/user-attachments/assets/adf69973-1c96-47b7-9750-3aa55b4e64d7" />
+
 
 **설정값:**
 | 항목 | 값 | 설명 |
@@ -156,19 +140,8 @@ locust -f locust/locustfile.py --tags like_sync_test --headless -u 50 -r 10 -t 6
 
 실행 흐름 추상화를 통해 **try-catch 제거** 및 **일관된 예외 처리**를 제공합니다.
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    LogicExecutor                             │
-│  ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐   │
-│  │ BEFORE  │───▶│  TASK   │───▶│ON_SUCCESS│───▶│  AFTER  │   │
-│  └─────────┘    └────┬────┘    └─────────┘    └─────────┘   │
-│                      │                                       │
-│                      ▼ (예외 발생 시)                         │
-│                ┌──────────┐                                  │
-│                │ON_FAILURE│───▶ ExceptionTranslator          │
-│                └──────────┘                                  │
-└─────────────────────────────────────────────────────────────┘
-```
+<img width="756" height="362" alt="image" src="https://github.com/user-attachments/assets/a43b8f43-fd49-489c-ab24-4c91a27584f5" />
+
 
 **핵심 메서드:**
 | 메서드 | 용도 |
@@ -187,20 +160,8 @@ locust -f locust/locustfile.py --tags like_sync_test --headless -u 50 -r 10 -t 6
 
 외부 API 장애가 내부로 전파되지 않도록 **서킷브레이커** 패턴을 적용합니다.
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                 CircuitBreaker 상태 전이                      │
-│                                                              │
-│    ┌────────┐    실패율 50% 초과    ┌────────┐               │
-│    │ CLOSED │ ───────────────────▶ │  OPEN  │               │
-│    └────────┘                      └───┬────┘               │
-│         ▲                              │                    │
-│         │ 성공 3회                      │ 10초 대기          │
-│    ┌────┴─────┐                        ▼                    │
-│    │HALF_OPEN │◀──────────────────────┘                    │
-│    └──────────┘                                             │
-└─────────────────────────────────────────────────────────────┘
-```
+<img width="626" height="364" alt="image" src="https://github.com/user-attachments/assets/373b1203-55b7-4c94-99df-2b85c927d1b9" />
+
 
 **설정값:**
 | CircuitBreaker | 실패율 임계치 | 대기 시간 | Half-Open 허용 |
@@ -220,28 +181,9 @@ locust -f locust/locustfile.py --tags like_sync_test --headless -u 50 -r 10 -t 6
 
 **Multi-Layer 캐시**와 **분산 Single-flight** 패턴으로 Cache Stampede를 방지합니다.
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     TieredCache 흐름                         │
-│                                                              │
-│   요청 ───▶ L1 (Caffeine) ─── HIT ───▶ 반환                  │
-│                │                                             │
-│               MISS                                           │
-│                ▼                                             │
-│            L2 (Redis) ─── HIT ───▶ L1 Backfill ───▶ 반환     │
-│                │                                             │
-│               MISS                                           │
-│                ▼                                             │
-│         분산 락 획득 (Redisson)                               │
-│                │                                             │
-│                ▼                                             │
-│     ┌─── Leader ───┐    ┌─── Follower ───┐                  │
-│     │ API 호출     │    │ L2 대기 후     │                  │
-│     │ L2 저장      │    │ L2 읽기        │                  │
-│     │ L1 저장      │    │ L1 Backfill    │                  │
-│     └──────────────┘    └────────────────┘                  │
-└─────────────────────────────────────────────────────────────┘
-```
+
+<img width="728" height="523" alt="image" src="https://github.com/user-attachments/assets/b3ad5614-2ef7-4cda-b29f-cdcdec44dc9e" />
+
 
 **핵심 규칙:**
 - **Write Order:** L2 → L1 (원자성 보장)
@@ -256,30 +198,8 @@ locust -f locust/locustfile.py --tags like_sync_test --headless -u 50 -r 10 -t 6
 
 **톰캣 스레드 즉시 반환**(0ms 목표)으로 고처리량 API를 구현합니다.
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                Async Pipeline 흐름                           │
-│                                                              │
-│   HTTP 요청                                                  │
-│       │                                                      │
-│       ▼                                                      │
-│   ┌─────────────────────────────────────┐                   │
-│   │  Controller (http-nio-*)            │ ◀── 즉시 반환 0ms  │
-│   │  return CompletableFuture           │                   │
-│   └──────────────┬──────────────────────┘                   │
-│                  │ supplyAsync()                            │
-│                  ▼                                          │
-│   ┌─────────────────────────────────────┐                   │
-│   │  expectation-* 스레드               │                   │
-│   │  LightSnapshot → 캐시 확인          │                   │
-│   │  FullSnapshot (MISS 시)             │                   │
-│   │  계산 → 캐시 저장                    │                   │
-│   └──────────────┬──────────────────────┘                   │
-│                  │ thenApply()                              │
-│                  ▼                                          │
-│   HTTP 응답 (비동기 완료)                                    │
-└─────────────────────────────────────────────────────────────┘
-```
+<img width="525" height="551" alt="image" src="https://github.com/user-attachments/assets/792c224c-7fc6-41f7-82ba-d43438bede85" />
+
 
 **Two-Phase Snapshot:**
 | Phase | 목적 | 로드 데이터 |
@@ -295,39 +215,8 @@ locust -f locust/locustfile.py --tags like_sync_test --headless -u 50 -r 10 -t 6
 
 **4단계 순차 종료**로 진행 중인 작업과 데이터를 안전하게 보존합니다.
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│              Graceful Shutdown 4단계                         │
-│                                                              │
-│   SIGTERM 수신                                               │
-│       │                                                      │
-│       ▼                                                      │
-│   ┌─────────────────────────────────────┐                   │
-│   │ Phase 1: 새 요청 거부              │ (즉시)             │
-│   │ - Executor 새 작업 제출 중단        │                   │
-│   └──────────────┬──────────────────────┘                   │
-│                  ▼                                          │
-│   ┌─────────────────────────────────────┐                   │
-│   │ Phase 2: 진행 중 작업 완료 대기     │ (최대 20초)       │
-│   │ - awaitTermination()               │                   │
-│   └──────────────┬──────────────────────┘                   │
-│                  ▼                                          │
-│   ┌─────────────────────────────────────┐                   │
-│   │ Phase 3: 캐시 및 버퍼 플러시        │ (최대 10초)       │
-│   │ - Redis 캐시 동기화                 │                   │
-│   │ - 좋아요 버퍼 DB 반영               │                   │
-│   └──────────────┬──────────────────────┘                   │
-│                  ▼                                          │
-│   ┌─────────────────────────────────────┐                   │
-│   │ Phase 4: 커넥션 종료               │ (최대 10초)       │
-│   │ - DB 커넥션 풀 정리                 │                   │
-│   │ - Redis 연결 종료                   │                   │
-│   └─────────────────────────────────────┘                   │
-│                  │                                          │
-│                  ▼                                          │
-│   총 타임아웃: 50초 (SmartLifecycle)                        │
-└─────────────────────────────────────────────────────────────┘
-```
+<img width="362" height="689" alt="image" src="https://github.com/user-attachments/assets/70ce9987-1a8f-430f-b4ae-2184a7b16973" />
+
 
 **DLQ (Dead Letter Queue):**
 - 복구 실패 시 `LikeSyncFailedEvent` 발행
@@ -341,34 +230,8 @@ locust -f locust/locustfile.py --tags like_sync_test --headless -u 50 -r 10 -t 6
 
 **동적 프로그래밍(DP)**으로 큐브 기대값을 계산합니다.
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│              CubeDpCalculator 흐름                           │
-│                                                              │
-│   입력: 장비 옵션 목록, 큐브 타입                             │
-│       │                                                      │
-│       ▼                                                      │
-│   ┌─────────────────────────────────────┐                   │
-│   │ DpModeInferrer                      │                   │
-│   │ - 연산 모드 결정 (Normal/Weighted)   │                   │
-│   │ - 필드 자동 설정                     │                   │
-│   └──────────────┬──────────────────────┘                   │
-│                  ▼                                          │
-│   ┌─────────────────────────────────────┐                   │
-│   │ CubeRateCalculator                  │                   │
-│   │ - 옵션별 확률 조회                   │                   │
-│   │ - CubeProbabilityRepository 참조    │                   │
-│   └──────────────┬──────────────────────┘                   │
-│                  ▼                                          │
-│   ┌─────────────────────────────────────┐                   │
-│   │ ProbabilityConvolver                │                   │
-│   │ - 3줄 확률 합산 (Convolution)        │                   │
-│   │ - O(slots × target × K) 복잡도      │                   │
-│   └──────────────┬──────────────────────┘                   │
-│                  ▼                                          │
-│   출력: 기대 횟수, 기대 비용                                 │
-└─────────────────────────────────────────────────────────────┘
-```
+<img width="239" height="549" alt="image" src="https://github.com/user-attachments/assets/ef52dd64-4b6c-473f-a730-1d6bec86bf90" />
+
 
 **정밀도 보장:**
 - BigDecimal 연산 (double 변환 금지)
