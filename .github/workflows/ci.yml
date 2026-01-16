@@ -255,6 +255,7 @@ jobs:
           SPRING_PROFILES_ACTIVE: test
           NEXON_API_KEY: dummy-ci-key
           JWT_SECRET: ci-test-secret-key-for-jwt-token-generation-32chars
+          FINGERPRINT_SECRET: ci-test-fingerprint-secret-key-32chars
 
       # ------------------------------------------------------------------
       # Step 7: Run Locust Smoke Test
