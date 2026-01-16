@@ -111,6 +111,29 @@ public class GlobalExceptionHandler {
                 .body(body);
     }
 
+    // ==================== Issue #168: Executor 관련 예외 처리 ====================
+
+    /**
+     * [Issue #168 + PR #176 Codex Fix] RejectedExecutionException 직접 처리
+     *
+     * <p>AbortPolicy가 던지는 RejectedExecutionException은 동기 예외로 발생하여
+     * CompletionException으로 감싸지지 않음. 이 경우 generic Exception 핸들러가
+     * 처리하여 500을 반환하는 버그가 있었음.</p>
+     *
+     * <h4>P1 Fix (PR #176 Codex 지적)</h4>
+     * <ul>
+     *   <li>변경 전: RejectedExecutionException → generic handler → 500</li>
+     *   <li>변경 후: 전용 핸들러 추가 → 503 + Retry-After 60s</li>
+     * </ul>
+     *
+     * @return 503 Service Unavailable + Retry-After 헤더
+     */
+    @ExceptionHandler(RejectedExecutionException.class)
+    protected ResponseEntity<ErrorResponse> handleRejectedExecution(RejectedExecutionException e) {
+        log.warn("Task rejected (executor queue full - direct throw): {}", e.getMessage());
+        return buildServiceUnavailableResponse(60);  // 60초 후 재시도 권장
+    }
+
     // ==================== Issue #151: Bean Validation 처리 ====================
 
     /**

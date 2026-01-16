@@ -11,10 +11,11 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -26,7 +27,22 @@ public class ShutdownDataRecoveryService {
     private final StringRedisTemplate redisTemplate;
     private final LogicExecutor executor; // ✅ 지능형 실행기 주입
 
-    private static final String REDIS_HASH_KEY = "buffer:likes";
+    /**
+     * Redis Hash Key (LikeSyncService.SOURCE_KEY와 동일)
+     *
+     * <p>CRITICAL FIX (PR #175, #164 Codex 지적):
+     * Hash Tag 패턴 적용으로 LikeSyncService와 키 일치 보장</p>
+     */
+    private static final String REDIS_HASH_KEY = "{buffer:likes}";
+
+    /**
+     * 멱등성 보장용 Redis Set Key (Issue #127)
+     *
+     * <p>복구 프로세스가 중복 실행되어도 동일 항목이 재처리되지 않도록
+     * 처리 완료된 항목을 추적합니다.</p>
+     */
+    private static final String PROCESSED_SET_KEY = "{recovery}:processed";
+    private static final Duration PROCESSED_SET_TTL = Duration.ofHours(24);
 
     @PostConstruct
     public void recoverFromBackup() {
@@ -107,6 +123,13 @@ public class ShutdownDataRecoveryService {
     /**
      * P1 Fix: 실패 항목만 수집하여 반환 (부분 복구 중복 방지)
      *
+     * <p>Issue #127 Fix: 멱등성 보장</p>
+     * <ul>
+     *   <li>Redis Set으로 처리 완료 항목 추적</li>
+     *   <li>중복 실행 시 이미 처리된 항목 스킵</li>
+     *   <li>24시간 TTL로 메모리 누수 방지</li>
+     * </ul>
+     *
      * @return 복구 실패한 항목들 (성공 시 빈 Map)
      */
     private Map<String, Long> recoverLikeBufferAndCollectFailures(ShutdownData data) {
@@ -114,13 +137,27 @@ public class ShutdownDataRecoveryService {
         if (likeBuffer == null || likeBuffer.isEmpty()) return Map.of();
 
         Map<String, Long> failedEntries = new java.util.concurrent.ConcurrentHashMap<>();
+        String recoveryBatchId = UUID.randomUUID().toString();
 
         likeBuffer.forEach((userIgn, count) -> {
+            String entryId = recoveryBatchId + ":" + userIgn;
             TaskContext entryContext = TaskContext.of("Recovery", "LikeEntry", userIgn);
 
             executor.executeOrCatch(
                     () -> {
+                        // Issue #127: 멱등성 체크 - 이미 처리된 항목 스킵
+                        if (Boolean.TRUE.equals(redisTemplate.opsForSet().isMember(PROCESSED_SET_KEY, entryId))) {
+                            log.debug("⏭️ [Shutdown Recovery] 이미 처리됨, 스킵: {}", userIgn);
+                            return null;
+                        }
+
+                        // Redis Hash에 좋아요 수 복구
                         redisTemplate.opsForHash().increment(REDIS_HASH_KEY, userIgn, count);
+
+                        // 처리 완료 마킹 (멱등성 보장)
+                        redisTemplate.opsForSet().add(PROCESSED_SET_KEY, entryId);
+                        redisTemplate.expire(PROCESSED_SET_KEY, PROCESSED_SET_TTL);
+
                         log.debug("✅ [Shutdown Recovery] Redis 복구 성공: {} ({}건)", userIgn, count);
                         return null;
                     },

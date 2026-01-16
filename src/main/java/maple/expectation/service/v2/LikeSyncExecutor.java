@@ -3,6 +3,7 @@ package maple.expectation.service.v2;
 import lombok.RequiredArgsConstructor;
 import maple.expectation.repository.v2.GameCharacterRepository;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,10 +15,20 @@ public class LikeSyncExecutor {
 
     /**
      * 개별 유저의 좋아요 수를 DB에 물리적으로 반영
-     * Propagation.REQUIRES_NEW: 각 유저별로 독립된 트랜잭션을 보장하여
-     * 한 명이라도 실패해도 다른 유저의 동기화에 영향을 주지 않음.
+     *
+     * <p>Propagation.REQUIRES_NEW: 각 유저별로 독립된 트랜잭션을 보장하여
+     * 한 명이라도 실패해도 다른 유저의 동기화에 영향을 주지 않음.</p>
+     *
+     * <p>Issue #81 Fix: READ_COMMITTED 격리 수준</p>
+     * <ul>
+     *   <li>기본값 REPEATABLE_READ에서 발생하는 Gap Lock 제거</li>
+     *   <li>동시 UPDATE 시 데드락 방지</li>
+     * </ul>
      */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional(
+            propagation = Propagation.REQUIRES_NEW,
+            isolation = Isolation.READ_COMMITTED
+    )
     public void executeIncrement(String userIgn, long count) {
         gameCharacterRepository.incrementLikeCount(userIgn, count);
     }

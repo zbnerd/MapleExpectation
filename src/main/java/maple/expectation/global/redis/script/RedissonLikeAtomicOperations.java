@@ -28,8 +28,8 @@ import java.util.Objects;
  *   <li>관측성: 실행 시간, 실패 횟수 메트릭 수집</li>
  * </ul>
  *
- * <h2>Hash Tag</h2>
- * <p>모든 키는 {likes} Hash Tag를 사용하여 Redis Cluster CROSSSLOT 에러를 방지합니다.</p>
+ * <h2>Hash Tag (CRITICAL FIX - PR #175, #164)</h2>
+ * <p>모든 키는 {buffer:likes} Hash Tag를 사용하여 Redis Cluster CROSSSLOT 에러를 방지합니다.</p>
  */
 @Slf4j
 @Component
