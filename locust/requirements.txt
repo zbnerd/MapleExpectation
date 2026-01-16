@@ -1,0 +1,3 @@
+# Locust load testing dependencies
+# See: https://docs.locust.io/en/stable/installation.html
+locust>=2.0.0

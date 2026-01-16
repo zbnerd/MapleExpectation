@@ -1,28 +1,47 @@
 package maple.expectation.service.v2.donation.event;
 
 import lombok.RequiredArgsConstructor;
-import maple.expectation.global.error.exception.DeveloperNotFoundException;
-import maple.expectation.global.error.exception.InsufficientPointException;
-import maple.expectation.repository.v2.MemberRepository;
+import lombok.extern.slf4j.Slf4j;
+import maple.expectation.service.v2.donation.PaymentStrategy;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * 도네이션 결제 처리기 (Orchestrator)
+ *
+ * <p>Strategy Pattern을 통해 결제 방식을 위임합니다.
+ * 현재는 내부 포인트 시스템만 지원하며, 추후 포트원 결제 등
+ * 새로운 결제 방식 추가 시 PaymentStrategy 구현체만 추가하면 됩니다.</p>
+ *
+ * <h3>SOLID 원칙:</h3>
+ * <ul>
+ *   <li>SRP: 이 클래스는 오케스트레이션만 담당</li>
+ *   <li>OCP: 새 결제 방식 추가 시 이 클래스 수정 불필요</li>
+ *   <li>DIP: 구체 클래스가 아닌 PaymentStrategy 인터페이스에 의존</li>
+ * </ul>
+ *
+ * @see PaymentStrategy
+ */
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class DonationProcessor {
-    private final MemberRepository memberRepository;
 
-    @Transactional(propagation = Propagation.MANDATORY) // 반드시 기존 트랜잭션 내에서 실행
-    public void executeTransfer(String guestUuid, Long developerId, Long amount) {
-        // 1. 잔액 차감
-        if (memberRepository.decreasePoint(guestUuid, amount) == 0) {
-            throw new InsufficientPointException("이체 실패: 잔액 부족 또는 유효하지 않은 게스트");
-        }
+    private final PaymentStrategy paymentStrategy;
 
-        // 2. 포인트 증가
-        if (memberRepository.increasePoint(developerId, amount) == 0) {
-            throw new DeveloperNotFoundException(developerId.toString());
-        }
+    /**
+     * Admin에게 결제 처리
+     *
+     * <p>반드시 기존 트랜잭션 내에서 실행되어야 합니다 (MANDATORY).</p>
+     *
+     * @param senderUuid          발신자 UUID
+     * @param receiverFingerprint 수신자 Admin fingerprint
+     * @param amount              결제 금액
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void executeTransferToAdmin(String senderUuid, String receiverFingerprint, Long amount) {
+        log.debug("[DonationProcessor] Delegating to strategy: {}", paymentStrategy.getStrategyName());
+        paymentStrategy.processPayment(senderUuid, receiverFingerprint, amount);
     }
 }

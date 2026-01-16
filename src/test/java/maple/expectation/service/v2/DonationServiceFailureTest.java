@@ -1,11 +1,14 @@
 package maple.expectation.service.v2;
 
 import maple.expectation.global.common.function.ThrowingSupplier;
+import maple.expectation.global.error.exception.AdminNotFoundException;
 import maple.expectation.global.error.exception.CriticalTransactionFailureException;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.global.executor.function.ThrowingRunnable;
 import maple.expectation.repository.v2.DonationHistoryRepository;
+import maple.expectation.repository.v2.DonationOutboxRepository;
+import maple.expectation.service.v2.auth.AdminService;
 import maple.expectation.service.v2.donation.event.DonationProcessor;
 import maple.expectation.service.v2.donation.listener.DonationFailedEvent;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,21 +28,31 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.*;
 
+/**
+ * DonationService 실패 시나리오 단위 테스트
+ *
+ * <p>치명적인 시스템 예외 발생 시 DonationFailedEvent가 발행되고
+ * CriticalTransactionFailureException이 던져지는지 검증합니다.</p>
+ */
 @ExtendWith(MockitoExtension.class)
 class DonationServiceFailureTest {
 
     @Mock DonationHistoryRepository donationHistoryRepository;
+    @Mock DonationOutboxRepository donationOutboxRepository;
     @Mock ApplicationEventPublisher eventPublisher;
     @Mock DonationProcessor donationProcessor;
-    @Mock LogicExecutor executor; // 🚀 잊지 말고 Mock 추가
+    @Mock AdminService adminService;
+    @Mock LogicExecutor executor;
 
     @InjectMocks
     DonationService donationService;
 
+    private static final String VALID_ADMIN_FINGERPRINT = "test-admin-fingerprint";
+    private static final String INVALID_ADMIN_FINGERPRINT = "invalid-fingerprint";
+
     @BeforeEach
     void setUp() {
-        // 🚀 [핵심] LogicExecutor Mock이 내부 람다를 실제로 '호출'하게 만듭니다.
-        // Ambiguous call 방지를 위해 정확한 타입을 지정합니다.
+        // LogicExecutor Mock - 람다 실제 실행
         lenient().when(executor.executeOrCatch(
                 any(ThrowingSupplier.class),
                 any(Function.class),
@@ -48,15 +61,14 @@ class DonationServiceFailureTest {
             ThrowingSupplier<?> task = invocation.getArgument(0);
             Function<Throwable, ?> recovery = invocation.getArgument(1);
             try {
-                return task.get(); // 1. 우선 정상 로직 실행 시도
+                return task.get();
             } catch (Throwable e) {
-                return recovery.apply(e); // 2. 에러 나면 복구 로직 실행
+                return recovery.apply(e);
             }
         });
 
-        // saveHistory 등에서 사용하는 executeVoid도 대응
         lenient().doAnswer(invocation -> {
-            ((maple.expectation.global.executor.function.ThrowingRunnable) invocation.getArgument(0)).run();
+            ((ThrowingRunnable) invocation.getArgument(0)).run();
             return null;
         }).when(executor).executeVoid((ThrowingRunnable) any(), (TaskContext) any());
     }
@@ -68,18 +80,37 @@ class DonationServiceFailureTest {
         String guestUuid = "guest-123";
         String requestId = "req-123";
 
+        given(adminService.isAdmin(VALID_ADMIN_FINGERPRINT)).willReturn(true);
         given(donationHistoryRepository.existsByRequestId(requestId)).willReturn(false);
 
         // Processor에서 런타임 예외 발생 유도
         willThrow(new RuntimeException("DB Connection Refused"))
-                .given(donationProcessor).executeTransfer(anyString(), anyLong(), anyLong());
+                .given(donationProcessor).executeTransferToAdmin(anyString(), anyString(), anyLong());
 
         // 2. When & Then
         assertThatThrownBy(() ->
-                donationService.sendCoffee(guestUuid, 999L, 1000L, requestId)
+                donationService.sendCoffee(guestUuid, VALID_ADMIN_FINGERPRINT, 1000L, requestId)
         ).isInstanceOf(CriticalTransactionFailureException.class);
 
         // 3. 검증: 이벤트 발행 확인
         verify(eventPublisher, times(1)).publishEvent(any(DonationFailedEvent.class));
+    }
+
+    @Test
+    @DisplayName("유효하지 않은 Admin fingerprint로 요청 시 AdminNotFoundException이 발생한다.")
+    void invalidAdminFingerprintTest() {
+        // 1. Given
+        String guestUuid = "guest-123";
+        String requestId = "req-456";
+
+        given(adminService.isAdmin(INVALID_ADMIN_FINGERPRINT)).willReturn(false);
+
+        // 2. When & Then
+        assertThatThrownBy(() ->
+                donationService.sendCoffee(guestUuid, INVALID_ADMIN_FINGERPRINT, 1000L, requestId)
+        ).isInstanceOf(AdminNotFoundException.class);
+
+        // 3. 검증: Processor가 호출되지 않음
+        verify(donationProcessor, never()).executeTransferToAdmin(anyString(), anyString(), anyLong());
     }
 }

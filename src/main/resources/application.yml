@@ -171,10 +171,10 @@ like:
 # BYOK 인증 설정 (Issue #146)
 auth:
   jwt:
-    secret: ${JWT_SECRET:dev-secret-key-must-be-at-least-32-characters-long}
+    secret: ${JWT_SECRET}  # 필수 환경변수 (미설정 시 앱 시작 실패)
     expiration: 1800  # 30분 (초)
   fingerprint:
-    secret: ${FINGERPRINT_SECRET:fingerprint-secret-key-for-hmac-sha256}
+    secret: ${FINGERPRINT_SECRET}  # 필수 환경변수 (미설정 시 앱 시작 실패)
   admin:
     allowlist: ${ADMIN_FINGERPRINTS:}  # 쉼표 구분 fingerprint 목록
   session:
@@ -187,3 +187,4 @@ cors:
     - "http://localhost:3000"  # 기본값 (환경별 오버라이드 필수)
   allow-credentials: true
   max-age: 3600  # 1시간
+
