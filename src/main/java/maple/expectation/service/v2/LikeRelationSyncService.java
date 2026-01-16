@@ -11,6 +11,7 @@ import maple.expectation.service.v2.cache.LikeRelationBuffer;
 import org.redisson.api.RSet;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
@@ -61,7 +62,7 @@ public class LikeRelationSyncService {
      * </p>
      */
     @ObservedTransaction("scheduler.like.relation_sync")
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public SyncResult syncRedisToDatabase() {
         RSet<String> pendingSet = likeRelationBuffer.getPendingSet();
         Set<String> pendingKeys = pendingSet.readAll();

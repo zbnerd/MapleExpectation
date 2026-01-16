@@ -130,6 +130,31 @@ public class ShutdownDataPersistenceService {
     }
 
     /**
+     * Outbox 데이터를 파일로 백업합니다. (Triple Safety Net 2차)
+     *
+     * <p>DLQ DB 저장 실패 시 최후의 데이터 보존 수단입니다.</p>
+     *
+     * @param requestId 요청 ID
+     * @param payload   JSON 페이로드
+     */
+    public void appendOutboxEntry(String requestId, String payload) {
+        TaskContext context = TaskContext.of("Persistence", "AppendOutbox", requestId);
+
+        executor.executeVoid(() -> {
+            Path outboxBackupDir = Paths.get(backupDirectory, "outbox-dlq");
+            Files.createDirectories(outboxBackupDir);
+
+            String filename = String.format("outbox-%s-%s.json",
+                    LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")),
+                    requestId);
+            Path targetFile = outboxBackupDir.resolve(filename);
+
+            Files.writeString(targetFile, payload, StandardOpenOption.CREATE_NEW);
+            log.warn("💾 [Persistence] Outbox 백업 완료: {}", filename);
+        }, context);
+    }
+
+    /**
      * 처리되지 않은 장비 목록을 백업 파일에 추가합니다.
      *
      * <p>P1 Fix: 고정 파일명 + 원자적 교체로 중복 파일 생성 방지</p>
