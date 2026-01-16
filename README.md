@@ -1,5 +1,33 @@
 # MapleExpectation
 
+## 👀 TLDR — How to Read This Repository (For Reviewers)
+
+> 이 프로젝트는 **“기능 구현”이 아니라 “운영 가능한 백엔드 시스템을 어떻게 설계했는지”**를 보여주기 위한 개인 프로젝트입니다.
+
+### ✅ 2분만 볼 경우
+- **Performance 섹션**: 실제 수치 기반 성능 결과 (RPS / p95 / 실패율)
+- **QuickStart**: 로컬에서 바로 실행 가능 여부
+- **Professional Summary**: 이 프로젝트로 증명하고 싶은 엔지니어링 역량
+
+### 🧠 10분 더 볼 경우
+- **Engineering Standards & Operational Reality**
+  - Backpressure
+  - Timeout Layering
+  - SLA/SLO 설계
+- **핵심 모듈 아키텍처**
+  - LogicExecutor / Policy Pipeline
+  - Tiered Cache (L1/L2)
+  - Resilience4j (Circuit Breaker)
+  - Transactional Outbox
+
+### 🏗️ 깊게 볼 경우 (아키텍처 인터뷰용)
+- `docs/` 내 **Sequence Diagram**
+- PR / Issue 기반 의사결정 히스토리
+- 장애 상황을 가정한 설계 (Timeout, DLQ, Shutdown)
+
+> ⚠️ 모든 기술 선택에는 **“왜 이 선택을 했는지”**가 PR과 Issue에 기록되어 있습니다.  
+> README는 결과 요약이며, **의사결정 과정은 Git 히스토리에 있습니다.**
+
 ## Performance
 > **RPS 50.8+ | p50 27ms | p95 360ms | p99 640ms | 0% Failure** - Locust Load Test (VUser 100, Warm Cache)
 > [View Benchmark Report](docs/PERFORMANCE_260105.md)
@@ -290,7 +318,8 @@ Test:           ██████████            16개 (16%)
 
 **Transactional Outbox**로 분산 환경에서 데이터 일관성과 멱등성을 보장합니다.
 
-<img width="600" height="400" alt="outbox-diagram" src="https://github.com/user-attachments/assets/outbox-placeholder" />
+<img width="541" height="421" alt="image" src="https://github.com/user-attachments/assets/16b60110-3d1e-46be-801d-762d8c151644" />
+
 
 **핵심 특성:**
 | 특성 | 구현 | 효과 |
