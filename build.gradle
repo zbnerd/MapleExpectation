@@ -50,7 +50,7 @@ dependencies {
     implementation 'io.github.resilience4j:resilience4j-spring-boot3'
     implementation 'io.github.resilience4j:resilience4j-micrometer'
 
-    implementation 'org.redisson:redisson-spring-boot-starter:3.27.0'
+    implementation 'org.redisson:redisson-spring-boot-starter:3.48.0'
 
     // Spring Security
     implementation 'org.springframework.boot:spring-boot-starter-security'
