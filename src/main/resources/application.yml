@@ -62,6 +62,13 @@ resilience4j:
       nexonApi:
         baseConfig: default
         minimumNumberOfCalls: 10        # 최소 10번 호출 후 통계 산출 (Red Agent P1 Fix)
+      likeSyncDb:  # Issue #48: Like Sync DB Batch Update 전용 Circuit Breaker
+        slidingWindowSize: 5            # 최근 5번의 청크 처리 기준
+        failureRateThreshold: 60        # 60% 실패율에서 Open
+        waitDurationInOpenState: 30s    # Open 후 30초 대기 (DB 복구 시간 확보)
+        minimumNumberOfCalls: 3         # 최소 3번 호출 후 통계 산출
+        permittedNumberOfCallsInHalfOpenState: 2
+        registerHealthIndicator: true
       redisLock:  # Redis 분산 락 전용 Circuit Breaker
         slidingWindowSize: 20              # 락 작업은 빈번하므로 더 많은 샘플 수집
         failureRateThreshold: 60           # 60% 실패율에서 Open (락 경합은 정상적일 수 있음)
@@ -152,10 +159,11 @@ springdoc:
   default-consumes-media-type: application/json
   default-produces-media-type: application/json
 
-# Like Sync 설정 (Issue #147: Redis 원자성)
+# Like Sync 설정 (Issue #147: Redis 원자성, Issue #48: 청킹)
 like:
   sync:
     strategy: lua  # lua(기본) | rename(폴백) - Lua Script 미지원 환경용
+    chunk-size: 500  # Issue #48: 청크 크기 (Green Agent 분석: MySQL InnoDB 최적값)
     recovery:
       enabled: true  # 서버 시작 시 Orphan Key 자동 복구 (@PostConstruct)
     temp-key-ttl-seconds: 3600  # 임시 키 TTL (1시간) - JVM 크래시 대비 안전장치
@@ -163,10 +171,10 @@ like:
 # BYOK 인증 설정 (Issue #146)
 auth:
   jwt:
-    secret: ${JWT_SECRET:dev-secret-key-must-be-at-least-32-characters-long}
+    secret: ${JWT_SECRET}  # 필수 환경변수 (미설정 시 앱 시작 실패)
     expiration: 1800  # 30분 (초)
   fingerprint:
-    secret: ${FINGERPRINT_SECRET:fingerprint-secret-key-for-hmac-sha256}
+    secret: ${FINGERPRINT_SECRET}  # 필수 환경변수 (미설정 시 앱 시작 실패)
   admin:
     allowlist: ${ADMIN_FINGERPRINTS:}  # 쉼표 구분 fingerprint 목록
   session:
@@ -179,3 +187,4 @@ cors:
     - "http://localhost:3000"  # 기본값 (환경별 오버라이드 필수)
   allow-credentials: true
   max-age: 3600  # 1시간
+

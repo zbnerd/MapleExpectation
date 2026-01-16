@@ -11,7 +11,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
+import java.util.List;
+import java.util.Map;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
@@ -57,9 +61,9 @@ class LikeSyncCompensationIntegrationTest extends IntegrationTestSupport {
         long initialCount = 100L;
         redisTemplate.opsForHash().put(SOURCE_KEY, testUser, String.valueOf(initialCount));
 
-        // DB 동기화 실패 설정
+        // DB 동기화 실패 설정 (Issue #48: Batch Update)
         doThrow(new RuntimeException("DB Connection Failed"))
-                .when(syncExecutor).executeIncrement(anyString(), anyLong());
+                .when(syncExecutor).executeIncrementBatch(anyList());
 
         // [When] 동기화 실행 (실패 예상)
         likeSyncService.syncRedisToDatabase();
@@ -74,37 +78,38 @@ class LikeSyncCompensationIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("부분 실패 시 실패 항목만 복구")
-    void partialFailure_OnlyFailedItemsRestored() {
-        // [Given] L2에 여러 사용자 데이터 적재
-        String successUser = "SuccessUser";
-        String failUser = "FailUser";
-        long successCount = 50L;
-        long failCount = 75L;
+    @DisplayName("배치 실패 시 모든 항목 복구 (Issue #48: Batch Update)")
+    void batchFailure_AllItemsRestored() {
+        // [Given] L2에 여러 사용자 데이터 적재 (동일 청크에 포함됨)
+        String user1 = "User1";
+        String user2 = "User2";
+        long count1 = 50L;
+        long count2 = 75L;
 
-        redisTemplate.opsForHash().put(SOURCE_KEY, successUser, String.valueOf(successCount));
-        redisTemplate.opsForHash().put(SOURCE_KEY, failUser, String.valueOf(failCount));
+        redisTemplate.opsForHash().put(SOURCE_KEY, user1, String.valueOf(count1));
+        redisTemplate.opsForHash().put(SOURCE_KEY, user2, String.valueOf(count2));
 
-        // failUser만 실패하도록 설정
-        doThrow(new RuntimeException("DB Failed for FailUser"))
-                .when(syncExecutor).executeIncrement(org.mockito.ArgumentMatchers.eq(failUser), anyLong());
+        // 배치 실패 설정 (Issue #48: 청크 전체가 실패)
+        doThrow(new RuntimeException("DB Batch Failed"))
+                .when(syncExecutor).executeIncrementBatch(anyList());
 
         // [When] 동기화 실행
         likeSyncService.syncRedisToDatabase();
 
-        // [Then] failUser만 복구되어야 함
-        Object restoredValue = redisTemplate.opsForHash().get(SOURCE_KEY, failUser);
-        long restoredCount = restoredValue != null ? Long.parseLong(restoredValue.toString()) : 0L;
+        // [Then] 배치의 모든 항목이 복구되어야 함 (Issue #48: 청크 단위 복구)
+        Object restored1 = redisTemplate.opsForHash().get(SOURCE_KEY, user1);
+        Object restored2 = redisTemplate.opsForHash().get(SOURCE_KEY, user2);
 
-        assertThat(restoredCount)
-                .as("실패한 사용자 데이터만 복구되어야 함")
-                .isEqualTo(failCount);
+        long restoredCount1 = restored1 != null ? Long.parseLong(restored1.toString()) : 0L;
+        long restoredCount2 = restored2 != null ? Long.parseLong(restored2.toString()) : 0L;
 
-        // successUser는 복구되지 않아야 함 (성공했으므로)
-        Object successValue = redisTemplate.opsForHash().get(SOURCE_KEY, successUser);
-        assertThat(successValue)
-                .as("성공한 사용자 데이터는 복구되지 않아야 함")
-                .isNull();
+        assertThat(restoredCount1)
+                .as("배치 실패 시 첫 번째 사용자 데이터도 복구되어야 함")
+                .isEqualTo(count1);
+
+        assertThat(restoredCount2)
+                .as("배치 실패 시 두 번째 사용자 데이터도 복구되어야 함")
+                .isEqualTo(count2);
     }
 
     @Test
@@ -138,9 +143,9 @@ class LikeSyncCompensationIntegrationTest extends IntegrationTestSupport {
         long initialCount = 150L;
         redisTemplate.opsForHash().put(SOURCE_KEY, testUser, String.valueOf(initialCount));
 
-        // 첫 번째 시도: 실패
+        // 첫 번째 시도: 실패 (Issue #48: Batch Update)
         doThrow(new RuntimeException("First attempt failed"))
-                .when(syncExecutor).executeIncrement(anyString(), anyLong());
+                .when(syncExecutor).executeIncrementBatch(anyList());
 
         likeSyncService.syncRedisToDatabase();
 

@@ -29,5 +29,18 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
     @Query("UPDATE Member m SET m.point = m.point + :amount WHERE m.id = :id")
     int increasePoint(@Param("id") Long id, @Param("amount") Long amount);
 
+    /**
+     * [Admin 포인트 증가 - UUID 기반]
+     * Admin에게 커피(후원)를 보낼 때 사용합니다.
+     * Admin의 fingerprint가 Member.uuid로 저장되어 있어야 합니다.
+     *
+     * @param uuid Admin의 fingerprint (Member.uuid로 사용)
+     * @param amount 증가할 포인트
+     * @return 영향받은 행 수 (0이면 해당 Admin Member가 없음)
+     */
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE Member m SET m.point = m.point + :amount WHERE m.uuid = :uuid")
+    int increasePointByUuid(@Param("uuid") String uuid, @Param("amount") Long amount);
+
     Optional<Member> findByUuid(String uuid);
 }

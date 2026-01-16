@@ -20,6 +20,8 @@ public enum CommonErrorCode implements ErrorCode {
     DUPLICATE_LIKE("A004", "이미 좋아요를 누른 캐릭터입니다.", HttpStatus.CONFLICT),
     UNAUTHORIZED("A005", "인증이 필요합니다.", HttpStatus.UNAUTHORIZED),
     FORBIDDEN("A006", "접근 권한이 없습니다.", HttpStatus.FORBIDDEN),
+    ADMIN_NOT_FOUND("A007", "유효하지 않은 Admin입니다.", HttpStatus.NOT_FOUND),
+    ADMIN_MEMBER_NOT_FOUND("A008", "Admin의 Member 계정이 존재하지 않습니다.", HttpStatus.NOT_FOUND),
 
     // === Server Errors (5xx) ===
     INTERNAL_SERVER_ERROR("S001", "서버 내부 오류가 발생했습니다. (%s)", HttpStatus.INTERNAL_SERVER_ERROR),
