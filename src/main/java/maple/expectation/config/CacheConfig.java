@@ -72,18 +72,21 @@ public class CacheConfig {
                 Caffeine.newBuilder()
                         .expireAfterWrite(5, TimeUnit.MINUTES)
                         .maximumSize(5000)
+                        .recordStats()
                         .build());
 
         l1Manager.registerCustomCache("cubeTrials",
                 Caffeine.newBuilder()
                         .expireAfterWrite(10, TimeUnit.MINUTES)
                         .maximumSize(5000)
+                        .recordStats()
                         .build());
 
         l1Manager.registerCustomCache("ocidCache",
                 Caffeine.newBuilder()
                         .expireAfterWrite(30, TimeUnit.MINUTES)
                         .maximumSize(5000)
+                        .recordStats()
                         .build());
 
         return l1Manager;
@@ -153,6 +156,7 @@ public class CacheConfig {
                 Caffeine.newBuilder()
                         .expireAfterWrite(5, TimeUnit.MINUTES)
                         .maximumSize(1000)
+                        .recordStats()
                         .build());
 
         // Expectation 경로 equipment L1-only 캐시 (L2 우회용)
@@ -160,6 +164,7 @@ public class CacheConfig {
                 Caffeine.newBuilder()
                         .expireAfterWrite(5, TimeUnit.MINUTES)
                         .maximumSize(5000)
+                        .recordStats()
                         .build());
 
         return l1Manager;
