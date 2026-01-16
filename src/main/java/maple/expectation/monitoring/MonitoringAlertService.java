@@ -23,24 +23,29 @@ public class MonitoringAlertService {
     private final LogicExecutor executor; // ✅ 지능형 실행 엔진 주입
 
     /**
-     * ✅  버퍼 포화도 체크 로직 평탄화
-     * try-catch 대신 executeWithRecovery를 사용하여 리더 선출 실패를 우아하게 처리합니다.
+     * ✅ 버퍼 포화도 체크 로직 (Leader Election 패턴)
+     *
+     * <p>tryLockImmediately()를 사용하여 예외 없이 리더 선출.
+     * 락 획득 실패(Follower)는 정상 시나리오이므로 조용히 스킵.
      */
     @Scheduled(fixedRate = 5000)
     public void checkBufferSaturation() {
-        TaskContext context = TaskContext.of("Monitoring", "CheckSaturation"); //
+        TaskContext context = TaskContext.of("Monitoring", "CheckSaturation");
 
-        // [패턴 5] executeWithRecovery: 락 획득 실패(Follower)는 스킵하고, 실제 장애는 로그로 기록
-        executor.executeOrCatch(() -> {
-            lockStrategy.executeWithLock("global-monitoring-lock", 0, 4, () -> {
-                performBufferCheck(); // 비즈니스 로직 분리 (평탄화)
-                return null;
-            });
-            return null;
-        }, (e) -> {
-            handleMonitoringFailure(e); // 장애 대응 로직 격리
-            return null;
-        }, context);
+        // Leader Election: 락 획득 성공한 인스턴스만 모니터링 수행
+        boolean isLeader = lockStrategy.tryLockImmediately("global-monitoring-lock", 4);
+
+        if (!isLeader) {
+            log.debug("⏭️ [Monitoring] 리더 선출 실패 - 다른 인스턴스가 리더입니다. 체크 스킵.");
+            return;
+        }
+
+        // Leader로 선출됨 → 모니터링 수행 (에러 시 로깅 후 스케줄러 계속 동작)
+        executor.executeOrCatch(
+                () -> { performBufferCheck(); return null; },
+                this::handleMonitoringFailure,
+                context
+        );
     }
 
     /**
@@ -68,16 +73,10 @@ public class MonitoringAlertService {
     }
 
     /**
-     * 헬퍼 2: 모니터링 실패 대응 (평탄화 보조)
+     * 모니터링 실패 대응 (실제 장애만 로깅)
      */
-    private void handleMonitoringFailure(Throwable t) {
-        // [분기 1] DistributedLockException: 리더가 아님 (정상 시나리오)
-        if (t instanceof maple.expectation.global.error.exception.DistributedLockException) {
-            log.trace("⏭️ [Monitoring] 리더 권한이 없어 체크를 스킵합니다.");
-            return;
-        }
-
-        // [분기 2] 그 외 실제 장애 (Redis 연결 오류 등)
-        log.error("❌ [Monitoring] 버퍼 모니터링 중 장애 발생: {}", t.getMessage());
+    private Void handleMonitoringFailure(Throwable t) {
+        log.error("❌ [Monitoring] 버퍼 모니터링 중 장애 발생: {}", t.getMessage(), t);
+        return null;
     }
 }

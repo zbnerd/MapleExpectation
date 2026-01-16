@@ -20,10 +20,16 @@ public class DonationHistory {
     private Long id;
 
     private String senderUuid;
-    private Long receiverId;
+
+    /**
+     * Admin(개발자)의 fingerprint
+     * <p>보안: fingerprint는 HMAC-SHA256 해시값이므로 저장해도 원본 API Key 노출 없음</p>
+     */
+    private String receiverFingerprint;
+
     private Long amount;
 
-    @Column(updatable = false) // 💡 실수로라도 수정되는 것을 방지
+    @Column(updatable = false)
     private String requestId;
 
     @CreatedDate
@@ -31,9 +37,9 @@ public class DonationHistory {
     private LocalDateTime createdAt;
 
     @Builder
-    public DonationHistory(String senderUuid, Long receiverId, Long amount, String requestId) {
+    public DonationHistory(String senderUuid, String receiverFingerprint, Long amount, String requestId) {
         this.senderUuid = senderUuid;
-        this.receiverId = receiverId;
+        this.receiverFingerprint = receiverFingerprint;
         this.amount = amount;
         this.requestId = requestId;
     }

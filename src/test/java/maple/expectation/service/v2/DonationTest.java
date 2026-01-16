@@ -4,8 +4,10 @@ import lombok.extern.slf4j.Slf4j;
 import maple.expectation.domain.v2.Member;
 import maple.expectation.repository.v2.DonationHistoryRepository;
 import maple.expectation.repository.v2.MemberRepository;
+import maple.expectation.service.v2.auth.AdminService;
 import maple.expectation.support.EnableTimeLogging;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,10 +21,24 @@ import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * DonationService 통합 테스트
+ *
+ * <p>Admin(개발자)에게 커피를 보내는 기능을 검증합니다.
+ * Admin은 fingerprint로 식별되며, AdminService를 통해 등록됩니다.</p>
+ *
+ * <h3>테스트 시나리오:</h3>
+ * <ul>
+ *   <li>멱등성: 같은 requestId로 중복 요청 방지</li>
+ *   <li>동시성: 잔액 부족 시 단일 성공</li>
+ *   <li>Hotspot: 다중 발신자 → 단일 수신자</li>
+ * </ul>
+ */
 @Slf4j
 @EnableTimeLogging
 @SpringBootTest
@@ -35,8 +51,20 @@ public class DonationTest {
     MemberRepository memberRepository;
     @Autowired
     DonationHistoryRepository donationHistoryRepository;
+    @Autowired
+    AdminService adminService;
 
     private final List<Long> createdMemberIds = new ArrayList<>();
+
+    // 테스트용 Admin fingerprint (UUID 형식)
+    private String testAdminFingerprint;
+
+    @BeforeEach
+    void setUp() {
+        // 테스트용 Admin fingerprint 생성 및 등록
+        testAdminFingerprint = "test-admin-" + UUID.randomUUID().toString().substring(0, 8);
+        adminService.addAdmin(testAdminFingerprint);
+    }
 
     private Member saveAndTrack(Member member) {
         Member saved = memberRepository.save(member);
@@ -47,12 +75,13 @@ public class DonationTest {
     @AfterEach
     @Transactional
     void tearDown() {
-        if (!createdMemberIds.isEmpty()) {
-            // 💡 [데이터 정리 순서] 자식(History)을 먼저 지워야 외래키 제약조건 에러가 안 납니다.
-            // 테스트에서 생성한 멤버들이 관여된 히스토리를 먼저 싹 비웁니다.
-            donationHistoryRepository.deleteAll();
+        // Admin 등록 해제
+        if (testAdminFingerprint != null) {
+            adminService.removeAdmin(testAdminFingerprint);
+        }
 
-            // 그 다음 생성했던 멤버들을 삭제합니다.
+        if (!createdMemberIds.isEmpty()) {
+            donationHistoryRepository.deleteAll();
             memberRepository.deleteAllByIdInBatch(createdMemberIds);
             createdMemberIds.clear();
         }
@@ -61,24 +90,22 @@ public class DonationTest {
     @Test
     @DisplayName("멱등성(Idempotency) 검증: 같은 RequestID로 두 번 요청하면, 잔액은 한 번만 차감되어야 한다.")
     void idempotencyTest() {
-        // 1. Given
-        String randomDeveloperUuid = UUID.randomUUID().toString();
-        // 💡 [수정] new 대신 정적 팩토리 메서드 사용
-        Member developer = saveAndTrack(Member.createSystemAdmin(randomDeveloperUuid, 0L));
+        // 1. Given - Admin Member 생성 (fingerprint를 uuid로 사용)
+        Member admin = saveAndTrack(Member.createSystemAdmin(testAdminFingerprint, 0L));
         Member guest = saveAndTrack(Member.createGuest(1000L));
 
         String fixedRequestId = UUID.randomUUID().toString();
 
-        // 2. When
-        donationService.sendCoffee(guest.getUuid(), developer.getId(), 1000L, fixedRequestId);
-        donationService.sendCoffee(guest.getUuid(), developer.getId(), 1000L, fixedRequestId);
+        // 2. When - 같은 requestId로 2회 요청
+        donationService.sendCoffee(guest.getUuid(), testAdminFingerprint, 1000L, fixedRequestId);
+        donationService.sendCoffee(guest.getUuid(), testAdminFingerprint, 1000L, fixedRequestId);
 
-        // 3. Then
+        // 3. Then - 1회만 처리됨
         Member updatedGuest = memberRepository.findById(guest.getId()).orElseThrow();
-        Member updatedDeveloper = memberRepository.findById(developer.getId()).orElseThrow();
+        Member updatedAdmin = memberRepository.findById(admin.getId()).orElseThrow();
 
         assertThat(updatedGuest.getPoint()).isEqualTo(0L);
-        assertThat(updatedDeveloper.getPoint()).isEqualTo(1000L);
+        assertThat(updatedAdmin.getPoint()).isEqualTo(1000L);
         assertThat(donationHistoryRepository.existsByRequestId(fixedRequestId)).isTrue();
     }
 
@@ -86,9 +113,7 @@ public class DonationTest {
     @DisplayName("따닥 방어: 1000원 가진 유저가 동시에 100번 요청(각기 다른 ID)해도, 잔액 부족으로 딱 1번만 성공해야 한다.")
     void concurrencyTest() throws InterruptedException {
         // 1. Given
-        String randomDeveloperUuid = UUID.randomUUID().toString();
-        // 💡 [수정] new 대신 정적 팩토리 메서드 사용
-        Member developer = saveAndTrack(Member.createSystemAdmin(randomDeveloperUuid, 0L));
+        Member admin = saveAndTrack(Member.createSystemAdmin(testAdminFingerprint, 0L));
         Member guest = saveAndTrack(Member.createGuest(1000L));
 
         int threadCount = 100;
@@ -103,7 +128,7 @@ public class DonationTest {
             executorService.submit(() -> {
                 try {
                     String uniqueRequestId = UUID.randomUUID().toString();
-                    donationService.sendCoffee(guest.getUuid(), developer.getId(), 1000L, uniqueRequestId);
+                    donationService.sendCoffee(guest.getUuid(), testAdminFingerprint, 1000L, uniqueRequestId);
                     successCount.incrementAndGet();
                 } catch (Exception e) {
                     failCount.incrementAndGet();
@@ -113,8 +138,9 @@ public class DonationTest {
             });
         }
 
-        latch.await();
+        latch.await(30, TimeUnit.SECONDS);
         executorService.shutdown();
+        executorService.awaitTermination(5, TimeUnit.SECONDS);
 
         // 3. Then
         Member updatedGuest = memberRepository.findById(guest.getId()).orElseThrow();
@@ -124,12 +150,10 @@ public class DonationTest {
     }
 
     @Test
-    @DisplayName("Hotspot 방어: 100명의 유저가 동시에 1000원씩 보내면, 개발자는 정확히 10만원을 받아야 한다.")
+    @DisplayName("Hotspot 방어: 100명의 유저가 동시에 1000원씩 보내면, Admin은 정확히 10만원을 받아야 한다.")
     void hotspotTest() throws InterruptedException {
         // 1. Given
-        String randomDeveloperUuid = UUID.randomUUID().toString();
-        // 💡 [수정] new 대신 정적 팩토리 메서드 사용
-        Member developer = saveAndTrack(Member.createSystemAdmin(randomDeveloperUuid, 0L));
+        Member admin = saveAndTrack(Member.createSystemAdmin(testAdminFingerprint, 0L));
 
         int threadCount = 100;
         List<Member> guests = new ArrayList<>();
@@ -147,7 +171,7 @@ public class DonationTest {
             executorService.submit(() -> {
                 try {
                     String uniqueRequestId = UUID.randomUUID().toString();
-                    donationService.sendCoffee(guestUuid, developer.getId(), 1000L, uniqueRequestId);
+                    donationService.sendCoffee(guestUuid, testAdminFingerprint, 1000L, uniqueRequestId);
                     successCount.incrementAndGet();
                 } catch (Exception e) {
                     log.error("Donation failed: {}", e.getMessage());
@@ -157,12 +181,13 @@ public class DonationTest {
             });
         }
 
-        latch.await();
+        latch.await(30, TimeUnit.SECONDS);
         executorService.shutdown();
+        executorService.awaitTermination(5, TimeUnit.SECONDS);
 
         // 3. Then
-        Member updatedDeveloper = memberRepository.findById(developer.getId()).orElseThrow();
+        Member updatedAdmin = memberRepository.findById(admin.getId()).orElseThrow();
         assertThat(successCount.get()).isEqualTo(100);
-        assertThat(updatedDeveloper.getPoint()).isEqualTo(100 * 1000L);
+        assertThat(updatedAdmin.getPoint()).isEqualTo(100 * 1000L);
     }
 }

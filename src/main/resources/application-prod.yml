@@ -35,3 +35,4 @@ discord:
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS}  # 필수 환경변수 (예: https://example.com,https://www.example.com)
   max-age: 86400  # 24시간 (프로덕션에서는 캐시 시간 늘림)
+

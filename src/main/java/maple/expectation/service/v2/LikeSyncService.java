@@ -1,8 +1,8 @@
 package maple.expectation.service.v2;
 
+import com.google.common.collect.Lists;
 import io.github.resilience4j.retry.Retry;
 import io.micrometer.core.instrument.MeterRegistry;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.aop.annotation.ObservedTransaction;
 import maple.expectation.global.executor.LogicExecutor;
@@ -15,10 +15,13 @@ import maple.expectation.service.v2.like.compensation.RedisCompensationCommand;
 import maple.expectation.service.v2.like.dto.FetchResult;
 import maple.expectation.service.v2.like.strategy.AtomicFetchStrategy;
 import maple.expectation.service.v2.shutdown.ShutdownDataPersistenceService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -42,7 +45,6 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class LikeSyncService {
 
     private final LikeBufferStorage likeBufferStorage;
@@ -57,12 +59,43 @@ public class LikeSyncService {
     private final ApplicationEventPublisher eventPublisher;
 
     /**
+     * 청크 크기 (Issue #48: Lock Contention 최적화)
+     *
+     * <p>Green Agent 분석: MySQL InnoDB redo log 기준 500이 최적 (100KB/청크)</p>
+     */
+    @Value("${like.sync.chunk-size:500}")
+    private int chunkSize;
+
+    /**
      * Hash Tag 패턴 적용 (Redis Cluster 호환)
      *
      * <p>Context7 Best Practice: {prefix}:suffix 패턴으로 같은 슬롯 보장</p>
      */
     private static final String SOURCE_KEY = "{buffer:likes}";
     private static final String TEMP_KEY_PREFIX = "{buffer:likes}:sync:";
+
+    public LikeSyncService(
+            LikeBufferStorage likeBufferStorage,
+            LikeSyncExecutor syncExecutor,
+            StringRedisTemplate redisTemplate,
+            RedisBufferRepository redisBufferRepository,
+            Retry likeSyncRetry,
+            ShutdownDataPersistenceService shutdownDataPersistenceService,
+            LogicExecutor executor,
+            AtomicFetchStrategy atomicFetchStrategy,
+            MeterRegistry meterRegistry,
+            ApplicationEventPublisher eventPublisher) {
+        this.likeBufferStorage = likeBufferStorage;
+        this.syncExecutor = syncExecutor;
+        this.redisTemplate = redisTemplate;
+        this.redisBufferRepository = redisBufferRepository;
+        this.likeSyncRetry = likeSyncRetry;
+        this.shutdownDataPersistenceService = shutdownDataPersistenceService;
+        this.executor = executor;
+        this.atomicFetchStrategy = atomicFetchStrategy;
+        this.meterRegistry = meterRegistry;
+        this.eventPublisher = eventPublisher;
+    }
 
     // ========== L1 -> L2 Flush (변경 없음) ==========
 
@@ -174,24 +207,75 @@ public class LikeSyncService {
     }
 
     /**
-     * DB 동기화 처리 (Retry 포함)
+     * DB 동기화 처리 (Issue #48: 청킹 + Batch Update)
+     *
+     * <h4>변경 사항 (5-Agent Council 합의)</h4>
+     * <ul>
+     *   <li>개별 트랜잭션 → 청크 단위 Batch Update (Green)</li>
+     *   <li>Guava Lists.partition() 사용 (Green)</li>
+     *   <li>청크 실패 시 Redis 복원 - Compensation Pattern (Purple)</li>
+     *   <li>청크별 메트릭 기록 (Red)</li>
+     * </ul>
      *
      * @return 성공적으로 동기화된 총 count
      */
     private long processDatabaseSync(FetchResult fetchResult) {
         AtomicLong successTotal = new AtomicLong(0);
 
-        fetchResult.data().forEach((userIgn, count) -> {
-            boolean success = syncWithRetry(userIgn, count);
-            if (success) {
-                successTotal.addAndGet(count);
-            } else {
-                // 실패 시 개별 복구 (원본 버퍼로)
-                restoreSingleEntry(userIgn, count);
-            }
-        });
+        // Guava Lists.partition()으로 청킹 (Green 제안)
+        List<Map.Entry<String, Long>> entries = new ArrayList<>(fetchResult.data().entrySet());
+        List<List<Map.Entry<String, Long>>> chunks = Lists.partition(entries, chunkSize);
+
+        TaskContext context = TaskContext.of("LikeSync", "BatchProcess");
+        int totalChunks = chunks.size();
+
+        for (int i = 0; i < totalChunks; i++) {
+            List<Map.Entry<String, Long>> chunk = chunks.get(i);
+            int chunkIndex = i;
+
+            executor.executeOrCatch(
+                    () -> {
+                        // Batch Update 실행 (CircuitBreaker 적용됨)
+                        syncExecutor.executeIncrementBatch(chunk);
+
+                        // 성공 count 합산
+                        long chunkTotal = chunk.stream().mapToLong(Map.Entry::getValue).sum();
+                        successTotal.addAndGet(chunkTotal);
+
+                        // 메트릭 기록 (Red 요구사항)
+                        meterRegistry.counter("like.sync.chunk.processed").increment();
+                        log.debug("✅ [LikeSync] Chunk {}/{} processed ({} entries)",
+                                chunkIndex + 1, totalChunks, chunk.size());
+                        return null;
+                    },
+                    e -> handleChunkFailure(chunk, chunkIndex, e),
+                    context
+            );
+        }
 
         return successTotal.get();
+    }
+
+    /**
+     * 청크 실패 처리 (Compensation Pattern - Purple 요구사항)
+     *
+     * <p>P0 데이터 손실 방지: 실패한 청크의 데이터를 Redis로 복원하여
+     * 다음 Sync 주기에 재처리되도록 합니다.</p>
+     */
+    private Void handleChunkFailure(
+            List<Map.Entry<String, Long>> chunk,
+            int chunkIndex,
+            Throwable e) {
+        // 메트릭 기록 (Red 요구사항)
+        meterRegistry.counter("like.sync.chunk.failed").increment();
+
+        log.error("❌ [LikeSync] Chunk {} failed ({} entries): {}",
+                chunkIndex, chunk.size(), e.getMessage());
+
+        // 실패한 청크 Redis로 복원 (보상 트랜잭션 - P0 데이터 손실 방지)
+        chunk.forEach(entry -> restoreSingleEntry(entry.getKey(), entry.getValue()));
+
+        return null;
     }
 
     /**

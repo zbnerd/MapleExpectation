@@ -23,6 +23,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -131,6 +132,9 @@ class LikeSyncServiceTest {
                 eventPublisher
         );
 
+        // Issue #48: chunkSize 설정 (테스트용 - @Value 필드 주입 대체)
+        ReflectionTestUtils.setField(likeSyncService, "chunkSize", 500);
+
         lenient().when(redisTemplate.opsForHash()).thenReturn(hashOperations);
     }
 
@@ -153,8 +157,8 @@ class LikeSyncServiceTest {
         // ✅ [핵심] AtomicFetchStrategy.fetchAndMove() 호출 검증
         verify(atomicFetchStrategy, times(1)).fetchAndMove(eq(SOURCE_KEY), anyString());
 
-        // ✅ [핵심] DB 동기화 실행
-        verify(syncExecutor, times(1)).executeIncrement(eq(userIgn), eq(5L));
+        // ✅ [핵심] DB 동기화 실행 (Issue #48: Batch Update)
+        verify(syncExecutor, times(1)).executeIncrementBatch(anyList());
 
         // ✅ [핵심] 성공 시 전역 카운터 차감
         verify(redisBufferRepository, times(1)).decrementGlobalCount(5L);
@@ -175,9 +179,9 @@ class LikeSyncServiceTest {
         given(atomicFetchStrategy.fetchAndMove(eq(SOURCE_KEY), anyString()))
                 .willReturn(fetchResult);
 
-        // DB 동기화 실패
+        // DB 동기화 실패 (Issue #48: Batch Update에서 예외)
         willThrow(new RuntimeException("DB Fail"))
-                .given(syncExecutor).executeIncrement(anyString(), anyLong());
+                .given(syncExecutor).executeIncrementBatch(anyList());
 
         // [When]
         likeSyncService.syncRedisToDatabase();
@@ -205,8 +209,8 @@ class LikeSyncServiceTest {
         likeSyncService.syncRedisToDatabase();
 
         // [Then]
-        // ✅ [핵심] 빈 데이터 시 DB 동기화 스킵
-        verify(syncExecutor, never()).executeIncrement(anyString(), anyLong());
+        // ✅ [핵심] 빈 데이터 시 DB 동기화 스킵 (Issue #48: Batch Update)
+        verify(syncExecutor, never()).executeIncrementBatch(anyList());
 
         // ✅ [핵심] 빈 데이터 시 전역 카운터 차감 스킵
         verify(redisBufferRepository, never()).decrementGlobalCount(anyLong());

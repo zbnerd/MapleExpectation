@@ -6,19 +6,36 @@ import maple.expectation.aop.annotation.Locked;
 import maple.expectation.aop.annotation.ObservedTransaction;
 import maple.expectation.domain.v2.DonationHistory;
 import maple.expectation.domain.v2.DonationOutbox;
+import maple.expectation.global.error.exception.AdminMemberNotFoundException;
+import maple.expectation.global.error.exception.AdminNotFoundException;
 import maple.expectation.global.error.exception.CriticalTransactionFailureException;
-import maple.expectation.global.error.exception.DeveloperNotFoundException;
 import maple.expectation.global.error.exception.InsufficientPointException;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.repository.v2.DonationHistoryRepository;
 import maple.expectation.repository.v2.DonationOutboxRepository;
+import maple.expectation.service.v2.auth.AdminService;
 import maple.expectation.service.v2.donation.event.DonationProcessor;
 import maple.expectation.service.v2.donation.listener.DonationFailedEvent;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * 도네이션(커피 후원) 서비스
+ *
+ * <p>게스트가 Admin(개발자)에게 커피를 사주는 기능입니다.
+ * Admin은 fingerprint로 식별되며, ADMIN_FINGERPRINTS에 등록된 사용자만
+ * 후원을 받을 수 있습니다.</p>
+ *
+ * <p>보안 고려사항:
+ * <ul>
+ *   <li>Admin fingerprint 검증 (AdminService.isAdmin())</li>
+ *   <li>멱등성 보장 (requestId 중복 체크)</li>
+ *   <li>분산 락 (guestUuid 기준)</li>
+ * </ul>
+ * </p>
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -27,44 +44,65 @@ public class DonationService {
     private final DonationHistoryRepository donationHistoryRepository;
     private final DonationOutboxRepository donationOutboxRepository;
     private final DonationProcessor donationProcessor;
+    private final AdminService adminService;
     private final ApplicationEventPublisher eventPublisher;
     private final LogicExecutor executor;
 
+    /**
+     * Admin(개발자)에게 커피 보내기
+     *
+     * @param guestUuid        발신자 UUID
+     * @param adminFingerprint 수신자 Admin fingerprint
+     * @param amount           후원 금액
+     * @param requestId        멱등성 키
+     * @throws AdminNotFoundException       유효하지 않은 Admin fingerprint
+     * @throws AdminMemberNotFoundException Admin의 Member 계정이 없음
+     * @throws InsufficientPointException   잔액 부족
+     */
     @Transactional
     @Locked(key = "#guestUuid")
     @ObservedTransaction("service.v2.DonationService.sendCoffee")
-    public void sendCoffee(String guestUuid, Long developerId, Long amount, String requestId) {
+    public void sendCoffee(String guestUuid, String adminFingerprint, Long amount, String requestId) {
         TaskContext context = TaskContext.of("Donation", "SendCoffee", requestId);
 
-        // ✅ executeWithRecovery: 정상 흐름과 복구 흐름을 선언적으로 분리
+        // Admin 권한 검증 (ADMIN_FINGERPRINTS에 등록된 사용자만 가능)
+        validateAdmin(adminFingerprint);
+
         executor.executeOrCatch(() -> {
+            // 멱등성 체크
             if (donationHistoryRepository.existsByRequestId(requestId)) {
+                log.info("[Donation] Duplicate request ignored: requestId={}", requestId);
                 return null;
             }
 
-            donationProcessor.executeTransfer(guestUuid, developerId, amount);
-            saveHistory(guestUuid, developerId, amount, requestId);
-            saveOutbox(guestUuid, developerId, amount, requestId);
+            donationProcessor.executeTransferToAdmin(guestUuid, adminFingerprint, amount);
+            saveHistory(guestUuid, adminFingerprint, amount, requestId);
+            saveOutbox(guestUuid, adminFingerprint, amount, requestId);
             return null;
         }, (e) -> {
-            // 비즈니스 예외는 그대로 전파 (Locked나 Transaction에서 처리)
-            if (e instanceof InsufficientPointException || e instanceof DeveloperNotFoundException) {
+            // 비즈니스 예외는 그대로 전파
+            if (e instanceof InsufficientPointException || e instanceof AdminMemberNotFoundException) {
                 throw (RuntimeException) e;
             }
 
-            // 기술적 장애 발생 시에만 이벤트 발행 및 래핑 예외 발생
-            log.error("🚑 [Technical Failure] 도네이션 장애 발생 -> 실패 이벤트 발행: {}", requestId);
+            // 기술적 장애 발생 시에만 이벤트 발행
+            log.error("[Donation] Technical failure -> publishing failed event: requestId={}", requestId);
             eventPublisher.publishEvent(new DonationFailedEvent(requestId, guestUuid, e));
             throw new CriticalTransactionFailureException("도네이션 시스템 오류 발생", e);
         }, context);
     }
 
-    private void saveHistory(String sender, Long receiver, Long amount, String reqId) {
-        // 내부 메서드도 별도 컨텍스트로 관측성 확보
+    private void validateAdmin(String adminFingerprint) {
+        if (!adminService.isAdmin(adminFingerprint)) {
+            throw new AdminNotFoundException();
+        }
+    }
+
+    private void saveHistory(String sender, String receiverFingerprint, Long amount, String reqId) {
         executor.executeVoid(() ->
                         donationHistoryRepository.save(DonationHistory.builder()
                                 .senderUuid(sender)
-                                .receiverId(receiver)
+                                .receiverFingerprint(receiverFingerprint)
                                 .amount(amount)
                                 .requestId(reqId)
                                 .build()),
@@ -77,18 +115,27 @@ public class DonationService {
      *
      * <p>Issue #80: Transactional Outbox Pattern</p>
      */
-    private void saveOutbox(String sender, Long receiver, Long amount, String reqId) {
+    private void saveOutbox(String sender, String receiverFingerprint, Long amount, String reqId) {
         executor.executeVoid(() -> {
-            String payload = createPayload(sender, receiver, amount);
+            String payload = createPayload(sender, receiverFingerprint, amount);
             DonationOutbox outbox = DonationOutbox.create(reqId, "DONATION_COMPLETED", payload);
             donationOutboxRepository.save(outbox);
         }, TaskContext.of("Donation", "SaveOutbox", reqId));
     }
 
-    private String createPayload(String sender, Long receiver, Long amount) {
+    private String createPayload(String sender, String receiverFingerprint, Long amount) {
+        // 보안: fingerprint 마스킹하여 저장
+        String maskedFingerprint = maskFingerprint(receiverFingerprint);
         return String.format(
-                "{\"senderUuid\":\"%s\",\"receiverId\":%d,\"amount\":%d}",
-                sender, receiver, amount
+                "{\"senderUuid\":\"%s\",\"receiverFingerprint\":\"%s\",\"amount\":%d}",
+                sender, maskedFingerprint, amount
         );
+    }
+
+    private String maskFingerprint(String fingerprint) {
+        if (fingerprint == null || fingerprint.length() < 8) {
+            return "****";
+        }
+        return fingerprint.substring(0, 4) + "****";
     }
 }

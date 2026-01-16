@@ -1,6 +1,5 @@
 package maple.expectation.monitoring;
 
-import maple.expectation.global.common.function.ThrowingSupplier;
 import maple.expectation.global.lock.LockStrategy;
 import maple.expectation.repository.v2.RedisBufferRepository;
 import maple.expectation.support.IntegrationTestSupport;
@@ -27,9 +26,10 @@ class MonitoringAlertServiceTest extends IntegrationTestSupport {
 
     @Test
     @DisplayName("리더 권한을 획득하고 전역 임계치를 초과하면 알림을 발송한다")
-    void leaderSuccess_OverThreshold_SendAlert() throws Throwable {
-        given(lockStrategy.executeWithLock(anyString(), anyLong(), anyLong(), any(ThrowingSupplier.class)))
-                .willAnswer(invocation -> ((ThrowingSupplier<?>) invocation.getArgument(3)).get());
+    void leaderSuccess_OverThreshold_SendAlert() {
+        // Leader Election: tryLockImmediately()가 true 반환 → 리더 획득
+        given(lockStrategy.tryLockImmediately(eq("global-monitoring-lock"), eq(4L)))
+                .willReturn(true);
 
         given(redisBufferRepository.getTotalPendingCount()).willReturn(6000L);
 
@@ -40,14 +40,29 @@ class MonitoringAlertServiceTest extends IntegrationTestSupport {
 
     @Test
     @DisplayName("전역 임계치 이하일 때는 리더 권한이 있어도 알림을 보내지 않는다")
-    void leaderSuccess_UnderThreshold_NoAlert() throws Throwable {
-        given(lockStrategy.executeWithLock(anyString(), anyLong(), anyLong(), any(ThrowingSupplier.class)))
-                .willAnswer(invocation -> ((ThrowingSupplier<?>) invocation.getArgument(3)).get());
+    void leaderSuccess_UnderThreshold_NoAlert() {
+        // Leader Election: tryLockImmediately()가 true 반환 → 리더 획득
+        given(lockStrategy.tryLockImmediately(eq("global-monitoring-lock"), eq(4L)))
+                .willReturn(true);
 
         given(redisBufferRepository.getTotalPendingCount()).willReturn(3000L);
 
         monitoringAlertService.checkBufferSaturation();
 
+        verify(discordAlertService, never()).sendCriticalAlert(anyString(), anyString(), any());
+    }
+
+    @Test
+    @DisplayName("리더 선출 실패 시 모니터링을 스킵한다")
+    void follower_SkipMonitoring() {
+        // Leader Election: tryLockImmediately()가 false 반환 → Follower
+        given(lockStrategy.tryLockImmediately(eq("global-monitoring-lock"), eq(4L)))
+                .willReturn(false);
+
+        monitoringAlertService.checkBufferSaturation();
+
+        // Follower는 버퍼 조회 및 알림 발송을 하지 않아야 함
+        verify(redisBufferRepository, never()).getTotalPendingCount();
         verify(discordAlertService, never()).sendCriticalAlert(anyString(), anyString(), any());
     }
 }
