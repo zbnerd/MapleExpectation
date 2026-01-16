@@ -1,0 +1,122 @@
+package maple.expectation.controller;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.RequiredArgsConstructor;
+import maple.expectation.controller.dto.dlq.DlqDetailResponse;
+import maple.expectation.controller.dto.dlq.DlqEntryResponse;
+import maple.expectation.controller.dto.dlq.DlqReprocessResult;
+import maple.expectation.service.v2.donation.outbox.DlqAdminService;
+import org.springframework.data.domain.Page;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+/**
+ * DLQ 관리 API (Admin 전용)
+ *
+ * <h3>엔드포인트</h3>
+ * <ul>
+ *   <li>GET /api/admin/dlq - DLQ 목록 조회 (페이징)</li>
+ *   <li>GET /api/admin/dlq/{id} - DLQ 상세 조회</li>
+ *   <li>POST /api/admin/dlq/{id}/reprocess - DLQ 재처리</li>
+ *   <li>DELETE /api/admin/dlq/{id} - DLQ 폐기</li>
+ *   <li>GET /api/admin/dlq/count - DLQ 총 건수</li>
+ * </ul>
+ *
+ * <h3>보안</h3>
+ * <p>SecurityConfig에서 ADMIN 권한만 접근 가능하도록 설정</p>
+ *
+ * @see DlqAdminService
+ */
+@Tag(name = "DLQ Admin", description = "Dead Letter Queue 관리 API (Admin 전용)")
+@RestController
+@RequestMapping("/api/admin/dlq")
+@RequiredArgsConstructor
+public class DlqAdminController {
+
+    private final DlqAdminService dlqAdminService;
+
+    /**
+     * DLQ 목록 조회 (페이징)
+     */
+    @Operation(summary = "DLQ 목록 조회", description = "최신순으로 DLQ 항목 목록을 조회합니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "403", description = "권한 없음")
+    })
+    @GetMapping
+    public ResponseEntity<maple.expectation.global.response.ApiResponse<Page<DlqEntryResponse>>> findAll(
+            @Parameter(description = "페이지 번호 (0부터 시작)") @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "페이지 크기") @RequestParam(defaultValue = "20") int size) {
+
+        Page<DlqEntryResponse> result = dlqAdminService.findAll(page, size);
+        return ResponseEntity.ok(maple.expectation.global.response.ApiResponse.success(result));
+    }
+
+    /**
+     * DLQ 상세 조회
+     */
+    @Operation(summary = "DLQ 상세 조회", description = "특정 DLQ 항목의 상세 정보를 조회합니다 (전체 payload 포함).")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "404", description = "DLQ 항목 없음"),
+            @ApiResponse(responseCode = "403", description = "권한 없음")
+    })
+    @GetMapping("/{id}")
+    public ResponseEntity<maple.expectation.global.response.ApiResponse<DlqDetailResponse>> findById(
+            @Parameter(description = "DLQ ID") @PathVariable Long id) {
+
+        DlqDetailResponse result = dlqAdminService.findById(id);
+        return ResponseEntity.ok(maple.expectation.global.response.ApiResponse.success(result));
+    }
+
+    /**
+     * DLQ 재처리 (Outbox로 복원)
+     */
+    @Operation(summary = "DLQ 재처리", description = "DLQ 항목을 Outbox로 복원하여 재처리합니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "재처리 성공"),
+            @ApiResponse(responseCode = "404", description = "DLQ 항목 없음"),
+            @ApiResponse(responseCode = "409", description = "이미 재처리됨"),
+            @ApiResponse(responseCode = "403", description = "권한 없음")
+    })
+    @PostMapping("/{id}/reprocess")
+    public ResponseEntity<maple.expectation.global.response.ApiResponse<DlqReprocessResult>> reprocess(
+            @Parameter(description = "DLQ ID") @PathVariable Long id) {
+
+        DlqReprocessResult result = dlqAdminService.reprocess(id);
+        return ResponseEntity.ok(maple.expectation.global.response.ApiResponse.success(result));
+    }
+
+    /**
+     * DLQ 폐기 (삭제)
+     */
+    @Operation(summary = "DLQ 폐기", description = "복구 불가능한 DLQ 항목을 삭제합니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "폐기 성공"),
+            @ApiResponse(responseCode = "404", description = "DLQ 항목 없음"),
+            @ApiResponse(responseCode = "403", description = "권한 없음")
+    })
+    @DeleteMapping("/{id}")
+    public ResponseEntity<maple.expectation.global.response.ApiResponse<String>> discard(
+            @Parameter(description = "DLQ ID") @PathVariable Long id) {
+
+        dlqAdminService.discard(id);
+        return ResponseEntity.ok(maple.expectation.global.response.ApiResponse.success(
+                "DLQ entry discarded successfully: " + id));
+    }
+
+    /**
+     * DLQ 총 건수 조회
+     */
+    @Operation(summary = "DLQ 총 건수", description = "현재 DLQ에 쌓인 총 항목 수를 조회합니다.")
+    @ApiResponse(responseCode = "200", description = "조회 성공")
+    @GetMapping("/count")
+    public ResponseEntity<maple.expectation.global.response.ApiResponse<Long>> count() {
+        long count = dlqAdminService.count();
+        return ResponseEntity.ok(maple.expectation.global.response.ApiResponse.success(count));
+    }
+}
