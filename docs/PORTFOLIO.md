@@ -1,6 +1,6 @@
-# MapleExpectation - 기술 포트폴리오
+# MapleExpectation - 6개 핵심 모듈 기술 포트폴리오
 
-> **"고가용성 분산 환경에서 데이터 정합성과 성능을 보장하는 견고한 시스템"**
+> **"기능 데모가 아니라, 서비스가 실제로 깨지는 지점을 어떻게 방어했는지를 보여주는 프로젝트"**
 
 ---
 
@@ -10,34 +10,34 @@
 |:---|:---:|:---|
 | **RPS** | **235** | CPU-Bound 작업 (JSON 350KB 파싱) |
 | **Failure Rate** | **0%** | 500명 동시 접속 부하 테스트 |
-| **P99 Latency** | **160ms** | 안정적인 응답 시간 |
-| **Throughput** | **82.5 MB/s** | 초당 데이터 처리량 |
+| **P99 Latency** | **160ms** | Warm Cache 기준 |
+| **Try-Catch** | **0개** | 비즈니스 레이어 Zero Policy |
 | **PR Count** | **76+** | 모든 PR에 기술적 결정 근거 기록 |
 | **Issue Count** | **150+** | Problem-DoD 기반 체계적 관리 |
 
 ---
 
-## 1. 프로젝트 개요
+## 프로젝트 개요
 
-### 1.1 비즈니스 도메인
+### 비즈니스 도메인
 넥슨 Open API를 활용하여 메이플스토리 유저 장비 데이터를 수집하고, 확률형 아이템(큐브)의 기대값을 계산하여 **"스펙 완성 비용"을 시뮬레이션**해주는 서비스입니다.
 
-### 1.2 기술적 도전 과제
-- **외부 API 의존**: 넥슨 API 장애가 서비스 전체에 전파되는 것을 방지
-- **동시성 제어**: 동일 유저에 대한 중복 요청 처리 (Check-then-Act 문제)
-- **고부하 처리**: 저사양 서버(t3.small)에서 1,000명 동시 접속 수용
-- **데이터 정합성**: 분산 환경에서의 캐시/버퍼 일관성 보장
+### 기술적 도전 과제
+| 도전 과제 | 해결 모듈 |
+|:---|:---|
+| 외부 API 장애가 서비스 전체에 전파 | **Module 2: Resilience4j** |
+| 동일 유저에 대한 중복 요청 (Race Condition) | **Module 3: TieredCache** |
+| 저사양 서버(t3.small)에서 고부하 처리 | **Module 4: Async Pipeline** |
+| 서버 종료 시 데이터 유실 | **Module 5: Graceful Shutdown** |
+| 확률 계산의 성능 및 정확도 | **Module 6: DP Calculator** |
+| 예외 처리 정책 파편화 | **Module 1: LogicExecutor** |
 
-### 1.3 설계 우선순위
+### 설계 우선순위
 ```
 1. 데이터 정합성 → 2. 장애 격리 및 복구 가능성 → 3. 성능
 ```
 
----
-
-## 2. 시스템 아키텍처
-
-### 2.1 기술 스택
+### 기술 스택
 ```
 Backend:    Java 17, Spring Boot 3.5.4, Spring Data JPA
 Database:   MySQL 8.0 (GZIP 압축 저장)
@@ -47,78 +47,27 @@ Testing:    JUnit 5, Testcontainers, Locust (부하 테스트)
 Infra:      AWS EC2, Docker, GitHub Actions
 ```
 
-### 2.2 전체 아키텍처 다이어그램
+---
 
-```mermaid
-graph TB
-    subgraph "Client Layer"
-        USER[사용자]
-    end
-
-    subgraph "Application Layer"
-        API[Spring Boot API]
-        AOP[AOP Aspects<br/>Lock/Cache/Logging]
-        EXECUTOR[LogicExecutor<br/>Policy Pipeline]
-    end
-
-    subgraph "Resilience Layer"
-        CB[Circuit Breaker]
-        RETRY[Retry]
-        TL[TimeLimiter]
-    end
-
-    subgraph "External"
-        NEXON[넥슨 Open API]
-        DISCORD[Discord Webhook]
-    end
-
-    subgraph "Cache Layer"
-        L1[L1: Caffeine<br/>In-Memory]
-        L2[L2: Redis<br/>Distributed]
-    end
-
-    subgraph "Data Layer"
-        MYSQL[(MySQL<br/>SSOT)]
-        SENTINEL[Redis Sentinel<br/>HA Cluster]
-    end
-
-    USER --> API
-    API --> AOP
-    AOP --> EXECUTOR
-    EXECUTOR --> CB
-    CB --> NEXON
-    CB -.->|Fallback| L2
-    L2 -.->|Fallback| MYSQL
-
-    API --> L1
-    L1 --> L2
-    L2 --> MYSQL
-
-    CB -.->|Alert| DISCORD
-    L2 --> SENTINEL
-
-    style EXECUTOR fill:#f9f,stroke:#333
-    style CB fill:#ff9,stroke:#333
-    style SENTINEL fill:#9ff,stroke:#333
-```
+# 7개 핵심 모듈
 
 ---
 
-## 3. LogicExecutor & Policy Pipeline 아키텍처
+## Module 1: LogicExecutor & Policy Pipeline
 
-### 3.1 설계 배경 (Problem)
+### 설계 배경 (Problem)
 
 **Issue #140, #142에서 도출된 문제점:**
 - `try-catch` 블록 난립으로 비즈니스 로직 가독성 저하
 - 예외 처리 정책 파편화 (로그 레벨, 복구 전략 불일치)
 - 관측성(Observability) 확보 어려움
 
-**해결 목표:**
+### 해결 목표
 - **Zero Try-Catch in Business Layer**: 비즈니스 로직에서 try-catch 완전 제거
 - **Policy 기반 실행**: 예외 처리를 정책으로 표준화
-- ** 규약**: Error 우선 전파, Primary 예외 보존, suppressed 체인
+- **핵심 규약**: Error 우선 전파, Primary 예외 보존, suppressed 체인
 
-### 3.2 Policy Pipeline 흐름도
+### 아키텍처
 
 ```mermaid
 sequenceDiagram
@@ -135,9 +84,7 @@ sequenceDiagram
     rect rgb(200, 230, 255)
         Note over P,B: PHASE 1: BEFORE (0→N 순서)
         P->>B: policy[0].before(ctx)
-        B-->>P: entered.add(policy[0])
         P->>B: policy[1].before(ctx)
-        B-->>P: entered.add(policy[1])
     end
 
     rect rgb(200, 255, 200)
@@ -149,14 +96,12 @@ sequenceDiagram
     alt Task 성공
         rect rgb(255, 255, 200)
             Note over P,S: PHASE 3: ON_SUCCESS
-            P->>S: policy[0].onSuccess(result, elapsed, ctx)
-            P->>S: policy[1].onSuccess(result, elapsed, ctx)
+            P->>S: policy.onSuccess(result, elapsed, ctx)
         end
     else Task 실패
         rect rgb(255, 200, 200)
             Note over P,F: ON_FAILURE (best-effort)
-            P->>F: policy[0].onFailure(error, elapsed, ctx)
-            P->>F: policy[1].onFailure(error, elapsed, ctx)
+            P->>F: policy.onFailure(error, elapsed, ctx)
         end
     end
 
@@ -169,7 +114,7 @@ sequenceDiagram
     P-->>C: return result / throw primary
 ```
 
-### 3.3 핵심 불변 조건 (Invariants)
+### 핵심 불변 조건 (Invariants)
 
 | 규약 | 설명 | 적용 코드 |
 |:---|:---|:---|
@@ -179,7 +124,7 @@ sequenceDiagram
 | **LIFO After** | AFTER는 역순 호출 (정리 누락 방지) | `for (i = N-1; i >= 0; i--)` |
 | **Entered Pairing** | before 성공한 정책만 after 호출 | `entered.add(policy)` |
 
-### 3.4 사용 패턴 (8종 표준화)
+### 8종 표준 패턴
 
 ```java
 // [패턴 1] 일반 실행
@@ -213,8 +158,14 @@ executor.executeWithTranslation(
 );
 ```
 
-### 3.5 관련 Issue/PR
+### 성과
+| 지표 | Before | After |
+|:---|:---:|:---:|
+| 비즈니스 레이어 try-catch | 다수 | **0개** |
+| 예외 처리 정책 | 파편화 | **8종 표준화** |
+| 로그 일관성 | 불일치 | **TaskContext 기반 구조화** |
 
+### 관련 Issue/PR
 | Issue | 제목 | 핵심 결정 |
 |:---|:---|:---|
 | #140 | LogicExecutor 기반 예외 처리 구조화 | try-catch 박멸, 8종 패턴 표준화 |
@@ -223,20 +174,20 @@ executor.executeWithTranslation(
 
 ---
 
-## 4. Resilience4j 장애 대응 시나리오
+## Module 2: Resilience4j 회복 탄력성
 
-### 4.1 설계 배경 (Problem)
+### 설계 배경 (Problem)
 
 **Issue #145에서 도출된 문제점:**
 - 넥슨 API 지연/장애 시 워커 스레드가 무한 대기
 - 연쇄 장애(Cascading Failure)로 전체 서비스 마비 위험
 
-**해결 목표:**
+### 해결 목표
 - **Scenario A (Degrade)**: 만료된 캐시라도 반환하여 서비스 유지
 - **Scenario B (Fail-fast)**: 캐시 없으면 즉시 실패 + 알림
 - **Scenario C (Isolation)**: 3초 타임아웃으로 스레드 고갈 방지
 
-### 4.2 장애 대응 흐름도
+### 장애 대응 흐름도
 
 ```mermaid
 flowchart TD
@@ -259,16 +210,26 @@ flowchart TD
     CB_HALF -->|3회 성공| CB_CLOSED
     CB_HALF -->|실패| CB_OPEN
 
-    SCENARIO_A --> END[서비스 유지]
-    SCENARIO_B --> END
-    SUCCESS --> END
-
     style SCENARIO_A fill:#ff9
     style SCENARIO_B fill:#f99
     style CB_OPEN fill:#f66
 ```
 
-### 4.3 ResilientNexonApiClient 구현
+### 3단계 타임아웃 레이어링
+
+| Layer | Timeout | 용도 |
+|:---|:---:|:---|
+| TCP Connect | 3s | 네트워크 연결 실패 조기 탐지 |
+| HTTP Response | 5s | 느린 응답 차단 |
+| TimeLimiter | 28s | 전체 작업 상한 (3회 재시도 포함) |
+
+**타임아웃 예산 계산:**
+```
+maxAttempts × (connect + response) + (maxAttempts-1) × waitDuration + margin
+= 3 × (3s + 5s) + 2 × 0.5s + 3s = 28s
+```
+
+### 핵심 코드 (`ResilientNexonApiClient`)
 
 ```java
 @CircuitBreaker(name = "nexonApi")
@@ -291,201 +252,89 @@ public CompletableFuture<EquipmentResponse> getItemDataFallback(String ocid, Thr
 
     // 2. 캐시 없으면 최종 실패 + 알림 (Scenario B)
     log.error("[Scenario B] 캐시 부재. 알림 발송");
-    sendAlertBestEffort(ocid, cause);
+    sendAlertBestEffort(ocid, t);
     return failedFuture(new ExternalServiceException("넥슨 API", t));
 }
 ```
 
-### 4.4 Resilience4j 설정
+### 성과
+| 지표 | Before | After |
+|:---|:---:|:---:|
+| API 지연 시 스레드 대기 | 무한 | **3초 타임아웃** |
+| 장애 전파 | 전체 마비 | **격리 (Circuit Breaker)** |
+| 사용자 경험 | 무응답 | **Degrade/Fail-fast** |
 
-```yaml
-resilience4j:
-  circuitbreaker:
-    instances:
-      nexonApi:
-        slidingWindowSize: 10
-        failureRateThreshold: 60      # 60% 실패 시 OPEN
-        waitDurationInOpenState: 30s  # 30초 후 HALF-OPEN
-        permittedNumberOfCallsInHalfOpenState: 3
-
-      redisLock:
-        failureRateThreshold: 60
-        waitDurationInOpenState: 30s
-
-  timelimiter:
-    instances:
-      nexonApi:
-        timeoutDuration: 3s           # 3초 타임아웃
-        cancelRunningFuture: true
-```
-
-### 4.5 관련 Issue/PR
-
+### 관련 Issue/PR
 | Issue | 제목 | 핵심 결정 |
 |:---|:---|:---|
 | #145 | WebClient 무한 대기 방지 | TimeLimiter 3초, Circuit Breaker 도입 |
-| #146 | Admin API 인증/인가 구축 | 보안 최우선 원칙 |
+| #169 | TimeoutException 처리 개선 | 5xx로 분류, 서킷브레이커 동작 |
 | #84 | Fallback 시나리오 문서화 | A/B/C 시나리오 명세 |
 
 ---
 
-## 5. Redis 분산 락 & HA (Sentinel)
+## Module 3: TieredCache & 분산 Single-flight
 
-### 5.1 설계 배경 (Problem)
+### 설계 배경 (Problem)
 
-**Issue #77, #130에서 도출된 문제점:**
-- 동일 유저에 대한 동시 요청으로 중복 INSERT 발생
-- 단일 서버 락은 Scale-out 시 무력화
+**Issue #148에서 도출된 문제점:**
+- 캐시 스탬피드: 캐시 만료 시 다수 요청이 동시에 외부 API로 쏠림
+- L1/L2 캐시 간 불일치 발생 가능성
 - Redis 장애 시 전체 서비스 중단 위험
 
-**해결 목표:**
-- **2-Tier Locking**: Redis 우선 → MySQL Fallback
-- **Sentinel HA**: Master 장애 시 1초 이내 자동 Failover
-- **Redlock vs Sentinel**: 비용 대비 효과 분석 후 Sentinel 선택
+### 해결 목표
+- **Multi-Layer 캐시**: L1(Caffeine) → L2(Redis) → L3(MySQL)
+- **분산 Single-flight**: Leader/Follower 패턴으로 중복 호출 방지
+- **TTL 불변 조건**: L1 TTL ≤ L2 TTL (일관성 보장)
 
-### 5.2 2-Tier Lock 아키텍처
+### 아키텍처
 
 ```mermaid
 flowchart TD
-    subgraph "ResilientLockStrategy"
-        REQ[락 요청] --> CB{Circuit Breaker<br/>상태 확인}
+    subgraph "TieredCacheManager"
+        REQ[캐시 조회 요청] --> L1{L1 Caffeine<br/>조회}
 
-        CB -->|CLOSED| REDIS[Redis 락 시도<br/>Pub/Sub 대기]
-        CB -->|OPEN| MYSQL[MySQL Named Lock<br/>Fallback]
+        L1 -->|HIT| RETURN_L1[즉시 반환<br/>메트릭: cache.hit.L1]
+        L1 -->|MISS| L2{L2 Redis<br/>조회}
 
-        REDIS -->|성공| TASK[비즈니스 로직 실행]
-        REDIS -->|실패/타임아웃| MYSQL
+        L2 -->|HIT| BACKFILL_L1[L1 Backfill]
+        BACKFILL_L1 --> RETURN_L2[반환<br/>메트릭: cache.hit.L2]
 
-        MYSQL -->|성공| TASK
-        MYSQL -->|실패| REJECT[락 획득 실패<br/>DistributedLockException]
+        L2 -->|MISS| LOCK{분산 락<br/>tryLock}
 
-        TASK --> UNLOCK[락 해제]
-        UNLOCK --> REDIS_UNLOCK[Redis unlock]
-        UNLOCK --> MYSQL_UNLOCK[MySQL RELEASE_LOCK]
+        LOCK -->|Leader| LOAD[valueLoader 실행<br/>외부 API 호출]
+        LOCK -->|Follower| WAIT[락 대기 후<br/>L2 재조회]
+
+        LOAD --> WRITE_L2[L2 저장]
+        WRITE_L2 --> WRITE_L1[L1 저장]
+        WRITE_L1 --> RETURN_NEW[반환<br/>메트릭: cache.miss]
+
+        WAIT --> L2_RETRY{L2 재조회}
+        L2_RETRY -->|HIT| RETURN_WAIT[반환]
+        L2_RETRY -->|MISS| FALLBACK[Fallback 실행]
     end
 
-    subgraph "Redis Sentinel Cluster"
-        MASTER[(Master)]
-        SLAVE[(Slave)]
-        S1[Sentinel 1]
-        S2[Sentinel 2]
-        S3[Sentinel 3]
-
-        MASTER -.->|복제| SLAVE
-        S1 & S2 & S3 -.->|모니터링| MASTER
-        S1 & S2 & S3 -.->|Failover 결정<br/>quorum=2| SLAVE
+    subgraph "TTL 규칙"
+        TTL_L1[L1 TTL: 5분]
+        TTL_L2[L2 TTL: 15분]
+        TTL_L1 -.->|≤| TTL_L2
     end
 
-    REDIS --> MASTER
-
-    style REDIS fill:#9f9
-    style MYSQL fill:#ff9
-    style MASTER fill:#99f
+    style RETURN_L1 fill:#9f9
+    style RETURN_L2 fill:#9f9
+    style LOAD fill:#ff9
 ```
 
-### 5.3 Sentinel Failover 검증
+### 핵심 불변 조건
 
-**수동 Failover 테스트 결과 (Docker Compose):**
-
-| 항목 | 개선 전 | 개선 후 |
+| 규칙 | 설명 | 위반 시 문제 |
 |:---|:---|:---|
-| Master 장애 감지 | - | **1-2초 이내** |
-| READONLY 에러 | 발생 | **완전 차단** |
-| Topology 업데이트 | 수동/지연 | **1초 이내 자동** |
-| 시스템 복원력 | Redis 장애 시 종료 | **DB Fallback 자동** |
+| **Write Order: L2 → L1** | L2 성공 후에만 L1 저장 | L2 실패 시 L1만 데이터 존재 → 불일치 |
+| **TTL: L1 ≤ L2** | L2가 항상 Superset | L2 먼저 만료 시 L1에만 데이터 → 불일치 |
+| **Watchdog 모드** | leaseTime 생략으로 자동 갱신 | 장시간 작업 시 락 해제 → 동시 실행 |
+| **unlock 안전 패턴** | `isHeldByCurrentThread()` 체크 | 타임아웃 후 unlock 시 예외 |
 
-### 5.4 Redlock vs Sentinel 결정
-
-**Sentinel 선택 이유 (Issue #77 문서화):**
-
-| 항목 | Sentinel | Redlock |
-|:---|:---|:---|
-| Redis 인스턴스 | 2대 (M/S) | 3대 (독립) |
-| 인프라 비용 | **낮음** | 높음 (1.5배) |
-| 운영 복잡도 | **낮음** | 높음 |
-| 정합성 보장 | 약함 | 강함 |
-| **현재 프로젝트 적합성** | **최적** | 과설계 |
-
-> **결정 근거**: 좋아요 카운트는 ±1 오차 허용 가능. DB가 SSOT(Single Source of Truth)로서 최종 정합성 보장. Redlock의 강한 정합성은 금융 거래 수준에서 필요하며, 현재 비즈니스 요구사항에는 과설계.
-
-### 5.5 관련 Issue/PR
-
-| Issue | 제목 | 핵심 결정 |
-|:---|:---|:---|
-| #77 | Redis Sentinel HA 구현 | Failover 1초, Redlock 미도입 |
-| #130 | MySQL 세션 락 오류 수정 | ConnectionCallback 기반 세션 고정 |
-| #48 | DB 락 경합 최적화 | 전용 lockJdbcTemplate 분리 |
-
----
-
-## 6. AOP + Async + Cache 결합부
-
-### 6.1 설계 배경 (Problem)
-
-**Issue #118, #119에서 도출된 문제점:**
-- 캐시 스탬피드: 캐시 만료 시 다수 요청이 동시에 외부 API로 쏠림
-- `.join()` 블로킹: CompletableFuture에서 톰캣 스레드 점유
-- 순환 참조: 서비스 간 의존성 꼬임
-
-**해결 목표:**
-- **Leader/Follower 패턴**: RCountDownLatch로 중복 호출 방지
-- **비동기 논블로킹**: `.handle()` 체이닝으로 톰캣 스레드 즉시 반환
-- **Latch TTL**: 리더 크래시 시에도 60초 후 자동 복구
-
-### 6.2 NexonDataCacheAspect 흐름도
-
-```mermaid
-sequenceDiagram
-    participant R1 as Request 1 (Leader)
-    participant R2 as Request 2 (Follower)
-    participant ASP as NexonDataCacheAspect
-    participant REDIS as Redis
-    participant NEXON as Nexon API
-    participant CACHE as EquipmentCacheService
-
-    Note over R1,R2: 동일 OCID에 대한 동시 요청
-
-    R1->>ASP: getItemData(ocid)
-    R2->>ASP: getItemData(ocid)
-
-    ASP->>REDIS: getCachedResult(ocid)
-    REDIS-->>ASP: null (캐시 미스)
-
-    rect rgb(200, 255, 200)
-        Note over R1,REDIS: Leader 선출 (trySetCount)
-        ASP->>REDIS: latch.trySetCount(1)
-        REDIS-->>R1: true (Leader 획득)
-        REDIS-->>R2: false (Follower)
-    end
-
-    ASP->>REDIS: expire(latchKey, 60s)
-    Note right of REDIS: Latch TTL 설정<br/>(리더 크래시 대비)
-
-    rect rgb(200, 230, 255)
-        Note over R1,NEXON: Leader: 외부 API 호출
-        R1->>NEXON: getItemData(ocid)
-        NEXON-->>R1: EquipmentResponse
-    end
-
-    rect rgb(255, 255, 200)
-        Note over R2,REDIS: Follower: 대기
-        R2->>REDIS: latch.await(5s)
-    end
-
-    R1->>CACHE: saveCache(ocid, response)
-    R1->>REDIS: latch.countDown()
-    R1->>REDIS: expire(latchKey, 10s)
-    Note right of REDIS: 자연 소멸 (race 방지)
-
-    REDIS-->>R2: await 완료
-    R2->>CACHE: getValidCache(ocid)
-    CACHE-->>R2: cached response
-
-    R1-->>ASP: response
-    R2-->>ASP: response
-```
-
-### 6.3 핵심 코드 (평탄화 완료)
+### Leader/Follower 패턴 (NexonDataCacheAspect)
 
 ```java
 @Around("@annotation(NexonDataCache) && args(ocid, ..)")
@@ -494,54 +343,125 @@ public Object handleNexonCache(ProceedingJoinPoint joinPoint, String ocid) {
         .orElseGet(() -> executeDistributedStrategy(joinPoint, ocid, returnType));
 }
 
-private Object executeDistributedStrategy(ProceedingJoinPoint joinPoint, String ocid, Class<?> returnType) {
+private Object executeDistributedStrategy(ProceedingJoinPoint jp, String ocid, Class<?> type) {
     String latchKey = "latch:eq:" + ocid;
     RCountDownLatch latch = redissonClient.getCountDownLatch(latchKey);
 
     if (latch.trySetCount(1)) {
         // Leader: Latch TTL 설정 (리더 크래시 대비)
         redissonClient.getKeys().expire(latchKey, 60, TimeUnit.SECONDS);
-        return executeAsLeader(joinPoint, ocid, returnType, latch);
+        return executeAsLeader(jp, ocid, type, latch);
     }
-    return executeAsFollower(ocid, returnType, latch);
-}
-
-// 비동기 결과 처리 (.join() 제거, .handle() 사용)
-private Object processAsyncResult(Object res, Throwable ex, String ocid, RCountDownLatch latch) {
-    executor.executeVoid(() -> {
-        if (ex == null) cacheService.saveCache(ocid, (EquipmentResponse) res);
-    }, TaskContext.of("NexonCache", "AsyncSave", ocid));
-
-    finalizeLatch(latch);  // 반드시 실행
-    return res;
+    return executeAsFollower(ocid, type, latch);
 }
 ```
 
-### 6.4 관련 Issue/PR
+### 성과
+| 지표 | Before | After |
+|:---|:---:|:---:|
+| 캐시 스탬피드 | 발생 | **완전 차단** |
+| 외부 API 호출 | 중복 | **1회로 제한** |
+| 캐시 일관성 | 불일치 가능 | **TTL 규칙으로 보장** |
 
+### 관련 Issue/PR
 | Issue | 제목 | 핵심 결정 |
 |:---|:---|:---|
-| #118 | 비동기 파이프라인 전환 및 .join() 제거 | handle() 체이닝으로 논블로킹 |
-| #119 | 순환 참조 제거 | Facade 패턴으로 의존성 분리 |
 | #148 | TieredCache Race Condition 제거 | L1/L2 일관성 보장 |
+| #118 | 비동기 파이프라인 전환 | Leader/Follower 패턴 |
+| #77 | Redis Sentinel HA | Failover 1초, DB Fallback |
 
 ---
 
-## 7. Durability & Graceful Shutdown
+## Module 4: AOP + Async 비동기 파이프라인
 
-### 7.1 설계 배경 (Problem)
+### 설계 배경 (Problem)
+
+**Issue #118에서 도출된 문제점:**
+- `.join()` 블로킹으로 톰캣 스레드 점유
+- 동기 처리로 인한 RPS 저하
+- 순환 참조로 인한 의존성 꼬임
+
+### 해결 목표
+- **톰캣 스레드 즉시 반환**: 0ms 목표
+- **비동기 논블로킹**: `.handle()` 체이닝
+- **Two-Phase Snapshot**: 캐시 HIT 시 불필요한 로드 방지
+
+### Two-Phase Snapshot 패턴
+
+| Phase | 목적 | 로드 데이터 |
+|:---|:---|:---|
+| **LightSnapshot** | 캐시 키 생성 | 최소 필드 (ocid, fingerprint) |
+| **FullSnapshot** | 계산 (MISS 시만) | 전체 필드 |
+
+```java
+// ✅ Good (Two-Phase Snapshot)
+return CompletableFuture
+        .supplyAsync(() -> fetchLightSnapshot(userIgn), executor)  // Phase 1
+        .thenCompose(light -> {
+            // 캐시 HIT → 즉시 반환 (FullSnapshot 스킵)
+            Optional<Response> cached = cacheService.get(light.cacheKey());
+            if (cached.isPresent()) {
+                return CompletableFuture.completedFuture(cached.get());
+            }
+            // 캐시 MISS → Phase 2
+            return CompletableFuture
+                    .supplyAsync(() -> fetchFullSnapshot(userIgn), executor)
+                    .thenCompose(full -> compute(full));
+        });
+```
+
+### .join() 제거 전략
+
+```java
+// ❌ Bad (.join()은 호출 스레드 블로킹)
+return service.calculateAsync(userIgn).join();
+
+// ✅ Good (체이닝으로 논블로킹 유지)
+return service.calculateAsync(userIgn)
+        .thenApply(this::postProcess)
+        .orTimeout(30, TimeUnit.SECONDS)
+        .exceptionally(this::handleException);
+```
+
+### 스레드 풀 분리 원칙
+
+| Thread Pool | 역할 | 설정 기준 |
+|:---|:---|:---|
+| `http-nio-*` | 톰캣 요청 | 즉시 반환 (0ms 목표) |
+| `expectation-*` | 계산 전용 | CPU 코어 수 기반 |
+| `SimpleAsyncTaskExecutor-*` | Fire-and-Forget | @Async 비동기 |
+
+### 성과
+| 지표 | Before | After |
+|:---|:---:|:---:|
+| 톰캣 스레드 점유 | 블로킹 | **즉시 반환** |
+| RPS | ~50 | **235 (370%↑)** |
+| .join() 사용 | 다수 | **0개** |
+
+### 관련 Issue/PR
+| Issue | 제목 | 핵심 결정 |
+|:---|:---|:---|
+| #118 | 비동기 파이프라인 전환 및 .join() 제거 | handle() 체이닝 |
+| #168 | CallerRunsPolicy 제거 | AbortPolicy + 503 응답 |
+| #119 | 순환 참조 제거 | Facade 패턴 |
+
+---
+
+## Module 5: Graceful Shutdown & DLQ
+
+### 설계 배경 (Problem)
 
 **Issue #127, #147에서 도출된 문제점:**
 - 서버 종료 시 Redis 버퍼 데이터 유실
 - 비동기 저장 작업 미완료 상태에서 종료
 - 재시작 후 데이터 복구 불가
 
-**해결 목표:**
-- **Graceful Shutdown**: SmartLifecycle로 종료 순서 보장
+### 해결 목표
+- **4단계 순차 종료**: SmartLifecycle로 종료 순서 보장
 - **데이터 백업**: 종료 전 Redis → 파일 백업
-- **자동 복구**: 재시작 시 파일 → DB 자동 반영
+- **DLQ 패턴**: 복구 실패 시 최후의 안전망
 
-### 7.2 Graceful Shutdown 흐름도
+### 4단계 순차 종료 프로세스
 
 ```mermaid
 flowchart TD
@@ -581,81 +501,249 @@ flowchart TD
     style DB_FALLBACK fill:#f99
 ```
 
-### 7.3 GracefulShutdownCoordinator 구현
+### DLQ (Dead Letter Queue) 패턴
 
 ```java
-@Component
-public class GracefulShutdownCoordinator implements SmartLifecycle {
-
-    @Override
-    public void stop() {
-        executor.executeWithFinally(
-            () -> {
-                log.warn("=== [System Shutdown] 종료 절차 시작 ===");
-
-                // 1. Equipment 비동기 저장 완료 대기
-                ShutdownData backupData = waitForEquipmentPersistence();
-
-                // 2. 로컬 좋아요 버퍼 Flush
-                backupData = flushLikeBuffer(backupData);
-
-                // 3. 리더 서버인 경우 DB 최종 동기화
-                syncRedisToDatabase();
-
-                // 4. 백업 데이터 저장
-                if (!backupData.isEmpty()) {
-                    persistenceService.saveShutdownData(backupData);
-                }
+// 보상 실패 시 DLQ 이벤트 발행
+private void compensate() {
+    executor.executeOrCatch(
+            () -> strategy.restore(tempKey, sourceKey),
+            e -> {
+                // P0 FIX: 복구 실패 시 DLQ 이벤트 발행
+                LikeSyncFailedEvent event = LikeSyncFailedEvent.fromFetchResult(result, sourceKey, e);
+                eventPublisher.publishEvent(event);
                 return null;
             },
-            () -> {
-                this.running = false;
-                log.warn("=== [System Shutdown] 종료 완료 ===");
-            },
-            TaskContext.of("Shutdown", "MainProcess")
-        );
-    }
-
-    @Override
-    public int getPhase() {
-        return Integer.MAX_VALUE - 1000;  // 가장 마지막에 종료
-    }
-}
-```
-
-### 7.4 데이터 복구 전략 (Issue #77 대응)
-
-```java
-private boolean recoverLikeBuffer(ShutdownData data) {
-    likeBuffer.forEach((userIgn, count) -> {
-        executor.executeOrCatch(
-            // 1차: Redis 복구 시도
-            () -> {
-                redisTemplate.opsForHash().increment(REDIS_HASH_KEY, userIgn, count);
-                return null;
-            },
-            // 2차: Redis 실패 시 DB Fallback
-            (redisEx) -> recoverToDbFallback(userIgn, count, redisEx, allSuccess, context),
             context
-        );
-    });
-    return allSuccess.get();
+    );
+}
+
+// Listener: 파일 백업 + 알림
+@Async
+@EventListener
+public void handleSyncFailure(LikeSyncFailedEvent event) {
+    // 1. 파일 백업 (데이터 보존 최우선)
+    persistenceService.appendLikeEntry(event.userIgn(), event.lostCount());
+    // 2. 메트릭 기록
+    meterRegistry.counter("like.sync.dlq.triggered").increment();
+    // 3. Discord 알림 (운영팀 인지)
+    discordAlertService.sendCriticalAlert("DLQ 발생", event.errorMessage());
 }
 ```
 
-### 7.5 관련 Issue/PR
+### 성과
+| 지표 | Before | After |
+|:---|:---:|:---:|
+| 종료 시 데이터 유실 | 발생 | **0건 보장** |
+| 복구 실패 대응 | 없음 | **DLQ + 파일 백업** |
+| 재시작 복구 | 수동 | **자동** |
 
+### 관련 Issue/PR
 | Issue | 제목 | 핵심 결정 |
 |:---|:---|:---|
 | #127 | 데이터 복구 로직 멱등성 확보 | Redis → DB Fallback 체인 |
 | #147 | LikeSyncService 데이터 유실 방지 | Redis 원자성 + 파일 백업 |
-| #77 | Redis Sentinel HA | 장애 시에도 DB Fallback 보장 |
+| #175 | 보상 트랜잭션 구현 | DLQ 패턴 도입 |
 
 ---
 
-## 8. 성능 최적화 성과
+## Module 6: Expectation Calculator (DP)
 
-### 8.1 부하 테스트 결과 (Locust)
+### 설계 배경 (Problem)
+
+**Issue #139에서 도출된 문제점:**
+- 단순 시뮬레이션(Monte Carlo)은 오차율 존재
+- 전수 조사는 경우의 수 폭발로 연산 비용 과다
+- 부동소수점 누적 오차
+
+### 해결 목표
+- **컨볼루션 기반 확률 분포 합성**: 정확한 확률 계산
+- **동적 계획법(DP)**: O(n²) → O(n) 최적화
+- **Kahan Summation**: 부동소수점 오차 최소화
+
+### 알고리즘 설계
+
+```mermaid
+flowchart TD
+    subgraph "CubeDpCalculator"
+        INPUT[장비 옵션 리스트] --> PMF[PMF 모델링<br/>DensePmf / SparsePmf]
+
+        PMF --> CONV[컨볼루션 연산<br/>확률 분포 합성]
+
+        CONV --> DP[DP 메모이제이션<br/>Tail Probability 계산]
+
+        DP --> KAHAN[Kahan Summation<br/>누적 오차 억제]
+
+        KAHAN --> OUTPUT[기대값 결과]
+    end
+
+    style PMF fill:#9f9
+    style DP fill:#ff9
+    style KAHAN fill:#9ff
+```
+
+### 핵심 수학적 모델
+
+**Tail Probability 기반 점화식:**
+```
+dp[i] = dp[i-1] + (1 - cumProb[i]) × cost[i]
+의미: i번째 시행까지의 기대 비용 = 이전 비용 + 아직 성공하지 못할 확률 × 비용
+```
+
+**Kahan Summation Algorithm:**
+```java
+private double kahanSum(double[] values) {
+    double sum = 0.0;
+    double c = 0.0;  // 보정값
+    for (double v : values) {
+        double y = v - c;
+        double t = sum + y;
+        c = (t - sum) - y;  // 손실된 하위 비트 복구
+        sum = t;
+    }
+    return sum;
+}
+```
+
+### 성과
+| 지표 | Before | After |
+|:---|:---:|:---:|
+| 시간 복잡도 | O(n²) | **O(n)** |
+| 계산 오차 | 누적 발생 | **Kahan으로 억제** |
+| 응답 시간 | 수초 | **실시간** |
+
+### 관련 Issue/PR
+| Issue | 제목 | 핵심 결정 |
+|:---|:---|:---|
+| #139 | DP 기반 기대값 엔진 구현 | Tail Probability + 메모이제이션 |
+| #159 | 큐브 기대값 엔진 구현 | 컨볼루션 + Kahan Summation |
+
+---
+
+## Module 7: Transactional Outbox 패턴 (데이터 일관성)
+
+### 설계 배경 (Problem)
+
+**Issue #80, #81, #127에서 도출된 문제점:**
+- 도네이션 처리 시 비즈니스 트랜잭션과 이벤트 발행의 원자성 미보장
+- 분산 환경에서 이벤트 유실 가능성
+- 재시도 시 중복 처리 위험
+
+### 해결 목표
+- **At-Least-Once Delivery**: 최소 1회 전달 보장
+- **멱등성 (Idempotency)**: requestId 기반 중복 처리 방지
+- **Triple Safety Net**: 다중 안전장치로 데이터 영구 손실 방지
+
+### 아키텍처
+
+```mermaid
+flowchart TD
+    subgraph "Write Path (Same Transaction)"
+        CLIENT[Client Request] --> SERVICE[DonationService]
+        SERVICE --> HISTORY[(donation_history)]
+        SERVICE --> OUTBOX[(donation_outbox)]
+        HISTORY -.->|ACID| OUTBOX
+    end
+
+    subgraph "Read Path (Polling 10s)"
+        SCHEDULER[OutboxScheduler] --> PROCESSOR[OutboxProcessor]
+        PROCESSOR -->|SKIP LOCKED| OUTBOX
+        PROCESSOR --> NOTIFY[Notification]
+    end
+
+    subgraph "Triple Safety Net"
+        DLQ[(donation_dlq)]
+        FILE[File Backup]
+        DISCORD[Discord Alert]
+
+        PROCESSOR -->|Max Retry| DLQ
+        DLQ -.->|DB Fail| FILE
+        FILE -.->|File Fail| DISCORD
+    end
+
+    style OUTBOX fill:#ff9
+    style DLQ fill:#f99
+```
+
+### 핵심 구현 특성
+
+| 특성 | 구현 | 효과 |
+|:-----|:-----|:-----|
+| **Content Hash** | SHA-256(requestId\|type\|payload) | 데이터 변조 감지 |
+| **SKIP LOCKED** | 분산 환경 중복 처리 방지 | 락 경합 없이 병렬 처리 |
+| **Exponential Backoff** | 30s → 60s → 120s... | 부하 분산 |
+| **Stalled Recovery** | 5분 간격 PROCESSING → PENDING | JVM 크래시 대응 |
+| **Optimistic Locking** | @Version 필드 | 동시 수정 감지 |
+
+### 상태 전이 다이어그램
+
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING: create()
+
+    PENDING --> PROCESSING: markProcessing()
+    PROCESSING --> COMPLETED: markCompleted()
+    PROCESSING --> FAILED: markFailed() [retryCount < maxRetries]
+    PROCESSING --> DEAD_LETTER: markFailed() [retryCount >= maxRetries]
+
+    FAILED --> PROCESSING: poll (retry)
+    PROCESSING --> PENDING: recoverStalled() [5분 경과]
+
+    PENDING --> DEAD_LETTER: forceDeadLetter() [무결성 실패]
+
+    COMPLETED --> [*]
+    DEAD_LETTER --> [*]: Triple Safety Net
+```
+
+### Triple Safety Net (P0 - 데이터 영구 손실 방지)
+
+```java
+// DlqHandler.java
+public void handleDeadLetter(DonationOutbox entry, String reason) {
+    // 1차: DB DLQ
+    executor.executeOrCatch(
+        () -> { dlqRepository.save(DonationDlq.from(entry)); return null; },
+        dbEx -> handleDbDlqFailure(entry, reason),  // 2차로 이동
+        context
+    );
+}
+
+private Void handleDbDlqFailure(...) {
+    // 2차: File Backup
+    executor.executeOrCatch(
+        () -> { fileBackupService.appendOutboxEntry(requestId, payload); return null; },
+        fileEx -> handleCriticalFailure(entry, reason, fileEx),  // 3차로 이동
+        context
+    );
+}
+
+private Void handleCriticalFailure(...) {
+    // 3차: Discord Critical Alert (최후의 안전망)
+    discordAlertService.sendCriticalAlert("🚨 OUTBOX CRITICAL", description, exception);
+}
+```
+
+### 성과
+| 지표 | Before | After |
+|:---|:---:|:---:|
+| 트랜잭션-이벤트 일관성 | 미보장 | **ACID 원자성** |
+| 중복 처리 | 발생 가능 | **멱등성 보장** |
+| 데이터 유실 | 가능 | **Triple Safety Net** |
+| 분산 환경 | 중복 처리 | **SKIP LOCKED** |
+
+### 관련 Issue/PR
+| Issue | 제목 | 핵심 결정 |
+|:---|:---|:---|
+| #80 | Transactional Outbox 패턴 도입 | At-Least-Once + 멱등성 |
+| #81 | DLQ Handler Triple Safety Net | DB → File → Discord |
+| #127 | 멱등성 키 기반 중복 처리 방지 | requestId unique 제약 |
+| #187 | Outbox 패턴 및 멱등성 구현 PR | 통합 구현 |
+
+---
+
+# 종합 성과
+
+## 부하 테스트 결과 (Locust)
 
 | Metric | Before | After | 개선율 |
 |:---|:---:|:---:|:---:|
@@ -664,106 +752,40 @@ private boolean recoverLikeBuffer(ShutdownData data) {
 | P99 Latency | 2.5s | **160ms** | **94%** |
 | Connection Timeout | 다수 | **0건** | **100%** |
 
-### 8.2 주요 최적화 내역
+## 주요 최적화 내역
 
 | 영역 | 문제 | 해결 | 효과 |
 |:---|:---|:---|:---|
 | **Redis 락** | 즉시 fallback으로 MySQL 커넥션 고갈 | Pub/Sub 대기 전략 | Connection 안정화 |
-| **커넥션 풀** | 락 전용 풀 부족 (10개) | 50개로 증설 | 동시성 향상 |
 | **GZIP 압축** | 350KB JSON 저장 | 17KB로 압축 | **95% 스토리지 절감** |
-| **스트리밍** | 힙 메모리 적재 | StreamingResponseBody | **RPS 11배 향상** |
 | **인덱스** | Full Table Scan | 복합 인덱스 설계 | **50배 조회 개선** |
 
-### 8.3 부하 테스트 시나리오
-
-```python
-# Locust 테스트 시나리오
-class MapleUser(HttpUser):
-    wait_time = between(0.1, 0.5)
-
-    @task(3)
-    def get_equipment(self):
-        self.client.get(f"/v2/equipment/{random_ocid}")
-
-    @task(1)
-    def add_like(self):
-        self.client.post(f"/v2/like/{random_ign}")
-```
-
----
-
-## 9. 설계 결정 기록 (ADR)
-
-### 9.1 주요 설계 결정 요약
+## 설계 결정 요약 (ADR)
 
 | 결정 | 선택 | 대안 | 근거 |
 |:---|:---|:---|:---|
-| 예외 처리 | LogicExecutor 중앙화 | 각 클래스에서 try-catch | 정책 파편화 방지, 관측성 확보 |
-| 분산 락 | Redis → MySQL 2-Tier | Redlock | 비용 효율성, 비즈니스 요구사항 부합 |
-| HA 전략 | Sentinel | Redlock 3대 | 50% 비용 절감, 운영 복잡도 감소 |
-| 캐시 전략 | L1/L2/L3 계층형 | 단일 Redis | 외부 API 보호, 장애 격리 |
-| 장애 대응 | Circuit Breaker A/B/C | 단순 재시도 | 연쇄 장애 방지, Degrade 전략 |
-
-### 9.2 의도된 상향 설계 (Deliberate Over-Engineering)
-
-**프로젝트 특성상 상향 설계가 필요한 이유:**
-
-1. **외부 API 의존도 높음**: Latency/Failure Control 불가
-2. **오픈런 시 동시 요청 집중**: 특정 유저에 대한 스파이크 트래픽
-3. **데이터 정합성 우선**: 성능보다 무결성이 중요
-
-**오버엔지니어링이 아닌 이유:**
-- Kafka/MQ 도입 안 함 (필요 없음)
-- Redis 사용 목적: 속도가 아닌 **정합성/중복 방지/장애 격리**
-- 모든 인프라는 Interface 뒤에 배치 (교체 비용 최소화)
+| 예외 처리 | LogicExecutor 중앙화 | 각 클래스에서 try-catch | 정책 파편화 방지 |
+| 분산 락 | Redis → MySQL 2-Tier | Redlock | 비용 효율성 |
+| HA 전략 | Sentinel | Redlock 3대 | 50% 비용 절감 |
+| 캐시 전략 | L1/L2/L3 계층형 | 단일 Redis | 외부 API 보호 |
+| 장애 대응 | Circuit Breaker A/B/C | 단순 재시도 | 연쇄 장애 방지 |
 
 ---
 
-## 10. 프로젝트 통계
-
-### 10.1 GitHub 활동
+## 프로젝트 통계
 
 | 항목 | 수치 |
 |:---|:---:|
 | Total Commits | **500+** |
 | Merged PRs | **76+** |
-| Closed Issues | **100+** |
-| Open Issues | **26** (로드맵 기반) |
-
-### 10.2 코드 품질
-
-| 항목 | 달성 |
-|:---|:---|
-| Try-Catch in Business Layer | **0개** (Zero Policy) |
-| Test Coverage | JUnit 5 + Testcontainers |
-| CI/CD | GitHub Actions |
-| Code Review | 모든 PR에 기술적 결정 근거 기록 |
+| Closed Issues | **150+** |
+| Try-Catch in Business Layer | **0개** |
 
 ---
 
-## 11. 향후 로드맵
-
-### Phase 1: 보안 & 안정성 (즉시)
-- #146: Admin API 인증/인가
-- #145: WebClient Timeout 강제
-- #150: PermutationUtil OOM 방지
-
-### Phase 2: 데이터 무결성 (1-2주)
-- #147: LikeSyncService 원자성
-- #148: TieredCache Race Condition
-
-### Phase 3: 관측성 (1-2개월)
-- #143: Grafana + Loki + Tracing
-- #138: 메트릭 카디널리티 제어
-
----
-
-## 12. 연락처
+## 연락처
 
 - **GitHub**: [zbnerd/MapleExpectation](https://github.com/zbnerd/MapleExpectation)
-- **Performance Report**: [docs/PERFORMANCE_260105.md](./PERFORMANCE_260105.md)
-- **Resilience Strategy**: [docs/resilience.md](./resilience.md)
-- **Redis HA Architecture**: [docs/redis-ha-architecture.md](./redis-ha-architecture.md)
 
 ---
 

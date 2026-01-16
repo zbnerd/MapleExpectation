@@ -286,7 +286,29 @@ Test:           ██████████            16개 (16%)
 
 ---
 
-### 2.5 Graceful Shutdown
+### 2.5 Transactional Outbox 패턴
+
+**Transactional Outbox**로 분산 환경에서 데이터 일관성과 멱등성을 보장합니다.
+
+<img width="600" height="400" alt="outbox-diagram" src="https://github.com/user-attachments/assets/outbox-placeholder" />
+
+**핵심 특성:**
+| 특성 | 구현 | 효과 |
+|------|------|------|
+| Content Hash | SHA-256 | 데이터 변조 감지 |
+| SKIP LOCKED | 분산 폴링 | 중복 처리 방지 |
+| Exponential Backoff | 30s → 60s → 120s | 부하 분산 |
+
+**Triple Safety Net (데이터 영구 손실 방지):**
+1. **1차**: DB Dead Letter Queue
+2. **2차**: File Backup (DB 실패 시)
+3. **3차**: Discord Critical Alert (최후의 안전망)
+
+**시퀀스 다이어그램:** [docs/outbox-sequence.md](docs/outbox-sequence.md)
+
+---
+
+### 2.6 Graceful Shutdown
 
 **4단계 순차 종료**로 진행 중인 작업과 데이터를 안전하게 보존합니다.
 
@@ -301,7 +323,7 @@ Test:           ██████████            16개 (16%)
 
 ---
 
-### 2.6 Expectation Calculator (DP)
+### 2.7 Expectation Calculator (DP)
 
 **동적 프로그래밍(DP)**으로 큐브 기대값을 계산합니다.
 
@@ -368,6 +390,7 @@ Test:           ██████████            16개 (16%)
 | LogicExecutor Pipeline | [docs/logic-executor-sequence.md](docs/logic-executor-sequence.md) |
 | CircuitBreaker 상태 전이 | [docs/resilience-sequence.md](docs/resilience-sequence.md) |
 | TieredCache Single-flight | [docs/cache-sequence.md](docs/cache-sequence.md) |
+| Transactional Outbox | [docs/outbox-sequence.md](docs/outbox-sequence.md) |
 | Graceful Shutdown 4단계 | [docs/shutdown-sequence.md](docs/shutdown-sequence.md) |
 | Async Pipeline (V2 API) | [docs/async-pipeline-sequence.md](docs/async-pipeline-sequence.md) |
 | DP Calculator | [docs/dp-calculator-sequence.md](docs/dp-calculator-sequence.md) |
