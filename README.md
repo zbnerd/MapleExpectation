@@ -290,7 +290,8 @@ Test:           ██████████            16개 (16%)
 
 **Transactional Outbox**로 분산 환경에서 데이터 일관성과 멱등성을 보장합니다.
 
-<img width="600" height="400" alt="outbox-diagram" src="https://github.com/user-attachments/assets/outbox-placeholder" />
+<img width="541" height="421" alt="image" src="https://github.com/user-attachments/assets/16b60110-3d1e-46be-801d-762d8c151644" />
+
 
 **핵심 특성:**
 | 특성 | 구현 | 효과 |
