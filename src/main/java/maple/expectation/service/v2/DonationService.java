@@ -5,12 +5,14 @@ import lombok.extern.slf4j.Slf4j;
 import maple.expectation.aop.annotation.Locked;
 import maple.expectation.aop.annotation.ObservedTransaction;
 import maple.expectation.domain.v2.DonationHistory;
+import maple.expectation.domain.v2.DonationOutbox;
 import maple.expectation.global.error.exception.CriticalTransactionFailureException;
 import maple.expectation.global.error.exception.DeveloperNotFoundException;
 import maple.expectation.global.error.exception.InsufficientPointException;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.repository.v2.DonationHistoryRepository;
+import maple.expectation.repository.v2.DonationOutboxRepository;
 import maple.expectation.service.v2.donation.event.DonationProcessor;
 import maple.expectation.service.v2.donation.listener.DonationFailedEvent;
 import org.springframework.context.ApplicationEventPublisher;
@@ -23,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class DonationService {
 
     private final DonationHistoryRepository donationHistoryRepository;
+    private final DonationOutboxRepository donationOutboxRepository;
     private final DonationProcessor donationProcessor;
     private final ApplicationEventPublisher eventPublisher;
     private final LogicExecutor executor;
@@ -41,6 +44,7 @@ public class DonationService {
 
             donationProcessor.executeTransfer(guestUuid, developerId, amount);
             saveHistory(guestUuid, developerId, amount, requestId);
+            saveOutbox(guestUuid, developerId, amount, requestId);
             return null;
         }, (e) -> {
             // 비즈니스 예외는 그대로 전파 (Locked나 Transaction에서 처리)
@@ -65,6 +69,26 @@ public class DonationService {
                                 .requestId(reqId)
                                 .build()),
                 TaskContext.of("Donation", "SaveHistory", reqId)
+        );
+    }
+
+    /**
+     * Outbox 저장 (같은 트랜잭션에서 원자적으로 저장)
+     *
+     * <p>Issue #80: Transactional Outbox Pattern</p>
+     */
+    private void saveOutbox(String sender, Long receiver, Long amount, String reqId) {
+        executor.executeVoid(() -> {
+            String payload = createPayload(sender, receiver, amount);
+            DonationOutbox outbox = DonationOutbox.create(reqId, "DONATION_COMPLETED", payload);
+            donationOutboxRepository.save(outbox);
+        }, TaskContext.of("Donation", "SaveOutbox", reqId));
+    }
+
+    private String createPayload(String sender, Long receiver, Long amount) {
+        return String.format(
+                "{\"senderUuid\":\"%s\",\"receiverId\":%d,\"amount\":%d}",
+                sender, receiver, amount
         );
     }
 }
