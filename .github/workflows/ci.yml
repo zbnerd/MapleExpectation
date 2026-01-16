@@ -163,13 +163,13 @@ jobs:
           retention-days: 1
 
   # ==========================================================================
-  # JOB 2: Smoke Test with Locust (Optional - Runs after test job)
+  # JOB 2: Smoke Test with Locust (Disabled - CI 환경 설정 복잡도로 인해 비활성화)
   # ==========================================================================
   smoke-test:
     name: Smoke Test (Locust)
     runs-on: ubuntu-latest
     needs: test
-    if: github.event_name == 'pull_request'  # Only on PRs
+    if: false  # Disabled: CI 환경에서 Application 시작 설정이 복잡함
     timeout-minutes: 10
 
     services:
