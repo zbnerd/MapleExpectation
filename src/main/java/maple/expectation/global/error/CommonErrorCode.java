@@ -23,6 +23,10 @@ public enum CommonErrorCode implements ErrorCode {
     ADMIN_NOT_FOUND("A007", "유효하지 않은 Admin입니다.", HttpStatus.NOT_FOUND),
     ADMIN_MEMBER_NOT_FOUND("A008", "Admin의 Member 계정이 존재하지 않습니다.", HttpStatus.NOT_FOUND),
 
+    // === DLQ Errors (4xx) ===
+    DLQ_NOT_FOUND("D001", "해당 DLQ 항목을 찾을 수 없습니다 (ID: %s)", HttpStatus.NOT_FOUND),
+    DLQ_ALREADY_REPROCESSED("D002", "이미 재처리된 DLQ 항목입니다 (requestId: %s)", HttpStatus.CONFLICT),
+
     // === Server Errors (5xx) ===
     INTERNAL_SERVER_ERROR("S001", "서버 내부 오류가 발생했습니다. (%s)", HttpStatus.INTERNAL_SERVER_ERROR),
     DATABASE_TRANSACTION_FAILURE("S002", "치명적인 트랜잭션 오류가 발생했습니다: %s", HttpStatus.INTERNAL_SERVER_ERROR),
