@@ -117,7 +117,8 @@ public class OcidResolver {
         return executor.executeOrCatch(
                 () -> {
                     log.info("✨ [Creation] 캐릭터 생성 시작: {}", userIgn);
-                    String ocid = nexonApiClient.getOcidByCharacterName(userIgn).getOcid();
+                    // Issue #195: .block() 제거 - 이 메서드는 이미 async 스레드에서 실행됨
+                    String ocid = nexonApiClient.getOcidByCharacterName(userIgn).join().getOcid();
 
                     GameCharacter saved = gameCharacterRepository.saveAndFlush(
                             new GameCharacter(userIgn, ocid)

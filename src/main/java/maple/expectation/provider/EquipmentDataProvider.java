@@ -52,13 +52,19 @@ public class EquipmentDataProvider {
     }
 
     /**
-     * ✅  데이터 스트리밍 평탄화
+     * ✅ 데이터 스트리밍 평탄화
      * try-catch를 제거하고 executeVoid와 ExceptionTranslator 활용
+     *
+     * <p><b>Issue #195 ADR:</b> .join()은 StreamingResponseBody 컨텍스트에서 허용됨.
+     * 이 메서드는 GameCharacterControllerV3에서 StreamingResponseBody 람다 내에서 호출되므로
+     * Tomcat 스레드는 이미 즉시 반환되고, Spring의 async 스레드 풀에서 실행됨.
+     * OutputStream 쓰기는 본질적으로 블로킹이므로 .join()이 적절함.</p>
      */
     public void streamAndDecompress(String ocid, OutputStream os) {
         TaskContext context = TaskContext.of("EquipmentProvider", "StreamData", ocid);
 
-        executor.executeVoid(() -> { //
+        executor.executeVoid(() -> {
+            // Note: .join() is acceptable here - see ADR in Javadoc above
             byte[] rawData = getRawEquipmentData(ocid).join();
 
             // 파일/스트림 I/O 전용 번역기를 통한 예외 세탁

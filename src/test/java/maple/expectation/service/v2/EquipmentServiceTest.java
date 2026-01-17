@@ -28,7 +28,9 @@ class EquipmentServiceTest extends IntegrationTestSupport {
     void setUp() {
         cacheManager.getCacheNames().forEach(n -> cacheManager.getCache(n).clear());
         CharacterOcidResponse mockOcid = new CharacterOcidResponse(TEST_OCID);
-        when(nexonApiClient.getOcidByCharacterName(anyString())).thenReturn(mockOcid);
+        // Issue #195: CompletableFuture 반환으로 변경
+        when(nexonApiClient.getOcidByCharacterName(anyString()))
+                .thenReturn(java.util.concurrent.CompletableFuture.completedFuture(mockOcid));
 
         // 테스트용 캐릭터 저장
         gameCharacterRepository.save(new GameCharacter(TEST_IGN, TEST_OCID));
