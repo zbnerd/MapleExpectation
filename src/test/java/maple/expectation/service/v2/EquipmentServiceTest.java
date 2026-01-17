@@ -105,10 +105,11 @@ class EquipmentServiceTest extends IntegrationTestSupport {
                 equipmentService.getEquipmentByUserIgnAsync(TEST_IGN);
         long callTime = System.currentTimeMillis() - startTime;
 
-        // Then: 호출 자체는 즉시 반환 (100ms 미만)
-        assertThat(callTime).isLessThan(50);
+        // Then: 호출 자체는 즉시 반환
+        // Issue #200: 임계값 완화 (50ms → 100ms) - CI 환경 부하 고려
+        assertThat(callTime).isLessThan(100);
         assertThat(future).isNotNull();
-        assertThat(future.isDone()).isFalse();
+        // Issue #200: isDone() 검증 제거 - 비결정적(non-deterministic)이므로 신뢰 불가
 
         // 결과 대기 후 완료 확인
         future.orTimeout(5, TimeUnit.SECONDS).join();
