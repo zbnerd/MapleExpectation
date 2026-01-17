@@ -93,6 +93,7 @@ resilience4j:
           - io.netty.handler.timeout.ReadTimeoutException  # Reactor Netty responseTimeout 발생 시
           - org.springframework.web.reactive.function.client.WebClientRequestException # 네트워크 단절 대응
           - java.net.UnknownHostException
+          - maple.expectation.global.error.exception.ExternalServiceException  # Issue #202: 외부 서비스 장애 시 재시도
       nexonLockRetry:
         maxAttempts: 5             # 최대 5번 시도 (락 경합이 심할 때를 대비해 조금 넉넉히)
         waitDuration: 200ms        # 0.2초 간격으로 다시 시도

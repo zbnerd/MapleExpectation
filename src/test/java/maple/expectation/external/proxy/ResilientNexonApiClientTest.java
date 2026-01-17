@@ -10,11 +10,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.awaitility.Awaitility.await;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
@@ -48,7 +50,10 @@ class ResilientNexonApiClientTest extends IntegrationTestSupport {
         assertThatThrownBy(() -> resilientNexonApiClient.getOcidByCharacterName(name))
                 .isInstanceOf(ExternalServiceException.class);
 
-        verify(nexonApiClient, times(3)).getOcidByCharacterName(name);
+        // Issue #202: Awaitility로 Retry 완료 대기 (비동기 전환 대비 + 타이밍 안정성)
+        await().atMost(Duration.ofSeconds(5)).untilAsserted(() ->
+                verify(nexonApiClient, times(3)).getOcidByCharacterName(name)
+        );
     }
 
     @Test

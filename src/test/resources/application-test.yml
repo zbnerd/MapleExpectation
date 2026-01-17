@@ -21,7 +21,7 @@ spring:
       port: 6379
       # Sentinel 설정 제거 (테스트는 단일 Redis 사용)
 
-# CircuitBreaker 설정 (운영 환경과 동일하게 유지)
+# Issue #202: Resilience4j 테스트 환경 설정
 resilience4j:
   circuitbreaker:
     instances:
@@ -32,6 +32,29 @@ resilience4j:
         minimumNumberOfCalls: 5
         permittedNumberOfCallsInHalfOpenState: 3
         registerHealthIndicator: true
+      nexonApi:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 1s  # 테스트: 빠른 복구
+        minimumNumberOfCalls: 10  # Issue #202: 테스트 간 CircuitBreaker 격리 (3번 retry로 열리지 않도록)
+        registerHealthIndicator: true
+
+  # Issue #202: 테스트 환경 Retry 설정 (운영 500ms → 테스트 50ms)
+  retry:
+    instances:
+      nexonApi:
+        maxAttempts: 3
+        waitDuration: 50ms  # 테스트 환경: 빠른 재시도
+        retryExceptions:
+          - java.util.concurrent.TimeoutException
+          - maple.expectation.global.error.exception.ExternalServiceException
+
+  # Issue #202: 테스트 환경 TimeLimiter 설정
+  timelimiter:
+    instances:
+      nexonApi:
+        timeoutDuration: 5s  # 테스트 환경: 짧은 타임아웃
+        cancelRunningFuture: true
 
 logging:
   level:
