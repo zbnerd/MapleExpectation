@@ -52,6 +52,10 @@ dependencies {
 
     implementation 'org.redisson:redisson-spring-boot-starter:3.48.0'
 
+    // Bucket4j Rate Limiting (Issue #152)
+    implementation 'com.bucket4j:bucket4j_jdk17-core:8.14.0'
+    implementation 'com.bucket4j:bucket4j_jdk17-redisson:8.14.0'
+
     // Spring Security
     implementation 'org.springframework.boot:spring-boot-starter-security'
     testImplementation 'org.springframework.security:spring-security-test'
