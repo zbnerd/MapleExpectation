@@ -176,15 +176,6 @@ public class EquipmentService {
                 .whenComplete((r, e) -> SkipEquipmentL2CacheContext.restore(beforeContext));
     }
 
-    /**
-     * @deprecated V2 컨트롤러는 {@link #calculateTotalExpectationAsync(String)} 직접 호출 (Issue #118)
-     */
-    @Deprecated(since = "2.5", forRemoval = true)
-    @TraceLog
-    public TotalExpectationResponse calculateTotalExpectation(String userIgn) {
-        return calculateTotalExpectationAsync(userIgn).join();
-    }
-
     // ==================== 오케스트레이션 ====================
 
     private CompletableFuture<TotalExpectationResponse> processAfterLightSnapshot(
@@ -382,14 +373,6 @@ public class EquipmentService {
         }, TaskContext.of("EquipmentService", "ProcessLegacy", userIgn));
     }
 
-    /**
-     * @deprecated Use {@link #calculateTotalExpectationLegacyAsync(String)} instead (Issue #118)
-     */
-    @Deprecated(since = "2.5", forRemoval = true)
-    public TotalExpectationResponse calculateTotalExpectationLegacy(String userIgn) {
-        return calculateTotalExpectationLegacyAsync(userIgn).join();
-    }
-
     public void streamEquipmentData(String userIgn, OutputStream outputStream) {
         executor.executeVoid(
                 () -> equipmentProvider.streamAndDecompress(getOcid(userIgn), outputStream),
@@ -412,14 +395,6 @@ public class EquipmentService {
                 .thenCompose(ocid -> equipmentProvider.getEquipmentResponse(ocid))
                 .orTimeout(LEADER_DEADLINE_SECONDS, TimeUnit.SECONDS)
                 .exceptionally(e -> handleEquipmentException(e, userIgn));
-    }
-
-    /**
-     * @deprecated Use {@link #getEquipmentByUserIgnAsync(String)} instead (Issue #118)
-     */
-    @Deprecated(since = "2.5", forRemoval = true)
-    public EquipmentResponse getEquipmentByUserIgn(String userIgn) {
-        return getEquipmentByUserIgnAsync(userIgn).join();
     }
 
     // ==================== 예외 처리 (Issue #118) ====================
