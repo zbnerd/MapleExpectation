@@ -119,6 +119,11 @@ logging:
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %5p [%X{requestId}] --- [%thread] %-40.40logger{39} : %m%n"
 
+# Observability 설정 (Issue #143)
+observability:
+  loki:
+    url: ${LOKI_URL:http://localhost:3100}
+
 # 넥슨 API 설정
 nexon:
   api:
