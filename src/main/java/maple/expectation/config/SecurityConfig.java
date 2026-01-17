@@ -1,6 +1,10 @@
 package maple.expectation.config;
 
 import lombok.RequiredArgsConstructor;
+import maple.expectation.global.executor.LogicExecutor;
+import maple.expectation.global.ratelimit.RateLimitingFacade;
+import maple.expectation.global.ratelimit.config.RateLimitProperties;
+import maple.expectation.global.ratelimit.filter.RateLimitingFilter;
 import maple.expectation.global.security.FingerprintGenerator;
 import maple.expectation.global.security.filter.JwtAuthenticationFilter;
 import maple.expectation.global.security.jwt.JwtTokenProvider;
@@ -48,7 +52,7 @@ import java.util.Arrays;
  */
 @Configuration
 @EnableWebSecurity
-@EnableConfigurationProperties(CorsProperties.class)
+@EnableConfigurationProperties({CorsProperties.class, RateLimitProperties.class})
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -82,9 +86,36 @@ public class SecurityConfig {
         return registration;
     }
 
+    /**
+     * Rate Limiting 필터 Bean 등록 (Issue #152)
+     *
+     * <p>CRITICAL: @Component 대신 @Bean으로 등록하여 CGLIB 프록시 문제 방지</p>
+     * <p>P0-2 FIX: LogicExecutor 주입으로 Fail-Open 에러 처리 보장</p>
+     */
+    @Bean
+    public RateLimitingFilter rateLimitingFilter(
+            RateLimitingFacade rateLimitingFacade,
+            RateLimitProperties rateLimitProperties,
+            LogicExecutor logicExecutor) {
+        return new RateLimitingFilter(rateLimitingFacade, rateLimitProperties, logicExecutor);
+    }
+
+    /**
+     * Rate Limiting 필터 서블릿 컨테이너 중복 등록 방지 (Issue #152)
+     */
+    @Bean
+    public FilterRegistrationBean<RateLimitingFilter> rateLimitFilterRegistration(
+            RateLimitingFilter filter) {
+        FilterRegistrationBean<RateLimitingFilter> registration =
+                new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false);
+        return registration;
+    }
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http,
-                                            JwtAuthenticationFilter jwtAuthenticationFilter) throws Exception {
+                                            JwtAuthenticationFilter jwtAuthenticationFilter,
+                                            RateLimitingFilter rateLimitingFilter) throws Exception {
         http
             // CSRF 비활성화 (REST API)
             .csrf(AbstractHttpConfigurer::disable)
@@ -143,6 +174,9 @@ public class SecurityConfig {
                 // 그 외 모든 요청은 인증 필요
                 .anyRequest().authenticated()
             )
+
+            // Rate Limiting 필터 추가 (Issue #152: JWT 필터 이전에 실행)
+            .addFilterBefore(rateLimitingFilter, UsernamePasswordAuthenticationFilter.class)
 
             // JWT 인증 필터 추가
             .addFilterBefore(jwtAuthenticationFilter,

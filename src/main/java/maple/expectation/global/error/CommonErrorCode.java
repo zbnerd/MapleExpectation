@@ -13,6 +13,9 @@ public enum CommonErrorCode implements ErrorCode {
     INSUFFICIENT_POINTS("C003", "포인트가 부족합니다 (보유: %s, 필요: %s)", HttpStatus.BAD_REQUEST),
     DEVELOPER_NOT_FOUND("C004", "해당 개발자를 찾을 수 없습니다 (ID: %s)", HttpStatus.NOT_FOUND),
 
+    // === Rate Limit Errors (4xx) - Issue #152 ===
+    RATE_LIMIT_EXCEEDED("R001", "요청 한도를 초과했습니다. %s초 후 다시 시도해주세요.", HttpStatus.TOO_MANY_REQUESTS),
+
     // === Auth Errors (4xx) ===
     INVALID_API_KEY("A001", "유효하지 않은 API Key입니다.", HttpStatus.UNAUTHORIZED),
     CHARACTER_NOT_OWNED("A002", "해당 캐릭터는 이 API Key 소유자의 캐릭터가 아닙니다 (IGN: %s)", HttpStatus.FORBIDDEN),

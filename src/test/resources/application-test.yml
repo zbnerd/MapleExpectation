@@ -47,3 +47,39 @@ nexon:
 cube:
   table-mass:
     policy: LENIENT  # 테스트 환경: 확률 테이블 정규화 허용
+
+# Rate Limiting 설정 (Issue #152)
+ratelimit:
+  enabled: true
+  failure-mode: fail-open
+  key-prefix: "{ratelimit}"
+  ip:
+    enabled: true
+    capacity: 100
+    window: 1m
+    refill-tokens: 10
+    refill-period: 6s
+  user:
+    enabled: true
+    capacity: 200
+    window: 1m
+    refill-tokens: 20
+    refill-period: 6s
+
+# Auth 설정 (테스트용)
+auth:
+  jwt:
+    secret: test-jwt-secret-key-for-unit-tests-32chars
+  fingerprint:
+    secret: test-fingerprint-secret-key-32chars123
+  admin:
+    allowlist:
+  session:
+    ttl: 1800
+
+# CORS 설정 (테스트용)
+cors:
+  allowed-origins:
+    - "http://localhost:3000"
+  allow-credentials: true
+  max-age: 3600
