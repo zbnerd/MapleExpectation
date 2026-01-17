@@ -56,3 +56,4 @@ temp_*.txt
 docs/RESUME*
 docs/COVER_LETTER*
 docs/PORTFOLIO*
+scripts/*
