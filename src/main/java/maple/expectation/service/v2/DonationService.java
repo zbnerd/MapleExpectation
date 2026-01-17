@@ -19,6 +19,7 @@ import maple.expectation.service.v2.donation.event.DonationProcessor;
 import maple.expectation.service.v2.donation.listener.DonationFailedEvent;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -51,6 +52,9 @@ public class DonationService {
     /**
      * Admin(개발자)에게 커피 보내기
      *
+     * <p>Issue #198: 금융 거래 데이터 일관성을 위해 READ_COMMITTED isolation level 명시.
+     * MySQL InnoDB 기본값과 동일하나 명시적 선언으로 의도를 표현합니다.</p>
+     *
      * @param guestUuid        발신자 UUID
      * @param adminFingerprint 수신자 Admin fingerprint
      * @param amount           후원 금액
@@ -59,7 +63,7 @@ public class DonationService {
      * @throws AdminMemberNotFoundException Admin의 Member 계정이 없음
      * @throws InsufficientPointException   잔액 부족
      */
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     @Locked(key = "#guestUuid")
     @ObservedTransaction("service.v2.DonationService.sendCoffee")
     public void sendCoffee(String guestUuid, String adminFingerprint, Long amount, String requestId) {

@@ -36,19 +36,23 @@ class ResilientNexonApiClientTest extends IntegrationTestSupport {
     @DisplayName("성공 시나리오: 결과값을 그대로 반환")
     void successDelegationTest() {
         String name = "메이플고수";
-        given(nexonApiClient.getOcidByCharacterName(name)).willReturn(new CharacterOcidResponse("ocid-123"));
+        // Issue #195: CompletableFuture 반환으로 변경
+        given(nexonApiClient.getOcidByCharacterName(name))
+                .willReturn(CompletableFuture.completedFuture(new CharacterOcidResponse("ocid-123")));
 
-        assertThat(resilientNexonApiClient.getOcidByCharacterName(name).getOcid()).isEqualTo("ocid-123");
+        assertThat(resilientNexonApiClient.getOcidByCharacterName(name).join().getOcid()).isEqualTo("ocid-123");
     }
 
     @Test
     @DisplayName("재시도 시나리오: 실패 시 3번 재시도 수행")
     void retryLogicTest() {
         String name = "네트워크불안정";
-        given(nexonApiClient.getOcidByCharacterName(name)).willThrow(new ExternalServiceException("Error"));
+        // Issue #195: CompletableFuture.failedFuture 반환으로 변경
+        given(nexonApiClient.getOcidByCharacterName(name))
+                .willReturn(CompletableFuture.failedFuture(new ExternalServiceException("Error")));
 
-        assertThatThrownBy(() -> resilientNexonApiClient.getOcidByCharacterName(name))
-                .isInstanceOf(ExternalServiceException.class);
+        assertThatThrownBy(() -> resilientNexonApiClient.getOcidByCharacterName(name).join())
+                .hasCauseInstanceOf(ExternalServiceException.class);
 
         // Issue #202: Awaitility로 Retry 완료 대기 (비동기 전환 대비 + 타이밍 안정성)
         await().atMost(Duration.ofSeconds(5)).untilAsserted(() ->

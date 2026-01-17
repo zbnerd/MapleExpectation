@@ -58,11 +58,18 @@ public class ResilientNexonApiClient implements NexonApiClient {
         this.alertTaskExecutor = alertTaskExecutor;
     }
 
+    /**
+     * 캐릭터 이름으로 OCID 조회 (비동기)
+     *
+     * <p>Issue #195: CompletableFuture 반환으로 Reactor 체인 내 .block() 제거</p>
+     * <p>TimeLimiter 추가로 비동기 작업 타임아웃 관리</p>
+     */
     @Override
     @ObservedTransaction("external.api.nexon.ocid")
+    @TimeLimiter(name = NEXON_API)
     @CircuitBreaker(name = NEXON_API)
     @Retry(name = NEXON_API, fallbackMethod = "getOcidFallback")
-    public CharacterOcidResponse getOcidByCharacterName(String name) {
+    public CompletableFuture<CharacterOcidResponse> getOcidByCharacterName(String name) {
         return delegate.getOcidByCharacterName(name);
     }
 
@@ -77,10 +84,15 @@ public class ResilientNexonApiClient implements NexonApiClient {
 
     // --- Fallback Methods (박멸 완료) ---
 
-    public CharacterOcidResponse getOcidFallback(String name, Throwable t) {
+    /**
+     * OCID 조회 fallback (비동기)
+     *
+     * <p>Issue #195: CompletableFuture.failedFuture() 반환으로 비동기 계약 준수</p>
+     */
+    public CompletableFuture<CharacterOcidResponse> getOcidFallback(String name, Throwable t) {
         handleIgnoreMarker(t);
         log.error("[Resilience] OCID 최종 조회 실패. name={}", name, t);
-        throw new ExternalServiceException(SERVICE_NEXON, t);
+        return CompletableFuture.failedFuture(new ExternalServiceException(SERVICE_NEXON, t));
     }
 
     /**

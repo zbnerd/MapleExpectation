@@ -8,10 +8,19 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import java.time.Duration;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class DiscordAlertService {
+
+    /**
+     * Discord 알림 타임아웃 (3초)
+     *
+     * <p>Issue #196: Fire-and-Forget 특성상 짧게 설정하여 리소스 점유 최소화</p>
+     */
+    private static final Duration ALERT_TIMEOUT = Duration.ofSeconds(3);
 
     private final WebClient webClient;
     private final DiscordMessageFactory messageFactory;
@@ -37,9 +46,10 @@ public class DiscordAlertService {
                 .bodyValue(payload)
                 .retrieve()
                 .toBodilessEntity()
+                .timeout(ALERT_TIMEOUT)
                 .subscribe(
-                        response -> log.info("✅ Discord Alert Sent successfully to {}", maskedUrl),
-                        error -> log.error("❌ Failed to send Discord Alert: {}", error.getMessage())
+                        response -> log.info("[Discord] Alert sent successfully to {}", maskedUrl),
+                        error -> log.error("[Discord] Failed to send alert: {}", error.getMessage())
                 );
     }
 }

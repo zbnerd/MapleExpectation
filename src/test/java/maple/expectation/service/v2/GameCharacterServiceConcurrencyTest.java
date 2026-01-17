@@ -6,6 +6,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -22,7 +23,9 @@ class GameCharacterServiceConcurrencyTest extends IntegrationTestSupport {
     void findCharacterConcurrencyTest() throws InterruptedException {
         int threadCount = 10;
         String name = "NewUser_" + UUID.randomUUID().toString().substring(0, 8);
-        when(nexonApiClient.getOcidByCharacterName(anyString())).thenReturn(new CharacterOcidResponse("mock_ocid"));
+        // Issue #195: CompletableFuture 반환으로 변경
+        when(nexonApiClient.getOcidByCharacterName(anyString()))
+                .thenReturn(CompletableFuture.completedFuture(new CharacterOcidResponse("mock_ocid")));
 
         ExecutorService executor = Executors.newFixedThreadPool(threadCount);
         CountDownLatch latch = new CountDownLatch(threadCount);
