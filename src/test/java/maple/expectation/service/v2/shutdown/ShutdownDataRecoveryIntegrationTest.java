@@ -54,7 +54,8 @@ class ShutdownDataRecoveryIntegrationTest extends IntegrationTestSupport {
         });
 
         // ✅ Redis flush가 완료될 때까지 대기 (다른 테스트의 비동기 작업 영향 차단)
-        await().atMost(3, TimeUnit.SECONDS).pollInterval(100, TimeUnit.MILLISECONDS).untilAsserted(() -> {
+        // Issue #201: 타임아웃 증가 (3초 → 15초), pollInterval 증가 (100ms → 500ms) - CI 환경 안정성
+        await().atMost(15, TimeUnit.SECONDS).pollInterval(500, TimeUnit.MILLISECONDS).untilAsserted(() -> {
             Long keyCount = redisTemplate.execute((org.springframework.data.redis.core.RedisCallback<Long>)
                 connection -> connection.serverCommands().dbSize());
             assertThat(keyCount).as("Redis가 완전히 flush되어야 함").isEqualTo(0L);
@@ -68,8 +69,8 @@ class ShutdownDataRecoveryIntegrationTest extends IntegrationTestSupport {
         cleanDirectory(persistenceService.getArchiveDirectory().getParent()); // 백업 폴더
         cleanDirectory(persistenceService.getArchiveDirectory()); // 아카이브 폴더
 
-        // OS 파일 핸들 안정화를 위한 짧은 대기
-        try { Thread.sleep(100); } catch (InterruptedException ignored) {}
+        // Issue #201: OS 파일 핸들 안정화 대기 시간 증가 (100ms → 500ms) - 파일 시스템 Race Condition 방지
+        try { Thread.sleep(500); } catch (InterruptedException ignored) {}
     }
 
     /**
@@ -99,7 +100,8 @@ class ShutdownDataRecoveryIntegrationTest extends IntegrationTestSupport {
         recoveryService.recoverFromBackup();
 
         // Step 3: Redis 검증
-        await().atMost(5, TimeUnit.SECONDS).untilAsserted(() -> {
+        // Issue #201: 타임아웃 증가 (5초 → 15초) - CI 환경 안정성
+        await().atMost(15, TimeUnit.SECONDS).pollInterval(500, TimeUnit.MILLISECONDS).untilAsserted(() -> {
             Object count = redisTemplate.opsForHash().get(REDIS_HASH_KEY, "user1");
             assertThat(count).isNotNull();
             assertThat(Long.parseLong(count.toString())).isEqualTo(100L);
@@ -123,7 +125,8 @@ class ShutdownDataRecoveryIntegrationTest extends IntegrationTestSupport {
         recoveryService.recoverFromBackup();
 
         // then - 비동기 복구를 위해 대기 시간 증가
-        await().atMost(10, TimeUnit.SECONDS).pollInterval(200, TimeUnit.MILLISECONDS).untilAsserted(() -> {
+        // Issue #201: 타임아웃 증가 (10초 → 15초), pollInterval 증가 (200ms → 500ms) - CI 환경 안정성
+        await().atMost(15, TimeUnit.SECONDS).pollInterval(500, TimeUnit.MILLISECONDS).untilAsserted(() -> {
             Object c1 = redisTemplate.opsForHash().get(REDIS_HASH_KEY, "mixedUser1");
             Object c2 = redisTemplate.opsForHash().get(REDIS_HASH_KEY, "mixedUser2");
             assertThat(c1).as("mixedUser1 Redis 값이 존재해야 함").isNotNull();
@@ -146,7 +149,8 @@ class ShutdownDataRecoveryIntegrationTest extends IntegrationTestSupport {
         recoveryService.recoverFromBackup();
 
         // [Then] 이슈 #123 해결 확인: 10 + 30 = 40이 아니라 최종 상태인 30이어야 함
-        await().atMost(5, TimeUnit.SECONDS).untilAsserted(() -> {
+        // Issue #201: 타임아웃 증가 (5초 → 15초) - CI 환경 안정성
+        await().atMost(15, TimeUnit.SECONDS).pollInterval(500, TimeUnit.MILLISECONDS).untilAsserted(() -> {
             Object result = redisTemplate.opsForHash().get(REDIS_HASH_KEY, "multiUser");
             assertThat(result).isNotNull();
             assertThat(Long.parseLong(result.toString())).isEqualTo(30L);
