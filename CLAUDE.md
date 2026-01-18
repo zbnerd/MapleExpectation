@@ -60,6 +60,7 @@ docker exec -it redis_container redis-cli
 # Project Guidelines
 
 > **분리된 문서 참조:**
+> - [Architecture Overview](docs/architecture.md) - 시스템 아키텍처 다이어그램 (Mermaid)
 > - [Infrastructure & Integration Guide](docs/infrastructure.md) - Redis, Cache, Security (Sections 7-10, 17-20)
 > - [Async & Concurrency Guide](docs/async-concurrency.md) - 비동기, Thread Pool (Sections 21-22)
 > - [Testing Guide](docs/testing-guide.md) - 테스트, Flaky Test 방지 (Sections 23-25)
@@ -84,6 +85,7 @@ CLAUDE.md는 **핵심 규칙만** 포함하며, 상세 내용은 별도 문서�
 ```
 CLAUDE.md                        # 핵심 규칙 (Sections 1-6, 11-16)
 docs/
+├── architecture.md              # 시스템 아키텍처 다이어그램 (Mermaid)
 ├── infrastructure.md            # Redis, Cache, Security (Sections 7-10, 17-20)
 ├── async-concurrency.md         # 비동기, Thread Pool (Sections 21-22)
 ├── testing-guide.md             # 테스트, Flaky Test 방지 (Sections 23-25)
