@@ -133,6 +133,18 @@ jobs:
           retention-days: 7
 
       # ------------------------------------------------------------------
+      # Step 6.1: Upload Flaky Logs (Issue #210)
+      # ------------------------------------------------------------------
+      - name: Upload Flaky Logs
+        if: always()  # 실패해도 업로드 (P0)
+        uses: actions/upload-artifact@v4
+        with:
+          name: flaky-logs-${{ github.run_id }}
+          path: build/flaky/
+          retention-days: 30
+          if-no-files-found: ignore
+
+      # ------------------------------------------------------------------
       # Step 7: Publish Test Results (PR Annotations)
       # ------------------------------------------------------------------
       - name: Publish Test Results

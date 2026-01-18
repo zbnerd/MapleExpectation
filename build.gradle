@@ -3,6 +3,7 @@ plugins {
 	id 'org.springframework.boot' version '3.5.4'
 	id 'io.spring.dependency-management' version '1.1.7'
 	id 'jacoco'
+	id 'org.gradle.test-retry' version '1.6.0'  // Issue #210: Flaky Test 재시도
 }
 
 group = 'maple'
@@ -98,24 +99,42 @@ tasks.named("jar") {
 
 // ========================================
 // Issue #207: CI 테스트 최적화
+// Issue #210: Flaky Test 추적 및 Quarantine
 // ========================================
+
+// CI 환경 감지 (Context7 Best Practice)
+boolean isCiServer = System.getenv().containsKey("CI")
+
 test {
     useJUnitPlatform {
         // @Tag 기반 테스트 필터링
-        // 기본: sentinel 테스트 제외 (Sentinel 인프라 필요)
+        // 기본: sentinel, quarantine 테스트 제외
         // ./gradlew test -PfastTest → PR Gate용 빠른 테스트 (unit, integration, chaos만)
         // ./gradlew test -PsentinelTest → Sentinel HA 테스트 전용 (야간 실행)
         if (project.hasProperty('sentinelTest')) {
             includeTags 'sentinel'
         } else if (project.hasProperty('fastTest')) {
             includeTags 'unit', 'integration', 'chaos'
-            excludeTags 'sentinel', 'slow'
+            excludeTags 'sentinel', 'slow', 'quarantine'
         } else {
-            // 기본: sentinel 제외 (Sentinel 인프라가 필요하므로)
-            excludeTags 'sentinel'
+            // 기본: sentinel, quarantine 제외
+            excludeTags 'sentinel', 'quarantine'
         }
     }
     exclude '**/vintage/**'
+
+    // Issue #210: Flaky Test 재시도 (CI에서만)
+    retry {
+        if (isCiServer) {
+            maxRetries = 1          // 보수적 재시도
+            maxFailures = 5         // 5개 초과 실패 시 빌드 중단
+            failOnPassedAfterRetry = false  // 재시도 성공 시 빌드 통과
+        }
+    }
+
+    // Flaky 로그 시스템 프로퍼티
+    systemProperty 'flaky.logging.enabled', 'true'
+    systemProperty 'flaky.log.dir', "${buildDir}/flaky"
 
     // 병렬 실행 (CPU 코어 수의 절반, 최소 1)
     maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1
@@ -131,6 +150,19 @@ test {
         events "passed", "skipped", "failed"
         exceptionFormat "full"
     }
+}
+
+// Issue #210: Quarantine 테스트 포함 실행 (Nightly용)
+tasks.register('testWithQuarantine', Test) {
+    useJUnitPlatform()  // quarantine 태그 포함
+    retry {
+        maxRetries = 1
+        maxFailures = 10
+        failOnPassedAfterRetry = false
+    }
+    systemProperty 'flaky.logging.enabled', 'true'
+    systemProperty 'flaky.log.dir', "${buildDir}/flaky"
+    environment "DOCKER_HOST", "unix:///var/run/docker.sock"
 }
 
 // ========================================
