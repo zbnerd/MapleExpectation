@@ -1,0 +1,28 @@
+# Issue #209: Prometheus Configuration
+# 5-Agent Council 합의:
+# - Red (Lead): 네트워크 설계 (maple-network 통합)
+# - Green: 15초 스크래핑 간격, 15일 데이터 보존
+# - Purple: Docker 네트워크 격리 (/actuator/prometheus 보호)
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # ============================================
+  # Prometheus 자체 메트릭
+  # ============================================
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # ============================================
+  # Spring Boot Actuator 메트릭
+  # ============================================
+  - job_name: 'spring-boot'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:8080']
+    scrape_interval: 15s
+    # 연결 실패 시 빠른 타임아웃
+    scrape_timeout: 10s
