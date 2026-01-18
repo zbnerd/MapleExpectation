@@ -14,6 +14,7 @@ import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -148,6 +149,16 @@ public class SecurityConfig {
                 .requestMatchers("/api/public/**").permitAll()
                 .requestMatchers("/actuator/health").permitAll()
                 .requestMatchers("/actuator/info").permitAll()
+                // Issue #209: Prometheus 메트릭 (Docker 네트워크/localhost만 허용)
+                .requestMatchers("/actuator/prometheus").access(
+                    (authentication, context) -> {
+                        String ip = context.getRequest().getRemoteAddr();
+                        boolean isInternalNetwork = ip.startsWith("172.") ||
+                                                    ip.startsWith("127.") ||
+                                                    ip.equals("::1");
+                        return new AuthorizationDecision(isInternalNetwork);
+                    }
+                )
 
                 // Swagger UI (개발용)
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
