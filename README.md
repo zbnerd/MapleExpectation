@@ -439,7 +439,3 @@ Test:           ██████████            16개 (16%)
 - **Git Flow:** develop → feature → PR → main
 
 ---
-
-## License
-
-MIT License
