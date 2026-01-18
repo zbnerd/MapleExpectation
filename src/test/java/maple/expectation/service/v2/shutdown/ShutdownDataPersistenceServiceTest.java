@@ -203,14 +203,15 @@ class ShutdownDataPersistenceServiceTest {
 
     @Test
     @DisplayName("findAllBackupFiles - 백업 파일 스캔 테스트 (고정 파일명으로 원자적 교체)")
-    void testFindAllBackupFiles() throws Exception {
+    void testFindAllBackupFiles() {
         // given
         ShutdownData data1 = new ShutdownData(LocalDateTime.now(), "server1", Map.of("u1", 1L), List.of());
         ShutdownData data2 = new ShutdownData(LocalDateTime.now(), "server2", Map.of("u2", 2L), List.of());
 
         // when
+        // CLAUDE.md Section 24: Thread.sleep() 제거 - 동기 저장이므로 지연 불필요
+        // 두 번째 저장이 첫 번째를 원자적으로 교체하는 동작은 시간과 무관
         service.saveShutdownData(data1);
-        Thread.sleep(100); // 시간 차이를 위해 대기
         service.saveShutdownData(data2);
 
         // then - P1 Fix: 고정 파일명 사용으로 인스턴스당 1개 파일만 유지

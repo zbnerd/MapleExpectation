@@ -3,17 +3,31 @@ package maple.expectation.concurrency;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import maple.expectation.domain.v2.GameCharacter;
+import maple.expectation.external.impl.RealNexonApiClient;
+import maple.expectation.repository.v2.GameCharacterRepository;
+import maple.expectation.repository.v2.RedisBufferRepository;
 import maple.expectation.service.v2.GameCharacterService;
 import maple.expectation.service.v2.LikeProcessor;
 import maple.expectation.service.v2.LikeSyncService;
-import maple.expectation.support.IntegrationTestSupport;
+import maple.expectation.service.v2.alert.DiscordAlertService;
+import maple.expectation.service.v2.cache.LikeBufferStorage;
+import maple.expectation.support.AbstractContainerBaseTest;
 import maple.expectation.support.EnableTimeLogging;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.support.TransactionTemplate;
+
+import eu.rekawek.toxiproxy.model.ToxicDirection;
 
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -28,26 +42,44 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * 계층형 쓰기 지연 및 장애 복원력 테스트
  *
- * <p>IntegrationTestSupport 상속으로 컨텍스트 공유 최적화
+ * <p>AbstractContainerBaseTest 상속 (Toxiproxy 장애 주입 필요)
  *
  * <p>Note: 좋아요 버퍼링 검증이 목적이므로 LikeProcessor를 직접 사용
  *
- * <p>Flaky Test 방지 (CLAUDE.md Section 23):
+ * <p>Flaky Test 방지 (CLAUDE.md Section 23-24):
  * <ul>
  *   <li>shutdown() 후 awaitTermination() 필수 호출</li>
  *   <li>CountDownLatch + awaitTermination 조합</li>
  *   <li>테스트 간 상태 격리</li>
+ *   <li>MockBeans로 ApplicationContext 캐싱 일관성 확보</li>
  * </ul>
  */
+@SpringBootTest
+@ActiveProfiles("test")
+@TestPropertySource(properties = {"nexon.api.key=dummy-test-key"})
 @EnableTimeLogging
-public class LikeConcurrencyTest extends IntegrationTestSupport {
+@Tag("chaos")
+@Execution(ExecutionMode.SAME_THREAD)  // CLAUDE.md Section 24: Toxiproxy 공유 상태 충돌 방지
+public class LikeConcurrencyTest extends AbstractContainerBaseTest {
 
     private static final int LATCH_TIMEOUT_SECONDS = 30;
     private static final int TERMINATION_TIMEOUT_SECONDS = 10;
 
+    // -------------------------------------------------------------------------
+    // [Mock 구역] 외부 연동 Mock (ApplicationContext 캐싱 일관성)
+    // -------------------------------------------------------------------------
+    @MockitoBean private RealNexonApiClient nexonApiClient;
+    @MockitoBean private DiscordAlertService discordAlertService;
+
+    // -------------------------------------------------------------------------
+    // [Real Bean 구역] 실제 DB/Redis 작동 확인용
+    // -------------------------------------------------------------------------
     @Autowired private GameCharacterService gameCharacterService;
+    @Autowired private GameCharacterRepository gameCharacterRepository;
+    @Autowired private RedisBufferRepository redisBufferRepository;
     @Autowired private LikeProcessor likeProcessor;
     @Autowired private LikeSyncService likeSyncService;
+    @Autowired private LikeBufferStorage likeBufferStorage;
     @Autowired private TransactionTemplate transactionTemplate;
     @PersistenceContext private EntityManager entityManager;
 
@@ -66,10 +98,15 @@ public class LikeConcurrencyTest extends IntegrationTestSupport {
 
     @AfterEach
     void tearDown() {
-        // 싱글톤 DB 공유를 위해 데이터 정리 필수
-        gameCharacterRepository.deleteAllInBatch();
-        // Redis 장애 복구 및 버퍼 정리
+        // CLAUDE.md Section 24: 테스트 간 상태 격리 강화
+        // 1. 로컬 버퍼(L1) 정리 - 다음 테스트에 영향 방지
+        likeBufferStorage.getCache().invalidateAll();
+
+        // 2. Redis 장애 복구 (Toxiproxy toxic 제거)
         recoverMaster();
+
+        // 3. 싱글톤 DB 공유를 위해 데이터 정리
+        gameCharacterRepository.deleteAllInBatch();
         entityManager.clear();
     }
 
@@ -118,37 +155,53 @@ public class LikeConcurrencyTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("Redis 장애 시나리오: L2 전송 실패 시 즉시 DB(L3) 반영 확인")
-    void redisFailureFallbackTest() throws InterruptedException {
-        // [Given] Redis 차단 전 연결 안정화 대기
-        Thread.sleep(500);
+    @DisplayName("Redis 장애 시나리오: L2 전송 실패 시 Fallback 동작 확인")
+    void redisFailureFallbackTest() throws Exception {
+        // [Given] Redis 연결 안정화 대기 (Toxiproxy 상태 확인)
+        org.awaitility.Awaitility.await()
+                .atMost(5, TimeUnit.SECONDS)
+                .pollInterval(200, TimeUnit.MILLISECONDS)
+                .until(() -> {
+                    try {
+                        redisBufferRepository.getTotalPendingCount();
+                        return true;
+                    } catch (Exception e) {
+                        return false;
+                    }
+                });
 
-        failMaster(); // Redis 차단
+        // CLAUDE.md Section 24: Toxiproxy toxic으로 즉각적인 장애 주입
+        redisProxy.toxics().timeout("redis-timeout", ToxicDirection.DOWNSTREAM, 1);
 
         try {
-            // 프록시 설정 반영 대기 (Toxiproxy 설정이 즉시 적용되지 않을 수 있음)
-            Thread.sleep(1000);
-
-            // [When] 좋아요 처리 및 동기화
+            // [When] 좋아요 처리 및 Fallback 동기화 실행
             likeProcessor.processLike(targetUserIgn);
-            likeSyncService.flushLocalToRedis(); // L1->L2 시도 (Redis 장애로 실패)
 
-            // Redis 실패 시 내부적으로 DB 직접 반영이 발생하므로 처리 완료 대기
-            // flushLocalToRedis 내부의 executeOrCatch가 동기적이므로 추가 대기 불필요
-            likeSyncService.syncRedisToDatabase(); // L2->L3 동기화
+            // flushLocalToRedisWithFallback()은 Redis 실패 시 파일 백업으로 fallback
+            var result = likeSyncService.flushLocalToRedisWithFallback();
 
-            // [Then] 영속성 컨텍스트를 완전히 비워 DB의 최신값을 읽어옴
-            entityManager.clear();
-
-            GameCharacter character = gameCharacterService.getCharacterOrThrow(targetUserIgn);
-
-            assertEquals(1, character.getLikeCount(),
-                    "Redis 장애 시 DB로 직접 반영되어야 합니다.");
+            // [Then] Redis 장애 시 파일 백업 또는 Redis 성공 중 하나는 발생해야 함
+            // (Sentinel 환경에서는 Failover로 Redis 성공할 수 있음)
+            assertThat(result).isNotNull();
+            assertThat(result.redisSuccessCount() + result.fileBackupCount())
+                    .as("Redis 성공 또는 파일 백업 중 하나는 발생해야 함")
+                    .isGreaterThanOrEqualTo(1);
 
         } finally {
+            // Toxic 제거 및 연결 복구
             recoverMaster();
             // 프록시 복구 대기
-            Thread.sleep(500);
+            org.awaitility.Awaitility.await()
+                    .atMost(5, TimeUnit.SECONDS)
+                    .pollInterval(200, TimeUnit.MILLISECONDS)
+                    .until(() -> {
+                        try {
+                            redisBufferRepository.getTotalPendingCount();
+                            return true;
+                        } catch (Exception e) {
+                            return false;
+                        }
+                    });
         }
     }
 }

@@ -92,20 +92,45 @@ dependencies {
 
 }
 
-tasks.named('test') {
-	useJUnitPlatform()
-}
-
 tasks.named("jar") {
     enabled = false
 }
 
+// ========================================
+// Issue #207: CI 테스트 최적화
+// ========================================
 test {
-    useJUnitPlatform()
+    useJUnitPlatform {
+        // @Tag 기반 테스트 필터링
+        // 기본: sentinel 테스트 제외 (Sentinel 인프라 필요)
+        // ./gradlew test -PfastTest → PR Gate용 빠른 테스트 (unit, integration, chaos만)
+        // ./gradlew test -PsentinelTest → Sentinel HA 테스트 전용 (야간 실행)
+        if (project.hasProperty('sentinelTest')) {
+            includeTags 'sentinel'
+        } else if (project.hasProperty('fastTest')) {
+            includeTags 'unit', 'integration', 'chaos'
+            excludeTags 'sentinel', 'slow'
+        } else {
+            // 기본: sentinel 제외 (Sentinel 인프라가 필요하므로)
+            excludeTags 'sentinel'
+        }
+    }
     exclude '**/vintage/**'
-    // WSL에서 확인된 "진짜" Docker Engine API 소켓
+
+    // 병렬 실행 (CPU 코어 수의 절반, 최소 1)
+    maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1
+
+    // WSL에서 확인된 Docker Engine API 소켓
     environment "DOCKER_HOST", "unix:///var/run/docker.sock"
+
+    // JaCoCo 연동
     finalizedBy jacocoTestReport
+
+    // 테스트 로깅 (디버깅용)
+    testLogging {
+        events "passed", "skipped", "failed"
+        exceptionFormat "full"
+    }
 }
 
 // ========================================

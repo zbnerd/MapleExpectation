@@ -15,9 +15,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.function.Function;
@@ -33,8 +36,13 @@ import static org.mockito.Mockito.*;
  *
  * <p>치명적인 시스템 예외 발생 시 DonationFailedEvent가 발행되고
  * CriticalTransactionFailureException이 던져지는지 검증합니다.</p>
+ *
+ * <p>CLAUDE.md Section 24 준수: @Execution(SAME_THREAD)로 병렬 실행 충돌 방지</p>
+ * <p>LENIENT 모드: Mock 공유 시 UnnecessaryStubbingException 방지</p>
  */
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
+@Execution(ExecutionMode.SAME_THREAD)
 class DonationServiceFailureTest {
 
     @Mock DonationHistoryRepository donationHistoryRepository;
@@ -44,7 +52,6 @@ class DonationServiceFailureTest {
     @Mock AdminService adminService;
     @Mock LogicExecutor executor;
 
-    @InjectMocks
     DonationService donationService;
 
     private static final String VALID_ADMIN_FINGERPRINT = "test-admin-fingerprint";
@@ -52,8 +59,18 @@ class DonationServiceFailureTest {
 
     @BeforeEach
     void setUp() {
+        // 수동으로 서비스 생성 (Mock 주입)
+        donationService = new DonationService(
+                donationHistoryRepository,
+                donationOutboxRepository,
+                donationProcessor,
+                adminService,
+                eventPublisher,
+                executor
+        );
+
         // LogicExecutor Mock - 람다 실제 실행
-        lenient().when(executor.executeOrCatch(
+        when(executor.executeOrCatch(
                 any(ThrowingSupplier.class),
                 any(Function.class),
                 any(TaskContext.class))
@@ -67,10 +84,10 @@ class DonationServiceFailureTest {
             }
         });
 
-        lenient().doAnswer(invocation -> {
+        doAnswer(invocation -> {
             ((ThrowingRunnable) invocation.getArgument(0)).run();
             return null;
-        }).when(executor).executeVoid((ThrowingRunnable) any(), (TaskContext) any());
+        }).when(executor).executeVoid(any(ThrowingRunnable.class), any(TaskContext.class));
     }
 
     @Test

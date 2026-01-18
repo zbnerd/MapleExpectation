@@ -10,6 +10,7 @@ import maple.expectation.global.error.exception.marker.CircuitBreakerRecordMarke
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -30,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * @see CircuitBreakerIgnoreMarker
  * @see CircuitBreakerRecordMarker
  */
+@Tag("unit")
 @DisplayName("[P0] CircuitBreaker Marker Interface 테스트")
 class CircuitBreakerMarkerP0Test {
 

@@ -1,11 +1,15 @@
 package maple.expectation.cache;
 
 import maple.expectation.external.dto.v2.TotalExpectationResponse;
+import maple.expectation.external.impl.RealNexonApiClient;
 import maple.expectation.global.cache.RestrictedCacheManager;
+import maple.expectation.service.v2.alert.DiscordAlertService;
 import maple.expectation.support.AbstractContainerBaseTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -13,6 +17,8 @@ import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -31,7 +37,15 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @SpringBootTest
 @ActiveProfiles("test")
+@TestPropertySource(properties = {"nexon.api.key=dummy-test-key"})
+@Execution(ExecutionMode.SAME_THREAD)  // CLAUDE.md Section 24: Redis 공유 상태 충돌 방지
 class ExpectationCacheIntegrationTest extends AbstractContainerBaseTest {
+
+    // -------------------------------------------------------------------------
+    // [Mock 구역] ApplicationContext 캐싱 일관성 (CLAUDE.md Section 24)
+    // -------------------------------------------------------------------------
+    @MockitoBean private RealNexonApiClient nexonApiClient;
+    @MockitoBean private DiscordAlertService discordAlertService;
 
     @Autowired
     @Qualifier("expectationL1CacheManager")

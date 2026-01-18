@@ -2,11 +2,15 @@ package maple.expectation.cache;
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import maple.expectation.external.impl.RealNexonApiClient;
+import maple.expectation.service.v2.alert.DiscordAlertService;
 import maple.expectation.support.AbstractContainerBaseTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,6 +18,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -44,7 +50,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 @SpringBootTest
 @ActiveProfiles("test")
+@TestPropertySource(properties = {"nexon.api.key=dummy-test-key"})
+@Execution(ExecutionMode.SAME_THREAD)  // CLAUDE.md Section 24: Redis 공유 상태 충돌 방지
 class TieredCacheRaceConditionTest extends AbstractContainerBaseTest {
+
+    // -------------------------------------------------------------------------
+    // [Mock 구역] ApplicationContext 캐싱 일관성 (CLAUDE.md Section 24)
+    // -------------------------------------------------------------------------
+    @MockitoBean private RealNexonApiClient nexonApiClient;
+    @MockitoBean private DiscordAlertService discordAlertService;
 
     @Autowired
     private CacheManager cacheManager;
@@ -118,11 +132,13 @@ class TieredCacheRaceConditionTest extends AbstractContainerBaseTest {
             String testKey = "double-check-test-" + UUID.randomUUID();
             AtomicInteger callCount = new AtomicInteger(0);
             CountDownLatch leaderStarted = new CountDownLatch(1);
+            CountDownLatch leaderAcquiredLock = new CountDownLatch(1);
 
             Callable<String> valueLoader = () -> {
                 leaderStarted.countDown();
+                leaderAcquiredLock.countDown(); // Leader가 락 획득 후 valueLoader 진입 시 알림
                 callCount.incrementAndGet();
-                Thread.sleep(200);
+                Thread.sleep(200); // 느린 작업 시뮬레이션 (Callable 내부이므로 허용)
                 return "leader-value";
             };
 
@@ -133,9 +149,10 @@ class TieredCacheRaceConditionTest extends AbstractContainerBaseTest {
                     cache.get(testKey, valueLoader)
             );
 
-            // Follower: Leader가 시작된 후 요청
-            leaderStarted.await();
-            Thread.sleep(50); // Leader가 락을 획득할 시간
+            // CLAUDE.md Section 24: Thread.sleep() 제거 → CountDownLatch로 명시적 동기화
+            // Follower: Leader가 락을 획득하고 valueLoader에 진입할 때까지 대기
+            boolean leaderInLoader = leaderAcquiredLock.await(10, TimeUnit.SECONDS);
+            assertThat(leaderInLoader).as("Leader가 valueLoader에 진입해야 함").isTrue();
 
             Future<String> followerFuture = executor.submit(() ->
                     cache.get(testKey, valueLoader)
@@ -173,18 +190,24 @@ class TieredCacheRaceConditionTest extends AbstractContainerBaseTest {
 
             try {
                 AtomicInteger callCount = new AtomicInteger(0);
+                CountDownLatch valueLoaderStarted = new CountDownLatch(1);
                 Callable<String> valueLoader = () -> {
+                    valueLoaderStarted.countDown(); // valueLoader 진입 알림
                     callCount.incrementAndGet();
                     return "fallback-value";
                 };
 
-                // when: 락 획득 불가능한 상황에서 요청 (짧은 타임아웃으로 테스트)
-                // 실제 TieredCache는 30초 대기하므로, 테스트에서는 락이 풀릴 때까지 대기
+                // when: 락 획득 불가능한 상황에서 요청
                 ExecutorService executor = Executors.newSingleThreadExecutor();
                 Future<String> future = executor.submit(() -> cache.get(testKey, valueLoader));
 
-                // 1초 후 락 해제
-                Thread.sleep(1000);
+                // CLAUDE.md Section 24: Thread.sleep() 제거 → Awaitility로 명시적 대기
+                // 요청이 락 대기 상태에 진입할 시간을 준 후 락 해제
+                org.awaitility.Awaitility.await()
+                        .atMost(3, TimeUnit.SECONDS)
+                        .pollInterval(100, TimeUnit.MILLISECONDS)
+                        .until(() -> !future.isDone()); // Future가 대기 상태임을 확인
+
                 lock.unlock();
 
                 String result = future.get(35, TimeUnit.SECONDS);
@@ -194,6 +217,7 @@ class TieredCacheRaceConditionTest extends AbstractContainerBaseTest {
                 assertThat(callCount.get()).isGreaterThanOrEqualTo(1);
 
                 executor.shutdown();
+                executor.awaitTermination(5, TimeUnit.SECONDS);
             } finally {
                 if (lock.isHeldByCurrentThread()) {
                     lock.unlock();

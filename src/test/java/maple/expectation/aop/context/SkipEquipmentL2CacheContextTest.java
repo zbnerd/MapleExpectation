@@ -184,7 +184,9 @@ class SkipEquipmentL2CacheContextTest {
                 latch.await(5, TimeUnit.SECONDS);
                 assertThat(workerResult.get()).isTrue();
 
+                // CLAUDE.md Section 23: shutdown() 후 awaitTermination() 필수
                 executor.shutdown();
+                executor.awaitTermination(5, TimeUnit.SECONDS);
             }
         }
 
@@ -223,7 +225,9 @@ class SkipEquipmentL2CacheContextTest {
             latch.await(5, TimeUnit.SECONDS);
             assertThat(afterTaskSnapshot.get()).isNull();
 
+            // CLAUDE.md Section 23: shutdown() 후 awaitTermination() 필수
             executor.shutdown();
+            executor.awaitTermination(5, TimeUnit.SECONDS);
         }
     }
 }
