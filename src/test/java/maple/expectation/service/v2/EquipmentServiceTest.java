@@ -88,33 +88,44 @@ class EquipmentServiceTest extends IntegrationTestSupport {
     @Test
     @DisplayName("Issue #118: 비동기 메서드가 톰캣 스레드를 블로킹하지 않음 검증")
     void getEquipmentByUserIgnAsync_NonBlocking() {
-        // Given
+        // Given: 충분히 긴 지연으로 비동기 동작 검증 (CLAUDE.md Section 24: 결정적 테스트)
         EquipmentResponse mockResponse = new EquipmentResponse();
-        // 지연 응답 시뮬레이션
+        java.util.concurrent.CountDownLatch delayLatch = new java.util.concurrent.CountDownLatch(1);
+
         when(nexonApiClient.getItemDataByOcid(anyString()))
                 .thenReturn(CompletableFuture.supplyAsync(() -> {
                     try {
-                        Thread.sleep(100);
+                        // 500ms 대기 - 호출 시점에 Future가 완료되지 않음을 보장
+                        delayLatch.await(500, TimeUnit.MILLISECONDS);
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
                     }
                     return mockResponse;
                 }));
 
-        // When: 비동기 호출 (즉시 반환되어야 함)
-        long startTime = System.currentTimeMillis();
+        // When: 비동기 호출 (즉시 Future 반환되어야 함)
         CompletableFuture<EquipmentResponse> future =
                 equipmentService.getEquipmentByUserIgnAsync(TEST_IGN);
-        long callTime = System.currentTimeMillis() - startTime;
 
-        // Then: 호출 자체는 즉시 반환
-        // Issue #200: 임계값 완화 (50ms → 100ms) - CI 환경 부하 고려
-        assertThat(callTime).isLessThan(100);
+        // Then: CLAUDE.md Section 24 - 타이밍 기반 검증 제거, 상태 기반 검증으로 대체
+        // 1. Future가 즉시 반환됨 (null이 아님)
         assertThat(future).isNotNull();
-        // Issue #200: isDone() 검증 제거 - 비결정적(non-deterministic)이므로 신뢰 불가
 
-        // 결과 대기 후 완료 확인
-        future.orTimeout(5, TimeUnit.SECONDS).join();
-        assertThat(future.isDone()).isTrue();
+        // 2. Future가 아직 완료되지 않음 (비동기 동작 증명)
+        // Note: 지연이 충분히 길어서 이 시점에 미완료 상태임이 보장됨
+        assertThat(future.isDone())
+                .as("비동기 호출 직후에는 Future가 완료되지 않아야 함 (Non-Blocking 증명)")
+                .isFalse();
+
+        // 3. 지연 해제 → 결과 완료 대기
+        delayLatch.countDown();
+
+        // 4. Awaitility로 완료 대기 (CLAUDE.md Section 24: 명시적 동기화)
+        org.awaitility.Awaitility.await()
+                .atMost(java.time.Duration.ofSeconds(5))
+                .untilAsserted(() -> assertThat(future.isDone()).isTrue());
+
+        // 5. 결과 검증
+        assertThat(future.join()).isNotNull();
     }
 }

@@ -55,21 +55,60 @@ public abstract class AbstractContainerBaseTest {
         redisProxy = TOXIPROXY.getProxy("redis-server", 6379);
     }
 
+    /**
+     * Toxiproxy 상태 초기화 (모든 Toxic 제거 + 연결 복구)
+     *
+     * <p>CLAUDE.md Section 24: Flaky Test 방지
+     * <ul>
+     *   <li>Best-effort 정리: 실패해도 테스트 실패로 이어지지 않음</li>
+     *   <li>연결 복구 우선: setConnectionCut(false) 먼저 실행</li>
+     *   <li>Toxic 정리: 개별 예외 무시하고 계속 진행</li>
+     * </ul>
+     */
     @AfterEach
     protected void globalProxyReset() {
-        if (redisProxy != null) {
-            for (int i = 0; i < 3; i++) {
-                try {
-                    redisProxy.toxics().getAll().forEach(t -> {
-                        try { t.remove(); } catch (Exception ignored) {}
-                    });
-                    redisProxy.setConnectionCut(false);
-                    return;
-                } catch (Exception e) {
-                    try { Thread.sleep(200); } catch (InterruptedException ignored) {}
-                }
-            }
+        if (redisProxy == null) {
+            return;
         }
+
+        // Best-effort 정리: 실패해도 테스트 결과에 영향 없음
+        try {
+            // 1. 연결 복구 우선 (가장 중요)
+            redisProxy.setConnectionCut(false);
+
+            // 2. Toxic 정리 (개별 실패 무시)
+            try {
+                redisProxy.toxics().getAll().forEach(t -> {
+                    try {
+                        t.remove();
+                    } catch (Exception ignored) {
+                        // 개별 toxic 제거 실패는 무시
+                    }
+                });
+            } catch (Exception ignored) {
+                // toxics 조회 실패도 무시 (연결은 이미 복구됨)
+            }
+        } catch (Exception e) {
+            // Best-effort: 정리 실패 시 로그만 남기고 계속 진행
+            System.err.println("[globalProxyReset] Cleanup failed (best-effort): " + e.getMessage());
+        }
+    }
+
+    /**
+     * Redis 장애 주입 (Toxiproxy 사용)
+     * P0 Chaos 테스트에서 사용
+     */
+    protected void failMaster() {
+        if (redisProxy != null) {
+            redisProxy.setConnectionCut(true);
+        }
+    }
+
+    /**
+     * Redis 복구 (Toxiproxy 상태 초기화)
+     */
+    protected void recoverMaster() {
+        globalProxyReset();
     }
 
     @DynamicPropertySource

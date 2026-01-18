@@ -1,10 +1,14 @@
 package maple.expectation.external.proxy;
 
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import io.github.resilience4j.retry.RetryRegistry;
 import maple.expectation.external.dto.v2.CharacterOcidResponse;
 import maple.expectation.external.dto.v2.EquipmentResponse;
 import maple.expectation.external.impl.ResilientNexonApiClient;
 import maple.expectation.global.error.exception.ExternalServiceException;
 import maple.expectation.support.IntegrationTestSupport;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,11 +30,33 @@ class ResilientNexonApiClientTest extends IntegrationTestSupport {
     @Autowired private ResilientNexonApiClient resilientNexonApiClient;
     @Autowired private ObjectMapper objectMapper;
 
+    // ✅ CLAUDE.md Section 24: Circuit Breaker/Retry 상태 초기화를 위한 Registry 주입
+    @Autowired(required = false) private CircuitBreakerRegistry circuitBreakerRegistry;
+    @Autowired(required = false) private RetryRegistry retryRegistry;
+
     // 💡 equipmentRepository를 Mock으로 오버라이드하여 stubbing 가능하게 함
     @org.springframework.test.context.bean.override.mockito.MockitoBean
     private maple.expectation.repository.v2.CharacterEquipmentRepository equipmentRepository;
 
     // 💡 nexonApiClient는 부모(IntegrationTestSupport)에서 상속받은 Mock 사용
+
+    /**
+     * CLAUDE.md Section 24: 공유 상태 해결 - 테스트 간 Resilience4j 상태 격리
+     * Circuit Breaker와 Retry 상태를 각 테스트 전에 초기화
+     */
+    @BeforeEach
+    void resetResilience4jState() {
+        // Circuit Breaker 상태 초기화 (이전 테스트에서 OPEN 상태 방지)
+        if (circuitBreakerRegistry != null) {
+            circuitBreakerRegistry.getAllCircuitBreakers().forEach(CircuitBreaker::reset);
+        }
+
+        // Note: Retry는 CircuitBreaker와 달리 호출 간 지속되는 상태가 없으므로
+        // reset()이 불필요합니다. (Resilience4j Retry는 상태 비저장 컴포넌트)
+
+        // Mock 상태 초기화
+        reset(nexonApiClient);
+    }
 
     @Test
     @DisplayName("성공 시나리오: 결과값을 그대로 반환")
