@@ -207,33 +207,60 @@ public class ExecutorConfig {
     // ==================== 불변식 3: ThreadLocal 전파 (P0-4/B2) ====================
 
     /**
-     * SkipEquipmentL2CacheContext 전파용 TaskDecorator
+     * MDC + SkipEquipmentL2CacheContext 전파용 TaskDecorator
      *
      * <p>불변식 3 준수: 모든 비동기 실행 지점에서 ThreadLocal 상태가 전파되어야 함</p>
      *
+     * <h4>전파 대상</h4>
+     * <ul>
+     *   <li><b>MDC</b>: {@link maple.expectation.global.filter.MDCFilter#REQUEST_ID_KEY} 등 로깅 컨텍스트</li>
+     *   <li><b>SkipEquipmentL2CacheContext</b>: L2 캐시 스킵 플래그</li>
+     * </ul>
+     *
+     * <h4>MDCFilter 연계</h4>
+     * <p>HTTP 요청 진입 시 {@link maple.expectation.global.filter.MDCFilter}가 설정한
+     * requestId가 이 TaskDecorator를 통해 비동기 워커 스레드로 전파됩니다.</p>
+     *
      * <h4>전파 원리 (snapshot/restore 패턴)</h4>
      * <ol>
-     *   <li>호출 스레드에서 snap = snapshot()</li>
-     *   <li>워커 스레드 진입 시 before = snapshot(); restore(snap);</li>
-     *   <li>작업 완료 후 finally에서 restore(before)로 원복</li>
+     *   <li>호출 스레드에서 contextMap = MDC.getCopyOfContextMap(), snap = snapshot()</li>
+     *   <li>워커 스레드 진입 시 MDC.setContextMap(contextMap), restore(snap)</li>
+     *   <li>작업 완료 후 finally에서 MDC.clear(), restore(before)로 원복</li>
      * </ol>
      *
      * @return TaskDecorator 인스턴스
+     * @see maple.expectation.global.filter.MDCFilter
      */
     @Bean
     public TaskDecorator contextPropagatingDecorator() {
         return runnable -> {
             // 1. 호출 스레드에서 현재 상태 캡처
-            Boolean snap = SkipEquipmentL2CacheContext.snapshot();
+            var mdcContextMap = org.slf4j.MDC.getCopyOfContextMap();
+            Boolean cacheContextSnap = SkipEquipmentL2CacheContext.snapshot();
+
             return () -> {
-                // 2. 워커 스레드에서 기존 상태 백업 후 캡처된 상태로 설정
-                Boolean before = SkipEquipmentL2CacheContext.snapshot();
-                SkipEquipmentL2CacheContext.restore(snap);
+                // 2. 워커 스레드에서 기존 상태 백업
+                var mdcBefore = org.slf4j.MDC.getCopyOfContextMap();
+                Boolean cacheContextBefore = SkipEquipmentL2CacheContext.snapshot();
+
+                // 3. 캡처된 상태로 설정
+                if (mdcContextMap != null) {
+                    org.slf4j.MDC.setContextMap(mdcContextMap);
+                } else {
+                    org.slf4j.MDC.clear();
+                }
+                SkipEquipmentL2CacheContext.restore(cacheContextSnap);
+
                 try {
                     runnable.run();
                 } finally {
-                    // 3. 작업 완료 후 원래 상태로 복원 (스레드풀 누수 방지)
-                    SkipEquipmentL2CacheContext.restore(before);
+                    // 4. 작업 완료 후 원래 상태로 복원 (스레드풀 누수 방지)
+                    if (mdcBefore != null) {
+                        org.slf4j.MDC.setContextMap(mdcBefore);
+                    } else {
+                        org.slf4j.MDC.clear();
+                    }
+                    SkipEquipmentL2CacheContext.restore(cacheContextBefore);
                 }
             };
         };
