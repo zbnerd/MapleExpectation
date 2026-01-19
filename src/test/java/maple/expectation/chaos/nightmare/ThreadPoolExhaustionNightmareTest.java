@@ -1,0 +1,435 @@
+package maple.expectation.chaos.nightmare;
+
+import maple.expectation.support.AbstractContainerBaseTest;
+import org.junit.jupiter.api.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.stereotype.Service;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+/**
+ * Nightmare 03: Thread Pool Exhaustion
+ *
+ * <h4>5-Agent Council</h4>
+ * <ul>
+ *   <li>🔴 Red (SRE): 장애 주입 - 대량 비동기 작업으로 Thread Pool 포화</li>
+ *   <li>🔵 Blue (Architect): 흐름 검증 - CallerRunsPolicy vs AbortPolicy 동작</li>
+ *   <li>🟢 Green (Performance): 메트릭 검증 - 작업 제출 시간, 블로킹 여부</li>
+ *   <li>🟣 Purple (Auditor): 데이터 무결성 - 작업 손실 여부</li>
+ *   <li>🟡 Yellow (QA Master): 테스트 전략 - 블로킹 발생 시 P1 Issue 생성</li>
+ * </ul>
+ *
+ * <h4>예상 결과: FAIL</h4>
+ * <p>CallerRunsPolicy 설정 시 큐 포화로 인해 제출 스레드(메인 스레드)에서
+ * 작업이 직접 실행되어 블로킹 발생.</p>
+ *
+ * <h4>관련 CS 원리</h4>
+ * <ul>
+ *   <li>Thread Pool Saturation: 풀 포화로 인한 병목</li>
+ *   <li>Backpressure: 과부하 시 제어 흐름</li>
+ *   <li>RejectedExecutionHandler 전략:
+ *       <ul>
+ *         <li>CallerRunsPolicy: 호출자 스레드에서 실행 (블로킹)</li>
+ *         <li>AbortPolicy: RejectedExecutionException 발생</li>
+ *         <li>DiscardPolicy: 작업 손실 (무시)</li>
+ *         <li>DiscardOldestPolicy: 가장 오래된 작업 교체</li>
+ *       </ul>
+ *   </li>
+ *   <li>Little's Law: L = λW (대기열 길이 = 도착률 × 대기 시간)</li>
+ * </ul>
+ *
+ * @see java.util.concurrent.ThreadPoolExecutor
+ * @see org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor
+ */
+@Tag("nightmare")
+@SpringBootTest
+@DisplayName("Nightmare 03: Thread Pool Exhaustion")
+class ThreadPoolExhaustionNightmareTest extends AbstractContainerBaseTest {
+
+    private static final int SMALL_POOL_SIZE = 2;
+    private static final int SMALL_QUEUE_SIZE = 2;
+    private static final long TASK_DURATION_MS = 2000; // 각 작업 2초 소요
+
+    /**
+     * 테스트용 소규모 Thread Pool 설정
+     * - corePoolSize: 2
+     * - maxPoolSize: 2
+     * - queueCapacity: 2
+     * - rejectedExecutionHandler: CallerRunsPolicy (블로킹 유발)
+     */
+    @TestConfiguration
+    @EnableAsync
+    static class TestConfig {
+
+        @Bean(name = "nightmareExecutor")
+        public ThreadPoolTaskExecutor nightmareExecutor() {
+            ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+            executor.setCorePoolSize(SMALL_POOL_SIZE);
+            executor.setMaxPoolSize(SMALL_POOL_SIZE);
+            executor.setQueueCapacity(SMALL_QUEUE_SIZE);
+            executor.setThreadNamePrefix("nightmare-");
+            // CallerRunsPolicy: 큐 포화 시 호출 스레드에서 직접 실행 → 블로킹!
+            executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+            executor.initialize();
+            return executor;
+        }
+
+        @Bean(name = "abortPolicyExecutor")
+        public ThreadPoolTaskExecutor abortPolicyExecutor() {
+            ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+            executor.setCorePoolSize(SMALL_POOL_SIZE);
+            executor.setMaxPoolSize(SMALL_POOL_SIZE);
+            executor.setQueueCapacity(SMALL_QUEUE_SIZE);
+            executor.setThreadNamePrefix("abort-");
+            // AbortPolicy: 큐 포화 시 RejectedExecutionException 발생
+            executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
+            executor.initialize();
+            return executor;
+        }
+    }
+
+    @Autowired(required = false)
+    @Qualifier("nightmareExecutor")
+    private ThreadPoolTaskExecutor nightmareExecutor;
+
+    @Autowired(required = false)
+    @Qualifier("abortPolicyExecutor")
+    private ThreadPoolTaskExecutor abortPolicyExecutor;
+
+    /**
+     * 🔴 Red's Test 1: CallerRunsPolicy로 인한 메인 스레드 블로킹 검증
+     *
+     * <p><b>시나리오</b>:
+     * <ol>
+     *   <li>Pool Size(2) + Queue Size(2) = 최대 4개 동시 처리</li>
+     *   <li>10개 작업 제출 (각 2초 소요)</li>
+     *   <li>5번째 작업부터 CallerRunsPolicy 발동 → 메인 스레드 블로킹</li>
+     *   <li>제출 완료 시간 측정 (블로킹 시 > 10초)</li>
+     * </ol>
+     *
+     * <p><b>성공 기준</b>: 작업 제출 시간 < 100ms</p>
+     * <p><b>실패 조건</b>: 작업 제출 시간 > 100ms (CallerRunsPolicy 블로킹)</p>
+     */
+    @Test
+    @DisplayName("CallerRunsPolicy로 인한 메인 스레드 블로킹 검증")
+    void shouldDetectMainThreadBlocking_withCallerRunsPolicy() throws Exception {
+        // 테스트용 executor 직접 생성 (Spring Context 의존 제거)
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(SMALL_POOL_SIZE);
+        executor.setMaxPoolSize(SMALL_POOL_SIZE);
+        executor.setQueueCapacity(SMALL_QUEUE_SIZE);
+        executor.setThreadNamePrefix("nightmare-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.initialize();
+
+        int taskCount = 10; // Pool(2) + Queue(2) = 4, 초과 6개는 CallerRunsPolicy 발동
+        AtomicInteger submittedCount = new AtomicInteger(0);
+        AtomicInteger completedCount = new AtomicInteger(0);
+        AtomicInteger callerRunsCount = new AtomicInteger(0);
+        List<Long> submitTimes = new CopyOnWriteArrayList<>();
+
+        String mainThreadName = Thread.currentThread().getName();
+
+        System.out.println("[Red] Starting Thread Pool Exhaustion test...");
+        System.out.println("[Red] Pool Size: " + SMALL_POOL_SIZE + ", Queue Size: " + SMALL_QUEUE_SIZE);
+        System.out.println("[Red] Task Count: " + taskCount + ", Task Duration: " + TASK_DURATION_MS + "ms");
+        System.out.println("[Red] Main Thread: " + mainThreadName);
+
+        long totalStartTime = System.nanoTime();
+
+        // When: 대량 작업 제출
+        for (int i = 0; i < taskCount; i++) {
+            final int taskId = i;
+            long submitStart = System.nanoTime();
+
+            executor.execute(() -> {
+                String currentThread = Thread.currentThread().getName();
+                if (currentThread.equals(mainThreadName) || !currentThread.startsWith("nightmare-")) {
+                    callerRunsCount.incrementAndGet();
+                    System.out.printf("[Red] Task %d: CallerRunsPolicy triggered! (Thread: %s)%n",
+                            taskId, currentThread);
+                }
+
+                try {
+                    Thread.sleep(TASK_DURATION_MS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                completedCount.incrementAndGet();
+            });
+
+            long submitTime = (System.nanoTime() - submitStart) / 1_000_000;
+            submitTimes.add(submitTime);
+            submittedCount.incrementAndGet();
+
+            if (submitTime > 100) {
+                System.out.printf("[Red] Task %d: Submit blocked for %dms!%n", taskId, submitTime);
+            }
+        }
+
+        long totalSubmitTime = (System.nanoTime() - totalStartTime) / 1_000_000;
+
+        // 모든 작업 완료 대기
+        executor.shutdown();
+        boolean terminated = executor.getThreadPoolExecutor().awaitTermination(60, TimeUnit.SECONDS);
+
+        // Then: 분석
+        long maxSubmitTime = submitTimes.stream().mapToLong(Long::longValue).max().orElse(0);
+        long avgSubmitTime = submitTimes.stream().mapToLong(Long::longValue).sum() / submitTimes.size();
+        long blockedSubmits = submitTimes.stream().filter(t -> t > 100).count();
+
+        System.out.println("┌────────────────────────────────────────────────────────────┐");
+        System.out.println("│      Nightmare 03: Thread Pool Exhaustion Results          │");
+        System.out.println("├────────────────────────────────────────────────────────────┤");
+        System.out.printf("│ Pool Size: %d, Queue Size: %d                               │%n",
+                SMALL_POOL_SIZE, SMALL_QUEUE_SIZE);
+        System.out.printf("│ Tasks Submitted: %d                                         │%n", submittedCount.get());
+        System.out.printf("│ Tasks Completed: %d                                         │%n", completedCount.get());
+        System.out.printf("│ Terminated: %s                                              │%n", terminated ? "YES" : "NO");
+        System.out.println("├────────────────────────────────────────────────────────────┤");
+        System.out.printf("│ Total Submit Time: %dms                                     │%n", totalSubmitTime);
+        System.out.printf("│ Avg Submit Time: %dms                                       │%n", avgSubmitTime);
+        System.out.printf("│ Max Submit Time: %dms                                       │%n", maxSubmitTime);
+        System.out.printf("│ Blocked Submits (>100ms): %d                                │%n", blockedSubmits);
+        System.out.printf("│ CallerRunsPolicy Triggered: %d times                        │%n", callerRunsCount.get());
+        System.out.println("├────────────────────────────────────────────────────────────┤");
+
+        if (blockedSubmits > 0 || callerRunsCount.get() > 0) {
+            System.out.println("│ ❌ MAIN THREAD BLOCKED!                                    │");
+            System.out.println("│ 🔧 Solution: Increase pool/queue size or use AbortPolicy   │");
+        } else {
+            System.out.println("│ ✅ No blocking detected                                    │");
+        }
+        System.out.println("└────────────────────────────────────────────────────────────┘");
+
+        // 검증: 작업 제출이 100ms 이내에 완료되어야 함 (비블로킹)
+        // CallerRunsPolicy 사용 시 FAIL 예상
+        assertThat(maxSubmitTime)
+                .as("[Nightmare] 작업 제출은 메인 스레드를 블로킹하지 않아야 함 (≤100ms)")
+                .isLessThanOrEqualTo(100L);
+    }
+
+    /**
+     * 🔵 Blue's Test 2: AbortPolicy 사용 시 RejectedExecutionException 발생 검증
+     */
+    @Test
+    @DisplayName("AbortPolicy 사용 시 RejectedExecutionException 발생")
+    void shouldThrowRejectedExecutionException_withAbortPolicy() throws Exception {
+        // 테스트용 executor 직접 생성
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(SMALL_POOL_SIZE);
+        executor.setMaxPoolSize(SMALL_POOL_SIZE);
+        executor.setQueueCapacity(SMALL_QUEUE_SIZE);
+        executor.setThreadNamePrefix("abort-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
+        executor.initialize();
+
+        int taskCount = 10;
+        AtomicInteger submittedCount = new AtomicInteger(0);
+        AtomicInteger rejectedCount = new AtomicInteger(0);
+
+        System.out.println("[Blue] Testing AbortPolicy behavior...");
+
+        long startTime = System.nanoTime();
+
+        for (int i = 0; i < taskCount; i++) {
+            final int taskId = i;
+            try {
+                executor.execute(() -> {
+                    try {
+                        Thread.sleep(TASK_DURATION_MS);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                });
+                submittedCount.incrementAndGet();
+            } catch (RejectedExecutionException e) {
+                rejectedCount.incrementAndGet();
+                System.out.printf("[Blue] Task %d rejected: %s%n", taskId, e.getMessage());
+            }
+        }
+
+        long submitTime = (System.nanoTime() - startTime) / 1_000_000;
+
+        executor.shutdown();
+
+        System.out.println("┌────────────────────────────────────────────────────────────┐");
+        System.out.println("│           AbortPolicy Behavior Analysis                    │");
+        System.out.println("├────────────────────────────────────────────────────────────┤");
+        System.out.printf("│ Tasks Attempted: %d                                         │%n", taskCount);
+        System.out.printf("│ Tasks Submitted: %d                                         │%n", submittedCount.get());
+        System.out.printf("│ Tasks Rejected: %d                                          │%n", rejectedCount.get());
+        System.out.printf("│ Submit Time: %dms                                           │%n", submitTime);
+        System.out.println("├────────────────────────────────────────────────────────────┤");
+
+        if (rejectedCount.get() > 0) {
+            System.out.println("│ ✅ AbortPolicy correctly rejected excess tasks             │");
+            System.out.println("│ ⚠️ But task loss occurred!                                │");
+        } else {
+            System.out.println("│ ⚠️ No rejections - pool/queue was large enough            │");
+        }
+        System.out.println("└────────────────────────────────────────────────────────────┘");
+
+        // AbortPolicy는 초과 작업을 거부해야 함
+        // Pool(2) + Queue(2) = 4개만 수용, 나머지 6개 거부 예상
+        assertThat(rejectedCount.get())
+                .as("AbortPolicy는 초과 작업을 거부해야 함")
+                .isGreaterThan(0);
+
+        // 제출은 빠르게 완료되어야 함 (블로킹 없음)
+        assertThat(submitTime)
+                .as("AbortPolicy는 블로킹 없이 빠르게 거부해야 함")
+                .isLessThan(500);
+    }
+
+    /**
+     * 🟢 Green's Test 3: Thread Pool 메트릭 분석
+     */
+    @Test
+    @DisplayName("Thread Pool 메트릭 실시간 분석")
+    void shouldAnalyzeThreadPoolMetrics_inRealTime() throws Exception {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(SMALL_POOL_SIZE);
+        executor.setMaxPoolSize(SMALL_POOL_SIZE);
+        executor.setQueueCapacity(SMALL_QUEUE_SIZE);
+        executor.setThreadNamePrefix("metrics-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.initialize();
+
+        int taskCount = 8;
+        CountDownLatch startLatch = new CountDownLatch(1);
+        CountDownLatch doneLatch = new CountDownLatch(taskCount);
+
+        System.out.println("[Green] Monitoring Thread Pool metrics...");
+        System.out.println("┌────────────────────────────────────────────────────────────┐");
+        System.out.println("│ Time │ Active │ Pool │ Queue │ Completed │ Status         │");
+        System.out.println("├────────────────────────────────────────────────────────────┤");
+
+        // 메트릭 수집 스레드
+        ScheduledExecutorService monitor = Executors.newSingleThreadScheduledExecutor();
+        AtomicInteger tick = new AtomicInteger(0);
+        AtomicLong maxQueueSize = new AtomicLong(0);
+
+        monitor.scheduleAtFixedRate(() -> {
+            ThreadPoolExecutor pool = executor.getThreadPoolExecutor();
+            int active = pool.getActiveCount();
+            int poolSize = pool.getPoolSize();
+            int queueSize = pool.getQueue().size();
+            long completed = pool.getCompletedTaskCount();
+
+            maxQueueSize.set(Math.max(maxQueueSize.get(), queueSize));
+
+            String status;
+            if (queueSize >= SMALL_QUEUE_SIZE) {
+                status = "⚠️ QUEUE FULL";
+            } else if (active >= SMALL_POOL_SIZE) {
+                status = "🔶 POOL BUSY";
+            } else {
+                status = "✅ NORMAL";
+            }
+
+            System.out.printf("│ T+%ds │ %d      │ %d    │ %d     │ %d         │ %s │%n",
+                    tick.incrementAndGet(), active, poolSize, queueSize, completed, status);
+        }, 0, 500, TimeUnit.MILLISECONDS);
+
+        // 작업 제출
+        for (int i = 0; i < taskCount; i++) {
+            final int taskId = i;
+            executor.execute(() -> {
+                try {
+                    startLatch.await();
+                    Thread.sleep(1000); // 1초 작업
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } finally {
+                    doneLatch.countDown();
+                }
+            });
+        }
+
+        startLatch.countDown();
+        doneLatch.await(30, TimeUnit.SECONDS);
+
+        monitor.shutdown();
+        executor.shutdown();
+
+        System.out.println("└────────────────────────────────────────────────────────────┘");
+        System.out.printf("Max Queue Size observed: %d (capacity: %d)%n", maxQueueSize.get(), SMALL_QUEUE_SIZE);
+
+        // Queue가 가득 찬 상황이 발생해야 함
+        assertThat(maxQueueSize.get())
+                .as("테스트 중 Queue가 가득 차야 함 (포화 상태 검증)")
+                .isGreaterThanOrEqualTo(SMALL_QUEUE_SIZE);
+    }
+
+    /**
+     * 🟣 Purple's Test 4: 작업 손실 여부 검증 (DiscardPolicy)
+     */
+    @Test
+    @DisplayName("DiscardPolicy 사용 시 작업 손실 검증")
+    void shouldDetectTaskLoss_withDiscardPolicy() throws Exception {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(SMALL_POOL_SIZE);
+        executor.setMaxPoolSize(SMALL_POOL_SIZE);
+        executor.setQueueCapacity(SMALL_QUEUE_SIZE);
+        executor.setThreadNamePrefix("discard-");
+        // DiscardPolicy: 초과 작업을 조용히 버림 (경고 없음!)
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.DiscardPolicy());
+        executor.initialize();
+
+        int taskCount = 10;
+        AtomicInteger executedCount = new AtomicInteger(0);
+
+        System.out.println("[Purple] Testing DiscardPolicy (silent task loss)...");
+
+        for (int i = 0; i < taskCount; i++) {
+            executor.execute(() -> {
+                try {
+                    Thread.sleep(500);
+                    executedCount.incrementAndGet();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+        }
+
+        executor.shutdown();
+        executor.getThreadPoolExecutor().awaitTermination(30, TimeUnit.SECONDS);
+
+        int lostTasks = taskCount - executedCount.get();
+
+        System.out.println("┌────────────────────────────────────────────────────────────┐");
+        System.out.println("│           DiscardPolicy Task Loss Analysis                 │");
+        System.out.println("├────────────────────────────────────────────────────────────┤");
+        System.out.printf("│ Tasks Submitted: %d                                         │%n", taskCount);
+        System.out.printf("│ Tasks Executed: %d                                          │%n", executedCount.get());
+        System.out.printf("│ Tasks Lost: %d                                              │%n", lostTasks);
+        System.out.println("├────────────────────────────────────────────────────────────┤");
+
+        if (lostTasks > 0) {
+            System.out.println("│ ⚠️ DATA LOSS DETECTED!                                    │");
+            System.out.println("│ 🔧 Never use DiscardPolicy for critical tasks             │");
+        } else {
+            System.out.println("│ ✅ No task loss (pool was sufficient)                     │");
+        }
+        System.out.println("└────────────────────────────────────────────────────────────┘");
+
+        // DiscardPolicy는 작업을 조용히 버리므로 손실 발생
+        assertThat(lostTasks)
+                .as("DiscardPolicy는 작업 손실을 유발함 (위험!)")
+                .isGreaterThan(0);
+    }
+}
