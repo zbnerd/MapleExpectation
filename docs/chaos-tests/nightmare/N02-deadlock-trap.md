@@ -6,6 +6,26 @@
 
 ---
 
+## 0. 최신 테스트 결과 (2025-01-20)
+
+### ❌ FAIL (2/3 테스트 실패)
+
+| 테스트 메서드 | 결과 | 설명 |
+|-------------|------|------|
+| `shouldDetectDeadlockPotential_withCrossTableLocking()` | ✅ PASS | Deadlock 잠재성 감지 |
+| `shouldNotDeadlock_withCrossTableLocking()` | ❌ FAIL | 교차 락 획득 시 Deadlock 발생 |
+| `shouldMeasureDeadlockProbability_over10Iterations()` | ❌ FAIL | 10회 반복 시 Deadlock 발생 |
+
+### 🔴 문제 원인
+- **Lock Ordering 미적용**: 두 트랜잭션이 서로 다른 순서로 테이블 락을 획득
+- **InnoDB Deadlock Detection**: 50초 타임아웃 후 한 트랜잭션 강제 롤백
+- **Circular Wait 조건**: Coffman Conditions 4가지 충족
+
+### 📋 Issue Required
+**[P0] Lock Ordering 미적용으로 인한 Deadlock 발생**
+
+---
+
 ## 1. 테스트 전략 (🟡 Yellow's Plan)
 
 ### 목적

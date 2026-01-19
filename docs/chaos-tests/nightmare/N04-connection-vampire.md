@@ -6,6 +6,27 @@
 
 ---
 
+## 0. 최신 테스트 결과 (2025-01-20)
+
+### ❌ FAIL (1/4 테스트 실패)
+
+| 테스트 메서드 | 결과 | 설명 |
+|-------------|------|------|
+| `shouldHoldConnectionDuringExternalCall()` | ✅ PASS | 외부 API 호출 중 커넥션 점유 확인 |
+| `shouldMeasurePoolMetrics_duringStress()` | ✅ PASS | HikariCP 메트릭 측정 |
+| `shouldRecoverAfterPoolExhaustion()` | ✅ PASS | Pool 고갈 후 복구 확인 |
+| `shouldExhaustConnectionPool_whenExternalApiDelayed()` | ❌ FAIL | Redis 연결 오류 발생 |
+
+### 🔴 문제 원인
+- **Redis Connection Error**: Toxiproxy 설정 또는 Redis 컨테이너 상태 문제
+- **Root Cause**: @Transactional 범위 내에서 외부 API `.join()` 호출로 커넥션 장기 점유
+- **영향**: VUser 20 이상에서 Connection Pool 고갈 가능
+
+### 📋 Issue Required
+**[P0] @Transactional 내 외부 API 호출로 인한 Connection Pool 고갈**
+
+---
+
 ## 1. 테스트 전략 (Yellow's Plan)
 
 ### 목적

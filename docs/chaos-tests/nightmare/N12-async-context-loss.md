@@ -1,0 +1,160 @@
+# Nightmare 12: Phantom Context (Async Context Loss)
+
+> **담당 에이전트**: 🔴 Red (장애주입) & 🟣 Purple (감사)
+> **난이도**: P1 (High)
+> **예상 결과**: PASS (TaskDecorator 적용됨)
+
+---
+
+## 0. 최신 테스트 결과 (2025-01-20)
+
+### ✅ PASS
+- alertTaskExecutor에서 MDC 컨텍스트 전파: **PASS**
+- expectationComputeExecutor에서 MDC 컨텍스트 전파: **PASS**
+- 100회 비동기 호출 시 MDC 전파 성공률: **100%**
+- [대조군] TaskDecorator 없는 ExecutorService: **MDC 손실 (예상대로)**
+- Executor 스레드 이름 패턴: **PASS** (`alert-`, `expectation-`)
+
+### ⚠️ KNOWN LIMITATION
+- CompletableFuture 체인 (`thenRunAsync`) MDC 전파: **Stage 2,3 손실**
+  - 이유: `thenRunAsync()`는 이전 단계 완료 스레드에서 다음 작업을 제출
+  - TaskDecorator는 제출 시점의 MDC를 캡처하지만, 완료 스레드의 MDC는 이미 clear됨
+  - **해결책**: 독립적인 `runAsync()` 사용 또는 Micrometer Context Propagation 도입
+
+---
+
+## 1. 테스트 전략 (🟡 Yellow's Plan)
+
+### 목적
+@Async 메서드 호출 시 MDC(Mapped Diagnostic Context)와 SecurityContext가
+새 스레드로 전파되지 않아 추적성이 상실되는 문제를 검증한다.
+
+### 검증 포인트
+- [x] 프로젝트의 실제 Executor (alertTaskExecutor, expectationComputeExecutor) MDC 전파
+- [x] TaskDecorator 적용으로 MDC 자동 전파 확인
+- [x] 100회 반복 테스트로 100% 전파율 확인
+- [x] CompletableFuture 체인에서 컨텍스트 전파 한계 확인
+
+### 성공 기준
+- 비동기 스레드에서도 MDC 컨텍스트 유지
+
+---
+
+## 2. 문제 상황 (🔴 Red's Analysis)
+
+### MDC 유실 시나리오
+```java
+@Service
+public class OrderService {
+    public void processOrder(String orderId) {
+        MDC.put("orderId", orderId);  // 메인 스레드에 설정
+
+        asyncExecutor.execute(() -> {
+            String id = MDC.get("orderId");  // NULL! 다른 스레드
+            log.info("Processing order");     // 로그에 orderId 없음
+        });
+    }
+}
+```
+
+### 문제점
+- 분산 추적(Tracing) 끊김
+- 감사 로그에 사용자 정보 없음
+- 디버깅 시 요청 흐름 추적 불가
+
+---
+
+## 3. 해결 방안
+
+### TaskDecorator 적용
+```java
+@Configuration
+public class AsyncConfig {
+    @Bean
+    public ThreadPoolTaskExecutor asyncExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setTaskDecorator(new MdcCopyingTaskDecorator());
+        return executor;
+    }
+}
+
+public class MdcCopyingTaskDecorator implements TaskDecorator {
+    @Override
+    public Runnable decorate(Runnable runnable) {
+        Map<String, String> contextMap = MDC.getCopyOfContextMap();
+        return () -> {
+            try {
+                if (contextMap != null) {
+                    MDC.setContextMap(contextMap);
+                }
+                runnable.run();
+            } finally {
+                MDC.clear();
+            }
+        };
+    }
+}
+```
+
+### Micrometer Context Propagation
+```java
+@Bean
+public ContextPropagationExecutorService contextAwareExecutor() {
+    return ContextPropagation.wrapExecutorService(
+        Executors.newFixedThreadPool(10)
+    );
+}
+```
+
+---
+
+## 4. 관련 CS 원리
+
+### ThreadLocal
+스레드별로 격리된 변수 저장소.
+새 스레드 생성 시 부모의 ThreadLocal 값이 복사되지 않음.
+
+### Context Propagation
+분산 시스템에서 요청 컨텍스트를 전파하는 메커니즘.
+OpenTelemetry, Micrometer Tracing 등이 이를 자동화.
+
+### Structured Concurrency (Java 21+)
+가상 스레드와 함께 도입된 구조화된 동시성.
+부모 스레드의 컨텍스트가 자식에게 자동 전파됨.
+
+---
+
+## 5. 이슈 정의 (실패 시)
+
+### 📌 문제 정의
+비동기 경계에서 MDC 컨텍스트 손실로 추적성 상실.
+
+### ✅ Action Items
+- [ ] 모든 ThreadPoolTaskExecutor에 TaskDecorator 적용
+- [ ] CompletableFuture 사용 시 컨텍스트 전파 검토
+- [ ] 분산 추적 라이브러리(Micrometer Tracing) 도입 검토
+
+---
+
+## 6. 최종 판정 (🟡 Yellow's Verdict)
+
+### 결과: **CONDITIONAL PASS**
+
+TaskDecorator를 통한 MDC 전파는 **100% 성공**하나,
+CompletableFuture 체인(`thenRunAsync`)에서 **Stage 2,3 MDC 손실** 발생.
+
+### 기술적 인사이트
+- **TaskDecorator 정상 동작**: alertTaskExecutor, expectationComputeExecutor 모두 MDC 전파 성공
+- **100회 반복 테스트 통과**: 단순 비동기 호출 시 MDC 전파 100%
+- **CompletableFuture 한계**: `thenRunAsync()`는 이전 단계 완료 스레드에서 제출하여 MDC 손실
+- **Known Limitation**: 이는 TaskDecorator의 설계 한계로, 의도된 동작임
+
+### 권장 유지/개선 사항
+1. **TaskDecorator 유지**: 현재 MdcCopyingTaskDecorator 정상 동작
+2. **CompletableFuture 사용 주의**: 체인 사용 시 독립적인 `runAsync()` 권장
+3. **Micrometer Context Propagation 검토**: 체인 컨텍스트 전파가 필요한 경우 도입
+4. **스레드 이름 패턴 확인**: `alert-`, `expectation-` 프리픽스로 디버깅 용이
+
+---
+
+*Generated by 5-Agent Council*

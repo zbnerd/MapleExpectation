@@ -6,6 +6,28 @@
 
 ---
 
+## 0. 최신 테스트 결과 (2025-01-20)
+
+### ❌ FAIL (2/5 테스트 실패)
+
+| 테스트 메서드 | 결과 | 설명 |
+|-------------|------|------|
+| `shouldMeasureRetryChainTime_withRedisDelay()` | ✅ PASS | Retry 체인 시간 측정 |
+| `shouldVerifyTimeoutHierarchy()` | ✅ PASS | 타임아웃 계층 검증 |
+| `shouldCreateZombieRequest_whenClientTimeout()` | ✅ PASS | Zombie Request 발생 확인 |
+| `shouldMeasureFallbackTime_whenRedisFails()` | ❌ FAIL | Redis Fallback 지연 측정 실패 |
+| `shouldMeasureZombieRequestRate_underConcurrentLoad()` | ❌ FAIL | 동시 요청 시 Zombie 발생률 측정 실패 |
+
+### 🔴 문제 원인
+- **Toxiproxy Toxic 충돌**: "toxic already exists" 오류 (이전 테스트의 toxic 잔존)
+- **타임아웃 계층 불일치**: 클라이언트(10s) < 서버 처리 체인(22s+)
+- **영향**: Zombie Request로 인한 리소스 낭비
+
+### 📋 Issue Required
+**[P1] 타임아웃 계층 불일치로 인한 Zombie Request 발생**
+
+---
+
 ## 1. 테스트 전략 (Yellow's Plan)
 
 ### 목적
