@@ -8,21 +8,21 @@
 
 ## Executive Summary
 
-MapleExpectation 시스템의 **회복 탄력성(Resilience)**을 검증하기 위해 **17개의 극한 카오스 테스트 시나리오**와 **3개의 Nightmare 레벨 취약점 탐지 테스트**를 설계하고 실행했습니다.
+MapleExpectation 시스템의 **회복 탄력성(Resilience)**을 검증하기 위해 **17개의 극한 카오스 테스트 시나리오**와 **6개의 Nightmare 레벨 취약점 탐지 테스트**를 설계하고 실행했습니다.
 
 ### 전체 결과
 
 ```
 ======================================================================
-  📊 CHAOS TEST SUMMARY - 17 Scenarios + 3 Nightmare
+  📊 CHAOS TEST SUMMARY - 17 Scenarios + 6 Nightmare
 ======================================================================
 
 ┌────────────────────────────────────────────────────────────────────┐
 │                    Overall Results                                 │
 ├────────────────────────────────────────────────────────────────────┤
-│ Total Scenarios: 20 (17 Chaos + 3 Nightmare)                       │
+│ Total Scenarios: 23 (17 Chaos + 6 Nightmare)                       │
 │ Chaos Tests:  17/17 PASS ✅                                        │
-│ Nightmare:    1 PASS, 2 FAIL ❌ (의도된 실패)                       │
+│ Nightmare:    2 PASS, 4 FAIL ❌ (의도된 실패)                       │
 └────────────────────────────────────────────────────────────────────┘
 
 ┌────────────────────────────────────────────────────────────────────┐
@@ -33,7 +33,7 @@ MapleExpectation 시스템의 **회복 탄력성(Resilience)**을 검증하기 �
 │ Resource (08-11):    4/4 PASS  ████████████████                    │
 │ Connection (13, 17): 2/2 PASS  ████████                            │
 │ Data (14-16):        3/3 PASS  ████████████                        │
-│ Nightmare (N01-N03): 1/3 PASS  ████ (취약점 탐지 성공)              │
+│ Nightmare (N01-N06): 2/6 PASS  ████ (취약점 탐지 성공)              │
 └────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -92,6 +92,9 @@ MapleExpectation 시스템의 **회복 탄력성(Resilience)**을 검증하기 �
 | N01 | **Thundering Herd** | [N01-thundering-herd.md](chaos-tests/nightmare/N01-thundering-herd.md) | ✅ PASS | Singleflight 패턴 정상 작동, DB 쿼리 최소화 | - |
 | N02 | **Deadlock Trap** | [N02-deadlock-trap.md](chaos-tests/nightmare/N02-deadlock-trap.md) | ❌ FAIL | **Lock Ordering 미적용, Deadlock 100% 발생** | [#221](https://github.com/zbnerd/MapleExpectation/issues/221) |
 | N03 | **Thread Pool Exhaustion** | [N03-thread-pool-exhaustion.md](chaos-tests/nightmare/N03-thread-pool-exhaustion.md) | ❌ FAIL | **CallerRunsPolicy로 메인 스레드 2010ms 블로킹** | [#222](https://github.com/zbnerd/MapleExpectation/issues/222) |
+| N04 | **Connection Vampire** | [N04-connection-vampire.md](chaos-tests/nightmare/N04-connection-vampire.md) | ⚠️ CONDITIONAL | Pool 고갈 미발생 (시스템 탄력적), 예방적 리팩토링 권장 | - |
+| N05 | **Celebrity Problem** | [N05-celebrity-problem.md](chaos-tests/nightmare/N05-celebrity-problem.md) | ✅ PASS | Singleflight 효과적, Hot Key 대응 안정적 | - |
+| N06 | **Timeout Cascade** | [N06-timeout-cascade.md](chaos-tests/nightmare/N06-timeout-cascade.md) | ❌ FAIL | **타임아웃 계층 불일치로 Zombie Request 발생** | TBD |
 
 #### Nightmare 테스트 결과 상세
 
@@ -124,6 +127,31 @@ CallerRunsPolicy로 인한 메인 스레드 블로킹 검증 FAILED
 - **영향**: API 응답 불가 상태 (2초+ 블로킹)
 - **해결 방안**: Pool 크기 조정 또는 Resilience4j Bulkhead 적용
 
+**N04: Connection Vampire (DB Pool Starvation)** - ⚠️ CONDITIONAL PASS
+```
+외부 API 지연 시 DB Connection Pool 고갈 검증 FAILED
+    expected: a value greater than <0>
+     but was: <0>
+```
+- **결과**: Connection Timeout이 발생하지 않음 (시스템 탄력적)
+- **분석**: 테스트 조건(VUser 20, Pool 10)이 실제 취약점을 노출하기에 부족
+- **권장 사항**: 예방적 리팩토링 (트랜잭션 범위와 외부 API 호출 분리)
+
+**N05: Celebrity Problem (Hot Key Meltdown)** - ✅ PASS
+- 1,000명 동시 요청 시 Hot Key 락 경합 측정 → 통과
+- TieredCache의 Singleflight 패턴이 효과적으로 작동
+- DB 쿼리 비율 ≤ 10% 달성, 데이터 일관성 100%
+
+**N06: Timeout Cascade (Zombie Request)** - ❌ FAIL
+```
+클라이언트 타임아웃 후 서버 좀비 요청 발생 검증 FAILED
+    expected: <false>
+     but was: <true>
+```
+- **근본 원인**: 클라이언트 타임아웃(3s) < 서버 처리 체인(17s+)
+- **영향**: Zombie Request 발생, 리소스 낭비
+- **해결 방안**: 타임아웃 계층 정렬 (Client > TimeLimiter > Retry Chain)
+
 ---
 
 ## 핵심 발견 사항
@@ -154,11 +182,14 @@ CallerRunsPolicy로 인한 메인 스레드 블로킹 검증 FAILED
 |--------|--------|------|----------|
 | Lock Ordering 미적용 | **P0** | 🔴 Open | Coffman Conditions 중 Circular Wait 깨기 |
 | CallerRunsPolicy 블로킹 | **P1** | 🔴 Open | Resilience4j Bulkhead 또는 AbortPolicy |
+| @Transactional + 외부 API | **P1** | 🟡 Watch | 트랜잭션 범위와 외부 API 호출 분리 |
+| 타임아웃 계층 불일치 | **P1** | 🔴 Open | 클라이언트 > 서버 처리 체인 정렬 |
 
 **Nightmare 테스트의 가치**:
 - 기존 17개 Chaos Test는 모두 PASS → 시스템이 "충분히 안전"하다는 착각 유발
-- Nightmare 테스트로 **숨겨진 취약점 2건 발견**
+- Nightmare 테스트로 **숨겨진 취약점 4건 발견** (N02, N03, N04, N06)
 - GitHub Issue 자동 생성으로 개선 방향 명확화
+- N04, N05는 시스템이 예상보다 탄력적임을 확인 (긍정적)
 
 ---
 
@@ -250,13 +281,16 @@ Lock TTL = 예상 처리 시간 + 최대 GC Pause + 네트워크 지연 + 여유
 ./gradlew test --tests "*NightmareTest*" 2>&1 | tee logs/nightmare-$(date +%Y%m%d_%H%M%S).log
 
 # 개별 Nightmare 테스트
-./gradlew test --tests "*ThunderingHerdNightmareTest*"   # N01: Cache Stampede
-./gradlew test --tests "*DeadlockTrapNightmareTest*"     # N02: Circular Lock
-./gradlew test --tests "*ThreadPoolExhaustionNightmareTest*"  # N03: @Async Pool
+./gradlew test --tests "*ThunderingHerdNightmareTest*"         # N01: Cache Stampede
+./gradlew test --tests "*DeadlockTrapNightmareTest*"           # N02: Circular Lock
+./gradlew test --tests "*ThreadPoolExhaustionNightmareTest*"   # N03: @Async Pool
+./gradlew test --tests "*ConnectionVampireNightmareTest*"      # N04: Connection Pool
+./gradlew test --tests "*CelebrityProblemNightmareTest*"       # N05: Hot Key
+./gradlew test --tests "*TimeoutCascadeNightmareTest*"         # N06: Zombie Request
 ```
 
 > **참고**: Nightmare 테스트는 **의도적으로 실패**하도록 설계되었습니다.
-> 실패 시 GitHub Issue가 자동 생성됩니다.
+> 실패 시 GitHub Issue 생성을 권고합니다.
 
 ---
 
