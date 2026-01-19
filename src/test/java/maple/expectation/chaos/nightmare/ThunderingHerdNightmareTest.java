@@ -1,5 +1,6 @@
 package maple.expectation.chaos.nightmare;
 
+import lombok.extern.slf4j.Slf4j;
 import maple.expectation.support.AbstractContainerBaseTest;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,6 +43,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * @see maple.expectation.global.cache.TieredCache
  */
+@Slf4j
 @Tag("nightmare")
 @SpringBootTest
 @DisplayName("Nightmare 01: The Thundering Herd - Cache Stampede")
@@ -85,7 +87,7 @@ class ThunderingHerdNightmareTest extends AbstractContainerBaseTest {
         try {
             redisTemplate.getConnectionFactory().getConnection().flushAll();
         } catch (Exception e) {
-            System.out.println("[Red] FLUSHALL failed, continuing with test: " + e.getMessage());
+            log.info("[Red] FLUSHALL failed, continuing with test: {}", e.getMessage());
         }
 
         int concurrentRequests = 1000;
@@ -99,7 +101,7 @@ class ThunderingHerdNightmareTest extends AbstractContainerBaseTest {
         CountDownLatch startLatch = new CountDownLatch(1);
         CountDownLatch doneLatch = new CountDownLatch(concurrentRequests);
 
-        System.out.println("[Red] Starting Thundering Herd test with " + concurrentRequests + " concurrent requests...");
+        log.info("[Red] Starting Thundering Herd test with {} concurrent requests...", concurrentRequests);
 
         // When: 1,000개 동시 요청
         for (int i = 0; i < concurrentRequests; i++) {
@@ -153,30 +155,30 @@ class ThunderingHerdNightmareTest extends AbstractContainerBaseTest {
                 Math.max(responseTimes.size(), 1);
         long maxResponseTime = responseTimes.stream().mapToLong(Long::longValue).max().orElse(0);
 
-        System.out.println("┌────────────────────────────────────────────────────────────┐");
-        System.out.println("│           Nightmare 01: Thundering Herd Results            │");
-        System.out.println("├────────────────────────────────────────────────────────────┤");
-        System.out.printf("│ Total Requests: %d                                          │%n", concurrentRequests);
-        System.out.printf("│ Completed: %s                                               │%n", completed ? "YES" : "NO");
-        System.out.printf("│ Success: %d, Failure: %d                                    │%n",
+        log.info("┌────────────────────────────────────────────────────────────┐");
+        log.info("│           Nightmare 01: Thundering Herd Results            │");
+        log.info("├────────────────────────────────────────────────────────────┤");
+        log.info("│ Total Requests: {}                                          │", concurrentRequests);
+        log.info("│ Completed: {}                                               │", completed ? "YES" : "NO");
+        log.info("│ Success: {}, Failure: {}                                    │",
                 successCount.get(), failureCount.get());
-        System.out.printf("│ Cache Hits: %d (%.1f%%)                                     │%n",
-                cacheHitCount.get(), cacheHitCount.get() * 100.0 / concurrentRequests);
-        System.out.printf("│ DB Queries: %d (%.1f%%)                                     │%n",
-                dbQueryCount.get(), dbQueryRatio);
-        System.out.printf("│ Avg Response Time: %dms                                     │%n", avgResponseTime);
-        System.out.printf("│ Max Response Time: %dms                                     │%n", maxResponseTime);
-        System.out.println("├────────────────────────────────────────────────────────────┤");
+        log.info("│ Cache Hits: {} ({} %)                                     │",
+                cacheHitCount.get(), String.format("%.1f", cacheHitCount.get() * 100.0 / concurrentRequests));
+        log.info("│ DB Queries: {} ({} %)                                     │",
+                dbQueryCount.get(), String.format("%.1f", dbQueryRatio));
+        log.info("│ Avg Response Time: {}ms                                     │", avgResponseTime);
+        log.info("│ Max Response Time: {}ms                                     │", maxResponseTime);
+        log.info("├────────────────────────────────────────────────────────────┤");
 
         // Singleflight 효과 판정
         if (dbQueryRatio <= 10.0) {
-            System.out.println("│ Verdict: ✅ PASS - Singleflight effective                  │");
+            log.info("│ Verdict: ✅ PASS - Singleflight effective                  │");
         } else if (dbQueryRatio <= 50.0) {
-            System.out.println("│ Verdict: ⚠️ CONDITIONAL - Partial Singleflight effect      │");
+            log.info("│ Verdict: ⚠️ CONDITIONAL - Partial Singleflight effect      │");
         } else {
-            System.out.println("│ Verdict: ❌ FAIL - Thundering Herd occurred!               │");
+            log.info("│ Verdict: ❌ FAIL - Thundering Herd occurred!               │");
         }
-        System.out.println("└────────────────────────────────────────────────────────────┘");
+        log.info("└────────────────────────────────────────────────────────────┘");
 
         // 검증: DB 쿼리 비율이 10% 이하여야 함 (Singleflight 효과)
         // 현재 구현에서는 실패할 것으로 예상 (Redis 기반 Singleflight만 있음)
@@ -208,7 +210,7 @@ class ThunderingHerdNightmareTest extends AbstractContainerBaseTest {
         CountDownLatch startLatch = new CountDownLatch(1);
         CountDownLatch doneLatch = new CountDownLatch(concurrentRequests);
 
-        System.out.println("[Blue] Testing Connection Pool exhaustion...");
+        log.info("[Blue] Testing Connection Pool exhaustion...");
 
         for (int i = 0; i < concurrentRequests; i++) {
             executor.submit(() -> {
@@ -237,13 +239,13 @@ class ThunderingHerdNightmareTest extends AbstractContainerBaseTest {
         doneLatch.await(60, TimeUnit.SECONDS);
         executor.shutdown();
 
-        System.out.println("┌────────────────────────────────────────────────────────────┐");
-        System.out.println("│           Connection Pool Analysis                         │");
-        System.out.println("├────────────────────────────────────────────────────────────┤");
-        System.out.printf("│ Success: %d                                                 │%n", successCount.get());
-        System.out.printf("│ Timeout: %d                                                 │%n", timeoutCount.get());
-        System.out.printf("│ Connection Error: %d                                        │%n", connectionErrorCount.get());
-        System.out.println("└────────────────────────────────────────────────────────────┘");
+        log.info("┌────────────────────────────────────────────────────────────┐");
+        log.info("│           Connection Pool Analysis                         │");
+        log.info("├────────────────────────────────────────────────────────────┤");
+        log.info("│ Success: {}                                                 │", successCount.get());
+        log.info("│ Timeout: {}                                                 │", timeoutCount.get());
+        log.info("│ Connection Error: {}                                        │", connectionErrorCount.get());
+        log.info("└────────────────────────────────────────────────────────────┘");
 
         // Connection Pool이 적절히 관리되어야 함
         assertThat(successCount.get())
@@ -273,7 +275,7 @@ class ThunderingHerdNightmareTest extends AbstractContainerBaseTest {
         CountDownLatch startLatch = new CountDownLatch(1);
         CountDownLatch doneLatch = new CountDownLatch(concurrentRequests);
 
-        System.out.println("[Purple] Testing data consistency...");
+        log.info("[Purple] Testing data consistency...");
 
         for (int i = 0; i < concurrentRequests; i++) {
             final int requestId = i;
@@ -317,14 +319,14 @@ class ThunderingHerdNightmareTest extends AbstractContainerBaseTest {
         long uniqueValues = results.stream().distinct().count();
         long errorCount = results.stream().filter(r -> r.startsWith("ERROR:")).count();
 
-        System.out.println("┌────────────────────────────────────────────────────────────┐");
-        System.out.println("│           Data Consistency Analysis                        │");
-        System.out.println("├────────────────────────────────────────────────────────────┤");
-        System.out.printf("│ Total Results: %d                                           │%n", results.size());
-        System.out.printf("│ Unique Values: %d                                           │%n", uniqueValues);
-        System.out.printf("│ Write Count: %d                                             │%n", writeCount.get());
-        System.out.printf("│ Errors: %d                                                  │%n", errorCount);
-        System.out.println("└────────────────────────────────────────────────────────────┘");
+        log.info("┌────────────────────────────────────────────────────────────┐");
+        log.info("│           Data Consistency Analysis                        │");
+        log.info("├────────────────────────────────────────────────────────────┤");
+        log.info("│ Total Results: {}                                           │", results.size());
+        log.info("│ Unique Values: {}                                           │", uniqueValues);
+        log.info("│ Write Count: {}                                             │", writeCount.get());
+        log.info("│ Errors: {}                                                  │", errorCount);
+        log.info("└────────────────────────────────────────────────────────────┘");
 
         // 모든 결과가 동일해야 함 (에러 제외)
         long nonErrorUniqueValues = results.stream()

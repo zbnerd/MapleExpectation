@@ -1,5 +1,6 @@
 package maple.expectation.chaos.nightmare;
 
+import lombok.extern.slf4j.Slf4j;
 import maple.expectation.support.AbstractContainerBaseTest;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -54,6 +55,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @see java.util.concurrent.ThreadPoolExecutor
  * @see org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor
  */
+@Slf4j
 @Tag("nightmare")
 @SpringBootTest
 @DisplayName("Nightmare 03: Thread Pool Exhaustion")
@@ -143,10 +145,10 @@ class ThreadPoolExhaustionNightmareTest extends AbstractContainerBaseTest {
 
         String mainThreadName = Thread.currentThread().getName();
 
-        System.out.println("[Red] Starting Thread Pool Exhaustion test...");
-        System.out.println("[Red] Pool Size: " + SMALL_POOL_SIZE + ", Queue Size: " + SMALL_QUEUE_SIZE);
-        System.out.println("[Red] Task Count: " + taskCount + ", Task Duration: " + TASK_DURATION_MS + "ms");
-        System.out.println("[Red] Main Thread: " + mainThreadName);
+        log.info("[Red] Starting Thread Pool Exhaustion test...");
+        log.info("[Red] Pool Size: {}, Queue Size: {}", SMALL_POOL_SIZE, SMALL_QUEUE_SIZE);
+        log.info("[Red] Task Count: {}, Task Duration: {}ms", taskCount, TASK_DURATION_MS);
+        log.info("[Red] Main Thread: {}", mainThreadName);
 
         long totalStartTime = System.nanoTime();
 
@@ -159,7 +161,7 @@ class ThreadPoolExhaustionNightmareTest extends AbstractContainerBaseTest {
                 String currentThread = Thread.currentThread().getName();
                 if (currentThread.equals(mainThreadName) || !currentThread.startsWith("nightmare-")) {
                     callerRunsCount.incrementAndGet();
-                    System.out.printf("[Red] Task %d: CallerRunsPolicy triggered! (Thread: %s)%n",
+                    log.info("[Red] Task {}: CallerRunsPolicy triggered! (Thread: {})",
                             taskId, currentThread);
                 }
 
@@ -176,7 +178,7 @@ class ThreadPoolExhaustionNightmareTest extends AbstractContainerBaseTest {
             submittedCount.incrementAndGet();
 
             if (submitTime > 100) {
-                System.out.printf("[Red] Task %d: Submit blocked for %dms!%n", taskId, submitTime);
+                log.info("[Red] Task {}: Submit blocked for {}ms!", taskId, submitTime);
             }
         }
 
@@ -191,29 +193,29 @@ class ThreadPoolExhaustionNightmareTest extends AbstractContainerBaseTest {
         long avgSubmitTime = submitTimes.stream().mapToLong(Long::longValue).sum() / submitTimes.size();
         long blockedSubmits = submitTimes.stream().filter(t -> t > 100).count();
 
-        System.out.println("┌────────────────────────────────────────────────────────────┐");
-        System.out.println("│      Nightmare 03: Thread Pool Exhaustion Results          │");
-        System.out.println("├────────────────────────────────────────────────────────────┤");
-        System.out.printf("│ Pool Size: %d, Queue Size: %d                               │%n",
+        log.info("┌────────────────────────────────────────────────────────────┐");
+        log.info("│      Nightmare 03: Thread Pool Exhaustion Results          │");
+        log.info("├────────────────────────────────────────────────────────────┤");
+        log.info("│ Pool Size: {}, Queue Size: {}                               │",
                 SMALL_POOL_SIZE, SMALL_QUEUE_SIZE);
-        System.out.printf("│ Tasks Submitted: %d                                         │%n", submittedCount.get());
-        System.out.printf("│ Tasks Completed: %d                                         │%n", completedCount.get());
-        System.out.printf("│ Terminated: %s                                              │%n", terminated ? "YES" : "NO");
-        System.out.println("├────────────────────────────────────────────────────────────┤");
-        System.out.printf("│ Total Submit Time: %dms                                     │%n", totalSubmitTime);
-        System.out.printf("│ Avg Submit Time: %dms                                       │%n", avgSubmitTime);
-        System.out.printf("│ Max Submit Time: %dms                                       │%n", maxSubmitTime);
-        System.out.printf("│ Blocked Submits (>100ms): %d                                │%n", blockedSubmits);
-        System.out.printf("│ CallerRunsPolicy Triggered: %d times                        │%n", callerRunsCount.get());
-        System.out.println("├────────────────────────────────────────────────────────────┤");
+        log.info("│ Tasks Submitted: {}                                         │", submittedCount.get());
+        log.info("│ Tasks Completed: {}                                         │", completedCount.get());
+        log.info("│ Terminated: {}                                              │", terminated ? "YES" : "NO");
+        log.info("├────────────────────────────────────────────────────────────┤");
+        log.info("│ Total Submit Time: {}ms                                     │", totalSubmitTime);
+        log.info("│ Avg Submit Time: {}ms                                       │", avgSubmitTime);
+        log.info("│ Max Submit Time: {}ms                                       │", maxSubmitTime);
+        log.info("│ Blocked Submits (>100ms): {}                                │", blockedSubmits);
+        log.info("│ CallerRunsPolicy Triggered: {} times                        │", callerRunsCount.get());
+        log.info("├────────────────────────────────────────────────────────────┤");
 
         if (blockedSubmits > 0 || callerRunsCount.get() > 0) {
-            System.out.println("│ ❌ MAIN THREAD BLOCKED!                                    │");
-            System.out.println("│ 🔧 Solution: Increase pool/queue size or use AbortPolicy   │");
+            log.info("│ ❌ MAIN THREAD BLOCKED!                                    │");
+            log.info("│ 🔧 Solution: Increase pool/queue size or use AbortPolicy   │");
         } else {
-            System.out.println("│ ✅ No blocking detected                                    │");
+            log.info("│ ✅ No blocking detected                                    │");
         }
-        System.out.println("└────────────────────────────────────────────────────────────┘");
+        log.info("└────────────────────────────────────────────────────────────┘");
 
         // 검증: 작업 제출이 100ms 이내에 완료되어야 함 (비블로킹)
         // CallerRunsPolicy 사용 시 FAIL 예상
@@ -241,7 +243,7 @@ class ThreadPoolExhaustionNightmareTest extends AbstractContainerBaseTest {
         AtomicInteger submittedCount = new AtomicInteger(0);
         AtomicInteger rejectedCount = new AtomicInteger(0);
 
-        System.out.println("[Blue] Testing AbortPolicy behavior...");
+        log.info("[Blue] Testing AbortPolicy behavior...");
 
         long startTime = System.nanoTime();
 
@@ -258,7 +260,7 @@ class ThreadPoolExhaustionNightmareTest extends AbstractContainerBaseTest {
                 submittedCount.incrementAndGet();
             } catch (RejectedExecutionException e) {
                 rejectedCount.incrementAndGet();
-                System.out.printf("[Blue] Task %d rejected: %s%n", taskId, e.getMessage());
+                log.info("[Blue] Task {} rejected: {}", taskId, e.getMessage());
             }
         }
 
@@ -266,22 +268,22 @@ class ThreadPoolExhaustionNightmareTest extends AbstractContainerBaseTest {
 
         executor.shutdown();
 
-        System.out.println("┌────────────────────────────────────────────────────────────┐");
-        System.out.println("│           AbortPolicy Behavior Analysis                    │");
-        System.out.println("├────────────────────────────────────────────────────────────┤");
-        System.out.printf("│ Tasks Attempted: %d                                         │%n", taskCount);
-        System.out.printf("│ Tasks Submitted: %d                                         │%n", submittedCount.get());
-        System.out.printf("│ Tasks Rejected: %d                                          │%n", rejectedCount.get());
-        System.out.printf("│ Submit Time: %dms                                           │%n", submitTime);
-        System.out.println("├────────────────────────────────────────────────────────────┤");
+        log.info("┌────────────────────────────────────────────────────────────┐");
+        log.info("│           AbortPolicy Behavior Analysis                    │");
+        log.info("├────────────────────────────────────────────────────────────┤");
+        log.info("│ Tasks Attempted: {}                                         │", taskCount);
+        log.info("│ Tasks Submitted: {}                                         │", submittedCount.get());
+        log.info("│ Tasks Rejected: {}                                          │", rejectedCount.get());
+        log.info("│ Submit Time: {}ms                                           │", submitTime);
+        log.info("├────────────────────────────────────────────────────────────┤");
 
         if (rejectedCount.get() > 0) {
-            System.out.println("│ ✅ AbortPolicy correctly rejected excess tasks             │");
-            System.out.println("│ ⚠️ But task loss occurred!                                │");
+            log.info("│ ✅ AbortPolicy correctly rejected excess tasks             │");
+            log.info("│ ⚠️ But task loss occurred!                                │");
         } else {
-            System.out.println("│ ⚠️ No rejections - pool/queue was large enough            │");
+            log.info("│ ⚠️ No rejections - pool/queue was large enough            │");
         }
-        System.out.println("└────────────────────────────────────────────────────────────┘");
+        log.info("└────────────────────────────────────────────────────────────┘");
 
         // AbortPolicy는 초과 작업을 거부해야 함
         // Pool(2) + Queue(2) = 4개만 수용, 나머지 6개 거부 예상
@@ -313,10 +315,10 @@ class ThreadPoolExhaustionNightmareTest extends AbstractContainerBaseTest {
         CountDownLatch startLatch = new CountDownLatch(1);
         CountDownLatch doneLatch = new CountDownLatch(taskCount);
 
-        System.out.println("[Green] Monitoring Thread Pool metrics...");
-        System.out.println("┌────────────────────────────────────────────────────────────┐");
-        System.out.println("│ Time │ Active │ Pool │ Queue │ Completed │ Status         │");
-        System.out.println("├────────────────────────────────────────────────────────────┤");
+        log.info("[Green] Monitoring Thread Pool metrics...");
+        log.info("┌────────────────────────────────────────────────────────────┐");
+        log.info("│ Time │ Active │ Pool │ Queue │ Completed │ Status         │");
+        log.info("├────────────────────────────────────────────────────────────┤");
 
         // 메트릭 수집 스레드
         ScheduledExecutorService monitor = Executors.newSingleThreadScheduledExecutor();
@@ -341,7 +343,7 @@ class ThreadPoolExhaustionNightmareTest extends AbstractContainerBaseTest {
                 status = "✅ NORMAL";
             }
 
-            System.out.printf("│ T+%ds │ %d      │ %d    │ %d     │ %d         │ %s │%n",
+            log.info("│ T+{}s │ {}      │ {}    │ {}     │ {}         │ {} │",
                     tick.incrementAndGet(), active, poolSize, queueSize, completed, status);
         }, 0, 500, TimeUnit.MILLISECONDS);
 
@@ -366,8 +368,8 @@ class ThreadPoolExhaustionNightmareTest extends AbstractContainerBaseTest {
         monitor.shutdown();
         executor.shutdown();
 
-        System.out.println("└────────────────────────────────────────────────────────────┘");
-        System.out.printf("Max Queue Size observed: %d (capacity: %d)%n", maxQueueSize.get(), SMALL_QUEUE_SIZE);
+        log.info("└────────────────────────────────────────────────────────────┘");
+        log.info("Max Queue Size observed: {} (capacity: {})", maxQueueSize.get(), SMALL_QUEUE_SIZE);
 
         // Queue가 가득 찬 상황이 발생해야 함
         assertThat(maxQueueSize.get())
@@ -393,7 +395,7 @@ class ThreadPoolExhaustionNightmareTest extends AbstractContainerBaseTest {
         int taskCount = 10;
         AtomicInteger executedCount = new AtomicInteger(0);
 
-        System.out.println("[Purple] Testing DiscardPolicy (silent task loss)...");
+        log.info("[Purple] Testing DiscardPolicy (silent task loss)...");
 
         for (int i = 0; i < taskCount; i++) {
             executor.execute(() -> {
@@ -411,21 +413,21 @@ class ThreadPoolExhaustionNightmareTest extends AbstractContainerBaseTest {
 
         int lostTasks = taskCount - executedCount.get();
 
-        System.out.println("┌────────────────────────────────────────────────────────────┐");
-        System.out.println("│           DiscardPolicy Task Loss Analysis                 │");
-        System.out.println("├────────────────────────────────────────────────────────────┤");
-        System.out.printf("│ Tasks Submitted: %d                                         │%n", taskCount);
-        System.out.printf("│ Tasks Executed: %d                                          │%n", executedCount.get());
-        System.out.printf("│ Tasks Lost: %d                                              │%n", lostTasks);
-        System.out.println("├────────────────────────────────────────────────────────────┤");
+        log.info("┌────────────────────────────────────────────────────────────┐");
+        log.info("│           DiscardPolicy Task Loss Analysis                 │");
+        log.info("├────────────────────────────────────────────────────────────┤");
+        log.info("│ Tasks Submitted: {}                                         │", taskCount);
+        log.info("│ Tasks Executed: {}                                          │", executedCount.get());
+        log.info("│ Tasks Lost: {}                                              │", lostTasks);
+        log.info("├────────────────────────────────────────────────────────────┤");
 
         if (lostTasks > 0) {
-            System.out.println("│ ⚠️ DATA LOSS DETECTED!                                    │");
-            System.out.println("│ 🔧 Never use DiscardPolicy for critical tasks             │");
+            log.info("│ ⚠️ DATA LOSS DETECTED!                                    │");
+            log.info("│ 🔧 Never use DiscardPolicy for critical tasks             │");
         } else {
-            System.out.println("│ ✅ No task loss (pool was sufficient)                     │");
+            log.info("│ ✅ No task loss (pool was sufficient)                     │");
         }
-        System.out.println("└────────────────────────────────────────────────────────────┘");
+        log.info("└────────────────────────────────────────────────────────────┘");
 
         // DiscardPolicy는 작업을 조용히 버리므로 손실 발생
         assertThat(lostTasks)

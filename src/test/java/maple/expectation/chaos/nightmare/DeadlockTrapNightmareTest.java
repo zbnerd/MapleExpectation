@@ -1,5 +1,6 @@
 package maple.expectation.chaos.nightmare;
 
+import lombok.extern.slf4j.Slf4j;
 import maple.expectation.support.AbstractContainerBaseTest;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -53,6 +54,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * @see <a href="https://dev.mysql.com/doc/refman/8.0/en/innodb-deadlocks.html">InnoDB Deadlocks</a>
  */
+@Slf4j
 @Tag("nightmare")
 @SpringBootTest
 @DisplayName("Nightmare 02: The Deadlock Trap - Circular Lock")
@@ -150,9 +152,9 @@ class DeadlockTrapNightmareTest extends AbstractContainerBaseTest {
         CyclicBarrier barrier = new CyclicBarrier(2);
         CountDownLatch doneLatch = new CountDownLatch(2);
 
-        System.out.println("[Red] Starting Deadlock Trap test...");
-        System.out.println("[Red] Transaction A: TABLE_A → TABLE_B (정순)");
-        System.out.println("[Red] Transaction B: TABLE_B → TABLE_A (역순)");
+        log.info("[Red] Starting Deadlock Trap test...");
+        log.info("[Red] Transaction A: TABLE_A → TABLE_B (정순)");
+        log.info("[Red] Transaction B: TABLE_B → TABLE_A (역순)");
 
         ExecutorService executor = Executors.newFixedThreadPool(2);
 
@@ -185,32 +187,32 @@ class DeadlockTrapNightmareTest extends AbstractContainerBaseTest {
         executor.shutdown();
 
         // 결과 출력
-        System.out.println("┌────────────────────────────────────────────────────────────┐");
-        System.out.println("│           Nightmare 02: Deadlock Trap Results              │");
-        System.out.println("├────────────────────────────────────────────────────────────┤");
-        System.out.printf("│ Completed: %s                                               │%n", completed ? "YES" : "NO");
-        System.out.printf("│ Success Count: %d                                           │%n", successCount.get());
-        System.out.printf("│ Deadlock Count: %d                                          │%n", deadlockCount.get());
-        System.out.printf("│ Other Errors: %d                                            │%n", otherErrorCount.get());
+        log.info("┌────────────────────────────────────────────────────────────┐");
+        log.info("│           Nightmare 02: Deadlock Trap Results              │");
+        log.info("├────────────────────────────────────────────────────────────┤");
+        log.info("│ Completed: {}                                               │", completed ? "YES" : "NO");
+        log.info("│ Success Count: {}                                           │", successCount.get());
+        log.info("│ Deadlock Count: {}                                          │", deadlockCount.get());
+        log.info("│ Other Errors: {}                                            │", otherErrorCount.get());
 
         if (deadlockCount.get() > 0) {
-            System.out.println("├────────────────────────────────────────────────────────────┤");
-            System.out.println("│ ❌ DEADLOCK DETECTED!                                      │");
-            System.out.println("│ Deadlock Message:                                          │");
+            log.info("├────────────────────────────────────────────────────────────┤");
+            log.info("│ ❌ DEADLOCK DETECTED!                                      │");
+            log.info("│ Deadlock Message:                                          │");
             String msg = deadlockMessage.get();
             if (msg.length() > 50) {
                 msg = msg.substring(0, 50) + "...";
             }
-            System.out.printf("│ %s │%n", msg);
-            System.out.println("├────────────────────────────────────────────────────────────┤");
-            System.out.println("│ 🔧 Solution: Apply Lock Ordering                           │");
-            System.out.println("│    - Always acquire locks in alphabetical order            │");
-            System.out.println("│    - TABLE_A → TABLE_B (never TABLE_B → TABLE_A)          │");
+            log.info("│ {} │", msg);
+            log.info("├────────────────────────────────────────────────────────────┤");
+            log.info("│ 🔧 Solution: Apply Lock Ordering                           │");
+            log.info("│    - Always acquire locks in alphabetical order            │");
+            log.info("│    - TABLE_A → TABLE_B (never TABLE_B → TABLE_A)          │");
         } else {
-            System.out.println("├────────────────────────────────────────────────────────────┤");
-            System.out.println("│ ✅ No Deadlock - System is resilient                       │");
+            log.info("├────────────────────────────────────────────────────────────┤");
+            log.info("│ ✅ No Deadlock - System is resilient                       │");
         }
-        System.out.println("└────────────────────────────────────────────────────────────┘");
+        log.info("└────────────────────────────────────────────────────────────┘");
 
         // 검증: Deadlock이 발생하면 안 됨
         // 현재 구현에서는 Lock Ordering이 없어 FAIL 예상
@@ -229,7 +231,7 @@ class DeadlockTrapNightmareTest extends AbstractContainerBaseTest {
         AtomicInteger totalDeadlocks = new AtomicInteger(0);
         AtomicInteger totalSuccess = new AtomicInteger(0);
 
-        System.out.println("[Blue] Running " + iterations + " iterations to measure deadlock probability...");
+        log.info("[Blue] Running {} iterations to measure deadlock probability...", iterations);
 
         for (int i = 0; i < iterations; i++) {
             final int iteration = i;  // Effectively final for lambda capture
@@ -271,7 +273,7 @@ class DeadlockTrapNightmareTest extends AbstractContainerBaseTest {
             totalDeadlocks.addAndGet(deadlockCount.get());
             totalSuccess.addAndGet(successCount.get());
 
-            System.out.printf("[Blue] Iteration %d: deadlocks=%d, success=%d%n",
+            log.info("[Blue] Iteration {}: deadlocks={}, success={}",
                     i + 1, deadlockCount.get(), successCount.get());
 
             // 다음 반복 전 잠시 대기
@@ -280,13 +282,13 @@ class DeadlockTrapNightmareTest extends AbstractContainerBaseTest {
 
         double deadlockRate = totalDeadlocks.get() * 100.0 / iterations;
 
-        System.out.println("┌────────────────────────────────────────────────────────────┐");
-        System.out.println("│           Deadlock Probability Analysis                    │");
-        System.out.println("├────────────────────────────────────────────────────────────┤");
-        System.out.printf("│ Total Iterations: %d                                        │%n", iterations);
-        System.out.printf("│ Total Deadlocks: %d                                         │%n", totalDeadlocks.get());
-        System.out.printf("│ Deadlock Rate: %.1f%%                                        │%n", deadlockRate);
-        System.out.println("└────────────────────────────────────────────────────────────┘");
+        log.info("┌────────────────────────────────────────────────────────────┐");
+        log.info("│           Deadlock Probability Analysis                    │");
+        log.info("├────────────────────────────────────────────────────────────┤");
+        log.info("│ Total Iterations: {}                                        │", iterations);
+        log.info("│ Total Deadlocks: {}                                         │", totalDeadlocks.get());
+        log.info("│ Deadlock Rate: {} %                                        │", String.format("%.1f", deadlockRate));
+        log.info("└────────────────────────────────────────────────────────────┘");
 
         // 검증: Deadlock 발생률이 0%여야 함
         assertThat(deadlockRate)
@@ -315,7 +317,7 @@ class DeadlockTrapNightmareTest extends AbstractContainerBaseTest {
             }
         }
 
-        System.out.println("[Purple] Initial data - TABLE_A: " + initialA + ", TABLE_B: " + initialB);
+        log.info("[Purple] Initial data - TABLE_A: {}, TABLE_B: {}", initialA, initialB);
 
         // When: Deadlock 유발 시도
         AtomicInteger deadlockCount = new AtomicInteger(0);
@@ -368,14 +370,14 @@ class DeadlockTrapNightmareTest extends AbstractContainerBaseTest {
             }
         }
 
-        System.out.println("┌────────────────────────────────────────────────────────────┐");
-        System.out.println("│           Data Integrity After Deadlock                    │");
-        System.out.println("├────────────────────────────────────────────────────────────┤");
-        System.out.printf("│ TABLE_A: %s → %s                                     │%n", initialA, finalA);
-        System.out.printf("│ TABLE_B: %s → %s                                     │%n", initialB, finalB);
-        System.out.printf("│ Deadlock occurred: %s                                       │%n", deadlockCount.get() > 0 ? "YES" : "NO");
-        System.out.printf("│ Successful transactions: %d                                 │%n", successCount.get());
-        System.out.println("└────────────────────────────────────────────────────────────┘");
+        log.info("┌────────────────────────────────────────────────────────────┐");
+        log.info("│           Data Integrity After Deadlock                    │");
+        log.info("├────────────────────────────────────────────────────────────┤");
+        log.info("│ TABLE_A: {} → {}                                     │", initialA, finalA);
+        log.info("│ TABLE_B: {} → {}                                     │", initialB, finalB);
+        log.info("│ Deadlock occurred: {}                                       │", deadlockCount.get() > 0 ? "YES" : "NO");
+        log.info("│ Successful transactions: {}                                 │", successCount.get());
+        log.info("└────────────────────────────────────────────────────────────┘");
 
         // Deadlock 발생해도 데이터가 손상되면 안 됨 (롤백된 트랜잭션의 변경은 취소)
         // 최소 1개 트랜잭션은 성공해야 함 (또는 둘 다 실패)
@@ -401,7 +403,7 @@ class DeadlockTrapNightmareTest extends AbstractContainerBaseTest {
                 try (PreparedStatement ps = conn.prepareStatement(lockFirst)) {
                     ps.executeQuery();
                 }
-                System.out.printf("[%s] Acquired lock on %s%n", txName, firstTable);
+                log.info("[{}] Acquired lock on {}", txName, firstTable);
 
                 // 약간의 지연으로 Deadlock 확률 증가
                 Thread.sleep(100);
@@ -412,11 +414,11 @@ class DeadlockTrapNightmareTest extends AbstractContainerBaseTest {
                 try (PreparedStatement ps = conn.prepareStatement(lockSecond)) {
                     ps.executeQuery();
                 }
-                System.out.printf("[%s] Acquired lock on %s%n", txName, secondTable);
+                log.info("[{}] Acquired lock on {}", txName, secondTable);
 
                 conn.commit();
                 successCount.incrementAndGet();
-                System.out.printf("[%s] Transaction committed successfully%n", txName);
+                log.info("[{}] Transaction committed successfully", txName);
 
             } catch (SQLException e) {
                 conn.rollback();
@@ -470,10 +472,10 @@ class DeadlockTrapNightmareTest extends AbstractContainerBaseTest {
                 message.contains("Lock wait timeout"))) {
             deadlockCount.incrementAndGet();
             deadlockMessage.set(message);
-            System.out.println("[Red] DEADLOCK DETECTED: " + message);
+            log.info("[Red] DEADLOCK DETECTED: {}", message);
         } else {
             otherErrorCount.incrementAndGet();
-            System.out.println("[Red] Other error: " + message);
+            log.info("[Red] Other error: {}", message);
         }
     }
 }
