@@ -92,9 +92,9 @@ MapleExpectation 시스템의 **회복 탄력성(Resilience)**을 검증하기 �
 | N01 | **Thundering Herd** | [N01-thundering-herd.md](chaos-tests/nightmare/N01-thundering-herd.md) | ✅ PASS | Singleflight 패턴 정상 작동, DB 쿼리 최소화 | - |
 | N02 | **Deadlock Trap** | [N02-deadlock-trap.md](chaos-tests/nightmare/N02-deadlock-trap.md) | ❌ FAIL | **Lock Ordering 미적용, Deadlock 100% 발생** | [#221](https://github.com/zbnerd/MapleExpectation/issues/221) |
 | N03 | **Thread Pool Exhaustion** | [N03-thread-pool-exhaustion.md](chaos-tests/nightmare/N03-thread-pool-exhaustion.md) | ❌ FAIL | **CallerRunsPolicy로 메인 스레드 2010ms 블로킹** | [#222](https://github.com/zbnerd/MapleExpectation/issues/222) |
-| N04 | **Connection Vampire** | [N04-connection-vampire.md](chaos-tests/nightmare/N04-connection-vampire.md) | ⚠️ CONDITIONAL | Pool 고갈 미발생 (시스템 탄력적), 예방적 리팩토링 권장 | - |
+| N04 | **Connection Vampire** | [N04-connection-vampire.md](chaos-tests/nightmare/N04-connection-vampire.md) | ❌ FAIL | **@Transactional + 외부 API 블로킹 호출 Anti-Pattern** | [#226](https://github.com/zbnerd/MapleExpectation/issues/226) |
 | N05 | **Celebrity Problem** | [N05-celebrity-problem.md](chaos-tests/nightmare/N05-celebrity-problem.md) | ✅ PASS | Singleflight 효과적, Hot Key 대응 안정적 | - |
-| N06 | **Timeout Cascade** | [N06-timeout-cascade.md](chaos-tests/nightmare/N06-timeout-cascade.md) | ❌ FAIL | **타임아웃 계층 불일치로 Zombie Request 발생** | TBD |
+| N06 | **Timeout Cascade** | [N06-timeout-cascade.md](chaos-tests/nightmare/N06-timeout-cascade.md) | ❌ FAIL | **타임아웃 계층 불일치로 Zombie Request 발생** | [#225](https://github.com/zbnerd/MapleExpectation/issues/225) |
 
 #### Nightmare 테스트 결과 상세
 
