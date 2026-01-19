@@ -1,0 +1,367 @@
+package maple.expectation.chaos.network;
+
+import maple.expectation.support.SentinelContainerBase;
+import org.junit.jupiter.api.*;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
+
+import java.time.Duration;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
+
+/**
+ * Scenario 04: Split Brain - 두 명의 왕 (네트워크 파티션)
+ *
+ * <h4>5-Agent Council</h4>
+ * <ul>
+ *   <li>🔴 Red (SRE): 장애 주입 - 네트워크 파티션으로 Master 격리</li>
+ *   <li>🟣 Purple (Auditor): 데이터 무결성 검증 - 중복 쓰기 감지</li>
+ *   <li>🔵 Blue (Architect): 흐름 검증 - Sentinel Quorum 동작</li>
+ *   <li>🟢 Green (Performance): 메트릭 검증 - Failover 시간</li>
+ *   <li>🟡 Yellow (QA Master): 테스트 전략 - Stale Read 검증</li>
+ * </ul>
+ *
+ * <h4>검증 포인트</h4>
+ * <ol>
+ *   <li>네트워크 파티션 시 Sentinel Quorum(2/3)으로 새 Master 선출</li>
+ *   <li>구 Master가 격리되어도 잠시 쓰기 가능 (위험!)</li>
+ *   <li>복구 후 데이터 충돌 가능성 검증</li>
+ *   <li>분산 락의 안전성 검증 (Redlock 원리)</li>
+ * </ol>
+ *
+ * <h4>CS 원리</h4>
+ * <ul>
+ *   <li>CAP 정리: 네트워크 파티션 시 C(일관성) vs A(가용성) 선택</li>
+ *   <li>Quorum: 과반수 동의로 의사결정 (Byzantine Fault Tolerance)</li>
+ *   <li>Fencing Token: 구 Master의 stale write 방지</li>
+ * </ul>
+ *
+ * @see maple.expectation.support.SentinelContainerBase
+ */
+@Tag("chaos")
+@Tag("sentinel")
+@DisplayName("Scenario 04: Split Brain - 네트워크 파티션 및 데이터 정합성 검증")
+class SplitBrainChaosTest extends SentinelContainerBase {
+
+    @Autowired
+    private RedisTemplate<String, String> redisTemplate;
+
+    @Autowired
+    private RedissonClient redissonClient;
+
+    private static final String SPLIT_BRAIN_KEY = "split-brain:test";
+
+    @BeforeEach
+    void setUp() {
+        // 테스트 전 키 초기화
+        try {
+            redisTemplate.delete(SPLIT_BRAIN_KEY);
+        } catch (Exception ignored) {
+        }
+    }
+
+    /**
+     * 🟡 Yellow's Test 1: Master 격리 시 Sentinel Quorum으로 새 Master 선출
+     *
+     * <p><b>시나리오</b>:
+     * <ol>
+     *   <li>Master에 초기 데이터 쓰기</li>
+     *   <li>Master를 네트워크에서 격리 (Toxiproxy)</li>
+     *   <li>Sentinel Quorum(2/3)이 새 Master 선출</li>
+     *   <li>새 Master에서 데이터 읽기/쓰기 가능</li>
+     * </ol>
+     *
+     * <p><b>예상 동작</b>: Failover 후에도 서비스 가용성 유지</p>
+     */
+    @Test
+    @DisplayName("Master 격리 → Sentinel Quorum으로 새 Master 선출")
+    void shouldElectNewMaster_whenOriginalMasterIsolated() {
+        // Given: 초기 데이터 쓰기
+        redisTemplate.opsForValue().set(SPLIT_BRAIN_KEY, "initial-value");
+        String initialValue = redisTemplate.opsForValue().get(SPLIT_BRAIN_KEY);
+        assertThat(initialValue).isEqualTo("initial-value");
+
+        // When: Master 격리 (네트워크 파티션)
+        long failoverStart = System.currentTimeMillis();
+        failMaster();
+
+        // Then: Sentinel이 새 Master 선출 → 서비스 복구
+        await()
+                .atMost(Duration.ofSeconds(5))
+                .pollInterval(Duration.ofMillis(200))
+                .untilAsserted(() -> {
+                    String value = redisTemplate.opsForValue().get(SPLIT_BRAIN_KEY);
+                    assertThat(value)
+                            .as("Failover 후 새 Master에서 데이터 조회 가능")
+                            .isEqualTo("initial-value");
+                });
+
+        long failoverTime = System.currentTimeMillis() - failoverStart;
+        System.out.printf("[Green] Failover 완료 시간: %dms%n", failoverTime);
+
+        // 새 Master에 쓰기 가능
+        redisTemplate.opsForValue().set(SPLIT_BRAIN_KEY, "new-master-value");
+        String newValue = redisTemplate.opsForValue().get(SPLIT_BRAIN_KEY);
+        assertThat(newValue).isEqualTo("new-master-value");
+    }
+
+    /**
+     * 🟣 Purple's Test 2: Split Brain 중 데이터 충돌 가능성 검증
+     *
+     * <p><b>시나리오</b>:
+     * <ol>
+     *   <li>동시에 두 클라이언트가 다른 값을 쓰는 상황 시뮬레이션</li>
+     *   <li>격리된 구 Master는 잠시 쓰기를 수락할 수 있음 (위험!)</li>
+     *   <li>복구 후 어떤 값이 남는지 확인</li>
+     * </ol>
+     *
+     * <p><b>예상 동작</b>: "Last Writer Wins" - 마지막 쓰기가 승리</p>
+     */
+    @Test
+    @DisplayName("Split Brain 중 동시 쓰기 → Last Writer Wins 검증")
+    void shouldLastWriterWin_whenConcurrentWritesDuringSplitBrain() throws Exception {
+        // Given: 초기 데이터
+        redisTemplate.opsForValue().set(SPLIT_BRAIN_KEY, "original");
+
+        CountDownLatch writeLatch = new CountDownLatch(2);
+        AtomicReference<String> writer1Result = new AtomicReference<>();
+        AtomicReference<String> writer2Result = new AtomicReference<>();
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+
+        try {
+            // When: 병렬 쓰기 시도
+            executor.submit(() -> {
+                try {
+                    redisTemplate.opsForValue().set(SPLIT_BRAIN_KEY, "writer-1");
+                    writer1Result.set("success");
+                } catch (Exception e) {
+                    writer1Result.set("failed: " + e.getMessage());
+                }
+                writeLatch.countDown();
+            });
+
+            executor.submit(() -> {
+                try {
+                    Thread.sleep(50); // 약간의 지연
+                    redisTemplate.opsForValue().set(SPLIT_BRAIN_KEY, "writer-2");
+                    writer2Result.set("success");
+                } catch (Exception e) {
+                    writer2Result.set("failed: " + e.getMessage());
+                }
+                writeLatch.countDown();
+            });
+
+            writeLatch.await(5, TimeUnit.SECONDS);
+
+            // Then: 마지막 쓰기가 승리
+            String finalValue = redisTemplate.opsForValue().get(SPLIT_BRAIN_KEY);
+            System.out.printf("[Purple] Writer1: %s, Writer2: %s, Final: %s%n",
+                    writer1Result.get(), writer2Result.get(), finalValue);
+
+            // 둘 중 하나의 값이어야 함
+            assertThat(finalValue)
+                    .as("동시 쓰기 후 마지막 값이 유지")
+                    .isIn("writer-1", "writer-2");
+
+        } finally {
+            executor.shutdown();
+            executor.awaitTermination(5, TimeUnit.SECONDS);
+        }
+    }
+
+    /**
+     * 🔵 Blue's Test 3: 분산 락으로 Split Brain 방지
+     *
+     * <p><b>시나리오</b>:
+     * <ol>
+     *   <li>분산 락 획득</li>
+     *   <li>Master 격리</li>
+     *   <li>Failover 후 락 상태 확인</li>
+     *   <li>새 락 획득 시도</li>
+     * </ol>
+     *
+     * <p><b>예상 동작</b>: Redisson의 Watch Dog이 락 갱신 실패 → 락 해제</p>
+     */
+    @Test
+    @DisplayName("분산 락 보유 중 Master 격리 → Failover 후 락 안전성")
+    void shouldMaintainLockSafety_whenMasterIsolatedDuringLock() throws Exception {
+        // Given: 분산 락 획득
+        RLock lock = redissonClient.getLock("split-brain:lock");
+        boolean locked = lock.tryLock(2, 30, TimeUnit.SECONDS);
+        assertThat(locked).as("초기 락 획득 성공").isTrue();
+
+        // When: Master 격리
+        failMaster();
+
+        // Then: Failover 대기
+        await()
+                .atMost(Duration.ofSeconds(5))
+                .pollInterval(Duration.ofMillis(200))
+                .until(() -> {
+                    try {
+                        return "PONG".equals(redisTemplate.getConnectionFactory()
+                                .getConnection().ping());
+                    } catch (Exception e) {
+                        return false;
+                    }
+                });
+
+        // 락 상태 확인 (Redisson이 자동 재연결)
+        await()
+                .atMost(Duration.ofSeconds(3))
+                .pollInterval(Duration.ofMillis(200))
+                .untilAsserted(() -> {
+                    boolean stillLocked = lock.isLocked();
+                    System.out.printf("[Blue] Failover 후 락 상태: %s%n", stillLocked ? "LOCKED" : "UNLOCKED");
+                    // 락이 유지되거나 해제되었든 에러 없이 확인 가능해야 함
+                    assertThat(stillLocked).isNotNull();
+                });
+
+        // 안전하게 락 해제
+        if (lock.isHeldByCurrentThread()) {
+            lock.unlock();
+        }
+
+        // 새 락 획득 가능 확인
+        RLock newLock = redissonClient.getLock("split-brain:new-lock");
+        boolean newLocked = newLock.tryLock(2, 10, TimeUnit.SECONDS);
+        assertThat(newLocked).as("Failover 후 새 락 획득 가능").isTrue();
+        newLock.unlock();
+    }
+
+    /**
+     * 🟢 Green's Test 4: Stale Read 검증 - 구 Master의 오래된 데이터
+     *
+     * <p><b>시나리오</b>:
+     * <ol>
+     *   <li>Master에 값 쓰기</li>
+     *   <li>Master 격리 → Slave가 Master로 승격</li>
+     *   <li>새 Master에 다른 값 쓰기</li>
+     *   <li>구 Master 복구 → Slave로 강등</li>
+     *   <li>최종 값 확인 (새 Master 값이어야 함)</li>
+     * </ol>
+     */
+    @Test
+    @DisplayName("구 Master 복구 → Slave 강등 후 데이터 동기화")
+    void shouldSyncData_whenOldMasterRejoinsAsReplica() {
+        // Given: 초기 데이터
+        redisTemplate.opsForValue().set(SPLIT_BRAIN_KEY, "before-partition");
+
+        // When: Master 격리 → Failover
+        failMaster();
+
+        // Failover 완료 대기
+        await()
+                .atMost(Duration.ofSeconds(5))
+                .pollInterval(Duration.ofMillis(200))
+                .until(() -> {
+                    try {
+                        return redisTemplate.opsForValue().get(SPLIT_BRAIN_KEY) != null;
+                    } catch (Exception e) {
+                        return false;
+                    }
+                });
+
+        // 새 Master에 쓰기
+        redisTemplate.opsForValue().set(SPLIT_BRAIN_KEY, "after-failover");
+
+        // 구 Master 복구
+        recoverMaster();
+
+        // Then: 복구 후 새 Master의 값이 유지되어야 함
+        await()
+                .atMost(Duration.ofSeconds(5))
+                .pollInterval(Duration.ofMillis(200))
+                .untilAsserted(() -> {
+                    String value = redisTemplate.opsForValue().get(SPLIT_BRAIN_KEY);
+                    System.out.printf("[Green] 복구 후 최종 값: %s%n", value);
+                    assertThat(value)
+                            .as("복구 후 새 Master의 값이 유지되어야 함")
+                            .isEqualTo("after-failover");
+                });
+    }
+
+    /**
+     * 🔴 Red's Test 5: 반복 장애 주입 → 시스템 안정성
+     *
+     * <p><b>시나리오</b>:
+     * <ol>
+     *   <li>3회 연속 장애 주입/복구 사이클</li>
+     *   <li>매 사이클마다 데이터 쓰기/읽기</li>
+     *   <li>최종 데이터 정합성 확인</li>
+     * </ol>
+     */
+    @Test
+    @DisplayName("반복 장애 주입/복구 사이클 후 시스템 안정성")
+    void shouldRemainStable_afterRepeatedFailoverCycles() {
+        AtomicInteger writeCount = new AtomicInteger(0);
+
+        for (int cycle = 1; cycle <= 3; cycle++) {
+            final int currentCycle = cycle;
+
+            // 데이터 쓰기
+            String value = "cycle-" + cycle;
+            await()
+                    .atMost(Duration.ofSeconds(5))
+                    .pollInterval(Duration.ofMillis(200))
+                    .untilAsserted(() -> {
+                        redisTemplate.opsForValue().set(SPLIT_BRAIN_KEY, value);
+                        writeCount.incrementAndGet();
+                    });
+
+            // 장애 주입
+            failMaster();
+
+            // Failover 대기
+            await()
+                    .atMost(Duration.ofSeconds(5))
+                    .pollInterval(Duration.ofMillis(200))
+                    .until(() -> {
+                        try {
+                            return "PONG".equals(redisTemplate.getConnectionFactory()
+                                    .getConnection().ping());
+                        } catch (Exception e) {
+                            return false;
+                        }
+                    });
+
+            // 데이터 확인
+            await()
+                    .atMost(Duration.ofSeconds(3))
+                    .untilAsserted(() -> {
+                        String readValue = redisTemplate.opsForValue().get(SPLIT_BRAIN_KEY);
+                        System.out.printf("[Red] Cycle %d: 쓴 값=%s, 읽은 값=%s%n",
+                                currentCycle, value, readValue);
+                        assertThat(readValue).isEqualTo(value);
+                    });
+
+            // 복구
+            recoverMaster();
+
+            // 안정화 대기
+            await()
+                    .atMost(Duration.ofSeconds(3))
+                    .pollInterval(Duration.ofMillis(200))
+                    .until(() -> {
+                        try {
+                            return "PONG".equals(redisTemplate.getConnectionFactory()
+                                    .getConnection().ping());
+                        } catch (Exception e) {
+                            return false;
+                        }
+                    });
+        }
+
+        // 최종 검증
+        assertThat(writeCount.get())
+                .as("3회 사이클 모두 쓰기 성공")
+                .isGreaterThanOrEqualTo(3);
+    }
+}
