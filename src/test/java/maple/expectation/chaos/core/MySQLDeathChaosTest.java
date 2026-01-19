@@ -324,10 +324,7 @@ class MySQLDeathChaosTest {
      */
     private void createTestCharacter() {
         try {
-            GameCharacter character = GameCharacter.builder()
-                    .userIgn(TEST_USER_IGN)
-                    .likeCount(0L)
-                    .build();
+            GameCharacter character = new GameCharacter(TEST_USER_IGN, "test-ocid-mysql-chaos");
             gameCharacterRepository.save(character);
         } catch (Exception e) {
             // 이미 존재할 수 있음

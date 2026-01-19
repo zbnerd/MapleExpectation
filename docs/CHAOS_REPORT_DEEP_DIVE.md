@@ -8,22 +8,21 @@
 
 ## Executive Summary
 
-MapleExpectation 시스템의 **회복 탄력성(Resilience)**을 검증하기 위해 **17개의 극한 카오스 테스트 시나리오**를 설계하고 실행했습니다.
+MapleExpectation 시스템의 **회복 탄력성(Resilience)**을 검증하기 위해 **17개의 극한 카오스 테스트 시나리오**와 **3개의 Nightmare 레벨 취약점 탐지 테스트**를 설계하고 실행했습니다.
 
 ### 전체 결과
 
 ```
 ======================================================================
-  📊 CHAOS TEST SUMMARY - 17 Scenarios
+  📊 CHAOS TEST SUMMARY - 17 Scenarios + 3 Nightmare
 ======================================================================
 
 ┌────────────────────────────────────────────────────────────────────┐
 │                    Overall Results                                 │
 ├────────────────────────────────────────────────────────────────────┤
-│ Total Scenarios: 17                                                │
-│ PASS: 17 ✅                                                        │
-│ FAIL: 0                                                            │
-│ Success Rate: 100%                                                 │
+│ Total Scenarios: 20 (17 Chaos + 3 Nightmare)                       │
+│ Chaos Tests:  17/17 PASS ✅                                        │
+│ Nightmare:    1 PASS, 2 FAIL ❌ (의도된 실패)                       │
 └────────────────────────────────────────────────────────────────────┘
 
 ┌────────────────────────────────────────────────────────────────────┐
@@ -34,6 +33,7 @@ MapleExpectation 시스템의 **회복 탄력성(Resilience)**을 검증하기 �
 │ Resource (08-11):    4/4 PASS  ████████████████                    │
 │ Connection (13, 17): 2/2 PASS  ████████                            │
 │ Data (14-16):        3/3 PASS  ████████████                        │
+│ Nightmare (N01-N03): 1/3 PASS  ████ (취약점 탐지 성공)              │
 └────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -83,6 +83,47 @@ MapleExpectation 시스템의 **회복 탄력성(Resilience)**을 검증하기 �
 | 15 | **Out-of-Order** | [15-out-of-order.md](chaos-tests/data/15-out-of-order.md) | ✅ PASS | Version 기반 순서 검증 |
 | 16 | **Config Poisoning** | [16-config-poisoning.md](chaos-tests/data/16-config-poisoning.md) | ✅ PASS | @Validated로 시작 시 거부 |
 
+### 🔥 Nightmare Scenarios (취약점 탐지 - 의도적 실패)
+
+> **목적**: 시스템의 숨겨진 취약점을 노출하고 GitHub Issue를 생성하여 개선 방향 제시
+
+| # | 시나리오 | 문서 | 결과 | 핵심 인사이트 | Issue |
+|---|----------|------|------|--------------|-------|
+| N01 | **Thundering Herd** | [N01-thundering-herd.md](chaos-tests/nightmare/N01-thundering-herd.md) | ✅ PASS | Singleflight 패턴 정상 작동, DB 쿼리 최소화 | - |
+| N02 | **Deadlock Trap** | [N02-deadlock-trap.md](chaos-tests/nightmare/N02-deadlock-trap.md) | ❌ FAIL | **Lock Ordering 미적용, Deadlock 100% 발생** | [#221](https://github.com/zbnerd/MapleExpectation/issues/221) |
+| N03 | **Thread Pool Exhaustion** | [N03-thread-pool-exhaustion.md](chaos-tests/nightmare/N03-thread-pool-exhaustion.md) | ❌ FAIL | **CallerRunsPolicy로 메인 스레드 2010ms 블로킹** | [#222](https://github.com/zbnerd/MapleExpectation/issues/222) |
+
+#### Nightmare 테스트 결과 상세
+
+**N01: Thundering Herd (Cache Stampede)** - ✅ PASS
+- Redis FLUSHALL 후 1,000명 동시 요청
+- TieredCache의 Singleflight 패턴이 효과적으로 작동
+- DB 쿼리 비율 ≤ 10% 달성
+
+**N02: Deadlock Trap (Circular Lock)** - ❌ FAIL ([#221](https://github.com/zbnerd/MapleExpectation/issues/221))
+```
+교차 락 획득 시 Deadlock 발생 여부 검증 FAILED
+    expected: 0
+     but was: 1
+
+10회 반복 시 Deadlock 발생 확률 측정 FAILED
+    expected: 0.0
+     but was: 100.0
+```
+- **근본 원인**: Lock Ordering 패턴 미적용
+- **Coffman Conditions**: Circular Wait 조건 충족
+- **해결 방안**: 알파벳순 테이블 접근 순서 고정
+
+**N03: Thread Pool Exhaustion (@Async Pool)** - ❌ FAIL ([#222](https://github.com/zbnerd/MapleExpectation/issues/222))
+```
+CallerRunsPolicy로 인한 메인 스레드 블로킹 검증 FAILED
+    Expecting actual: 2010L
+    to be less than or equal to: 100L
+```
+- **근본 원인**: CallerRunsPolicy가 Pool 포화 시 메인 스레드에서 직접 실행
+- **영향**: API 응답 불가 상태 (2초+ 블로킹)
+- **해결 방안**: Pool 크기 조정 또는 Resilience4j Bulkhead 적용
+
 ---
 
 ## 핵심 발견 사항
@@ -106,6 +147,18 @@ MapleExpectation 시스템의 **회복 탄력성(Resilience)**을 검증하기 �
 - **Idempotency Key**: SETNX로 중복 쓰기 100% 방지
 - **Fair Lock**: FIFO 순서 보장
 - **Thundering Herd**: 락 세분화 + 타임아웃으로 대응
+
+### 5. 🔥 Nightmare 테스트로 발견된 취약점
+
+| 취약점 | 심각도 | 상태 | 해결 방안 |
+|--------|--------|------|----------|
+| Lock Ordering 미적용 | **P0** | 🔴 Open | Coffman Conditions 중 Circular Wait 깨기 |
+| CallerRunsPolicy 블로킹 | **P1** | 🔴 Open | Resilience4j Bulkhead 또는 AbortPolicy |
+
+**Nightmare 테스트의 가치**:
+- 기존 17개 Chaos Test는 모두 PASS → 시스템이 "충분히 안전"하다는 착각 유발
+- Nightmare 테스트로 **숨겨진 취약점 2건 발견**
+- GitHub Issue 자동 생성으로 개선 방향 명확화
 
 ---
 
@@ -190,6 +243,20 @@ Lock TTL = 예상 처리 시간 + 최대 GC Pause + 네트워크 지연 + 여유
 # Data 시나리오
 ./gradlew test --tests "*chaos.data.*"
 ```
+
+### 🔥 Nightmare 테스트 실행
+```bash
+# 전체 Nightmare 테스트 (의도적 실패 테스트)
+./gradlew test --tests "*NightmareTest*" 2>&1 | tee logs/nightmare-$(date +%Y%m%d_%H%M%S).log
+
+# 개별 Nightmare 테스트
+./gradlew test --tests "*ThunderingHerdNightmareTest*"   # N01: Cache Stampede
+./gradlew test --tests "*DeadlockTrapNightmareTest*"     # N02: Circular Lock
+./gradlew test --tests "*ThreadPoolExhaustionNightmareTest*"  # N03: @Async Pool
+```
+
+> **참고**: Nightmare 테스트는 **의도적으로 실패**하도록 설계되었습니다.
+> 실패 시 GitHub Issue가 자동 생성됩니다.
 
 ---
 
