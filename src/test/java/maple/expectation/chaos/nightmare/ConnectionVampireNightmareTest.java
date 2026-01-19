@@ -2,6 +2,7 @@ package maple.expectation.chaos.nightmare;
 
 import com.zaxxer.hikari.HikariDataSource;
 import com.zaxxer.hikari.HikariPoolMXBean;
+import lombok.extern.slf4j.Slf4j;
 import maple.expectation.external.NexonApiClient;
 import maple.expectation.external.dto.v2.CharacterOcidResponse;
 import maple.expectation.support.AbstractContainerBaseTest;
@@ -51,6 +52,7 @@ import static org.mockito.Mockito.when;
  *
  * @see maple.expectation.service.v2.GameCharacterService#createNewCharacter(String)
  */
+@Slf4j
 @Tag("nightmare")
 @SpringBootTest
 @ActiveProfiles("test")
@@ -108,8 +110,8 @@ class ConnectionVampireNightmareTest extends AbstractContainerBaseTest {
         CountDownLatch startLatch = new CountDownLatch(1);
         CountDownLatch doneLatch = new CountDownLatch(concurrentRequests);
 
-        System.out.println("[Red] Starting Connection Vampire test...");
-        System.out.printf("[Red] API Delay: %dms, Concurrent Requests: %d%n", apiDelayMs, concurrentRequests);
+        log.info("[Red] Starting Connection Vampire test...");
+        log.info("[Red] API Delay: {}ms, Concurrent Requests: {}", apiDelayMs, concurrentRequests);
 
         // When: 동시 커넥션 요청
         for (int i = 0; i < concurrentRequests; i++) {
@@ -136,7 +138,7 @@ class ConnectionVampireNightmareTest extends AbstractContainerBaseTest {
                                     e.getMessage().contains("Timeout"))) {
                         connectionTimeoutCount.incrementAndGet();
                     }
-                    System.out.printf("[Red] Request %d failed: %s%n", requestId, e.getMessage());
+                    log.info("[Red] Request {} failed: {}", requestId, e.getMessage());
                 } finally {
                     doneLatch.countDown();
                 }
@@ -184,7 +186,7 @@ class ConnectionVampireNightmareTest extends AbstractContainerBaseTest {
                             new CharacterOcidResponse("test-ocid"));
                 });
 
-        System.out.println("[Blue] Measuring connection holding time...");
+        log.info("[Blue] Measuring connection holding time...");
 
         // When: 단일 요청으로 점유 시간 측정
         long start = System.nanoTime();
@@ -196,13 +198,13 @@ class ConnectionVampireNightmareTest extends AbstractContainerBaseTest {
 
         long elapsed = (System.nanoTime() - start) / 1_000_000;
 
-        System.out.println("========================================");
-        System.out.println("      Connection Holding Time Analysis   ");
-        System.out.println("========================================");
-        System.out.printf(" API Delay: %dms%n", apiDelayMs);
-        System.out.printf(" Connection Hold Time: %dms%n", elapsed);
-        System.out.printf(" Overhead: %dms%n", elapsed - apiDelayMs);
-        System.out.println("========================================");
+        log.info("========================================");
+        log.info("      Connection Holding Time Analysis   ");
+        log.info("========================================");
+        log.info(" API Delay: {}ms", apiDelayMs);
+        log.info(" Connection Hold Time: {}ms", elapsed);
+        log.info(" Overhead: {}ms", elapsed - apiDelayMs);
+        log.info("========================================");
 
         // Then: Connection 점유 시간이 API 지연 시간 이상이어야 함
         assertThat(elapsed)
@@ -230,7 +232,7 @@ class ConnectionVampireNightmareTest extends AbstractContainerBaseTest {
 
         AtomicInteger peakActiveConnections = new AtomicInteger(0);
 
-        System.out.println("[Green] Measuring HikariCP pool metrics...");
+        log.info("[Green] Measuring HikariCP pool metrics...");
 
         // When: 모든 커넥션 점유
         for (int i = 0; i < concurrentRequests; i++) {
@@ -268,15 +270,15 @@ class ConnectionVampireNightmareTest extends AbstractContainerBaseTest {
         doneLatch.await(30, TimeUnit.SECONDS);
         executor.shutdown();
 
-        System.out.println("========================================");
-        System.out.println("       HikariCP Pool Metrics            ");
-        System.out.println("========================================");
-        System.out.printf(" Peak Active: %d%n", peakActiveConnections.get());
-        System.out.printf(" Active (during test): %d%n", activeConnections);
-        System.out.printf(" Idle: %d%n", idleConnections);
-        System.out.printf(" Pending Threads: %d%n", pendingThreads);
-        System.out.printf(" Total: %d%n", totalConnections);
-        System.out.println("========================================");
+        log.info("========================================");
+        log.info("       HikariCP Pool Metrics            ");
+        log.info("========================================");
+        log.info(" Peak Active: {}", peakActiveConnections.get());
+        log.info(" Active (during test): {}", activeConnections);
+        log.info(" Idle: {}", idleConnections);
+        log.info(" Pending Threads: {}", pendingThreads);
+        log.info(" Total: {}", totalConnections);
+        log.info("========================================");
 
         // Then: Active connections가 요청 수에 근접해야 함
         assertThat(peakActiveConnections.get())
@@ -300,7 +302,7 @@ class ConnectionVampireNightmareTest extends AbstractContainerBaseTest {
         int holdCount = 5;
         CopyOnWriteArrayList<Connection> heldConnections = new CopyOnWriteArrayList<>();
 
-        System.out.println("[Yellow] Inducing pool exhaustion...");
+        log.info("[Yellow] Inducing pool exhaustion...");
 
         // 커넥션 점유
         for (int i = 0; i < holdCount; i++) {
@@ -308,12 +310,12 @@ class ConnectionVampireNightmareTest extends AbstractContainerBaseTest {
                 Connection conn = dataSource.getConnection();
                 heldConnections.add(conn);
             } catch (Exception e) {
-                System.out.println("[Yellow] Could not acquire more connections");
+                log.info("[Yellow] Could not acquire more connections");
                 break;
             }
         }
 
-        System.out.printf("[Yellow] Held %d connections%n", heldConnections.size());
+        log.info("[Yellow] Held {} connections", heldConnections.size());
 
         // When: 모든 커넥션 반환
         long releaseStart = System.nanoTime();
@@ -330,11 +332,11 @@ class ConnectionVampireNightmareTest extends AbstractContainerBaseTest {
         try (Connection conn = dataSource.getConnection()) {
             long recoveryTime = (System.nanoTime() - start) / 1_000_000;
 
-            System.out.println("========================================");
-            System.out.println("       Pool Recovery Analysis           ");
-            System.out.println("========================================");
-            System.out.printf(" Recovery Time: %dms%n", recoveryTime);
-            System.out.println("========================================");
+            log.info("========================================");
+            log.info("       Pool Recovery Analysis           ");
+            log.info("========================================");
+            log.info(" Recovery Time: {}ms", recoveryTime);
+            log.info("========================================");
 
             // Then: 빠른 복구 (5초 이내)
             assertThat(recoveryTime)
@@ -345,26 +347,26 @@ class ConnectionVampireNightmareTest extends AbstractContainerBaseTest {
 
     private void printConnectionVampireResults(int concurrentRequests, boolean completed,
                                                long avgAcquireTime, long maxAcquireTime) {
-        System.out.println("==========================================================");
-        System.out.println("       Nightmare 04: Connection Vampire Results           ");
-        System.out.println("==========================================================");
-        System.out.printf(" Total Requests: %d%n", concurrentRequests);
-        System.out.printf(" Completed: %s%n", completed ? "YES" : "NO (TIMEOUT)");
-        System.out.printf(" Success: %d%n", successCount.get());
-        System.out.printf(" Connection Timeout: %d%n", connectionTimeoutCount.get());
-        System.out.printf(" Avg Connection Acquire Time: %dms%n", avgAcquireTime);
-        System.out.printf(" Max Connection Acquire Time: %dms%n", maxAcquireTime);
-        System.out.println("----------------------------------------------------------");
+        log.info("==========================================================");
+        log.info("       Nightmare 04: Connection Vampire Results           ");
+        log.info("==========================================================");
+        log.info(" Total Requests: {}", concurrentRequests);
+        log.info(" Completed: {}", completed ? "YES" : "NO (TIMEOUT)");
+        log.info(" Success: {}", successCount.get());
+        log.info(" Connection Timeout: {}", connectionTimeoutCount.get());
+        log.info(" Avg Connection Acquire Time: {}ms", avgAcquireTime);
+        log.info(" Max Connection Acquire Time: {}ms", maxAcquireTime);
+        log.info("----------------------------------------------------------");
 
         if (connectionTimeoutCount.get() > 0) {
-            System.out.println(" Verdict: FAIL - Connection Pool Exhaustion Detected!");
-            System.out.println(" ");
-            System.out.println(" Root Cause: @Transactional + External API Blocking Call");
-            System.out.println(" Location: GameCharacterService.createNewCharacter()");
-            System.out.println(" Fix: Separate transaction scope from external API calls");
+            log.info(" Verdict: FAIL - Connection Pool Exhaustion Detected!");
+            log.info(" ");
+            log.info(" Root Cause: @Transactional + External API Blocking Call");
+            log.info(" Location: GameCharacterService.createNewCharacter()");
+            log.info(" Fix: Separate transaction scope from external API calls");
         } else {
-            System.out.println(" Verdict: PASS - No Connection Pool Exhaustion");
+            log.info(" Verdict: PASS - No Connection Pool Exhaustion");
         }
-        System.out.println("==========================================================");
+        log.info("==========================================================");
     }
 }

@@ -1,6 +1,7 @@
 package maple.expectation.chaos.nightmare;
 
 import eu.rekawek.toxiproxy.model.ToxicDirection;
+import lombok.extern.slf4j.Slf4j;
 import maple.expectation.support.AbstractContainerBaseTest;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,6 +50,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *   <li>Retry Storm: 재시도로 인한 요청 폭증</li>
  * </ul>
  */
+@Slf4j
 @Tag("nightmare")
 @SpringBootTest
 @ActiveProfiles("test")
@@ -108,8 +110,8 @@ class TimeoutCascadeNightmareTest extends AbstractContainerBaseTest {
 
         ExecutorService serverExecutor = Executors.newSingleThreadExecutor();
 
-        System.out.println("[Red] Injecting Redis latency: " + redisLatencyMs + "ms");
-        System.out.println("[Red] Client timeout: " + clientTimeoutMs + "ms");
+        log.info("[Red] Injecting Redis latency: {}ms", redisLatencyMs);
+        log.info("[Red] Client timeout: {}ms", clientTimeoutMs);
 
         // When: 서버 작업 시작 (비동기)
         Future<?> serverFuture = serverExecutor.submit(() -> {
@@ -119,9 +121,9 @@ class TimeoutCascadeNightmareTest extends AbstractContainerBaseTest {
                 redisTemplate.opsForValue().set("zombie-test-key", "value");
                 serverCompleted.set(true);
                 serverCompletionTime.set((System.nanoTime() - start) / 1_000_000);
-                System.out.println("[Server] Completed after " + serverCompletionTime.get() + "ms");
+                log.info("[Server] Completed after {}ms", serverCompletionTime.get());
             } catch (Exception e) {
-                System.out.println("[Server] Failed: " + e.getMessage());
+                log.info("[Server] Failed: {}", e.getMessage());
             }
         });
 
@@ -129,11 +131,11 @@ class TimeoutCascadeNightmareTest extends AbstractContainerBaseTest {
         long clientStart = System.nanoTime();
         try {
             serverFuture.get(clientTimeoutMs, TimeUnit.MILLISECONDS);
-            System.out.println("[Client] Server completed within timeout");
+            log.info("[Client] Server completed within timeout");
         } catch (TimeoutException e) {
             clientTimeoutTime.set((System.nanoTime() - clientStart) / 1_000_000);
             clientTimeoutCount.incrementAndGet();
-            System.out.println("[Client] TIMEOUT after " + clientTimeoutTime.get() + "ms");
+            log.info("[Client] TIMEOUT after {}ms", clientTimeoutTime.get());
         }
 
         // 서버가 완료될 때까지 대기 (Zombie Request 확인)
@@ -152,28 +154,28 @@ class TimeoutCascadeNightmareTest extends AbstractContainerBaseTest {
             totalWastedTimeMs.addAndGet(wastedTime);
         }
 
-        System.out.println("==========================================================");
-        System.out.println("       Nightmare 06: Zombie Request Analysis              ");
-        System.out.println("==========================================================");
-        System.out.printf(" Redis Latency: %dms%n", redisLatencyMs);
-        System.out.printf(" Client Timeout: %dms%n", clientTimeoutMs);
-        System.out.printf(" Client Timeout Occurred: %s%n", clientTimeoutTime.get() > 0 ? "YES" : "NO");
-        System.out.printf(" Server Completed: %s%n", serverCompleted.get() ? "YES" : "NO");
-        System.out.printf(" Server Completion Time: %dms%n", serverCompletionTime.get());
-        System.out.printf(" Zombie Request: %s%n", isZombieRequest ? "YES - DETECTED!" : "NO");
-        System.out.printf(" Wasted Time: %dms%n", wastedTime);
-        System.out.println("----------------------------------------------------------");
+        log.info("==========================================================");
+        log.info("       Nightmare 06: Zombie Request Analysis              ");
+        log.info("==========================================================");
+        log.info(" Redis Latency: {}ms", redisLatencyMs);
+        log.info(" Client Timeout: {}ms", clientTimeoutMs);
+        log.info(" Client Timeout Occurred: {}", clientTimeoutTime.get() > 0 ? "YES" : "NO");
+        log.info(" Server Completed: {}", serverCompleted.get() ? "YES" : "NO");
+        log.info(" Server Completion Time: {}ms", serverCompletionTime.get());
+        log.info(" Zombie Request: {}", isZombieRequest ? "YES - DETECTED!" : "NO");
+        log.info(" Wasted Time: {}ms", wastedTime);
+        log.info("----------------------------------------------------------");
 
         if (isZombieRequest) {
-            System.out.println(" Verdict: FAIL - Zombie Request Detected!");
-            System.out.println(" ");
-            System.out.println(" Root Cause: Client timeout < Server processing time");
-            System.out.println(" Impact: Resource waste, potential duplicate processing");
-            System.out.println(" Fix: Implement proper timeout hierarchy");
+            log.info(" Verdict: FAIL - Zombie Request Detected!");
+            log.info(" ");
+            log.info(" Root Cause: Client timeout < Server processing time");
+            log.info(" Impact: Resource waste, potential duplicate processing");
+            log.info(" Fix: Implement proper timeout hierarchy");
         } else {
-            System.out.println(" Verdict: PASS - No Zombie Request");
+            log.info(" Verdict: PASS - No Zombie Request");
         }
-        System.out.println("==========================================================");
+        log.info("==========================================================");
 
         // Then: Zombie Request 발생 확인
         assertThat(serverCompleted.get())
@@ -198,7 +200,7 @@ class TimeoutCascadeNightmareTest extends AbstractContainerBaseTest {
         long retryWaitMs = 500;
         ConcurrentLinkedQueue<Long> attemptTimes = new ConcurrentLinkedQueue<>();
 
-        System.out.println("[Blue] Measuring retry chain time with " + redisLatencyMs + "ms Redis latency...");
+        log.info("[Blue] Measuring retry chain time with {}ms Redis latency...", redisLatencyMs);
 
         // When: 재시도 체인 시뮬레이션
         long totalStart = System.nanoTime();
@@ -209,12 +211,12 @@ class TimeoutCascadeNightmareTest extends AbstractContainerBaseTest {
                 redisTemplate.opsForValue().get("retry-test-key");
                 long attemptTime = (System.nanoTime() - attemptStart) / 1_000_000;
                 attemptTimes.add(attemptTime);
-                System.out.printf("[Blue] Attempt %d: %dms%n", attempt, attemptTime);
+                log.info("[Blue] Attempt {}: {}ms", attempt, attemptTime);
                 break; // 성공하면 중단
             } catch (Exception e) {
                 long attemptTime = (System.nanoTime() - attemptStart) / 1_000_000;
                 attemptTimes.add(attemptTime);
-                System.out.printf("[Blue] Attempt %d failed after %dms: %s%n", attempt, attemptTime, e.getMessage());
+                log.info("[Blue] Attempt {} failed after {}ms: {}", attempt, attemptTime, e.getMessage());
 
                 if (attempt < retryCount) {
                     Thread.sleep(retryWaitMs); // 재시도 대기
@@ -227,15 +229,15 @@ class TimeoutCascadeNightmareTest extends AbstractContainerBaseTest {
         // 정리
         globalProxyReset();
 
-        System.out.println("========================================");
-        System.out.println("       Retry Chain Analysis             ");
-        System.out.println("========================================");
-        System.out.printf(" Redis Latency: %dms%n", redisLatencyMs);
-        System.out.printf(" Retry Count: %d%n", retryCount);
-        System.out.printf(" Retry Wait: %dms%n", retryWaitMs);
-        System.out.printf(" Total Chain Time: %dms%n", totalTime);
-        System.out.printf(" Expected Minimum: %dms%n", redisLatencyMs);
-        System.out.println("========================================");
+        log.info("========================================");
+        log.info("       Retry Chain Analysis             ");
+        log.info("========================================");
+        log.info(" Redis Latency: {}ms", redisLatencyMs);
+        log.info(" Retry Count: {}", retryCount);
+        log.info(" Retry Wait: {}ms", retryWaitMs);
+        log.info(" Total Chain Time: {}ms", totalTime);
+        log.info(" Expected Minimum: {}ms", redisLatencyMs);
+        log.info("========================================");
 
         // Then: 총 시간이 Redis 지연 시간 이상이어야 함
         assertThat(totalTime)
@@ -259,7 +261,7 @@ class TimeoutCascadeNightmareTest extends AbstractContainerBaseTest {
         long redisFailTime = 0;
         long mysqlFallbackTime = 0;
 
-        System.out.println("[Green] Cutting Redis connection for fallback test...");
+        log.info("[Green] Cutting Redis connection for fallback test...");
 
         // When: Redis 실패 후 MySQL Fallback
         try {
@@ -268,7 +270,7 @@ class TimeoutCascadeNightmareTest extends AbstractContainerBaseTest {
             // Redis 성공 (예상하지 않음)
         } catch (Exception e) {
             redisFailTime = (System.nanoTime() - start) / 1_000_000;
-            System.out.printf("[Green] Redis failed after %dms: %s%n", redisFailTime, e.getMessage());
+            log.info("[Green] Redis failed after {}ms: {}", redisFailTime, e.getMessage());
 
             // MySQL Fallback
             long mysqlStart = System.nanoTime();
@@ -283,14 +285,14 @@ class TimeoutCascadeNightmareTest extends AbstractContainerBaseTest {
         // 정리
         globalProxyReset();
 
-        System.out.println("========================================");
-        System.out.println("       Fallback Analysis                ");
-        System.out.println("========================================");
-        System.out.printf(" Redis Fail Time: %dms%n", redisFailTime);
-        System.out.printf(" MySQL Fallback Time: %dms%n", mysqlFallbackTime);
-        System.out.printf(" Total Fallback Time: %dms%n", totalTime);
-        System.out.printf(" Fallback Succeeded: %s%n", fallbackSucceeded ? "YES" : "NO");
-        System.out.println("========================================");
+        log.info("========================================");
+        log.info("       Fallback Analysis                ");
+        log.info("========================================");
+        log.info(" Redis Fail Time: {}ms", redisFailTime);
+        log.info(" MySQL Fallback Time: {}ms", mysqlFallbackTime);
+        log.info(" Total Fallback Time: {}ms", totalTime);
+        log.info(" Fallback Succeeded: {}", fallbackSucceeded ? "YES" : "NO");
+        log.info("========================================");
 
         // Then: Fallback 성공
         assertThat(fallbackSucceeded)
@@ -315,7 +317,7 @@ class TimeoutCascadeNightmareTest extends AbstractContainerBaseTest {
         AtomicLong layer2Time = new AtomicLong(0);
         AtomicLong totalCascadeTime = new AtomicLong(0);
 
-        System.out.println("[Yellow] Testing timeout cascade across layers...");
+        log.info("[Yellow] Testing timeout cascade across layers...");
 
         // When: 다계층 작업 시뮬레이션
         long totalStart = System.nanoTime();
@@ -342,14 +344,14 @@ class TimeoutCascadeNightmareTest extends AbstractContainerBaseTest {
         // 정리
         globalProxyReset();
 
-        System.out.println("========================================");
-        System.out.println("       Timeout Cascade Analysis         ");
-        System.out.println("========================================");
-        System.out.printf(" Layer 1 (Redis): %dms%n", layer1Time.get());
-        System.out.printf(" Layer 2 (MySQL): %dms%n", layer2Time.get());
-        System.out.printf(" Total Cascade: %dms%n", totalCascadeTime.get());
-        System.out.printf(" Expected Minimum: %dms (Redis latency)%n", redisLatencyMs);
-        System.out.println("========================================");
+        log.info("========================================");
+        log.info("       Timeout Cascade Analysis         ");
+        log.info("========================================");
+        log.info(" Layer 1 (Redis): {}ms", layer1Time.get());
+        log.info(" Layer 2 (MySQL): {}ms", layer2Time.get());
+        log.info(" Total Cascade: {}ms", totalCascadeTime.get());
+        log.info(" Expected Minimum: {}ms (Redis latency)", redisLatencyMs);
+        log.info("========================================");
 
         // Then: 총 시간이 Redis 지연 시간을 포함해야 함
         assertThat(totalCascadeTime.get())
@@ -378,7 +380,7 @@ class TimeoutCascadeNightmareTest extends AbstractContainerBaseTest {
         ExecutorService executor = Executors.newFixedThreadPool(concurrentRequests);
         CountDownLatch doneLatch = new CountDownLatch(concurrentRequests);
 
-        System.out.println("[Purple] Testing Zombie Request rate under concurrent load...");
+        log.info("[Purple] Testing Zombie Request rate under concurrent load...");
 
         // When
         for (int i = 0; i < concurrentRequests; i++) {
@@ -430,14 +432,14 @@ class TimeoutCascadeNightmareTest extends AbstractContainerBaseTest {
 
         double zombieRate = zombieCount.get() * 100.0 / concurrentRequests;
 
-        System.out.println("========================================");
-        System.out.println("       Zombie Request Rate Analysis     ");
-        System.out.println("========================================");
-        System.out.printf(" Total Requests: %d%n", concurrentRequests);
-        System.out.printf(" Client Timeouts: %d%n", clientTimeouts.get());
-        System.out.printf(" Server Completions: %d%n", serverCompletions.get());
-        System.out.printf(" Zombie Requests: %d (%.1f%%)%n", zombieCount.get(), zombieRate);
-        System.out.println("========================================");
+        log.info("========================================");
+        log.info("       Zombie Request Rate Analysis     ");
+        log.info("========================================");
+        log.info(" Total Requests: {}", concurrentRequests);
+        log.info(" Client Timeouts: {}", clientTimeouts.get());
+        log.info(" Server Completions: {}", serverCompletions.get());
+        log.info(" Zombie Requests: {} ({} %)", zombieCount.get(), String.format("%.1f", zombieRate));
+        log.info("========================================");
 
         // Then: Zombie Request 발생 (timeout이 짧으면 발생)
         assertThat(zombieCount.get())

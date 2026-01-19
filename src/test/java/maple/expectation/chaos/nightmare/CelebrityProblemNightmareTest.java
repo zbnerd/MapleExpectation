@@ -1,5 +1,6 @@
 package maple.expectation.chaos.nightmare;
 
+import lombok.extern.slf4j.Slf4j;
 import maple.expectation.support.AbstractContainerBaseTest;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,6 +47,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * @see maple.expectation.global.cache.TieredCache
  */
+@Slf4j
 @Tag("nightmare")
 @SpringBootTest
 @ActiveProfiles("test")
@@ -98,7 +100,7 @@ class CelebrityProblemNightmareTest extends AbstractContainerBaseTest {
         try {
             redisTemplate.getConnectionFactory().getConnection().flushAll();
         } catch (Exception e) {
-            System.out.println("[Red] FLUSHALL failed: " + e.getMessage());
+            log.info("[Red] FLUSHALL failed: {}", e.getMessage());
         }
 
         int concurrentRequests = 1000;
@@ -106,7 +108,7 @@ class CelebrityProblemNightmareTest extends AbstractContainerBaseTest {
         CountDownLatch startLatch = new CountDownLatch(1);
         CountDownLatch doneLatch = new CountDownLatch(concurrentRequests);
 
-        System.out.println("[Red] Starting Celebrity Problem test with " + concurrentRequests + " concurrent requests...");
+        log.info("[Red] Starting Celebrity Problem test with {} concurrent requests...", concurrentRequests);
 
         // When: 1,000개 동시 요청
         for (int i = 0; i < concurrentRequests; i++) {
@@ -198,7 +200,7 @@ class CelebrityProblemNightmareTest extends AbstractContainerBaseTest {
         ExecutorService executor = Executors.newFixedThreadPool(10);
         CountDownLatch doneLatch = new CountDownLatch(concurrentRequests);
 
-        System.out.println("[Blue] Testing lock fallback behavior...");
+        log.info("[Blue] Testing lock fallback behavior...");
 
         // When: 락 획득 시도
         for (int i = 0; i < concurrentRequests; i++) {
@@ -224,12 +226,12 @@ class CelebrityProblemNightmareTest extends AbstractContainerBaseTest {
         // 정리
         redisTemplate.delete(lockKey);
 
-        System.out.println("========================================");
-        System.out.println("       Lock Fallback Analysis           ");
-        System.out.println("========================================");
-        System.out.printf(" Total Requests: %d%n", concurrentRequests);
-        System.out.printf(" Lock Failures (Fallback): %d%n", fallbackCount.get());
-        System.out.println("========================================");
+        log.info("========================================");
+        log.info("       Lock Fallback Analysis           ");
+        log.info("========================================");
+        log.info(" Total Requests: {}", concurrentRequests);
+        log.info(" Lock Failures (Fallback): {}", fallbackCount.get());
+        log.info("========================================");
 
         // Then: 대부분 락 획득 실패 (이미 점유됨)
         assertThat(fallbackCount.get())
@@ -254,7 +256,7 @@ class CelebrityProblemNightmareTest extends AbstractContainerBaseTest {
         CountDownLatch startLatch = new CountDownLatch(1);
         CountDownLatch doneLatch = new CountDownLatch(concurrentRequests);
 
-        System.out.println("[Purple] Testing data consistency under concurrent Hot Key access...");
+        log.info("[Purple] Testing data consistency under concurrent Hot Key access...");
 
         // When
         for (int i = 0; i < concurrentRequests; i++) {
@@ -299,13 +301,13 @@ class CelebrityProblemNightmareTest extends AbstractContainerBaseTest {
                 .distinct()
                 .count();
 
-        System.out.println("========================================");
-        System.out.println("       Data Consistency Analysis        ");
-        System.out.println("========================================");
-        System.out.printf(" Total Results: %d%n", results.size());
-        System.out.printf(" Unique Values: %d%n", uniqueValues);
-        System.out.printf(" Write Count: %d%n", writeCount.get());
-        System.out.println("========================================");
+        log.info("========================================");
+        log.info("       Data Consistency Analysis        ");
+        log.info("========================================");
+        log.info(" Total Results: {}", results.size());
+        log.info(" Unique Values: {}", uniqueValues);
+        log.info(" Write Count: {}", writeCount.get());
+        log.info("========================================");
 
         // Then: 모든 결과가 동일해야 함
         assertThat(uniqueValues)
@@ -329,7 +331,7 @@ class CelebrityProblemNightmareTest extends AbstractContainerBaseTest {
         CountDownLatch startLatch = new CountDownLatch(1);
         CountDownLatch doneLatch = new CountDownLatch(concurrentRequests);
 
-        System.out.println("[Green] Measuring response time distribution...");
+        log.info("[Green] Measuring response time distribution...");
 
         // When
         for (int i = 0; i < concurrentRequests; i++) {
@@ -359,14 +361,14 @@ class CelebrityProblemNightmareTest extends AbstractContainerBaseTest {
         long avg = times.stream().mapToLong(Long::longValue).sum() / Math.max(times.size(), 1);
         long p99 = times.stream().sorted().skip((long) (times.size() * 0.99)).findFirst().orElse(0L);
 
-        System.out.println("========================================");
-        System.out.println("     Response Time Distribution         ");
-        System.out.println("========================================");
-        System.out.printf(" Min: %dms%n", min);
-        System.out.printf(" Avg: %dms%n", avg);
-        System.out.printf(" P99: %dms%n", p99);
-        System.out.printf(" Max: %dms%n", max);
-        System.out.println("========================================");
+        log.info("========================================");
+        log.info("     Response Time Distribution         ");
+        log.info("========================================");
+        log.info(" Min: {}ms", min);
+        log.info(" Avg: {}ms", avg);
+        log.info(" P99: {}ms", p99);
+        log.info(" Max: {}ms", max);
+        log.info("========================================");
 
         // Then: P99 응답시간 5초 이내
         assertThat(p99)
@@ -377,30 +379,30 @@ class CelebrityProblemNightmareTest extends AbstractContainerBaseTest {
     private void printCelebrityProblemResults(int concurrentRequests, boolean completed,
                                               double dbQueryRatio, double lockFailureRatio,
                                               long avgResponseTime) {
-        System.out.println("==========================================================");
-        System.out.println("       Nightmare 05: Celebrity Problem Results            ");
-        System.out.println("==========================================================");
-        System.out.printf(" Total Requests: %d%n", concurrentRequests);
-        System.out.printf(" Completed: %s%n", completed ? "YES" : "NO (TIMEOUT)");
-        System.out.printf(" Cache Hits: %d (%.1f%%)%n",
-                cacheHitCount.get(), cacheHitCount.get() * 100.0 / concurrentRequests);
-        System.out.printf(" DB Queries: %d (%.1f%%)%n", dbQueryCount.get(), dbQueryRatio);
-        System.out.printf(" Lock Failures: %d (%.1f%%)%n", lockFailureCount.get(), lockFailureRatio);
-        System.out.printf(" Avg Response Time: %dms%n", avgResponseTime);
-        System.out.println("----------------------------------------------------------");
+        log.info("==========================================================");
+        log.info("       Nightmare 05: Celebrity Problem Results            ");
+        log.info("==========================================================");
+        log.info(" Total Requests: {}", concurrentRequests);
+        log.info(" Completed: {}", completed ? "YES" : "NO (TIMEOUT)");
+        log.info(" Cache Hits: {} ({} %)",
+                cacheHitCount.get(), String.format("%.1f", cacheHitCount.get() * 100.0 / concurrentRequests));
+        log.info(" DB Queries: {} ({} %)", dbQueryCount.get(), String.format("%.1f", dbQueryRatio));
+        log.info(" Lock Failures: {} ({} %)", lockFailureCount.get(), String.format("%.1f", lockFailureRatio));
+        log.info(" Avg Response Time: {}ms", avgResponseTime);
+        log.info("----------------------------------------------------------");
 
         if (dbQueryRatio <= 10.0) {
-            System.out.println(" Verdict: PASS - Singleflight effective");
+            log.info(" Verdict: PASS - Singleflight effective");
         } else if (dbQueryRatio <= 50.0) {
-            System.out.println(" Verdict: CONDITIONAL - Partial Singleflight effect");
-            System.out.println(" Issue: Lock contention causes some direct DB calls");
+            log.info(" Verdict: CONDITIONAL - Partial Singleflight effect");
+            log.info(" Issue: Lock contention causes some direct DB calls");
         } else {
-            System.out.println(" Verdict: FAIL - Hot Key Meltdown!");
-            System.out.println(" ");
-            System.out.println(" Root Cause: No Hot Key distribution strategy");
-            System.out.println(" Location: TieredCache.java");
-            System.out.println(" Fix: Implement Key Splitting or Local Cache Replication");
+            log.info(" Verdict: FAIL - Hot Key Meltdown!");
+            log.info(" ");
+            log.info(" Root Cause: No Hot Key distribution strategy");
+            log.info(" Location: TieredCache.java");
+            log.info(" Fix: Implement Key Splitting or Local Cache Replication");
         }
-        System.out.println("==========================================================");
+        log.info("==========================================================");
     }
 }
