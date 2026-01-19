@@ -356,6 +356,9 @@ public class LockOrderingHelper {
 
 ## 12. 최종 판정 (🟡 Yellow's Verdict)
 
+<img width="1445" height="980" alt="image" src="https://github.com/user-attachments/assets/c55baee0-c3be-477d-be6f-b4ed6d70a0d2" />
+
+
 ### 결과: **FAIL**
 
 현재 시스템에 Lock Ordering 패턴이 적용되지 않아 Deadlock이 발생함.
