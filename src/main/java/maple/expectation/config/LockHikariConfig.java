@@ -26,7 +26,7 @@ import javax.sql.DataSource;
  */
 @Slf4j
 @Configuration
-@Profile("!test")
+@Profile({"!test", "container"})
 public class LockHikariConfig {
 
     @Value("${spring.datasource.url}")

@@ -2,6 +2,7 @@ package maple.expectation.support;
 
 import org.junit.jupiter.api.AfterEach;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.GenericContainer;
@@ -15,9 +16,12 @@ import java.time.Duration;
 
 /**
  * 🚀 모든 통합 테스트의 부모 클래스 (Testcontainers 기반)
+ *
  * @AutoConfigureTestDatabase(replace = NONE): Spring이 DataSource를 H2로 강제 교체하는 것을 방지
+ * @ActiveProfiles({"test", "container"}): container 프로파일 활성화로 LockHikariConfig 로드
  */
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@ActiveProfiles({"test", "container"})
 public abstract class AbstractContainerBaseTest {
     protected static final Network NETWORK = Network.newNetwork();
     protected static final MySQLContainer<?> MYSQL;
@@ -120,6 +124,11 @@ public abstract class AbstractContainerBaseTest {
         registry.add("spring.datasource.driver-class-name", () -> "com.mysql.cj.jdbc.Driver");
         registry.add("spring.jpa.database-platform", () -> "org.hibernate.dialect.MySQLDialect");
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "update");
+
+        // [P0-N07 Fix] HikariCP MDL Freeze Prevention
+        // lock_wait_timeout: Metadata Lock 대기 시간 제한 (초 단위)
+        registry.add("spring.datasource.hikari.connection-init-sql",
+                () -> "SET SESSION lock_wait_timeout = 10");
 
         // Redis 관련 설정
         registry.add("spring.data.redis.host", TOXIPROXY::getHost);

@@ -1,0 +1,112 @@
+# P0 Issues Resolution - Lock Health Alert Rules
+# Related: #221 (N02), #227 (N07), #228 (N09)
+# 5-Agent Council Approved: 2026-01-20
+
+groups:
+  - name: lock-health
+    rules:
+      # ============================================
+      # N09: Lock Order Violation Detection
+      # ============================================
+      - alert: LockOrderViolationDetected
+        expr: rate(lock_order_violation_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+          team: backend
+          nightmare: N09
+        annotations:
+          summary: "Lock ordering violation detected - potential deadlock risk"
+          description: "Lock order violation rate: {{ $value }}/s. Check application logs for details."
+
+      # ============================================
+      # N02/N09: Distributed Lock Failure
+      # ============================================
+      - alert: DistributedLockFailureHigh
+        expr: rate(lock_acquisition_total{status="failed"}[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          team: backend
+          nightmare: N02
+        annotations:
+          summary: "Distributed lock acquisition failure rate increasing"
+          description: "Lock failure rate: {{ $value }}/s. Check Redis/MySQL connectivity."
+
+      # ============================================
+      # N07: MDL Wait Timeout
+      # ============================================
+      - alert: MDLWaitTimeoutHigh
+        expr: rate(mysql_global_status_innodb_row_lock_time_avg[5m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+          team: dba
+          nightmare: N07
+        annotations:
+          summary: "MySQL MDL wait time increasing"
+          description: "Average row lock wait time: {{ $value }}s. Check for long-running DDL or transactions."
+
+      # ============================================
+      # Lock Pool Exhaustion Risk
+      # ============================================
+      - alert: LockPoolExhaustionRisk
+        expr: hikaricp_connections_active{pool="MySQLLockPool"} / hikaricp_connections_max{pool="MySQLLockPool"} > 0.8
+        for: 2m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "MySQL Lock Pool nearing exhaustion (>80%)"
+          description: "Active connections: {{ $value * 100 }}%. Consider scaling lock pool or investigating lock contention."
+
+      # ============================================
+      # Lock Held Too Long
+      # ============================================
+      - alert: LockHeldTooLong
+        expr: lock_held_current > 0 and (time() - lock_held_start_time) > 30
+        for: 1m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "Lock held for more than 30 seconds"
+          description: "A lock has been held for over 30 seconds. This may indicate a hung thread or deadlock."
+
+      # ============================================
+      # Redis Lock Fallback Active
+      # ============================================
+      - alert: RedisLockFallbackActive
+        expr: increase(lock_fallback_to_mysql_total[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          team: sre
+        annotations:
+          summary: "Redis lock falling back to MySQL frequently"
+          description: "Fallback count: {{ $value }} in 5m. Check Redis health and circuit breaker state."
+
+  - name: circuit-breaker
+    rules:
+      # ============================================
+      # Circuit Breaker State Monitoring
+      # ============================================
+      - alert: CircuitBreakerOpen
+        expr: resilience4j_circuitbreaker_state{name="redisLock", state="open"} == 1
+        for: 1m
+        labels:
+          severity: critical
+          team: sre
+        annotations:
+          summary: "Redis Lock Circuit Breaker is OPEN"
+          description: "Circuit breaker for Redis lock is open. All requests are being routed to MySQL fallback."
+
+      - alert: CircuitBreakerHalfOpen
+        expr: resilience4j_circuitbreaker_state{name="redisLock", state="half_open"} == 1
+        for: 5m
+        labels:
+          severity: warning
+          team: sre
+        annotations:
+          summary: "Redis Lock Circuit Breaker stuck in HALF_OPEN"
+          description: "Circuit breaker has been in half-open state for 5+ minutes. Investigate Redis recovery."
