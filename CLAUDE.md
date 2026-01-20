@@ -59,12 +59,14 @@ docker exec -it redis_container redis-cli
 
 # Project Guidelines
 
-> **분리된 문서 참조:**
-> - [Architecture Overview](docs/architecture.md) - 시스템 아키텍처 다이어그램 (Mermaid)
-> - [Infrastructure & Integration Guide](docs/infrastructure.md) - Redis, Cache, Security (Sections 7-10, 17-20)
-> - [Async & Concurrency Guide](docs/async-concurrency.md) - 비동기, Thread Pool (Sections 21-22)
-> - [Testing Guide](docs/testing-guide.md) - 테스트, Flaky Test 방지 (Sections 23-25)
-> - [Multi-Agent Protocol](docs/multi-agent-protocol.md) - 5-Agent Council
+> **분리된 문서 참조 (떼끄 스타일 넘버링):**
+> - [Architecture Overview](docs/00_Start_Here/architecture.md) - 시스템 아키텍처 다이어그램 (Mermaid)
+> - [Infrastructure & Integration Guide](docs/02_Technical_Guides/infrastructure.md) - Redis, Cache, Security (Sections 7-10, 17-20)
+> - [Async & Concurrency Guide](docs/02_Technical_Guides/async-concurrency.md) - 비동기, Thread Pool (Sections 21-22)
+> - [Testing Guide](docs/02_Technical_Guides/testing-guide.md) - 테스트, Flaky Test 방지 (Sections 23-25)
+> - [Multi-Agent Protocol](docs/00_Start_Here/multi-agent-protocol.md) - 5-Agent Council
+> - [Chaos Engineering](docs/01_Chaos_Engineering/) - Nightmare Tests N01-N18
+> - [Templates](docs/98_Templates/) - PR, Issue, Report 템플릿
 
 ---
 
@@ -81,22 +83,37 @@ docker exec -it redis_container redis-cli
 
 CLAUDE.md는 **핵심 규칙만** 포함하며, 상세 내용은 별도 문서로 분리합니다.
 
-**문서 구조:**
+**문서 구조 (떼끄 스타일 넘버링 + 템플릿 + 아카이브):**
 ```
-CLAUDE.md                        # 핵심 규칙 (Sections 1-6, 11-16)
+CLAUDE.md                                    # 핵심 규칙 (Sections 1-6, 11-16)
 docs/
-├── architecture.md              # 시스템 아키텍처 다이어그램 (Mermaid)
-├── infrastructure.md            # Redis, Cache, Security (Sections 7-10, 17-20)
-├── async-concurrency.md         # 비동기, Thread Pool (Sections 21-22)
-├── testing-guide.md             # 테스트, Flaky Test 방지 (Sections 23-25)
-└── multi-agent-protocol.md      # 5-Agent Council
+├── 00_Start_Here/                           # [필독] 프로젝트 개요 및 온보딩
+│   ├── architecture.md                      # 시스템 아키텍처 다이어그램 (Mermaid)
+│   ├── multi-agent-protocol.md              # 5-Agent Council
+│   └── ROADMAP.md                           # 프로젝트 로드맵
+│
+├── 01_Chaos_Engineering/                    # [핵심] 카오스 테스트 - 메인 필살기
+│   ├── 00_Overview/TEST_STRATEGY.md         # 테스트 전략
+│   ├── 01_Core/ ~ 05_Data/                  # 시나리오 카테고리
+│   └── 06_Nightmare/                        # Nightmare N01-N18 시나리오
+│
+├── 02_Technical_Guides/                     # [심화] 기술 가이드
+│   ├── infrastructure.md                    # Redis, Cache, Security
+│   ├── async-concurrency.md                 # 비동기, Thread Pool
+│   ├── testing-guide.md                     # 테스트, Flaky Test 방지
+│   └── resilience.md                        # 회복 탄력성 패턴
+│
+├── 03_Sequence_Diagrams/                    # [시각화] 시퀀스 다이어그램
+├── 04_Reports/                              # [결과] 리포트 및 분석
+├── 98_Templates/                            # [효율화] 템플릿 모음
+└── 99_Archive/                              # [정리] 개인 자료 보관소
 ```
 
 **규칙:**
 - **핵심 규칙**: CLAUDE.md에 유지 (SOLID, 예외 처리, LogicExecutor 등)
-- **인프라/기술 상세**: `docs/infrastructure.md`로 분리
-- **비동기/동시성**: `docs/async-concurrency.md`로 분리
-- **테스트 가이드**: `docs/testing-guide.md`로 분리
+- **인프라/기술 상세**: `docs/02_Technical_Guides/infrastructure.md`로 분리
+- **비동기/동시성**: `docs/02_Technical_Guides/async-concurrency.md`로 분리
+- **테스트 가이드**: `docs/02_Technical_Guides/testing-guide.md`로 분리
 - **상호 참조**: 문서 간 링크로 연결 (예: `-> [docs/infrastructure.md](docs/infrastructure.md)`)
 
 **새 규칙 추가 시:**
@@ -372,7 +389,7 @@ private List<Dto> processActiveUser(Long id) {
 
 # Quick Reference (분리 문서 요약)
 
-## Infrastructure (-> [docs/infrastructure.md](docs/infrastructure.md))
+## Infrastructure (-> [docs/02_Technical_Guides/infrastructure.md](docs/02_Technical_Guides/infrastructure.md))
 - **Section 7**: AOP & Facade Pattern
 - **Section 8**: Redis & Redisson Integration
 - **Section 8-1**: Redis Lua Script & Cluster Hash Tag
@@ -383,16 +400,26 @@ private List<Dto> processActiveUser(Long id) {
 - **Section 19**: Security Best Practices (Logging & API Client)
 - **Section 20**: SpringDoc OpenAPI (Swagger UI) Best Practice
 
-## Async & Concurrency (-> [docs/async-concurrency.md](docs/async-concurrency.md))
+## Async & Concurrency (-> [docs/02_Technical_Guides/async-concurrency.md](docs/02_Technical_Guides/async-concurrency.md))
 - **Section 21**: Async Non-Blocking Pipeline Pattern
 - **Section 22**: Thread Pool Backpressure Best Practice
 
-## Testing (-> [docs/testing-guide.md](docs/testing-guide.md))
+## Testing (-> [docs/02_Technical_Guides/testing-guide.md](docs/02_Technical_Guides/testing-guide.md))
 - **Section 23**: ExecutorService 동시성 테스트 Best Practice
 - **Section 24**: Flaky Test 근본 원인 분석 및 해결 가이드
 - **Section 25**: 경량 테스트 강제 규칙 (Issue #207)
 
-## Multi-Agent Protocol (-> [docs/multi-agent-protocol.md](docs/multi-agent-protocol.md))
+## Multi-Agent Protocol (-> [docs/00_Start_Here/multi-agent-protocol.md](docs/00_Start_Here/multi-agent-protocol.md))
 - **5-Agent Council**: Blue, Green, Yellow, Purple, Red
 - **Pentagonal Pipeline Workflow**
 - **Core Principles (Context7)**
+
+## Chaos Engineering (-> [docs/01_Chaos_Engineering/](docs/01_Chaos_Engineering/))
+- **06_Nightmare/Scenarios**: N01-N18 Nightmare 시나리오
+- **06_Nightmare/Results**: 테스트 결과 리포트
+- **04_Reports/**: Load Test, E2E Validation 결과
+
+## Templates (-> [docs/98_Templates/](docs/98_Templates/))
+- **Chaos_Report_Template.md**: 카오스 리포트 양식
+- **ISSUE_TEMPLATE.md**: GitHub 이슈 양식
+- **PR_TEMPLATE.md**: Pull Request 양식
