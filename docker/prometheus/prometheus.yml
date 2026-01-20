@@ -8,6 +8,11 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
+# P0 Issues Resolution - Alert Rules
+# Related: #221 (N02), #227 (N07), #228 (N09)
+rule_files:
+  - "rules/*.yml"
+
 scrape_configs:
   # ============================================
   # Prometheus 자체 메트릭
