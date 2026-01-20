@@ -16,8 +16,10 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
 import java.lang.reflect.UndeclaredThrowableException;
+import java.util.List;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 회복력 있는 락 전략 (Redis 우선, 실패 시 MySQL로 복구)
@@ -288,5 +290,88 @@ public class ResilientLockStrategy extends AbstractLockStrategy {
     @Override
     protected boolean shouldUnlock(String lockKey) {
         return true;
+    }
+
+    // ========================================
+    // [P0-N02] 다중 락 순서 보장 실행
+    // ========================================
+
+    /**
+     * [P0-N02] 다중 락 순서 보장 실행 (Redis → MySQL Fallback)
+     *
+     * <p>Coffman Condition #4 (Circular Wait)를 방지하기 위해
+     * 키를 알파벳순으로 정렬 후 순차적으로 락을 획득합니다.</p>
+     *
+     * <p><b>Fallback 정책</b>:
+     * <ul>
+     *   <li>Redis 우선 시도</li>
+     *   <li>Redis 실패 시 MySQL Fallback</li>
+     *   <li>비즈니스 예외는 Fallback 없이 즉시 전파</li>
+     * </ul>
+     *
+     * @see OrderedLockExecutor
+     */
+    @Override
+    public <T> T executeWithOrderedLocks(
+            List<String> keys,
+            long totalTimeout,
+            TimeUnit timeUnit,
+            long leaseTime,
+            ThrowingSupplier<T> task
+    ) throws Throwable {
+        String keysStr = String.join(",", keys);
+        TaskContext context = TaskContext.of("ResilientLock", "OrderedExecute", keysStr);
+
+        return executor.executeWithFallback(
+                // Redis tier: 순서 보장 다중 락 실행
+                () -> circuitBreaker.executeCheckedSupplier(() ->
+                        redisLockStrategy.executeWithOrderedLocks(keys, totalTimeout, timeUnit, leaseTime, task)
+                ),
+                // MySQL fallback: 순서 보장 다중 락 실행
+                (t) -> handleOrderedLockFallback(
+                        t,
+                        keysStr,
+                        () -> mysqlLockStrategy.executeWithOrderedLocks(keys, totalTimeout, timeUnit, leaseTime, task)
+                ),
+                context
+        );
+    }
+
+    /**
+     * 다중 락 Fallback 처리
+     */
+    private <T> T handleOrderedLockFallback(
+            Throwable t,
+            String keys,
+            ThrowingSupplier<T> mysqlFallback
+    ) {
+        Throwable cause = unwrap(t);
+
+        // InterruptedException 처리
+        if (cause instanceof InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw new DistributedLockException(
+                    "다중 락 획득 중 인터럽트 [keys=" + keys + "]", ie);
+        }
+
+        // 비즈니스 예외: 즉시 전파
+        if (cause instanceof ClientBaseException) {
+            throwAsRuntime(cause);
+            return null;
+        }
+
+        // 인프라 예외: MySQL Fallback
+        if (isInfrastructureException(cause)) {
+            log.warn("[TieredLock:OrderedExecute] Redis failed -> MySQL fallback. keys={}, state={}, cause={}:{}",
+                    keys, circuitBreaker.getState(),
+                    cause.getClass().getSimpleName(), cause.getMessage());
+            return mysqlFallback.getUnchecked();
+        }
+
+        // Unknown: 즉시 전파
+        log.error("[TieredLock:OrderedExecute] Unknown exception -> propagate. keys={}, cause={}:{}",
+                keys, cause.getClass().getName(), cause.getMessage(), cause);
+        throwAsRuntime(cause);
+        return null;
     }
 }
