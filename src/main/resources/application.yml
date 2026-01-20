@@ -220,4 +220,5 @@ ratelimit:
     - "/v3/api-docs/**"
     - "/actuator/health"
     - "/actuator/info"
+    - "/actuator/prometheus"  # TEMP: Prometheus 스크래핑 허용
 
