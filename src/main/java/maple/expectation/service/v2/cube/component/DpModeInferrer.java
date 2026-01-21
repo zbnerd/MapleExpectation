@@ -8,7 +8,11 @@ import maple.expectation.global.executor.TaskContext;
 import maple.expectation.util.StatType;
 import org.springframework.stereotype.Component;
 
-import java.util.*;
+import java.util.EnumMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * 옵션 리스트에서 DP 모드 필드를 자동 추론하는 컴포넌트
@@ -138,6 +142,13 @@ public class DpModeInferrer {
             return true;
         }
 
+        // #240 V4: 복합 옵션 감지 (쿨감+스탯, 보공+스탯, 크뎀+스탯 등)
+        // 서로 다른 유효 카테고리가 2개 이상이면 DP 모드 비활성화 → v1 순열 계산
+        if (isCompoundOption(input.getOptions())) {
+            log.debug("[DpModeInferrer] 복합 옵션 감지, DP 모드 비활성화: {}", input.getItemName());
+            return false;
+        }
+
         InferenceResult result = infer(input.getOptions());
 
         if (!result.isValid()) {
@@ -160,6 +171,49 @@ public class DpModeInferrer {
                 result.targetStatType(), result.minTotal());
 
         return true;
+    }
+
+    /**
+     * 복합 옵션 여부 판별 (#240 V4)
+     *
+     * <p>서로 다른 유효 카테고리(STAT, BOSS_IED, ATK_MAG, CRIT_DMG, COOLDOWN)가
+     * 2개 이상 존재하면 복합 옵션으로 판정합니다.</p>
+     *
+     * <h3>복합 옵션 예시</h3>
+     * <ul>
+     *   <li>쿨감 + 스탯: "스킬 재사용 대기시간 -2초 | STR +12%"</li>
+     *   <li>보공 + 스탯: "보스 데미지 +40% | STR +12%"</li>
+     *   <li>크뎀 + 스탯: "크리티컬 데미지 +8% | DEX +12%"</li>
+     *   <li>보공 + 방무: "보스 데미지 +40% | 방어율 무시 +35%"</li>
+     * </ul>
+     *
+     * @param options 옵션 3줄 리스트
+     * @return 복합 옵션이면 true
+     */
+    private boolean isCompoundOption(List<String> options) {
+        if (options == null || options.isEmpty()) {
+            return false;
+        }
+
+        Set<StatType.OptionCategory> categories = new HashSet<>();
+
+        for (String option : options) {
+            if (option == null || option.isBlank()) continue;
+
+            List<StatType> types = StatType.findAllTypesOrEmpty(option);
+            for (StatType type : types) {
+                if (type.isValidCategory()) {
+                    categories.add(type.getCategory());
+                }
+            }
+        }
+
+        // 유효 카테고리가 2개 이상이면 복합 옵션
+        boolean isCompound = categories.size() >= 2;
+        if (isCompound) {
+            log.debug("[DpModeInferrer] 복합 옵션 카테고리 감지: {}", categories);
+        }
+        return isCompound;
     }
 
     /**

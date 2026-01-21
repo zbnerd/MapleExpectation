@@ -89,6 +89,14 @@ public class CacheConfig {
                         .recordStats()
                         .build());
 
+        // #240 V4: GZIP 압축 전체 응답 캐시
+        l1Manager.registerCustomCache("expectationV4",
+                Caffeine.newBuilder()
+                        .expireAfterWrite(30, TimeUnit.MINUTES)
+                        .maximumSize(1000)
+                        .recordStats()
+                        .build());
+
         return l1Manager;
     }
 
@@ -114,6 +122,12 @@ public class CacheConfig {
                 .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()))
                 .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(RedisSerializer.java()));
 
+        // #240 V4: GZIP 압축 byte[] 전용 설정 (JdkSerializer로 바이트 배열 보존)
+        RedisCacheConfiguration expectationV4Config = RedisCacheConfiguration.defaultCacheConfig()
+                .entryTtl(Duration.ofMinutes(30))
+                .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()))
+                .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(RedisSerializer.java()));
+
         Map<String, RedisCacheConfiguration> configurations = new HashMap<>();
 
         // [이슈 #11] DB(15분)보다 짧게 -> 10분
@@ -124,6 +138,9 @@ public class CacheConfig {
 
         // OCID: 충분히 길게 -> 60분
         configurations.put("ocidCache", defaultConfig.entryTtl(Duration.ofMinutes(60)));
+
+        // #240 V4: GZIP 압축 전체 응답 캐시 (byte[] 타입 보존)
+        configurations.put("expectationV4", expectationV4Config);
 
         return RedisCacheManager.builder(factory)
                 .cacheDefaults(defaultConfig)

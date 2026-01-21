@@ -14,6 +14,14 @@ import java.util.List;
  *   <li><b>기존 모드</b>: options 리스트로 정확한 옵션 조합 지정</li>
  *   <li><b>DP 모드</b>: targetStatType + minTotal로 "21% 이상" 같은 누적 확률 계산</li>
  * </ul>
+ *
+ * <h3>#240 V4 확장</h3>
+ * <ul>
+ *   <li>에디셔널 잠재능력 (additionalGrade, additionalOptions)</li>
+ *   <li>스타포스 정보 (starforce, starforceScrollFlag)</li>
+ *   <li>아이콘 URL (itemIcon)</li>
+ *   <li>장비 세부 분류 (itemEquipmentPart)</li>
+ * </ul>
  */
 @Data
 @Builder
@@ -21,13 +29,58 @@ import java.util.List;
 @AllArgsConstructor
 public class CubeCalculationInput {
     private int level;              // 장비 레벨 (숫자)
-    private String part;            // 장비 부위
+    private String part;            // 장비 부위 (item_equipment_slot)
     private String grade;           // 잠재능력 등급
     private long expectedCost;
 
     @Builder.Default
     private List<String> options = new ArrayList<>();     // 옵션 3줄 리스트 (기존 방식)
     private String itemName;
+
+    // ========== #240 V4 확장 필드 ==========
+
+    /**
+     * 아이템 아이콘 URL
+     * <p>예: "https://open.api.nexon.com/static/maplestory/..."</p>
+     */
+    private String itemIcon;
+
+    /**
+     * 장비 세부 분류 (보조무기 분류용)
+     * <p>예: "포스실드", "소울링", "모자"</p>
+     */
+    private String itemEquipmentPart;
+
+    /**
+     * 에디셔널 잠재능력 등급
+     * <p>예: "레어", "에픽", "유니크", "레전드리"</p>
+     */
+    private String additionalGrade;
+
+    /**
+     * 에디셔널 잠재능력 옵션 3줄
+     */
+    @Builder.Default
+    private List<String> additionalOptions = new ArrayList<>();
+
+    /**
+     * 현재 스타포스 수치 (0~25)
+     */
+    private int starforce;
+
+    /**
+     * 놀장(스타포스 스크롤) 사용 여부
+     * <p>Nexon API: "사용" / "미사용"</p>
+     */
+    private String starforceScrollFlag;
+
+    /**
+     * 놀장 장비 여부 판별
+     * @return true if 놀장 사용
+     */
+    public boolean isNoljangEquipment() {
+        return "사용".equals(starforceScrollFlag);
+    }
 
     // ========== DP 모드용 필드 (신규) ==========
 

@@ -16,6 +16,7 @@ import java.util.List;
  *   <li>프리셋별 데이터: 프리셋 1, 2, 3 각각의 기대값</li>
  *   <li>BigDecimal: 정밀 계산 결과 (long → BigDecimal)</li>
  *   <li>메타 정보: 계산 시점, 캐시 여부</li>
+ *   <li>비용 텍스트: 조/억/만 단위 포맷</li>
  * </ul>
  */
 @Getter
@@ -28,10 +29,12 @@ public class EquipmentExpectationResponseV4 {
     private final LocalDateTime calculatedAt;
     private final boolean fromCache;
 
-    // ==================== 총합 ====================
+    // ==================== 최대 기대값 프리셋 (#240 V4: 합산 → 최대값) ====================
 
-    private final BigDecimal totalExpectedCost;
+    private final BigDecimal totalExpectedCost;      // 3개 프리셋 중 최대 기대값
+    private final String totalCostText;              // "12조 3456억 7890만" (#240 V4)
     private final CostBreakdownDto totalCostBreakdown;
+    private final int maxPresetNo;                   // 최대 기대값 프리셋 번호 (1, 2, 3)
 
     // ==================== 프리셋별 기대값 ====================
 
@@ -44,6 +47,7 @@ public class EquipmentExpectationResponseV4 {
     public static class PresetExpectation {
         private final int presetNo;
         private final BigDecimal totalExpectedCost;
+        private final String totalCostText;      // "12조 3456억 7890만" (#240 V4)
         private final CostBreakdownDto costBreakdown;
         private final List<ItemExpectationV4> items;
     }
@@ -52,9 +56,11 @@ public class EquipmentExpectationResponseV4 {
     @Builder
     public static class ItemExpectationV4 {
         private final String itemName;
+        private final String itemIcon;           // 아이콘 URL (#240 V4)
         private final String itemPart;
         private final int itemLevel;
         private final BigDecimal expectedCost;
+        private final String expectedCostText;   // "500억" (#240 V4)
         private final CostBreakdownDto costBreakdown;
         private final String enhancePath;
 
@@ -65,9 +71,39 @@ public class EquipmentExpectationResponseV4 {
         // 스타포스 정보
         private final int currentStar;
         private final int targetStar;
+        private final boolean isNoljang;         // 놀장 여부 (#240 V4)
+
+        // 큐브별 기대값 (#240 V4)
+        private final CubeExpectationDto blackCubeExpectation;
+        private final CubeExpectationDto additionalCubeExpectation;
 
         // 스타포스 옵션별 기대값 (#240)
         private final StarforceExpectationDto starforceExpectation;
+    }
+
+    /**
+     * 큐브 기대값 DTO (#240 V4)
+     *
+     * <p>블랙큐브, 에디셔널큐브 각각의 기대값을 표현합니다.</p>
+     */
+    @Getter
+    @Builder
+    public static class CubeExpectationDto {
+        private final BigDecimal expectedCost;
+        private final String expectedCostText;       // "5000억"
+        private final BigDecimal expectedTrials;     // 기대 시도 횟수
+        private final String currentGrade;           // 현재 등급 (UNIQUE 등)
+        private final String targetGrade;            // 목표 등급 (LEGENDARY 등)
+        private final String potential;              // 현재 잠재능력 텍스트 (#240 V4)
+
+        public static CubeExpectationDto empty() {
+            return CubeExpectationDto.builder()
+                    .expectedCost(BigDecimal.ZERO)
+                    .expectedCostText("0")
+                    .expectedTrials(BigDecimal.ZERO)
+                    .potential("")
+                    .build();
+        }
     }
 
     /**
@@ -79,19 +115,31 @@ public class EquipmentExpectationResponseV4 {
     @Builder
     public static class StarforceExpectationDto {
 
+        // 현재/목표 스타 (#240 V4)
+        private final int currentStar;
+        private final int targetStar;
+        private final boolean isNoljang;
+
         // 파괴방지 X 케이스 (기본)
         private final BigDecimal costWithoutDestroyPrevention;
+        private final String costWithoutDestroyPreventionText;    // "500억" (#240 V4)
         private final BigDecimal expectedDestroyCountWithout;
 
         // 파괴방지 O 케이스 (15-17성 적용)
         private final BigDecimal costWithDestroyPrevention;
+        private final String costWithDestroyPreventionText;       // "800억" (#240 V4)
         private final BigDecimal expectedDestroyCountWith;
 
         public static StarforceExpectationDto empty() {
             return StarforceExpectationDto.builder()
+                    .currentStar(0)
+                    .targetStar(0)
+                    .isNoljang(false)
                     .costWithoutDestroyPrevention(BigDecimal.ZERO)
+                    .costWithoutDestroyPreventionText("0")
                     .expectedDestroyCountWithout(BigDecimal.ZERO)
                     .costWithDestroyPrevention(BigDecimal.ZERO)
+                    .costWithDestroyPreventionText("0")
                     .expectedDestroyCountWith(BigDecimal.ZERO)
                     .build();
         }

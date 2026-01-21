@@ -46,13 +46,15 @@ public class AdditionalCubeDecoratorV4 extends EquipmentEnhanceDecorator {
     @Override
     public BigDecimal calculateCost() {
         BigDecimal previousCost = super.calculateCost();
+
+        // #240 V4: trials를 정수로 반올림 후 cost 계산
         BigDecimal expectedTrials = calculateTrials();
+        BigDecimal roundedTrials = expectedTrials.setScale(0, RoundingMode.HALF_UP);
         BigDecimal costPerTrial = BigDecimal.valueOf(
                 costPolicy.getCubeCost(CubeType.ADDITIONAL, input.getLevel(), input.getGrade())
         );
 
-        BigDecimal additionalCubeCost = expectedTrials.multiply(costPerTrial)
-                .setScale(PRECISION_SCALE, RoundingMode.HALF_UP);
+        BigDecimal additionalCubeCost = roundedTrials.multiply(costPerTrial);
 
         return previousCost.add(additionalCubeCost);
     }
@@ -74,14 +76,16 @@ public class AdditionalCubeDecoratorV4 extends EquipmentEnhanceDecorator {
     public CostBreakdown getDetailedCosts() {
         CostBreakdown base = super.getDetailedCosts();
 
+        // #240 V4: trials를 정수로 반올림 후 cost 계산
         BigDecimal expectedTrials = calculateTrials();
+        BigDecimal roundedTrials = expectedTrials.setScale(0, RoundingMode.HALF_UP);
         BigDecimal costPerTrial = BigDecimal.valueOf(
                 costPolicy.getCubeCost(CubeType.ADDITIONAL, input.getLevel(), input.getGrade())
         );
-        BigDecimal additionalCubeCost = expectedTrials.multiply(costPerTrial)
-                .setScale(PRECISION_SCALE, RoundingMode.HALF_UP);
+        BigDecimal additionalCubeCost = roundedTrials.multiply(costPerTrial);
 
-        return base.withAdditionalCube(base.additionalCubeCost().add(additionalCubeCost));
+        // #240 V4: 반올림된 trials 정보 포함
+        return base.withAdditionalCube(base.additionalCubeCost().add(additionalCubeCost), roundedTrials);
     }
 
     @Override

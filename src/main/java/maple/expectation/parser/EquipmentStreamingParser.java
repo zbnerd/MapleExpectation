@@ -37,14 +37,60 @@ public class EquipmentStreamingParser {
         void map(JsonParser parser, CubeCalculationInput item) throws IOException;
     }
 
+    /**
+     * JSON 필드 매핑 Enum (#240 V4: 13개 필드 확장)
+     *
+     * <h3>기본 장비 정보</h3>
+     * <ul>
+     *   <li>SLOT: item_equipment_slot (장비 슬롯)</li>
+     *   <li>PART: item_equipment_part (보조무기 세부 분류)</li>
+     *   <li>NAME: item_name (장비 이름)</li>
+     *   <li>ICON: item_icon (아이콘 URL)</li>
+     *   <li>LEVEL: base_equipment_level (아이템 레벨)</li>
+     * </ul>
+     *
+     * <h3>잠재능력</h3>
+     * <ul>
+     *   <li>GRADE: potential_option_grade</li>
+     *   <li>POTENTIAL_1/2/3: potential_option_1/2/3</li>
+     * </ul>
+     *
+     * <h3>에디셔널 잠재능력</h3>
+     * <ul>
+     *   <li>ADDITIONAL_GRADE: additional_potential_option_grade</li>
+     *   <li>ADDITIONAL_1/2/3: additional_potential_option_1/2/3</li>
+     * </ul>
+     *
+     * <h3>스타포스</h3>
+     * <ul>
+     *   <li>STARFORCE: starforce (현재 스타포스 수치)</li>
+     *   <li>STARFORCE_SCROLL_FLAG: starforce_scroll_flag (놀장 여부)</li>
+     * </ul>
+     */
     private enum JsonField {
+        // 기본 정보
         SLOT("item_equipment_slot"),
-        GRADE("potential_option_grade"),
-        LEVEL("base_equipment_level"),
+        PART("item_equipment_part"),
         NAME("item_name"),
+        ICON("item_icon"),
+        LEVEL("base_equipment_level"),
+
+        // 잠재능력 (윗잠)
+        GRADE("potential_option_grade"),
         POTENTIAL_1("potential_option_1"),
         POTENTIAL_2("potential_option_2"),
         POTENTIAL_3("potential_option_3"),
+
+        // 에디셔널 잠재능력 (아랫잠)
+        ADDITIONAL_GRADE("additional_potential_option_grade"),
+        ADDITIONAL_1("additional_potential_option_1"),
+        ADDITIONAL_2("additional_potential_option_2"),
+        ADDITIONAL_3("additional_potential_option_3"),
+
+        // 스타포스
+        STARFORCE("starforce"),
+        STARFORCE_SCROLL_FLAG("starforce_scroll_flag"),
+
         UNKNOWN("");
 
         private final String fieldName;
@@ -62,15 +108,45 @@ public class EquipmentStreamingParser {
         }
     }
 
+    /**
+     * 필드 매퍼 초기화 (#240 V4: 13개 필드 매핑)
+     */
     @PostConstruct
     public void initMappers() {
+        // 기본 정보
         fieldMappers.put(JsonField.SLOT, (p, item) -> item.setPart(p.getText()));
-        fieldMappers.put(JsonField.GRADE, (p, item) -> item.setGrade(p.getText()));
+        fieldMappers.put(JsonField.PART, (p, item) -> item.setItemEquipmentPart(p.getText()));
         fieldMappers.put(JsonField.NAME, (p, item) -> item.setItemName(p.getText()));
+        fieldMappers.put(JsonField.ICON, (p, item) -> item.setItemIcon(p.getText()));
         fieldMappers.put(JsonField.LEVEL, this::parseLevel);
+
+        // 잠재능력 (윗잠) - "null" 문자열 필터링
+        fieldMappers.put(JsonField.GRADE, (p, item) -> {
+            String grade = p.getText();
+            // "null" 문자열, 빈 문자열, 실제 null 모두 제외
+            if (grade != null && !grade.trim().isEmpty() && !"null".equalsIgnoreCase(grade.trim())) {
+                item.setGrade(grade);
+            }
+        });
         fieldMappers.put(JsonField.POTENTIAL_1, this::parsePotential);
         fieldMappers.put(JsonField.POTENTIAL_2, this::parsePotential);
         fieldMappers.put(JsonField.POTENTIAL_3, this::parsePotential);
+
+        // 에디셔널 잠재능력 (아랫잠) - "null" 문자열 필터링
+        fieldMappers.put(JsonField.ADDITIONAL_GRADE, (p, item) -> {
+            String grade = p.getText();
+            // "null" 문자열, 빈 문자열, 실제 null 모두 제외
+            if (grade != null && !grade.trim().isEmpty() && !"null".equalsIgnoreCase(grade.trim())) {
+                item.setAdditionalGrade(grade);
+            }
+        });
+        fieldMappers.put(JsonField.ADDITIONAL_1, this::parseAdditionalPotential);
+        fieldMappers.put(JsonField.ADDITIONAL_2, this::parseAdditionalPotential);
+        fieldMappers.put(JsonField.ADDITIONAL_3, this::parseAdditionalPotential);
+
+        // 스타포스
+        fieldMappers.put(JsonField.STARFORCE, this::parseStarforce);
+        fieldMappers.put(JsonField.STARFORCE_SCROLL_FLAG, (p, item) -> item.setStarforceScrollFlag(p.getText()));
     }
 
     /**
@@ -210,6 +286,30 @@ public class EquipmentStreamingParser {
         String val = parser.getText();
         if (val != null && !val.trim().isEmpty()) {
             item.getOptions().add(val);
+        }
+    }
+
+    /**
+     * 에디셔널 잠재능력 파싱 (#240 V4)
+     */
+    private void parseAdditionalPotential(JsonParser parser, CubeCalculationInput item) throws IOException {
+        String val = parser.getText();
+        if (val != null && !val.trim().isEmpty()) {
+            item.getAdditionalOptions().add(val);
+        }
+    }
+
+    /**
+     * 스타포스 파싱 (#240 V4)
+     * <p>문자열 "22" → int 22 변환</p>
+     */
+    private void parseStarforce(JsonParser parser, CubeCalculationInput item) throws IOException {
+        int starVal = (parser.currentToken() == JsonToken.VALUE_NUMBER_INT)
+                ? parser.getIntValue()
+                : statParser.parseNum(parser.getText());
+
+        if (starVal >= 0) {
+            item.setStarforce(starVal);
         }
     }
 

@@ -44,6 +44,12 @@ public class GameCharacterControllerV4 {
     /**
      * 전체 기대값 조회 (비동기)
      *
+     * <h4>쿼리 파라미터</h4>
+     * <ul>
+     *   <li>force=true: 캐시 무시하고 강제 재계산 (아이템 상세 포함)</li>
+     *   <li>force=false (기본): 캐시 응답 사용 (요약만, 아이템 상세 없음)</li>
+     * </ul>
+     *
      * <h4>응답 예시</h4>
      * <pre>
      * {
@@ -62,15 +68,17 @@ public class GameCharacterControllerV4 {
      * </pre>
      *
      * @param userIgn 캐릭터 IGN
+     * @param force 강제 재계산 여부 (기본값: false)
      * @return V4 기대값 응답
      */
     @GetMapping("/{userIgn}/expectation")
     public CompletableFuture<ResponseEntity<EquipmentExpectationResponseV4>> getExpectation(
-            @PathVariable String userIgn) {
+            @PathVariable String userIgn,
+            @RequestParam(defaultValue = "false") boolean force) {
 
-        log.info("[V4] Calculating expectation for: {}", maskIgn(userIgn));
+        log.info("[V4] Calculating expectation for: {} (force={})", maskIgn(userIgn), force);
 
-        return expectationService.calculateExpectationAsync(userIgn)
+        return expectationService.calculateExpectationAsync(userIgn, force)
                 .thenApply(ResponseEntity::ok);
     }
 
