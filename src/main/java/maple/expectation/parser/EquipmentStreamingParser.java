@@ -75,30 +75,62 @@ public class EquipmentStreamingParser {
 
     /**
      * ✅ P0: 최상위 파이프라인 (비즈니스 의도만 노출)
+     * <p>기본 item_equipment 배열 파싱</p>
      */
     public List<CubeCalculationInput> parseCubeInputs(byte[] rawJsonData) {
+        return parseCubeInputsForPreset(rawJsonData, 0); // 0 = item_equipment (현재 장착)
+    }
+
+    /**
+     * 프리셋별 장비 데이터 파싱 (#240 V4)
+     *
+     * @param rawJsonData 장비 JSON 데이터
+     * @param presetNo 프리셋 번호 (0=현재장착, 1=프리셋1, 2=프리셋2, 3=프리셋3)
+     * @return 파싱된 큐브 계산 입력 목록
+     */
+    public List<CubeCalculationInput> parseCubeInputsForPreset(byte[] rawJsonData, int presetNo) {
         if (rawJsonData == null || rawJsonData.length == 0) return new ArrayList<>();
 
-        TaskContext context = TaskContext.of("Parser", "StreamingParse");
+        String targetField = resolvePresetFieldName(presetNo);
+        TaskContext context = TaskContext.of("Parser", "StreamingParse", "preset" + presetNo);
 
         // [패턴 6] 예외 세탁 및 실행
         return executor.executeWithTranslation(
-                () -> this.executeParsingProcess(rawJsonData, context),
+                () -> this.executeParsingProcessForField(rawJsonData, targetField, context),
                 ExceptionTranslator.forMaple(),
                 context
         );
     }
 
     /**
+     * 프리셋 번호에 해당하는 JSON 필드명 반환
+     */
+    private String resolvePresetFieldName(int presetNo) {
+        return switch (presetNo) {
+            case 1 -> "item_equipment_preset_1";
+            case 2 -> "item_equipment_preset_2";
+            case 3 -> "item_equipment_preset_3";
+            default -> "item_equipment"; // 0 또는 기타 = 현재 장착
+        };
+    }
+
+    /**
      * ✅ P0: 자원 생명주기 관리 (try-with-resources 대체)
      */
     private List<CubeCalculationInput> executeParsingProcess(byte[] rawJsonData, TaskContext context) throws IOException {
+        return executeParsingProcessForField(rawJsonData, "item_equipment", context);
+    }
+
+    /**
+     * 특정 필드명으로 파싱 (프리셋 지원)
+     */
+    private List<CubeCalculationInput> executeParsingProcessForField(byte[] rawJsonData, String fieldName, TaskContext context) throws IOException {
         InputStream inputStream = createInputStream(rawJsonData);
         JsonParser parser = factory.createParser(inputStream);
 
         // [패턴 1] executeWithFinally를 통한 자원 해제 보장
         return executor.executeWithFinally(
-                () -> this.doStreamParse(parser),
+                () -> this.doStreamParseForField(parser, fieldName),
                 () -> this.closeResources(inputStream, parser),
                 context
         );
@@ -108,8 +140,15 @@ public class EquipmentStreamingParser {
      * 실제 스트리밍 파싱 로직
      */
     private List<CubeCalculationInput> doStreamParse(JsonParser parser) throws IOException {
+        return doStreamParseForField(parser, "item_equipment");
+    }
+
+    /**
+     * 특정 필드명으로 스트리밍 파싱 (#240 V4)
+     */
+    private List<CubeCalculationInput> doStreamParseForField(JsonParser parser, String fieldName) throws IOException {
         List<CubeCalculationInput> resultList = new ArrayList<>();
-        findStartArray(parser);
+        findStartArrayForField(parser, fieldName);
 
         if (parser.currentToken() == JsonToken.START_ARRAY) {
             parseItemArray(parser, resultList);
@@ -118,8 +157,15 @@ public class EquipmentStreamingParser {
     }
 
     private void findStartArray(JsonParser parser) throws IOException {
+        findStartArrayForField(parser, "item_equipment");
+    }
+
+    /**
+     * 지정된 필드명의 배열 시작 위치 탐색 (#240 V4)
+     */
+    private void findStartArrayForField(JsonParser parser, String fieldName) throws IOException {
         while (parser.nextToken() != null) {
-            if ("item_equipment".equals(parser.currentName())) {
+            if (fieldName.equals(parser.currentName())) {
                 parser.nextToken();
                 break;
             }

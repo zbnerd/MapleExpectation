@@ -198,26 +198,33 @@ public class EquipmentExpectationServiceV4 {
     }
 
     /**
-     * 모든 프리셋 계산
+     * 모든 프리셋 계산 (#240 V4: 프리셋 1, 2, 3 모두 계산)
+     *
+     * <p>각 프리셋별로 장비 데이터 파싱 및 기대값 계산</p>
      */
     private List<PresetExpectation> calculateAllPresets(byte[] equipmentData, GameCharacter character) {
         List<PresetExpectation> results = new ArrayList<>();
 
-        // 프리셋 1 (메인)
-        results.add(calculatePreset(equipmentData, 1));
-
-        // 프리셋 2, 3은 추후 구현 (장비 데이터 구조에 따라 분리 필요)
-        // 현재는 프리셋 1만 계산
+        // 프리셋 1, 2, 3 모두 계산
+        for (int presetNo = 1; presetNo <= 3; presetNo++) {
+            PresetExpectation preset = calculatePreset(equipmentData, presetNo);
+            // 빈 프리셋은 제외 (장비가 없는 경우)
+            if (!preset.getItems().isEmpty()) {
+                results.add(preset);
+            } else {
+                log.debug("[V4] 프리셋 {} 장비 없음 - 스킵", presetNo);
+            }
+        }
 
         return results;
     }
 
     /**
-     * 단일 프리셋 계산
+     * 단일 프리셋 계산 (#240 V4: 프리셋별 파싱)
      */
     private PresetExpectation calculatePreset(byte[] equipmentData, int presetNo) {
-        // 장비 파싱
-        var cubeInputs = streamingParser.parseCubeInputs(equipmentData);
+        // 프리셋별 장비 파싱 (preset 1~3)
+        var cubeInputs = streamingParser.parseCubeInputsForPreset(equipmentData, presetNo);
 
         List<ItemExpectationV4> itemResults = new ArrayList<>();
         BigDecimal totalCost = BigDecimal.ZERO;
