@@ -62,18 +62,14 @@ public class OcidResolver {
             throw new CharacterNotFoundException(cleanIgn);
         }
 
-        // 2. DB 조회 → 있으면 반환
-        Optional<GameCharacter> existing = executor.execute(
+        // 2. DB 조회 → 있으면 반환, 없으면 → NexonAPI 호출 → DB 저장 → 반환
+        // P1-1 Fix: CLAUDE.md Section 4 - Optional Chaining Best Practice
+        return executor.execute(
                 () -> gameCharacterRepository.findByUserIgn(cleanIgn),
                 TaskContext.of("Ocid", "DbLookup", cleanIgn)
-        );
-
-        if (existing.isPresent()) {
-            return existing.get().getOcid();
-        }
-
-        // 3. 없으면 → NexonAPI 호출 → DB 저장 → 반환
-        return createAndGetOcid(cleanIgn);
+        )
+        .map(GameCharacter::getOcid)
+        .orElseGet(() -> createAndGetOcid(cleanIgn));
     }
 
     /**
@@ -87,17 +83,12 @@ public class OcidResolver {
             throw new CharacterNotFoundException(cleanIgn);
         }
 
-        // 2. DB 조회 → 있으면 반환
-        Optional<GameCharacter> existing = executor.execute(
+        // 2. DB 조회 → 있으면 반환, 없으면 → 생성 후 반환
+        // P1-2 Fix: CLAUDE.md Section 4 - Optional Chaining Best Practice (간결화)
+        return executor.execute(
                 () -> gameCharacterRepository.findByUserIgn(cleanIgn),
                 TaskContext.of("Character", "DbLookup", cleanIgn)
-        );
-
-        // 3. 없으면 → 생성 후 반환
-
-        return existing.orElseGet(() -> createNewCharacter(cleanIgn));
-
-
+        ).orElseGet(() -> createNewCharacter(cleanIgn));
     }
 
     /**

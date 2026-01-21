@@ -1,5 +1,7 @@
 package maple.expectation.service.v2.cache;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.external.dto.v2.TotalExpectationResponse;
 import maple.expectation.global.executor.LogicExecutor;
@@ -40,15 +42,28 @@ public class TotalExpectationCacheService {
     private final RedisSerializer<Object> redisSerializer;
     private final LogicExecutor executor;
 
+    // P1-6 Fix: 메트릭 카운터 (TODO 코멘트 제거)
+    private final Counter oversizeSkipCounter;
+    private final Counter serializeFailCounter;
+
     public TotalExpectationCacheService(
             @Qualifier("expectationL1CacheManager") CacheManager l1CacheManager,
             @Qualifier("expectationL2CacheManager") CacheManager l2CacheManager,
             @Qualifier("expectationCacheSerializer") RedisSerializer<Object> redisSerializer,
-            LogicExecutor executor) {
+            LogicExecutor executor,
+            MeterRegistry meterRegistry) {
         this.l1CacheManager = l1CacheManager;
         this.l2CacheManager = l2CacheManager;
         this.redisSerializer = redisSerializer;
         this.executor = executor;
+
+        // P1-6 Fix: 메트릭 초기화
+        this.oversizeSkipCounter = Counter.builder("expectation.cache.payload.oversize.skip")
+                .description("5KB 초과로 L2 캐시 저장을 스킵한 횟수")
+                .register(meterRegistry);
+        this.serializeFailCounter = Counter.builder("expectation.cache.serialize.fail")
+                .description("캐시 직렬화 실패 횟수")
+                .register(meterRegistry);
     }
 
     /**
@@ -128,7 +143,7 @@ public class TotalExpectationCacheService {
 
             if (size > MAX_CACHE_BYTES) {
                 log.info("[5KB Guard] L2 skip: {} bytes > {}", size, MAX_CACHE_BYTES);
-                // TODO: metric - expectation.cache.payload.oversize.skip
+                oversizeSkipCounter.increment();
                 return;
             }
 
@@ -166,7 +181,7 @@ public class TotalExpectationCacheService {
                     // serialize 실패는 L2 스킵(정책) + 로그
                     log.warn("[Serialize Fail] err={}", e.toString());
                     log.debug("[Serialize Fail] maskedKey={}", maskKey(cacheKey));
-                    // TODO: metric - expectation.cache.serialize.fail
+                    serializeFailCounter.increment();
                     return -1; // L2 스킵 시그널
                 },
                 TaskContext.of("ExpectationCache", "Serialize", maskKey(cacheKey))
