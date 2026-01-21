@@ -186,17 +186,50 @@ public class OutboxProcessor {
     }
 
     /**
-     * Stalled 상태 복구 (JVM 크래시 대응)
+     * Stalled 상태 복구 (JVM 크래시 대응) - #229 무결성 검증 강화
+     *
+     * <p>Purple Agent 요구사항: 복구 전 Content Hash 기반 무결성 검증</p>
      */
     @ObservedTransaction("scheduler.outbox.recover_stalled")
     @Transactional
     public void recoverStalled() {
         LocalDateTime staleTime = LocalDateTime.now().minus(STALE_THRESHOLD);
-        int recovered = outboxRepository.resetStalledProcessing(staleTime);
+        List<DonationOutbox> stalledEntries = outboxRepository.findStalledProcessing(
+                staleTime,
+                PageRequest.of(0, BATCH_SIZE)
+        );
+
+        if (stalledEntries.isEmpty()) {
+            return;
+        }
+
+        log.info("♻️ [Outbox] Stalled 상태 발견: {}건, 무결성 검증 시작", stalledEntries.size());
+
+        int recovered = 0;
+        int integrityFailed = 0;
+
+        for (DonationOutbox entry : stalledEntries) {
+            // #229: 무결성 검증 추가 (Purple 요구사항)
+            if (!entry.verifyIntegrity()) {
+                log.error("⚠️ [Outbox] 무결성 검증 실패 - Zombie 복구 중단, DLQ 이동: requestId={}", entry.getRequestId());
+                handleIntegrityFailure(entry);
+                integrityFailed++;
+                continue;
+            }
+
+            // 무결성 검증 통과 → 상태 복원
+            entry.resetToRetry();
+            outboxRepository.save(entry);
+            recovered++;
+        }
 
         if (recovered > 0) {
-            log.warn("♻️ [Outbox] Stalled 상태 복구: {}건", recovered);
+            log.warn("♻️ [Outbox] Stalled 상태 복구 완료: 성공={}, 무결성실패={}", recovered, integrityFailed);
             metrics.incrementStalledRecovered(recovered);
+        }
+
+        if (integrityFailed > 0) {
+            log.error("❌ [Outbox] Stalled 복구 중 무결성 검증 실패: {}건", integrityFailed);
         }
     }
 }
