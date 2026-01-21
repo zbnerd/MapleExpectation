@@ -53,17 +53,12 @@
                 <connectionTimeoutMs>5000</connectionTimeoutMs>
                 <requestTimeoutMs>10000</requestTimeoutMs>
             </http>
-            <format>
+            <!-- loki4j 1.4.x: JsonEncoder를 format 레벨에서 사용 -->
+            <format class="com.github.loki4j.logback.JsonEncoder">
                 <label>
                     <pattern>app=maple-expectation,env=${ENV:-prod},host=${HOSTNAME:-unknown}</pattern>
                 </label>
-                <!-- P1-1 해결: JsonLayout으로 자동 이스케이프 -->
-                <message class="com.github.loki4j.logback.JsonLayout">
-                    <includeMDC>true</includeMDC>
-                </message>
             </format>
-            <batchSize>1000</batchSize>
-            <batchTimeoutMs>3000</batchTimeoutMs>
         </appender>
 
         <appender name="LOKI_ASYNC" class="ch.qos.logback.classic.AsyncAppender">
