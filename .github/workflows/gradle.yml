@@ -20,17 +20,9 @@ jobs:
   # ==========================================
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 20  # SRE: Prevent zombie jobs (Issue #240)
-    services:
-      redis:
-        image: redis
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+    timeout-minutes: 10  # Unit tests only - 10분이면 충분
+
+    # Services 제거: Unit 테스트는 Mock 사용, Integration은 Nightly에서 실행
 
     steps:
       - uses: actions/checkout@v4

@@ -37,39 +37,11 @@ jobs:
   # JOB 1: Build & Test (Gate)
   # ==========================================================================
   test:
-    name: Build & Test
+    name: Build & Test (Unit Only)
     runs-on: ubuntu-latest
-    timeout-minutes: 15  # Hard deadline - prevent zombie jobs
+    timeout-minutes: 10  # Unit tests only - 10분이면 충분
 
-    services:
-      # Redis service for integration tests (Testcontainers alternative)
-      redis:
-        image: redis:7.0-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 10
-          --memory 256m
-
-      # MySQL service for integration tests requiring real DB
-      mysql:
-        image: mysql:8.0
-        ports:
-          - 3306:3306
-        env:
-          MYSQL_ROOT_PASSWORD: testpassword
-          MYSQL_DATABASE: maple_test
-          MYSQL_USER: testuser
-          MYSQL_PASSWORD: testpassword
-        options: >-
-          --health-cmd "mysqladmin ping -h 127.0.0.1 -u root -ptestpassword"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
-          --memory 512m
+    # Services 제거: Unit 테스트는 Mock 사용, Integration은 Nightly에서 실행
 
     steps:
       # ------------------------------------------------------------------
