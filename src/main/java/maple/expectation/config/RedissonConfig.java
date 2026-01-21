@@ -67,8 +67,8 @@ public class RedissonConfig {
                 .setDnsMonitoringInterval(5000)
                 .setRetryAttempts(3)
                 .setRetryInterval(1500)
-                .setTimeout(3000)
-                .setConnectTimeout(10000)
+                .setTimeout(8000)         // Issue #225: 3s → 8s (Timeout Hierarchy 정렬)
+                .setConnectTimeout(5000)  // Issue #225: 10s → 5s (빠른 연결 실패 감지)
                 .setMasterConnectionPoolSize(64)
                 .setMasterConnectionMinimumIdleSize(24);
 
@@ -119,8 +119,8 @@ public class RedissonConfig {
                 .setAddress(REDISSON_HOST_PREFIX + host + ":" + port)
                 .setRetryAttempts(3)
                 .setRetryInterval(1500)
-                .setTimeout(3000)
-                .setConnectTimeout(10000)
+                .setTimeout(8000)         // Issue #225: 3s → 8s (Timeout Hierarchy 정렬)
+                .setConnectTimeout(5000)  // Issue #225: 10s → 5s (빠른 연결 실패 감지)
                 .setConnectionPoolSize(64)
                 .setConnectionMinimumIdleSize(24);
     }

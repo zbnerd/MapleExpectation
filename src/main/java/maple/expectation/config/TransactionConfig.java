@@ -53,7 +53,8 @@ public class TransactionConfig {
     public TransactionTemplate readOnlyTransactionTemplate(PlatformTransactionManager transactionManager) {
         TransactionTemplate template = new TransactionTemplate(transactionManager);
         template.setReadOnly(true);
-        template.setTimeout(5); // 5초 타임아웃
+        // Issue #225: 5s → 10s (Timeout Hierarchy 정렬 - MySQL lock_wait 8s보다 여유 있게)
+        template.setTimeout(10);
         return template;
     }
 }
