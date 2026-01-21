@@ -180,6 +180,18 @@ public class DonationOutbox {
         this.updatedAt = LocalDateTime.now();
     }
 
+    /**
+     * Stalled 상태에서 PENDING으로 복원 (#229)
+     *
+     * <p>JVM 크래시로 인한 Zombie 상태를 복구하기 위해 사용.
+     * 무결성 검증 통과 후에만 호출되어야 함.</p>
+     */
+    public void resetToRetry() {
+        this.status = OutboxStatus.PENDING;
+        this.nextRetryAt = LocalDateTime.now();
+        clearLock();
+    }
+
     private void clearLock() {
         this.lockedBy = null;
         this.lockedAt = null;

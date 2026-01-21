@@ -57,6 +57,17 @@ public interface DonationOutboxRepository extends JpaRepository<DonationOutbox, 
     int resetStalledProcessing(@Param("staleTime") LocalDateTime staleTime);
 
     /**
+     * Stalled PROCESSING 상태 항목 조회 (#229)
+     *
+     * <p>무결성 검증을 위해 개별 항목 조회 필요. LIMIT 100으로 배치 크기 제한.</p>
+     *
+     * @param staleTime Stale 판정 기준 시간
+     * @return Stalled 상태의 Outbox 항목 목록 (최대 100건)
+     */
+    @Query("SELECT o FROM DonationOutbox o WHERE o.status = 'PROCESSING' AND o.lockedAt < :staleTime ORDER BY o.id")
+    List<DonationOutbox> findStalledProcessing(@Param("staleTime") LocalDateTime staleTime, Pageable pageable);
+
+    /**
      * 상태별 카운트 (메트릭용)
      */
     long countByStatusIn(List<OutboxStatus> statuses);
