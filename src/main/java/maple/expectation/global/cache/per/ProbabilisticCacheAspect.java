@@ -1,9 +1,10 @@
 package maple.expectation.global.cache.per;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.global.executor.LogicExecutor;
+import maple.expectation.global.executor.TaskContext;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
@@ -54,6 +55,7 @@ public class ProbabilisticCacheAspect {
     private final RedissonClient redissonClient;
     private final Executor perCacheExecutor;
     private final ObjectMapper objectMapper;
+    private final LogicExecutor executor;
 
     private final ExpressionParser parser = new SpelExpressionParser();
     private final ParameterNameDiscoverer paramDiscoverer = new DefaultParameterNameDiscoverer();
@@ -72,8 +74,8 @@ public class ProbabilisticCacheAspect {
             return recomputeAndCache(joinPoint, cacheKey, probabilisticCache);
         }
 
-        // 3. JSON 역직렬화
-        CachedWrapper<Object> cached = deserializeWrapper(cachedJson);
+        // 3. JSON 역직렬화 (LogicExecutor 패턴)
+        CachedWrapper<Object> cached = deserializeWrapperSafely(cachedJson, cacheKey);
         if (cached == null) {
             log.warn("⚠️ [PER] 역직렬화 실패, 재계산: {}", cacheKey);
             return recomputeAndCache(joinPoint, cacheKey, probabilisticCache);
@@ -84,15 +86,10 @@ public class ProbabilisticCacheAspect {
             log.info("🎲 [PER] 조기 갱신 당첨! 백그라운드 갱신 시작 (Key: {}, TTL 남음: {}ms)",
                     cacheKey, cached.remainingTtl());
 
-            // 비동기 갱신 (Fire & Forget)
-            perCacheExecutor.execute(() -> {
-                try {
-                    recomputeAndCache(joinPoint, cacheKey, probabilisticCache);
-                    log.debug("✅ [PER] 백그라운드 갱신 완료: {}", cacheKey);
-                } catch (Throwable e) {
-                    log.warn("⚠️ [PER] 백그라운드 갱신 실패 (기존 데이터 유지): {}, error={}", cacheKey, e.getMessage());
-                }
-            });
+            // 비동기 갱신 (Fire & Forget) - LogicExecutor 패턴 적용
+            perCacheExecutor.execute(
+                    () -> refreshInBackground(joinPoint, cacheKey, probabilisticCache)
+            );
         }
 
         // 5. Stale 데이터 즉시 반환 (Non-Blocking)
@@ -115,9 +112,9 @@ public class ProbabilisticCacheAspect {
         // CachedWrapper 생성 (값 + delta + expiry)
         CachedWrapper<Object> wrapper = CachedWrapper.of(result, delta, annotation.ttlSeconds());
 
-        // Redis 저장 (TTL 포함)
+        // Redis 저장 (TTL 포함) - LogicExecutor 패턴
         RBucket<String> bucket = redissonClient.getBucket(cacheKey);
-        String json = serializeWrapper(wrapper);
+        String json = serializeWrapperSafely(wrapper, cacheKey);
         if (json != null) {
             bucket.set(json, Duration.ofSeconds(annotation.ttlSeconds()));
             log.debug("💾 [PER] 캐시 저장: key={}, delta={}ms, ttl={}s", cacheKey, delta, annotation.ttlSeconds());
@@ -127,28 +124,60 @@ public class ProbabilisticCacheAspect {
     }
 
     /**
-     * CachedWrapper → JSON 직렬화
+     * 백그라운드 갱신 (LogicExecutor 패턴)
+     *
+     * <p>비동기 작업에서 발생하는 예외를 LogicExecutor로 처리하여
+     * CLAUDE.md Section 12 (Zero try-catch) 위반 방지</p>
      */
-    private String serializeWrapper(CachedWrapper<Object> wrapper) {
-        try {
-            return objectMapper.writeValueAsString(wrapper);
-        } catch (JsonProcessingException e) {
-            log.error("❌ [PER] 직렬화 실패: {}", e.getMessage());
-            return null;
-        }
+    private void refreshInBackground(
+            ProceedingJoinPoint joinPoint,
+            String cacheKey,
+            ProbabilisticCache annotation
+    ) {
+        TaskContext context = TaskContext.of("PER", "AsyncRefresh", cacheKey);
+
+        executor.executeVoid(
+                () -> {
+                    recomputeAndCache(joinPoint, cacheKey, annotation);
+                    log.debug("✅ [PER] 백그라운드 갱신 완료: {}", cacheKey);
+                },
+                context
+        );
     }
 
     /**
-     * JSON → CachedWrapper 역직렬화
+     * CachedWrapper → JSON 직렬화 (LogicExecutor 패턴)
+     *
+     * @param wrapper 캐시 래퍼
+     * @param cacheKey 캐시 키 (로깅용)
+     * @return JSON 문자열, 실패 시 null
+     */
+    private String serializeWrapperSafely(CachedWrapper<Object> wrapper, String cacheKey) {
+        TaskContext context = TaskContext.of("PER", "Serialize", cacheKey);
+
+        return executor.executeOrDefault(
+                () -> objectMapper.writeValueAsString(wrapper),
+                null,
+                context
+        );
+    }
+
+    /**
+     * JSON → CachedWrapper 역직렬화 (LogicExecutor 패턴)
+     *
+     * @param json JSON 문자열
+     * @param cacheKey 캐시 키 (로깅용)
+     * @return CachedWrapper, 실패 시 null
      */
     @SuppressWarnings("unchecked")
-    private CachedWrapper<Object> deserializeWrapper(String json) {
-        try {
-            return objectMapper.readValue(json, CachedWrapper.class);
-        } catch (JsonProcessingException e) {
-            log.error("❌ [PER] 역직렬화 실패: {}", e.getMessage());
-            return null;
-        }
+    private CachedWrapper<Object> deserializeWrapperSafely(String json, String cacheKey) {
+        TaskContext context = TaskContext.of("PER", "Deserialize", cacheKey);
+
+        return executor.executeOrDefault(
+                () -> objectMapper.readValue(json, CachedWrapper.class),
+                null,
+                context
+        );
     }
 
     /**

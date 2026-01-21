@@ -26,7 +26,12 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
+import org.springframework.data.domain.SliceImpl;
 import org.springframework.test.util.ReflectionTestUtils;
+
+import maple.expectation.controller.dto.common.CursorPageRequest;
+import maple.expectation.controller.dto.common.CursorPageResponse;
 
 import java.util.List;
 import java.util.Optional;
@@ -35,6 +40,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
@@ -232,6 +238,99 @@ class DlqAdminServiceTest {
 
         // Then
         assertThat(count).isEqualTo(42L);
+    }
+
+    // ========== findAllByCursor Tests (#233 Cursor Pagination) ==========
+
+    @Test
+    @DisplayName("findAllByCursor - 첫 페이지 조회 (cursor=null)")
+    void findAllByCursorFirstPage() {
+        // Given: DLQ 항목 5개 준비
+        DonationDlq dlq1 = createSampleDlq(1L, "req-001", "DONATION_COMPLETED", "{}", "error1");
+        DonationDlq dlq2 = createSampleDlq(2L, "req-002", "DONATION_COMPLETED", "{}", "error2");
+        Slice<DonationDlq> slice = new SliceImpl<>(List.of(dlq1, dlq2), PageRequest.of(0, 2), true);
+
+        given(dlqRepository.findFirstPage(any(Pageable.class))).willReturn(slice);
+
+        CursorPageRequest request = CursorPageRequest.of(null, 2);
+
+        // When
+        CursorPageResponse<DlqEntryResponse> result = dlqAdminService.findAllByCursor(request);
+
+        // Then
+        assertThat(result.content()).hasSize(2);
+        assertThat(result.hasNext()).isTrue();
+        assertThat(result.nextCursor()).isEqualTo(2L);
+        assertThat(result.content().get(0).requestId()).isEqualTo("req-001");
+
+        verify(dlqRepository).findFirstPage(any(Pageable.class));
+        verify(dlqRepository, never()).findByCursorGreaterThan(any(), any());
+    }
+
+    @Test
+    @DisplayName("findAllByCursor - 다음 페이지 조회 (cursor=2)")
+    void findAllByCursorNextPage() {
+        // Given: cursor 이후 항목 조회
+        DonationDlq dlq3 = createSampleDlq(3L, "req-003", "DONATION_COMPLETED", "{}", "error3");
+        DonationDlq dlq4 = createSampleDlq(4L, "req-004", "DONATION_COMPLETED", "{}", "error4");
+        Slice<DonationDlq> slice = new SliceImpl<>(List.of(dlq3, dlq4), PageRequest.of(0, 2), true);
+
+        given(dlqRepository.findByCursorGreaterThan(eq(2L), any(Pageable.class))).willReturn(slice);
+
+        CursorPageRequest request = CursorPageRequest.of(2L, 2);
+
+        // When
+        CursorPageResponse<DlqEntryResponse> result = dlqAdminService.findAllByCursor(request);
+
+        // Then
+        assertThat(result.content()).hasSize(2);
+        assertThat(result.hasNext()).isTrue();
+        assertThat(result.nextCursor()).isEqualTo(4L);
+        assertThat(result.content().get(0).requestId()).isEqualTo("req-003");
+
+        verify(dlqRepository, never()).findFirstPage(any());
+        verify(dlqRepository).findByCursorGreaterThan(eq(2L), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("findAllByCursor - 마지막 페이지 도달 (hasNext=false)")
+    void findAllByCursorLastPage() {
+        // Given: 마지막 항목만 남음
+        DonationDlq dlq5 = createSampleDlq(5L, "req-005", "DONATION_COMPLETED", "{}", "error5");
+        Slice<DonationDlq> slice = new SliceImpl<>(List.of(dlq5), PageRequest.of(0, 10), false);
+
+        given(dlqRepository.findByCursorGreaterThan(eq(4L), any(Pageable.class))).willReturn(slice);
+
+        CursorPageRequest request = CursorPageRequest.of(4L, 10);
+
+        // When
+        CursorPageResponse<DlqEntryResponse> result = dlqAdminService.findAllByCursor(request);
+
+        // Then
+        assertThat(result.content()).hasSize(1);
+        assertThat(result.hasNext()).isFalse();
+        assertThat(result.nextCursor()).isEqualTo(5L);
+        assertThat(result.content().get(0).requestId()).isEqualTo("req-005");
+    }
+
+    @Test
+    @DisplayName("findAllByCursor - Size 유효성 검사 (MAX_SIZE=100 초과 시 자동 조정)")
+    void findAllByCursorSizeValidation() {
+        // Given: size=200으로 요청 (MAX_SIZE=100 초과)
+        DonationDlq dlq1 = createSampleDlq(1L, "req-001", "DONATION_COMPLETED", "{}", "error1");
+        Slice<DonationDlq> slice = new SliceImpl<>(List.of(dlq1), PageRequest.of(0, 100), false);
+
+        given(dlqRepository.findFirstPage(any(Pageable.class))).willReturn(slice);
+
+        // CursorPageRequest.of()에서 MAX_SIZE로 자동 조정됨
+        CursorPageRequest request = CursorPageRequest.of(null, 200);
+
+        // When
+        CursorPageResponse<DlqEntryResponse> result = dlqAdminService.findAllByCursor(request);
+
+        // Then: size가 100으로 조정되어 요청됨
+        assertThat(request.size()).isEqualTo(100);
+        assertThat(result.content()).hasSize(1);
     }
 
     // ========== Helper Methods ==========

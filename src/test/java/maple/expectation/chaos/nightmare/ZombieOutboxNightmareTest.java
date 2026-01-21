@@ -11,6 +11,7 @@ import maple.expectation.service.v2.DonationService;
 import maple.expectation.service.v2.auth.AdminService;
 import maple.expectation.service.v2.donation.outbox.OutboxProcessor;
 import maple.expectation.support.IntegrationTestSupport;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -18,6 +19,7 @@ import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -165,8 +167,16 @@ class ZombieOutboxNightmareTest extends IntegrationTestSupport {
         log.info("[Red] Executing recoverStalled()...");
         outboxProcessor.recoverStalled();
 
-        // Then: 상태 확인
-        Thread.sleep(500); // 복구 완료 대기
+        // Then: 상태 확인 (CLAUDE.md Section 24 - Awaitility 패턴 적용)
+        final String finalRequestId = requestId;
+        Awaitility.await()
+                .atMost(Duration.ofSeconds(5))
+                .pollInterval(Duration.ofMillis(100))
+                .untilAsserted(() -> {
+                    DonationOutbox entry = outboxRepository.findByRequestId(finalRequestId).orElse(null);
+                    assertThat(entry).isNotNull();
+                    assertThat(entry.getStatus()).isNotEqualTo(OutboxStatus.PROCESSING);
+                });
 
         DonationOutbox recovered = outboxRepository.findByRequestId(requestId).orElse(null);
 
@@ -233,9 +243,25 @@ class ZombieOutboxNightmareTest extends IntegrationTestSupport {
 
         // When: 복구 실행
         outboxProcessor.recoverStalled();
-        Thread.sleep(500);
 
-        // Then: 복구 확인
+        // Then: 복구 확인 (CLAUDE.md Section 24 - Awaitility 패턴 적용)
+        final int expectedCount = zombieCount;
+        final List<String> finalRequestIds = new ArrayList<>(requestIds);
+
+        Awaitility.await()
+                .atMost(Duration.ofSeconds(5))
+                .pollInterval(Duration.ofMillis(100))
+                .untilAsserted(() -> {
+                    int count = 0;
+                    for (String reqId : finalRequestIds) {
+                        var entry = outboxRepository.findByRequestId(reqId).orElse(null);
+                        if (entry != null && entry.getStatus() != OutboxStatus.PROCESSING) {
+                            count++;
+                        }
+                    }
+                    assertThat(count).isEqualTo(expectedCount);
+                });
+
         int recoveredCount = 0;
         for (String requestId : requestIds) {
             var entry = outboxRepository.findByRequestId(requestId).orElse(null);
@@ -288,9 +314,18 @@ class ZombieOutboxNightmareTest extends IntegrationTestSupport {
 
         // When: 복구 실행
         outboxProcessor.recoverStalled();
-        Thread.sleep(500);
 
-        // Then: 결과 확인
+        // Then: 결과 확인 (CLAUDE.md Section 24 - Awaitility 패턴 적용)
+        final String finalStaleRequestId = staleRequestId;
+        Awaitility.await()
+                .atMost(Duration.ofSeconds(5))
+                .pollInterval(Duration.ofMillis(100))
+                .untilAsserted(() -> {
+                    var staleEntry = outboxRepository.findByRequestId(finalStaleRequestId).orElse(null);
+                    assertThat(staleEntry).isNotNull();
+                    assertThat(staleEntry.getStatus()).isNotEqualTo(OutboxStatus.PROCESSING);
+                });
+
         var recent = outboxRepository.findByRequestId(recentRequestId).orElse(null);
         var stale = outboxRepository.findByRequestId(staleRequestId).orElse(null);
 
@@ -348,9 +383,18 @@ class ZombieOutboxNightmareTest extends IntegrationTestSupport {
 
         // When: 복구 실행
         outboxProcessor.recoverStalled();
-        Thread.sleep(500);
 
-        // Then: 데이터 무결성 확인
+        // Then: 데이터 무결성 확인 (CLAUDE.md Section 24 - Awaitility 패턴 적용)
+        final String finalRequestId = requestId;
+        Awaitility.await()
+                .atMost(Duration.ofSeconds(5))
+                .pollInterval(Duration.ofMillis(100))
+                .untilAsserted(() -> {
+                    DonationOutbox entry = outboxRepository.findByRequestId(finalRequestId).orElse(null);
+                    assertThat(entry).isNotNull();
+                    assertThat(entry.getStatus()).isNotEqualTo(OutboxStatus.PROCESSING);
+                });
+
         DonationOutbox recovered = outboxRepository.findByRequestId(requestId).orElse(null);
 
         log.info("┌────────────────────────────────────────────────────────────┐");
