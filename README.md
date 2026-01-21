@@ -226,6 +226,12 @@ Test:           ██████████            16개 (16%)
 
 ## 1. 프로젝트 소개
 
+<img width="5556" height="4528" alt="image" src="https://github.com/user-attachments/assets/6a4daa9d-b4f5-4a49-8e51-5311cb816014" />
+범례
+- ──── (Solid): Implemented (Current)
+
+- --- --- --- (Dashed): Planned (Future Roadmap)
+
 **넥슨 Open API**를 활용하여 유저 장비 데이터를 수집하고, 확률형 아이템(큐브)의 기댓값을 계산하여 **"스펙 완성 비용"을 시뮬레이션해주는 서비스**입니다.
 
 저사양 서버 환경(AWS t3.small: 2vCPU, 2GB RAM)을 **목표 인프라**로 설정하고, 고부하 상황에서도 안정적으로 동작하도록 성능 병목을 수치화하고 아키텍처를 고도화했습니다.
@@ -433,7 +439,3 @@ Test:           ██████████            16개 (16%)
 - **Git Flow:** develop → feature → PR → main
 
 ---
-
-## License
-
-MIT License
