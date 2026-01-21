@@ -45,7 +45,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
  * @see SentinelContainerBase Sentinel HA 필요 시
  */
 @SpringBootTest
-@ActiveProfiles("test")
+@ActiveProfiles({"test", "container"})
 @TestPropertySource(properties = {
         "nexon.api.key=dummy-test-key"
 })
