@@ -135,6 +135,6 @@ public class GameCharacterControllerV4 {
 
     private String maskIgn(String ign) {
         if (ign == null || ign.length() < 2) return "***";
-        return ign.substring(0, 1) + "***" + ign.substring(ign.length() - 1);
+        return ign.charAt(0) + "***" + ign.substring(ign.length() - 1);
     }
 }
