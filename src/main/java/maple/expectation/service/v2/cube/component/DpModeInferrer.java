@@ -96,14 +96,21 @@ public class DpModeInferrer {
             return new InferenceResult(null, 0, 0.0);
         }
 
-        // 가장 높은 기여도를 가진 스탯 선택
-        Map.Entry<StatType, Integer> best = contributions.entrySet().stream()
+        // P1-5 Fix: CLAUDE.md Section 4 - Optional Chaining Best Practice
+        // .orElse(null) 대신 Optional 패턴으로 안전하게 처리
+        return contributions.entrySet().stream()
                 .max(Map.Entry.comparingByValue())
-                .orElse(null);
+                .filter(best -> best.getValue() > 0)
+                .map(best -> createInferenceResult(best, contributions))
+                .orElse(new InferenceResult(null, 0, 0.0));
+    }
 
-        if (best == null || best.getValue() <= 0) {
-            return new InferenceResult(null, 0, 0.0);
-        }
+    /**
+     * 추론 결과 생성 (Optional 체이닝에서 분리)
+     */
+    private InferenceResult createInferenceResult(
+            Map.Entry<StatType, Integer> best,
+            Map<StatType, Integer> contributions) {
 
         // 신뢰도 계산: 선택된 스탯이 전체 기여도에서 차지하는 비율
         int totalContribution = contributions.values().stream().mapToInt(Integer::intValue).sum();
