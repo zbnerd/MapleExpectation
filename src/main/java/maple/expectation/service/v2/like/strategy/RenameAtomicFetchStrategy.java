@@ -205,17 +205,38 @@ public class RenameAtomicFetchStrategy implements AtomicFetchStrategy {
         if (value == null) return 0L;
         if (value instanceof Number n) return n.longValue();
         if (value instanceof String s) {
-            try {
-                return Long.parseLong(s);
-            } catch (NumberFormatException e) {
-                log.warn("Malformed Redis data ignored: value={}", s);
-                recordParseFailure();
-                return 0L;
-            }
+            return parseStringToLong(s);
         }
         log.warn("Unexpected Redis data type: class={}, value={}", value.getClass().getSimpleName(), value);
         recordParseFailure();
         return 0L;
+    }
+
+    /**
+     * 문자열 Long 파싱 (CLAUDE.md Section 12 준수: 선검증 후 파싱)
+     */
+    private long parseStringToLong(String s) {
+        if (s == null || s.isBlank()) {
+            recordParseFailure();
+            return 0L;
+        }
+        // 선검증: 숫자 형식 확인 (try-catch 회피)
+        if (isValidLongFormat(s)) {
+            return Long.parseLong(s);
+        }
+        log.warn("Malformed Redis data ignored: value={}", s);
+        recordParseFailure();
+        return 0L;
+    }
+
+    private boolean isValidLongFormat(String s) {
+        if (s.isEmpty()) return false;
+        int start = (s.charAt(0) == '-') ? 1 : 0;
+        if (start == s.length()) return false;
+        for (int i = start; i < s.length(); i++) {
+            if (!Character.isDigit(s.charAt(i))) return false;
+        }
+        return true;
     }
 
     /**

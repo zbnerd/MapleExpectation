@@ -14,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -45,18 +46,26 @@ public class DonationController {
      * <p>인증된 사용자만 사용할 수 있으며, ADMIN_FINGERPRINTS에 등록된
      * Admin에게만 후원할 수 있습니다.</p>
      *
-     * @param user    인증된 사용자 정보 (발신자)
-     * @param request 후원 요청 (수신자 fingerprint, 금액)
+     * <h4>PR #189 Fix: Idempotency-Key 헤더 지원</h4>
+     * <p>클라이언트가 {@code Idempotency-Key} 헤더를 제공하면 해당 값을 requestId로 사용하여
+     * 동일 요청의 중복 처리를 방지합니다.</p>
+     *
+     * @param user           인증된 사용자 정보 (발신자)
+     * @param request        후원 요청 (수신자 fingerprint, 금액)
+     * @param idempotencyKey 멱등성 보장을 위한 클라이언트 제공 키 (선택)
      * @return 후원 결과
      */
     @PostMapping("/coffee")
     @Operation(summary = "커피 후원", description = "Admin(개발자)에게 커피를 후원합니다.")
     public ResponseEntity<ApiResponse<SendCoffeeResponse>> sendCoffee(
             @AuthenticationPrincipal AuthenticatedUser user,
-            @Valid @RequestBody SendCoffeeRequest request) {
+            @Valid @RequestBody SendCoffeeRequest request,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
 
-        // 멱등성 키 생성 (클라이언트에서 제공하지 않으면 서버에서 생성)
-        String requestId = UUID.randomUUID().toString();
+        // PR #189: 멱등성 키 우선 사용 (없으면 서버에서 생성)
+        String requestId = (idempotencyKey != null && !idempotencyKey.isBlank())
+                ? idempotencyKey
+                : UUID.randomUUID().toString();
 
         // 발신자는 인증된 사용자의 fingerprint를 UUID로 사용
         // (Member 테이블에 fingerprint가 uuid로 저장되어 있어야 함)

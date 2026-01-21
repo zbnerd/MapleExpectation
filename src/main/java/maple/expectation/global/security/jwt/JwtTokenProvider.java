@@ -1,20 +1,19 @@
 package maple.expectation.global.security.jwt;
 
 import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jws;
-import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.global.executor.LogicExecutor;
+import maple.expectation.global.executor.TaskContext;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.Optional;
@@ -42,16 +41,19 @@ public class JwtTokenProvider {
     private final String secret;
     private final long expirationSeconds;
     private final Environment environment;
+    private final LogicExecutor executor;
 
     private SecretKey secretKey;
 
     public JwtTokenProvider(
             @Value("${auth.jwt.secret}") String secret,
             @Value("${auth.jwt.expiration}") long expirationSeconds,
-            Environment environment) {
+            Environment environment,
+            LogicExecutor executor) {
         this.secret = secret;
         this.expirationSeconds = expirationSeconds;
         this.environment = environment;
+        this.executor = executor;
     }
 
     @PostConstruct
@@ -115,36 +117,43 @@ public class JwtTokenProvider {
 
     /**
      * JWT 토큰을 파싱하여 페이로드를 추출합니다.
+     * (CLAUDE.md Section 12 준수: LogicExecutor 패턴)
      *
      * @param token JWT 토큰 문자열
      * @return 파싱된 JwtPayload (Optional)
      */
     public Optional<JwtPayload> parseToken(String token) {
-        try {
-            Jws<Claims> jws = Jwts.parser()
-                .verifyWith(secretKey)
-                .build()
-                .parseSignedClaims(token);
+        return executor.executeOrDefault(
+                () -> parseTokenInternal(token),
+                Optional.empty(),
+                TaskContext.of("JWT", "ParseToken", maskToken(token))
+        );
+    }
 
-            Claims claims = jws.getPayload();
+    private Optional<JwtPayload> parseTokenInternal(String token) {
+        Jws<Claims> jws = Jwts.parser()
+            .verifyWith(secretKey)
+            .build()
+            .parseSignedClaims(token);
 
-            JwtPayload payload = new JwtPayload(
-                claims.getSubject(),
-                claims.get(CLAIM_FINGERPRINT, String.class),
-                claims.get(CLAIM_ROLE, String.class),
-                claims.getIssuedAt().toInstant(),
-                claims.getExpiration().toInstant()
-            );
+        Claims claims = jws.getPayload();
 
-            return Optional.of(payload);
+        JwtPayload payload = new JwtPayload(
+            claims.getSubject(),
+            claims.get(CLAIM_FINGERPRINT, String.class),
+            claims.get(CLAIM_ROLE, String.class),
+            claims.getIssuedAt().toInstant(),
+            claims.getExpiration().toInstant()
+        );
 
-        } catch (ExpiredJwtException e) {
-            log.debug("JWT token expired: {}", e.getMessage());
-            return Optional.empty();
-        } catch (JwtException e) {
-            log.warn("Invalid JWT token: {}", e.getMessage());
-            return Optional.empty();
+        return Optional.of(payload);
+    }
+
+    private String maskToken(String token) {
+        if (token == null || token.length() < 10) {
+            return "***";
         }
+        return token.substring(0, 6) + "...";
     }
 
     /**

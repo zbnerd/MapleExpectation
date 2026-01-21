@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import maple.expectation.global.error.exception.InternalSystemException;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -107,13 +108,32 @@ public class DonationOutbox {
         return outbox;
     }
 
+    /**
+     * Content Hash 계산 (CLAUDE.md Section 11 준수: InternalSystemException 사용)
+     */
     private static String computeContentHash(String reqId, String type, String payload) {
+        MessageDigest digest = getSha256Digest();
+        byte[] hash = digest.digest((reqId + "|" + type + "|" + payload).getBytes(StandardCharsets.UTF_8));
+        return bytesToHex(hash);
+    }
+
+    /**
+     * SHA-256 MessageDigest 획득
+     *
+     * <p><b>CLAUDE.md Section 11 준수:</b> 체크 예외를 InternalSystemException으로 변환</p>
+     * <p>SHA-256은 Java 표준 필수 알고리즘 (RFC 8018)이므로
+     * NoSuchAlgorithmException이 발생할 수 없음. 발생 시 JVM 결함.</p>
+     *
+     * <p><b>Note:</b> JPA 엔티티에서는 LogicExecutor 주입이 불가하므로
+     * Section 11 규칙에 따라 직접 예외 변환 허용</p>
+     */
+    @SuppressWarnings("java:S1166")  // NoSuchAlgorithmException은 발생 불가 (Java 표준)
+    private static MessageDigest getSha256Digest() {
         try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest((reqId + "|" + type + "|" + payload).getBytes(StandardCharsets.UTF_8));
-            return bytesToHex(hash);
+            return MessageDigest.getInstance("SHA-256");
         } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 algorithm not available", e);
+            // SHA-256은 JVM 필수 알고리즘이므로 여기 도달 시 JVM 결함
+            throw new InternalSystemException("SHA-256 algorithm not available (JVM defect)", e);
         }
     }
 

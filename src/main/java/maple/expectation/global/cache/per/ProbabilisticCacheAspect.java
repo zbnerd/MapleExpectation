@@ -1,5 +1,6 @@
 package maple.expectation.global.cache.per;
 
+import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,6 +22,7 @@ import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Method;
 import java.time.Duration;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 
 /**
@@ -60,9 +62,14 @@ public class ProbabilisticCacheAspect {
     private final ExpressionParser parser = new SpelExpressionParser();
     private final ParameterNameDiscoverer paramDiscoverer = new DefaultParameterNameDiscoverer();
 
+    // P2-GREEN-01: JavaType 캐싱으로 성능 최적화
+    private final ConcurrentHashMap<Method, JavaType> wrapperTypeCache = new ConcurrentHashMap<>();
+
     @Around("@annotation(probabilisticCache)")
     public Object handleCache(ProceedingJoinPoint joinPoint, ProbabilisticCache probabilisticCache) throws Throwable {
         String cacheKey = generateKey(joinPoint, probabilisticCache);
+        MethodSignature signature = (MethodSignature) joinPoint.getSignature();
+        Method method = signature.getMethod();
 
         // 1. 캐시 조회
         RBucket<String> bucket = redissonClient.getBucket(cacheKey);
@@ -74,8 +81,8 @@ public class ProbabilisticCacheAspect {
             return recomputeAndCache(joinPoint, cacheKey, probabilisticCache);
         }
 
-        // 3. JSON 역직렬화 (LogicExecutor 패턴)
-        CachedWrapper<Object> cached = deserializeWrapperSafely(cachedJson, cacheKey);
+        // 3. PR #238 Fix: JavaType을 사용한 역직렬화 (제네릭 타입 보존)
+        CachedWrapper<Object> cached = deserializeWrapperSafely(cachedJson, cacheKey, method);
         if (cached == null) {
             log.warn("⚠️ [PER] 역직렬화 실패, 재계산: {}", cacheKey);
             return recomputeAndCache(joinPoint, cacheKey, probabilisticCache);
@@ -163,21 +170,42 @@ public class ProbabilisticCacheAspect {
     }
 
     /**
-     * JSON → CachedWrapper 역직렬화 (LogicExecutor 패턴)
+     * PR #238 Fix: JavaType을 사용한 JSON → CachedWrapper 역직렬화
+     *
+     * <h4>변경 전 (버그)</h4>
+     * <p>{@code CachedWrapper.class}로 역직렬화 시 제네릭 타입 정보 손실 → ClassCastException</p>
+     *
+     * <h4>변경 후</h4>
+     * <p>메서드 반환 타입에서 JavaType을 추출하여 정확한 타입으로 역직렬화</p>
      *
      * @param json JSON 문자열
      * @param cacheKey 캐시 키 (로깅용)
+     * @param method 원본 메서드 (반환 타입 추출용)
      * @return CachedWrapper, 실패 시 null
      */
     @SuppressWarnings("unchecked")
-    private CachedWrapper<Object> deserializeWrapperSafely(String json, String cacheKey) {
+    private CachedWrapper<Object> deserializeWrapperSafely(String json, String cacheKey, Method method) {
         TaskContext context = TaskContext.of("PER", "Deserialize", cacheKey);
 
         return executor.executeOrDefault(
-                () -> objectMapper.readValue(json, CachedWrapper.class),
+                () -> {
+                    // P2-GREEN-01: JavaType 캐싱 적용
+                    JavaType wrapperType = wrapperTypeCache.computeIfAbsent(method, this::buildWrapperType);
+                    return objectMapper.readValue(json, wrapperType);
+                },
                 null,
                 context
         );
+    }
+
+    /**
+     * P2-GREEN-01: 메서드별 CachedWrapper JavaType 생성 (캐싱용)
+     */
+    private JavaType buildWrapperType(Method method) {
+        java.lang.reflect.Type returnType = method.getGenericReturnType();
+        JavaType valueType = objectMapper.getTypeFactory().constructType(returnType);
+        return objectMapper.getTypeFactory()
+                .constructParametricType(CachedWrapper.class, valueType);
     }
 
     /**

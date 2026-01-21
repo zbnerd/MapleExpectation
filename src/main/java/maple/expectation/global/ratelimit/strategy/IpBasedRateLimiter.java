@@ -4,6 +4,7 @@ import io.github.bucket4j.distributed.proxy.ProxyManager;
 import io.micrometer.core.instrument.MeterRegistry;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.ratelimit.config.RateLimitProperties;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
@@ -20,9 +21,13 @@ import java.time.Duration;
  *   <li>Redis 키: {ratelimit}:ip:{clientIp}</li>
  * </ul>
  *
+ * <h4>PR #192: Conditional Bean 등록</h4>
+ * <p>{@code ratelimit.enabled=true} 설정 시에만 Bean 등록됨 (기본값: true)</p>
+ *
  * @since Issue #152
  */
 @Component
+@ConditionalOnProperty(prefix = "ratelimit", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class IpBasedRateLimiter extends AbstractBucket4jRateLimiter {
 
     private static final String STRATEGY_NAME = "ip";

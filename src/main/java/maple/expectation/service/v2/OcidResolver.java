@@ -7,6 +7,7 @@ import maple.expectation.external.NexonApiClient;
 import maple.expectation.global.error.exception.CharacterNotFoundException;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
+import maple.expectation.global.util.ExceptionUtils;
 import maple.expectation.repository.v2.GameCharacterRepository;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
@@ -121,8 +122,9 @@ public class OcidResolver {
                     return saveCharacterWithCaching(userIgn, ocid);
                 },
                 e -> {
-                    // CharacterNotFoundException → Negative Cache 저장
-                    if (e instanceof CharacterNotFoundException) {
+                    // PR #199, #241 Fix: CompletionException unwrap 후 CharacterNotFoundException 감지
+                    Throwable unwrapped = ExceptionUtils.unwrapAsyncException(e);
+                    if (unwrapped instanceof CharacterNotFoundException) {
                         log.warn("🚫 [Recovery] 캐릭터 미존재 → 네거티브 캐시 저장: {}", userIgn);
                         Optional.ofNullable(cacheManager.getCache("ocidNegativeCache"))
                                 .ifPresent(c -> c.put(userIgn, "NOT_FOUND"));

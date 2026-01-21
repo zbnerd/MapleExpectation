@@ -73,8 +73,9 @@
         </root>
     </springProfile>
 
-    <!-- Local/Test 프로파일: Console만 사용 -->
-    <springProfile name="local,test,default">
+    <!-- Local/Test/CI 프로파일: Console만 사용 -->
+    <!-- PR #206: CI 프로파일 추가 (GitHub Actions에서 Loki 미사용) -->
+    <springProfile name="local,test,default,ci">
         <root level="INFO">
             <appender-ref ref="CONSOLE" />
         </root>

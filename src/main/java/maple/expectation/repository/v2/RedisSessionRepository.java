@@ -175,27 +175,31 @@ public class RedisSessionRepository {
         return SESSION_KEY_PREFIX + sessionId;
     }
 
+    /**
+     * OCIDs 직렬화 (CLAUDE.md Section 12 준수: LogicExecutor 패턴)
+     */
     private String serializeOcids(Set<String> ocids) {
         if (ocids == null || ocids.isEmpty()) {
             return "[]";
         }
-        try {
-            return objectMapper.writeValueAsString(ocids);
-        } catch (JsonProcessingException e) {
-            log.warn("Failed to serialize OCIDs: {}", e.getMessage());
-            return "[]";
-        }
+        return executor.executeOrDefault(
+                () -> objectMapper.writeValueAsString(ocids),
+                "[]",
+                TaskContext.of("Session", "SerializeOcids", String.valueOf(ocids.size()))
+        );
     }
 
+    /**
+     * OCIDs 역직렬화 (CLAUDE.md Section 12 준수: LogicExecutor 패턴)
+     */
     private Set<String> deserializeOcids(String json) {
         if (json == null || json.isBlank()) {
             return new HashSet<>();
         }
-        try {
-            return objectMapper.readValue(json, new TypeReference<Set<String>>() {});
-        } catch (JsonProcessingException e) {
-            log.warn("Failed to deserialize OCIDs: {}", e.getMessage());
-            return new HashSet<>();
-        }
+        return executor.executeOrDefault(
+                () -> objectMapper.readValue(json, new TypeReference<Set<String>>() {}),
+                new HashSet<>(),
+                TaskContext.of("Session", "DeserializeOcids", json.length() > 20 ? json.substring(0, 20) : json)
+        );
     }
 }

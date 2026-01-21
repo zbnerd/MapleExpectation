@@ -15,7 +15,6 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
 
 @Slf4j
 @Service
@@ -112,8 +111,9 @@ public class ShutdownDataRecoveryService {
     private boolean processBackupData(Path backupFile, ShutdownData data) {
         log.info("📝 [Shutdown Recovery] 처리 중: {} (항목: {}개)", backupFile.getFileName(), data.getTotalItems());
 
-        // P1 Fix: 실패 항목만 수집
-        Map<String, Long> failedEntries = recoverLikeBufferAndCollectFailures(data);
+        // PR #187 Fix: 파일명 기반 결정론적 ID 전달
+        String fileIdentifier = backupFile.getFileName().toString();
+        Map<String, Long> failedEntries = recoverLikeBufferAndCollectFailures(data, fileIdentifier);
         recoverEquipmentPending(data);
 
         // 실패 항목이 있으면 새 백업 파일 생성 (성공 항목 제외)
@@ -128,26 +128,28 @@ public class ShutdownDataRecoveryService {
     }
 
     /**
-     * P1 Fix: 실패 항목만 수집하여 반환 (부분 복구 중복 방지)
+     * PR #187: 멱등성 보장 - 파일명 기반 결정론적 ID
      *
-     * <p>Issue #127 Fix: 멱등성 보장</p>
-     * <ul>
-     *   <li>Redis Set으로 처리 완료 항목 추적</li>
-     *   <li>중복 실행 시 이미 처리된 항목 스킵</li>
-     *   <li>24시간 TTL로 메모리 누수 방지</li>
-     * </ul>
+     * <h4>변경 전 (버그)</h4>
+     * <p>{@code recoveryBatchId = UUID.randomUUID()} 사용으로 재시작 시 동일 항목 중복 처리</p>
      *
-     * @return 복구 실패한 항목들 (성공 시 빈 Map)
+     * <h4>변경 후</h4>
+     * <p>파일명 기반 결정론적 ID 사용 ({@code backupFileName:userIgn})으로
+     * 재시작 시에도 동일 항목은 스킵됨</p>
+     *
+     * @param data 백업 데이터
+     * @param fileIdentifier 백업 파일명 (결정론적 ID 생성용)
+     * @return 복구 실패한 항목들
      */
-    private Map<String, Long> recoverLikeBufferAndCollectFailures(ShutdownData data) {
+    private Map<String, Long> recoverLikeBufferAndCollectFailures(ShutdownData data, String fileIdentifier) {
         Map<String, Long> likeBuffer = data.likeBuffer();
         if (likeBuffer == null || likeBuffer.isEmpty()) return Map.of();
 
         Map<String, Long> failedEntries = new java.util.concurrent.ConcurrentHashMap<>();
-        String recoveryBatchId = UUID.randomUUID().toString();
 
         likeBuffer.forEach((userIgn, count) -> {
-            String entryId = recoveryBatchId + ":" + userIgn;
+            // PR #187 Fix: 파일명 기반 결정론적 ID (UUID.randomUUID() 제거)
+            String entryId = fileIdentifier + ":" + userIgn;
             TaskContext entryContext = TaskContext.of("Recovery", "LikeEntry", userIgn);
 
             executor.executeOrCatch(

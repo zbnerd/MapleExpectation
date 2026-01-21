@@ -1,15 +1,15 @@
 package maple.expectation.global.security;
 
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.global.executor.LogicExecutor;
+import maple.expectation.global.executor.TaskContext;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
-import java.security.InvalidKeyException;
 import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
 import java.util.Objects;
 
@@ -33,10 +33,14 @@ public class FingerprintGenerator {
     private static final String HMAC_ALGORITHM = "HmacSHA256";
 
     private final byte[] serverSecretBytes;
+    private final LogicExecutor executor;
 
-    public FingerprintGenerator(@Value("${auth.fingerprint.secret}") String serverSecret) {
+    public FingerprintGenerator(
+            @Value("${auth.fingerprint.secret}") String serverSecret,
+            LogicExecutor executor) {
         Objects.requireNonNull(serverSecret, "auth.fingerprint.secret must not be null");
         this.serverSecretBytes = serverSecret.getBytes(StandardCharsets.UTF_8);
+        this.executor = executor;
     }
 
     /**
@@ -83,14 +87,19 @@ public class FingerprintGenerator {
         }
     }
 
+    /**
+     * HMAC 계산 (CLAUDE.md Section 12 준수: LogicExecutor 패턴)
+     */
     private byte[] computeHmac(String apiKey) {
-        try {
-            Mac mac = Mac.getInstance(HMAC_ALGORITHM);
-            mac.init(new SecretKeySpec(serverSecretBytes, HMAC_ALGORITHM));
-            return mac.doFinal(apiKey.getBytes(StandardCharsets.UTF_8));
-        } catch (NoSuchAlgorithmException | InvalidKeyException e) {
-            // HMAC-SHA256은 표준 알고리즘이므로 발생 불가
-            throw new IllegalStateException("Failed to compute HMAC: " + e.getMessage(), e);
-        }
+        TaskContext context = TaskContext.of("Fingerprint", "ComputeHmac", "***");
+
+        return executor.execute(
+                () -> {
+                    Mac mac = Mac.getInstance(HMAC_ALGORITHM);
+                    mac.init(new SecretKeySpec(serverSecretBytes, HMAC_ALGORITHM));
+                    return mac.doFinal(apiKey.getBytes(StandardCharsets.UTF_8));
+                },
+                context
+        );
     }
 }
