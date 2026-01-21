@@ -192,12 +192,13 @@ public class SecurityConfig {
                 .anyRequest().authenticated()
             )
 
-            // Rate Limiting 필터 추가 (Issue #152: JWT 필터 이전에 실행)
-            .addFilterBefore(rateLimitingFilter, UsernamePasswordAuthenticationFilter.class)
-
-            // JWT 인증 필터 추가
+            // JWT 인증 필터 추가 (UsernamePasswordAuthenticationFilter 이전)
             .addFilterBefore(jwtAuthenticationFilter,
                 UsernamePasswordAuthenticationFilter.class)
+
+            // PR #192 Fix: Rate Limiting 필터는 JWT 필터 이후에 배치
+            // (User-based rate limiting에 SecurityContext 필요)
+            .addFilterAfter(rateLimitingFilter, JwtAuthenticationFilter.class)
 
             // 인증 실패 핸들링
             .exceptionHandling(ex -> ex

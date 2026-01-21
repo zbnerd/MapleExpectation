@@ -104,6 +104,8 @@ public class SingleFlightExecutor<T> {
      *
      * <p><b>CRITICAL:</b> asyncSupplier.get()이 동기 예외를 던질 경우에도
      * 반드시 cleanup이 수행되어야 함 (메모리 누수 + 데드락 방지)</p>
+     *
+     * <p><b>CLAUDE.md Section 12 준수:</b> CompletableFuture.handle()로 동기 예외 처리</p>
      */
     private CompletableFuture<T> executeAsLeader(
             String key,
@@ -112,22 +114,13 @@ public class SingleFlightExecutor<T> {
 
         CompletableFuture<T> promise = entry.promise();
 
-        // asyncSupplier.get()이 동기 예외를 던질 수 있으므로 try-catch 필수
-        CompletableFuture<T> supplierFuture;
-        try {
-            supplierFuture = asyncSupplier.get();
-        } catch (Exception e) {
-            // 동기 예외 발생 시 즉시 cleanup 수행
-            log.error("[SingleFlight] Leader supplier threw sync exception for key: {}", maskKey(key), e);
-            promise.completeExceptionally(e);
-            inFlight.remove(key, entry);
-            return CompletableFuture.failedFuture(e);
-        }
-
-        return supplierFuture
+        // CLAUDE.md 준수: CompletableFuture 체이닝으로 동기 예외 처리 (try-catch 제거)
+        return CompletableFuture.supplyAsync(asyncSupplier::get, executor)
+                .thenCompose(future -> future)  // flatten CompletableFuture<CompletableFuture<T>>
                 .whenComplete((result, error) -> {
                     if (error != null) {
                         Throwable cause = unwrapCause(error);
+                        log.error("[SingleFlight] Leader failed for key: {}", maskKey(key), cause);
                         promise.completeExceptionally(cause);
                     } else {
                         promise.complete(result);
