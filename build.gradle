@@ -108,16 +108,16 @@ boolean isCiServer = System.getenv().containsKey("CI")
 test {
     useJUnitPlatform {
         // @Tag 기반 테스트 필터링
-        // 기본: sentinel, quarantine 테스트 제외
-        // ./gradlew test -PfastTest → PR Gate용 빠른 테스트 (unit, integration, chaos만)
-        // ./gradlew test -PsentinelTest → Sentinel HA 테스트 전용 (야간 실행)
+        // ./gradlew test -PfastTest → CI Gate (chaos, nightmare, slow 제외 → 3-5분)
+        // ./gradlew test -PsentinelTest → Sentinel HA 테스트 전용 (야간)
+        // ./gradlew test → Nightly 전체 테스트
         if (project.hasProperty('sentinelTest')) {
             includeTags 'sentinel'
         } else if (project.hasProperty('fastTest')) {
-            includeTags 'unit', 'integration', 'chaos'
-            excludeTags 'sentinel', 'slow', 'quarantine'
+            // CI Gate: chaos, nightmare, slow, sentinel, quarantine 제외
+            excludeTags 'sentinel', 'slow', 'quarantine', 'chaos', 'nightmare'
         } else {
-            // 기본: sentinel, quarantine 제외
+            // Nightly: sentinel, quarantine만 제외
             excludeTags 'sentinel', 'quarantine'
         }
     }

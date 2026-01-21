@@ -1,0 +1,102 @@
+# =============================================================================
+# MapleExpectation Nightly Full Test
+# =============================================================================
+# 매일 자정(KST) 전체 테스트 실행 (chaos, nightmare 포함)
+# CI Gate에서는 fastTest만 실행하므로, 전체 테스트는 여기서 수행
+# =============================================================================
+
+name: Nightly Full Test
+
+on:
+  schedule:
+    # 매일 KST 00:00 (UTC 15:00)
+    - cron: '0 15 * * *'
+  workflow_dispatch:  # 수동 실행 가능
+
+permissions:
+  contents: read
+  checks: write
+
+env:
+  JAVA_VERSION: '17'
+  GRADLE_OPTS: '-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true'
+
+jobs:
+  full-test:
+    name: Full Test (Including Chaos/Nightmare)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30  # 전체 테스트는 30분 허용
+
+    services:
+      redis:
+        image: redis:7.0-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+          --memory 256m
+
+      mysql:
+        image: mysql:8.0
+        ports:
+          - 3306:3306
+        env:
+          MYSQL_ROOT_PASSWORD: testpassword
+          MYSQL_DATABASE: maple_test
+          MYSQL_USER: testuser
+          MYSQL_PASSWORD: testpassword
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -u root -ptestpassword"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+          --memory 512m
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Grant Execute Permission
+        run: chmod +x gradlew
+
+      # 전체 테스트 (chaos, nightmare 포함)
+      - name: Run Full Tests
+        run: |
+          echo "🔬 Running FULL tests (including chaos/nightmare)"
+          ./gradlew clean test --no-daemon --stacktrace
+        env:
+          SPRING_PROFILES_ACTIVE: test
+          DOCKER_HOST: unix:///var/run/docker.sock
+          TESTCONTAINERS_RYUK_DISABLED: true
+
+      - name: Upload Test Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-test-reports
+          path: |
+            build/reports/tests/
+            build/test-results/
+          retention-days: 14
+
+      - name: Publish Test Results
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: Nightly Test Results
+          path: 'build/test-results/test/*.xml'
+          reporter: java-junit
+          fail-on-error: false  # Nightly는 실패해도 알림만

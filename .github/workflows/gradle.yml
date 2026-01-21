@@ -47,8 +47,12 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      # PR/Push: -PfastTest (slow, nightmare 제외 → 3-5분)
+      # Nightly: 전체 테스트 (별도 워크플로우)
       - name: Test with Gradle
-        run: ./gradlew test -i
+        run: |
+          echo "🚀 Running fast tests (CI Gate)"
+          ./gradlew test -PfastTest --stacktrace
 
       - name: Build JAR
         run: ./gradlew clean build -x test
