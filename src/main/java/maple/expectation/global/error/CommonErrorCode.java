@@ -40,7 +40,8 @@ public enum CommonErrorCode implements ErrorCode {
     SERVICE_UNAVAILABLE("S007", "서비스가 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해주세요.", HttpStatus.SERVICE_UNAVAILABLE),
     REDIS_SCRIPT_EXECUTION_FAILED("S008", "Redis 스크립트 실행 실패 (스크립트: %s)", HttpStatus.INTERNAL_SERVER_ERROR),
     DATABASE_NAMED_LOCK_FAILED("S009", "DB named lock 처리 실패: %s (lockKey=%s, waitTime=%s)", HttpStatus.INTERNAL_SERVER_ERROR),
-    API_TIMEOUT("S010", "외부 API 호출 시간 초과 (%s)", HttpStatus.SERVICE_UNAVAILABLE);
+    API_TIMEOUT("S010", "외부 API 호출 시간 초과 (%s)", HttpStatus.SERVICE_UNAVAILABLE),
+    INSUFFICIENT_RESOURCE("S011", "리소스가 부족합니다: %s", HttpStatus.SERVICE_UNAVAILABLE);
 
 
     private final String code;

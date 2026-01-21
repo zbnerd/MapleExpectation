@@ -184,7 +184,7 @@ class ZombieOutboxNightmareTest extends IntegrationTestSupport {
         log.info("│   Nightmare 13: Zombie Outbox Recovery (Real Service)      │");
         log.info("├────────────────────────────────────────────────────────────┤");
         log.info("│ Service Used: DonationService.sendCoffee()                 │");
-        log.info("│ Request ID: {}...                                          │", requestId.substring(0, 20));
+        log.info("│ Request ID: {}                                              │", requestId);
 
         if (recovered != null) {
             log.info("│ Initial Status: PENDING → Forced to PROCESSING            │");
@@ -232,7 +232,7 @@ class ZombieOutboxNightmareTest extends IntegrationTestSupport {
             createdRequestIds.add(requestId);
 
             donationService.sendCoffee(guest.getUuid(), testAdminFingerprint, 1000L, requestId);
-            log.info("[Blue] Created Outbox {}: {}...", i + 1, requestId.substring(0, 25));
+            log.info("[Blue] Created Outbox {}: {}", i + 1, requestId);
         }
 
         // 모든 Outbox를 Zombie로 변환
