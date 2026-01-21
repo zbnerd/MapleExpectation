@@ -12,6 +12,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import maple.expectation.global.error.exception.InternalSystemException;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -116,15 +118,17 @@ class PipelineExceptionNightmareTest extends AbstractContainerBaseTest {
      * 🔵 Blue's Test 2: execute 패턴은 예외를 전파하는지 검증
      *
      * <p>executeOrDefault와 달리 execute는 예외를 전파해야 함</p>
+     * <p><b>#230 수정</b>: LogicExecutor는 비-BaseException을 InternalSystemException으로 래핑하므로
+     * cause 체인에서 원본 메시지를 확인해야 함</p>
      */
     @Test
-    @DisplayName("execute 패턴 예외 전파 검증")
+    @DisplayName("execute 패턴 예외 전파 검증 - cause 체인 보존")
     void shouldPropagateException_withExecute() {
         TaskContext context = TaskContext.of("Nightmare14", "ExceptionPropagate", "test-2");
 
-        log.info("[Blue] Testing execute exception propagation...");
+        log.info("[Blue] Testing execute exception propagation with cause chain...");
 
-        // When/Then: 예외가 전파되어야 함
+        // When/Then: 예외가 InternalSystemException으로 래핑되어 전파되고, cause 체인에 원본 메시지 보존
         assertThatThrownBy(() ->
                 executor.execute(
                         () -> {
@@ -133,13 +137,17 @@ class PipelineExceptionNightmareTest extends AbstractContainerBaseTest {
                         },
                         context
                 )
-        ).isInstanceOf(RuntimeException.class)
-                .hasMessageContaining("propagate");
+        )
+                .isInstanceOf(InternalSystemException.class)
+                .hasCauseInstanceOf(RuntimeException.class)
+                .hasRootCauseMessage("This should propagate");
 
         log.info("┌────────────────────────────────────────────────────────────┐");
-        log.info("│         execute() Exception Propagation                    │");
+        log.info("│         execute() Exception Propagation (#230 Fixed)       │");
         log.info("├────────────────────────────────────────────────────────────┤");
-        log.info("│ ✅ Exception properly propagated                           │");
+        log.info("│ ✅ Exception wrapped in InternalSystemException            │");
+        log.info("│ ✅ Cause chain preserved (RuntimeException)                │");
+        log.info("│ ✅ Root cause message accessible for debugging             │");
         log.info("│    Use execute() for critical operations                   │");
         log.info("└────────────────────────────────────────────────────────────┘");
     }
