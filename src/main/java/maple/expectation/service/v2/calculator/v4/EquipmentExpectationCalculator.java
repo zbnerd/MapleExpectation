@@ -56,16 +56,24 @@ public interface EquipmentExpectationCalculator {
     CostBreakdown getDetailedCosts();
 
     /**
-     * 비용 상세 분류 Record
+     * 비용 상세 분류 Record (#240 V4: trials 추가)
+     *
+     * <p>trials는 기대 시도 횟수로, 정수로 변환하여 사용합니다.</p>
      */
     record CostBreakdown(
             BigDecimal blackCubeCost,
             BigDecimal redCubeCost,
             BigDecimal additionalCubeCost,
-            BigDecimal starforceCost
+            BigDecimal starforceCost,
+            BigDecimal blackCubeTrials,      // #240 V4: 블랙큐브 기대 시도 횟수
+            BigDecimal redCubeTrials,        // #240 V4: 레드큐브 기대 시도 횟수
+            BigDecimal additionalCubeTrials  // #240 V4: 에디셔널큐브 기대 시도 횟수
     ) {
         public static CostBreakdown empty() {
             return new CostBreakdown(
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
                     BigDecimal.ZERO,
                     BigDecimal.ZERO,
                     BigDecimal.ZERO,
@@ -81,19 +89,38 @@ public interface EquipmentExpectationCalculator {
         }
 
         public CostBreakdown withBlackCube(BigDecimal cost) {
-            return new CostBreakdown(cost, redCubeCost, additionalCubeCost, starforceCost);
+            return new CostBreakdown(cost, redCubeCost, additionalCubeCost, starforceCost,
+                    blackCubeTrials, redCubeTrials, additionalCubeTrials);
+        }
+
+        public CostBreakdown withBlackCube(BigDecimal cost, BigDecimal trials) {
+            return new CostBreakdown(cost, redCubeCost, additionalCubeCost, starforceCost,
+                    trials, redCubeTrials, additionalCubeTrials);
         }
 
         public CostBreakdown withRedCube(BigDecimal cost) {
-            return new CostBreakdown(blackCubeCost, cost, additionalCubeCost, starforceCost);
+            return new CostBreakdown(blackCubeCost, cost, additionalCubeCost, starforceCost,
+                    blackCubeTrials, redCubeTrials, additionalCubeTrials);
+        }
+
+        public CostBreakdown withRedCube(BigDecimal cost, BigDecimal trials) {
+            return new CostBreakdown(blackCubeCost, cost, additionalCubeCost, starforceCost,
+                    blackCubeTrials, trials, additionalCubeTrials);
         }
 
         public CostBreakdown withAdditionalCube(BigDecimal cost) {
-            return new CostBreakdown(blackCubeCost, redCubeCost, cost, starforceCost);
+            return new CostBreakdown(blackCubeCost, redCubeCost, cost, starforceCost,
+                    blackCubeTrials, redCubeTrials, additionalCubeTrials);
+        }
+
+        public CostBreakdown withAdditionalCube(BigDecimal cost, BigDecimal trials) {
+            return new CostBreakdown(blackCubeCost, redCubeCost, cost, starforceCost,
+                    blackCubeTrials, redCubeTrials, trials);
         }
 
         public CostBreakdown withStarforce(BigDecimal cost) {
-            return new CostBreakdown(blackCubeCost, redCubeCost, additionalCubeCost, cost);
+            return new CostBreakdown(blackCubeCost, redCubeCost, additionalCubeCost, cost,
+                    blackCubeTrials, redCubeTrials, additionalCubeTrials);
         }
     }
 }

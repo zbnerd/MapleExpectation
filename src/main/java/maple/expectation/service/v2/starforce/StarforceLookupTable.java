@@ -25,15 +25,34 @@ import java.math.BigDecimal;
 public interface StarforceLookupTable {
 
     /**
-     * 현재 스타에서 목표 스타까지 기대 비용 계산
+     * 현재 스타에서 목표 스타까지 기대 비용 계산 (기본 옵션 적용)
      *
-     * @param currentStar 현재 스타포스 (0~25)
-     * @param targetStar 목표 스타포스 (currentStar ~ 25)
+     * <p>기본 옵션: 스타캐치 O, 썬데이메이플 O, 30% 할인 O, 파괴방지 X</p>
+     *
+     * @param currentStar 현재 스타포스 (0~30)
+     * @param targetStar 목표 스타포스 (currentStar ~ 30)
      * @param itemLevel 아이템 레벨 (1~300)
      * @return 기대 비용 (메소)
      * @throws IllegalArgumentException 유효하지 않은 스타 범위
      */
     BigDecimal getExpectedCost(int currentStar, int targetStar, int itemLevel);
+
+    /**
+     * 레벨별 최대 스타포스 반환
+     *
+     * <ul>
+     *   <li>~94lv: 5성</li>
+     *   <li>95~107: 8성</li>
+     *   <li>108~117: 10성</li>
+     *   <li>118~127: 15성</li>
+     *   <li>128~137: 20성</li>
+     *   <li>138+: 30성</li>
+     * </ul>
+     *
+     * @param itemLevel 아이템 레벨
+     * @return 최대 스타포스
+     */
+    int getMaxStarForLevel(int itemLevel);
 
     /**
      * 특정 스타에서 성공 확률 조회
@@ -59,6 +78,36 @@ public interface StarforceLookupTable {
      * @return 1회 강화 비용 (메소)
      */
     BigDecimal getSingleEnhanceCost(int currentStar, int itemLevel);
+
+    /**
+     * 옵션별 기대 비용 계산
+     *
+     * @param currentStar 현재 스타
+     * @param targetStar 목표 스타
+     * @param itemLevel 아이템 레벨
+     * @param useStarCatch 스타캐치 사용 여부 (성공률 1.05배)
+     * @param useSundayMaple 썬데이메이플 적용 여부 (파괴율 30% 감소, 22성 미만만)
+     * @param useDiscount 30% 할인 적용 여부
+     * @param useDestroyPrevention 파괴방지 사용 여부 (15-17성만, 비용 200% 추가)
+     * @return 기대 비용
+     */
+    BigDecimal getExpectedCost(int currentStar, int targetStar, int itemLevel,
+                               boolean useStarCatch, boolean useSundayMaple,
+                               boolean useDiscount, boolean useDestroyPrevention);
+
+    /**
+     * 기대 파괴 횟수 계산
+     *
+     * @param currentStar 현재 스타포스
+     * @param targetStar 목표 스타포스
+     * @param useStarCatch 스타캐치 사용 여부
+     * @param useSundayMaple 썬데이메이플 적용 여부
+     * @param useDestroyPrevention 파괴방지 사용 여부 (15-17성)
+     * @return 기대 파괴 횟수
+     */
+    BigDecimal getExpectedDestroyCount(int currentStar, int targetStar,
+                                       boolean useStarCatch, boolean useSundayMaple,
+                                       boolean useDestroyPrevention);
 
     /**
      * 초기화 (서버 시작 시 호출)

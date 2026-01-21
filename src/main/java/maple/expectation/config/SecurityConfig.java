@@ -177,6 +177,12 @@ public class SecurityConfig {
                 // GET /api/v3/characters/{userIgn}/expectation - 기대값 계산
                 .requestMatchers(HttpMethod.GET, "/api/v3/characters/**").permitAll()
 
+                // ★ v4 API (인증 없이 접근 가능) (#240)
+                // GET /api/v4/characters/{userIgn}/expectation - 기대값 계산
+                // POST /api/v4/characters/{userIgn}/expectation/recalculate - 재계산
+                .requestMatchers(HttpMethod.GET, "/api/v4/characters/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/v4/characters/**/recalculate").permitAll()
+
                 // 기존 v1/v2 API (인증 없이 접근 가능 - 점진적 마이그레이션)
                 .requestMatchers(HttpMethod.GET, "/api/v1/characters/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v2/cubes/**").permitAll()

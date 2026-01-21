@@ -54,17 +54,17 @@ public class BlackCubeDecoratorV4 extends EquipmentEnhanceDecorator {
         // 1. 이전 단계 누적 비용
         BigDecimal previousCost = super.calculateCost();
 
-        // 2. 블랙큐브 기대 시도 횟수 계산
+        // 2. 블랙큐브 기대 시도 횟수 계산 → 정수 반올림 (#240 V4)
         BigDecimal expectedTrials = calculateTrials();
+        BigDecimal roundedTrials = expectedTrials.setScale(0, RoundingMode.HALF_UP);
 
         // 3. 단가 조회 (BigDecimal)
         BigDecimal costPerTrial = BigDecimal.valueOf(
                 costPolicy.getCubeCost(CubeType.BLACK, input.getLevel(), input.getGrade())
         );
 
-        // 4. 블랙큐브 총 비용 = 시도 횟수 × 단가
-        BigDecimal blackCubeCost = expectedTrials.multiply(costPerTrial)
-                .setScale(PRECISION_SCALE, RoundingMode.HALF_UP);
+        // 4. 블랙큐브 총 비용 = 반올림된 시도 횟수 × 단가
+        BigDecimal blackCubeCost = roundedTrials.multiply(costPerTrial);
 
         return previousCost.add(blackCubeCost);
     }
@@ -93,14 +93,16 @@ public class BlackCubeDecoratorV4 extends EquipmentEnhanceDecorator {
     public CostBreakdown getDetailedCosts() {
         CostBreakdown base = super.getDetailedCosts();
 
+        // #240 V4: trials를 정수로 반올림 후 cost 계산
         BigDecimal expectedTrials = calculateTrials();
+        BigDecimal roundedTrials = expectedTrials.setScale(0, RoundingMode.HALF_UP);
         BigDecimal costPerTrial = BigDecimal.valueOf(
                 costPolicy.getCubeCost(CubeType.BLACK, input.getLevel(), input.getGrade())
         );
-        BigDecimal blackCubeCost = expectedTrials.multiply(costPerTrial)
-                .setScale(PRECISION_SCALE, RoundingMode.HALF_UP);
+        BigDecimal blackCubeCost = roundedTrials.multiply(costPerTrial);
 
-        return base.withBlackCube(base.blackCubeCost().add(blackCubeCost));
+        // #240 V4: 반올림된 trials 정보 포함
+        return base.withBlackCube(base.blackCubeCost().add(blackCubeCost), roundedTrials);
     }
 
     @Override

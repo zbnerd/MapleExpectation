@@ -14,6 +14,7 @@ import java.util.List;
  *   <li>스타포스 정보 포함 (currentStar, targetStar)</li>
  *   <li>에디셔널 잠재능력 정보 포함</li>
  *   <li>프리셋 번호 포함</li>
+ *   <li>아이콘 URL, 놀장 여부 포함</li>
  * </ul>
  */
 @Getter
@@ -23,9 +24,12 @@ public class EquipmentCalculationInput {
     // ==================== 기본 정보 ====================
 
     private final String itemName;
-    private final String itemPart;  // 장착 부위 (모자, 상의 등)
+    private final String itemPart;          // 장착 부위 (모자, 상의 등)
+    private final String itemEquipmentPart; // 세부 분류 (포스실드, 소울링 등)
+    private final String itemIcon;          // 아이콘 URL (#240 V4)
     private final int itemLevel;
-    private final int presetNo;     // 프리셋 번호 (1, 2, 3)
+    private final int presetNo;             // 프리셋 번호 (1, 2, 3)
+    private final boolean isNoljang;        // 놀장 장비 여부 (#240 V4)
 
     // ==================== 윗잠재 (메인 잠재능력) ====================
 
