@@ -7,6 +7,7 @@ import maple.expectation.global.ratelimit.strategy.UserBasedRateLimiter;
 import maple.expectation.service.v2.facade.GameCharacterFacade;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -31,6 +32,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@Tag("integration")
 @DisplayName("RateLimitingFilter 통합 테스트")
 class RateLimitingFilterIntegrationTest {
 

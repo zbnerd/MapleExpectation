@@ -4,6 +4,7 @@ import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.external.impl.RealNexonApiClient;
 import maple.expectation.service.v2.GameCharacterService;
 import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -13,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @SpringBootTest
 @Transactional
+@Tag("integration")
 class ExpectationApplicationTests {
 
     @Autowired
