@@ -108,27 +108,26 @@ public class OcidResolver {
     }
 
     /**
-     * 캐릭터 생성 (NexonAPI 호출 → DB 저장)
+     * 캐릭터 생성 - Issue #226: 트랜잭션 경계 분리
+     *
+     * <h4>Connection Pool 고갈 방지 (P1)</h4>
+     * <p>기존 문제: @Transactional 범위 내 .join() 호출 → 최대 28초 DB Connection 점유</p>
+     * <p>해결: API 호출은 트랜잭션 밖, DB 작업만 트랜잭션 안</p>
+     *
+     * @see <a href="https://github.com/issue/226">Issue #226: Connection Vampire 방지</a>
      */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public GameCharacter createNewCharacter(String userIgn) {
         TaskContext context = TaskContext.of("Character", "Create", userIgn);
 
         return executor.executeOrCatch(
                 () -> {
                     log.info("✨ [Creation] 캐릭터 생성 시작: {}", userIgn);
-                    // Issue #195: .block() 제거 - 이 메서드는 이미 async 스레드에서 실행됨
+
+                    // Step 1: API 호출 (트랜잭션 밖 - DB Connection 점유 없음)
                     String ocid = nexonApiClient.getOcidByCharacterName(userIgn).join().getOcid();
 
-                    GameCharacter saved = gameCharacterRepository.saveAndFlush(
-                            new GameCharacter(userIgn, ocid)
-                    );
-
-                    // Positive Cache
-                    Optional.ofNullable(cacheManager.getCache("ocidCache"))
-                            .ifPresent(c -> c.put(userIgn, ocid));
-
-                    return saved;
+                    // Step 2: DB 저장 (트랜잭션 안 - 짧은 Connection 점유 ~100ms)
+                    return saveCharacterWithCaching(userIgn, ocid);
                 },
                 e -> {
                     // CharacterNotFoundException → Negative Cache 저장
@@ -141,6 +140,24 @@ public class OcidResolver {
                 },
                 context
         );
+    }
+
+    /**
+     * DB 저장 + 캐싱 (트랜잭션 범위 최소화) - Issue #226
+     *
+     * <p>Connection 점유 시간: ~100ms (28초 → 100ms)</p>
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public GameCharacter saveCharacterWithCaching(String userIgn, String ocid) {
+        GameCharacter saved = gameCharacterRepository.saveAndFlush(
+                new GameCharacter(userIgn, ocid)
+        );
+
+        // Positive Cache
+        Optional.ofNullable(cacheManager.getCache("ocidCache"))
+                .ifPresent(c -> c.put(userIgn, ocid));
+
+        return saved;
     }
 
     /**
