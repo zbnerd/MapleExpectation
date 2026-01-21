@@ -114,8 +114,8 @@ test {
         if (project.hasProperty('sentinelTest')) {
             includeTags 'sentinel'
         } else if (project.hasProperty('fastTest')) {
-            // CI Gate: chaos, nightmare, slow, sentinel, quarantine 제외
-            excludeTags 'sentinel', 'slow', 'quarantine', 'chaos', 'nightmare'
+            // CI Gate: integration, chaos, nightmare 등 무거운 테스트 제외 (1-2분)
+            excludeTags 'sentinel', 'slow', 'quarantine', 'chaos', 'nightmare', 'integration'
         } else {
             // Nightly: sentinel, quarantine만 제외
             excludeTags 'sentinel', 'quarantine'
