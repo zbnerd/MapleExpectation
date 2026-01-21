@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [ "master" ]
 
+# SRE: Cancel in-progress runs for same PR (save resources)
+concurrency:
+  group: gradle-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -15,6 +20,7 @@ jobs:
   # ==========================================
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20  # SRE: Prevent zombie jobs (Issue #240)
     services:
       redis:
         image: redis
@@ -61,6 +67,7 @@ jobs:
     needs: build
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
+    timeout-minutes: 10  # SRE: Prevent zombie deploy jobs
 
     steps:
       - name: Download Build Artifact
