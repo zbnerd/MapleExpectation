@@ -80,6 +80,36 @@ public interface StarforceLookupTable {
     BigDecimal getSingleEnhanceCost(int currentStar, int itemLevel);
 
     /**
+     * 옵션별 기대 비용 계산
+     *
+     * @param currentStar 현재 스타
+     * @param targetStar 목표 스타
+     * @param itemLevel 아이템 레벨
+     * @param useStarCatch 스타캐치 사용 여부 (성공률 1.05배)
+     * @param useSundayMaple 썬데이메이플 적용 여부 (파괴율 30% 감소, 22성 미만만)
+     * @param useDiscount 30% 할인 적용 여부
+     * @param useDestroyPrevention 파괴방지 사용 여부 (15-17성만, 비용 200% 추가)
+     * @return 기대 비용
+     */
+    BigDecimal getExpectedCost(int currentStar, int targetStar, int itemLevel,
+                               boolean useStarCatch, boolean useSundayMaple,
+                               boolean useDiscount, boolean useDestroyPrevention);
+
+    /**
+     * 기대 파괴 횟수 계산
+     *
+     * @param currentStar 현재 스타포스
+     * @param targetStar 목표 스타포스
+     * @param useStarCatch 스타캐치 사용 여부
+     * @param useSundayMaple 썬데이메이플 적용 여부
+     * @param useDestroyPrevention 파괴방지 사용 여부 (15-17성)
+     * @return 기대 파괴 횟수
+     */
+    BigDecimal getExpectedDestroyCount(int currentStar, int targetStar,
+                                       boolean useStarCatch, boolean useSundayMaple,
+                                       boolean useDestroyPrevention);
+
+    /**
      * 초기화 (서버 시작 시 호출)
      *
      * <p>Pre-compute all starforce expected values for faster lookup.</p>

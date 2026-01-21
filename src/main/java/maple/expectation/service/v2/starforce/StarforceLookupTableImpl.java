@@ -306,6 +306,50 @@ public class StarforceLookupTableImpl implements StarforceLookupTable {
         return initialized.get();
     }
 
+    @Override
+    public BigDecimal getExpectedDestroyCount(int currentStar, int targetStar,
+                                               boolean useStarCatch, boolean useSundayMaple,
+                                               boolean useDestroyPrevention) {
+        int maxStar = 30;
+        if (targetStar > maxStar) {
+            targetStar = maxStar;
+        }
+        if (currentStar >= targetStar) {
+            return BigDecimal.ZERO;
+        }
+
+        BigDecimal totalExpectedDestroys = BigDecimal.ZERO;
+
+        for (int star = currentStar; star < targetStar; star++) {
+            // 파괴방지 적용 시 15-17성에서 파괴 없음
+            boolean applyDestroyPrevention = useDestroyPrevention && canUseDestroyPrevention(star);
+
+            double baseSuccess = BASE_SUCCESS_RATES[star];
+            double baseDestroy = BASE_DESTROY_RATES[star];
+
+            // 스타캐치: 성공률 1.05배
+            double successRate = useStarCatch ? Math.min(baseSuccess * 1.05, 1.0) : baseSuccess;
+
+            // 파괴율 계산
+            double destroyRate;
+            if (applyDestroyPrevention) {
+                destroyRate = 0.0;
+            } else {
+                // 썬데이메이플: 파괴율 30% 감소 (22성 미만만)
+                destroyRate = (useSundayMaple && star < 22) ? baseDestroy * 0.7 : baseDestroy;
+            }
+
+            // 기대 파괴 횟수 = (1/성공확률) * 파괴확률
+            if (successRate > 0 && destroyRate > 0) {
+                BigDecimal expectedDestroy = BigDecimal.valueOf(destroyRate)
+                        .divide(BigDecimal.valueOf(successRate), MC);
+                totalExpectedDestroys = totalExpectedDestroys.add(expectedDestroy);
+            }
+        }
+
+        return totalExpectedDestroys.setScale(2, RoundingMode.HALF_UP);
+    }
+
     private void computeAndCache(int star, int level, boolean starCatch,
                                   boolean sunday, boolean discount, boolean destroyPrev) {
         String key = cacheKey(star, level, starCatch, sunday, discount, destroyPrev);

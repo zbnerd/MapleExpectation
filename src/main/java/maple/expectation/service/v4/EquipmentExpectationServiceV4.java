@@ -10,6 +10,7 @@ import maple.expectation.dto.v4.EquipmentExpectationResponseV4;
 import maple.expectation.dto.v4.EquipmentExpectationResponseV4.CostBreakdownDto;
 import maple.expectation.dto.v4.EquipmentExpectationResponseV4.ItemExpectationV4;
 import maple.expectation.dto.v4.EquipmentExpectationResponseV4.PresetExpectation;
+import maple.expectation.dto.v4.EquipmentExpectationResponseV4.StarforceExpectationDto;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.parser.EquipmentStreamingParser;
@@ -18,6 +19,7 @@ import maple.expectation.repository.v2.EquipmentExpectationSummaryRepository;
 import maple.expectation.service.v2.calculator.v4.EquipmentExpectationCalculator;
 import maple.expectation.service.v2.calculator.v4.EquipmentExpectationCalculatorFactory;
 import maple.expectation.service.v2.facade.GameCharacterFacade;
+import maple.expectation.service.v2.starforce.StarforceLookupTable;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -58,6 +60,7 @@ public class EquipmentExpectationServiceV4 {
     private final EquipmentStreamingParser streamingParser;
     private final EquipmentExpectationCalculatorFactory calculatorFactory;
     private final EquipmentExpectationSummaryRepository summaryRepository;
+    private final StarforceLookupTable starforceLookupTable;
     private final LogicExecutor executor;
     private final Executor equipmentExecutor;
 
@@ -67,6 +70,7 @@ public class EquipmentExpectationServiceV4 {
             EquipmentStreamingParser streamingParser,
             EquipmentExpectationCalculatorFactory calculatorFactory,
             EquipmentExpectationSummaryRepository summaryRepository,
+            StarforceLookupTable starforceLookupTable,
             LogicExecutor executor,
             @Qualifier("equipmentProcessingExecutor") Executor equipmentExecutor) {
         this.gameCharacterFacade = gameCharacterFacade;
@@ -74,6 +78,7 @@ public class EquipmentExpectationServiceV4 {
         this.streamingParser = streamingParser;
         this.calculatorFactory = calculatorFactory;
         this.summaryRepository = summaryRepository;
+        this.starforceLookupTable = starforceLookupTable;
         this.executor = executor;
         this.equipmentExecutor = equipmentExecutor;
     }
@@ -248,6 +253,10 @@ public class EquipmentExpectationServiceV4 {
             BigDecimal itemCost = calculator.calculateCost();
             var costBreakdown = calculator.getDetailedCosts();
 
+            // 스타포스 기대값 (파괴방지 O/X) 계산 (#240)
+            StarforceExpectationDto starforceExpectation = calculateStarforceExpectation(
+                    input.getCurrentStar(), input.getTargetStar(), input.getItemLevel());
+
             // 결과 수집
             ItemExpectationV4 itemResult = ItemExpectationV4.builder()
                     .itemName(input.getItemName())
@@ -259,6 +268,7 @@ public class EquipmentExpectationServiceV4 {
                     .potentialGrade(input.getPotentialGrade())
                     .currentStar(input.getCurrentStar())
                     .targetStar(input.getTargetStar())
+                    .starforceExpectation(starforceExpectation)
                     .build();
 
             itemResults.add(itemResult);
@@ -271,6 +281,37 @@ public class EquipmentExpectationServiceV4 {
                 .totalExpectedCost(totalCost)
                 .costBreakdown(totalBreakdown)
                 .items(itemResults)
+                .build();
+    }
+
+    /**
+     * 스타포스 기대값 계산 (파괴방지 O/X) (#240)
+     *
+     * <p>기본 옵션: 스타캐치 O, 썬데이메이플 O, 30% 할인 O</p>
+     *
+     * @param currentStar 현재 스타
+     * @param targetStar 목표 스타
+     * @param itemLevel 아이템 레벨
+     * @return 파괴방지 O/X 별 기대값
+     */
+    private StarforceExpectationDto calculateStarforceExpectation(int currentStar, int targetStar, int itemLevel) {
+        // 파괴방지 X (기본 옵션: 스타캐치 O, 썬데이 O, 할인 O)
+        BigDecimal costWithout = starforceLookupTable.getExpectedCost(
+                currentStar, targetStar, itemLevel, true, true, true, false);
+        BigDecimal destroyCountWithout = starforceLookupTable.getExpectedDestroyCount(
+                currentStar, targetStar, true, true, false);
+
+        // 파괴방지 O (15-17성에만 적용)
+        BigDecimal costWith = starforceLookupTable.getExpectedCost(
+                currentStar, targetStar, itemLevel, true, true, true, true);
+        BigDecimal destroyCountWith = starforceLookupTable.getExpectedDestroyCount(
+                currentStar, targetStar, true, true, true);
+
+        return StarforceExpectationDto.builder()
+                .costWithoutDestroyPrevention(costWithout)
+                .expectedDestroyCountWithout(destroyCountWithout)
+                .costWithDestroyPrevention(costWith)
+                .expectedDestroyCountWith(destroyCountWith)
                 .build();
     }
 

@@ -65,6 +65,36 @@ public class EquipmentExpectationResponseV4 {
         // 스타포스 정보
         private final int currentStar;
         private final int targetStar;
+
+        // 스타포스 옵션별 기대값 (#240)
+        private final StarforceExpectationDto starforceExpectation;
+    }
+
+    /**
+     * 스타포스 기대값 DTO (#240)
+     *
+     * <p>ALL 파괴방지 O / ALL 파괴방지 X 두 가지 케이스 제공</p>
+     */
+    @Getter
+    @Builder
+    public static class StarforceExpectationDto {
+
+        // 파괴방지 X 케이스 (기본)
+        private final BigDecimal costWithoutDestroyPrevention;
+        private final BigDecimal expectedDestroyCountWithout;
+
+        // 파괴방지 O 케이스 (15-17성 적용)
+        private final BigDecimal costWithDestroyPrevention;
+        private final BigDecimal expectedDestroyCountWith;
+
+        public static StarforceExpectationDto empty() {
+            return StarforceExpectationDto.builder()
+                    .costWithoutDestroyPrevention(BigDecimal.ZERO)
+                    .expectedDestroyCountWithout(BigDecimal.ZERO)
+                    .costWithDestroyPrevention(BigDecimal.ZERO)
+                    .expectedDestroyCountWith(BigDecimal.ZERO)
+                    .build();
+        }
     }
 
     @Getter
