@@ -18,7 +18,8 @@ spring:
       leak-detection-threshold: 60000  # 60초 이상 반납 안되면 누수 의심 로그
       # [P0-N07 Fix] MDL Freeze 방지 - 세션 lock_wait_timeout 설정
       # 단일 문장만 지원 (P1-GREEN-01), MDL에는 lock_wait_timeout이 효과적
-      connection-init-sql: "SET SESSION lock_wait_timeout = 10"
+      # Issue #225: lock_wait_timeout 10s → 8s (Timeout Hierarchy 정렬 - Redis timeout과 동일)
+      connection-init-sql: "SET SESSION lock_wait_timeout = 8"
 
   # 공통 JPA 설정
   jpa:
@@ -134,7 +135,7 @@ nexon:
     # 타임아웃 설정 (기본값 - 필요 시 환경별로 오버라이드)
     connect-timeout: 3s              # TCP 연결 타임아웃
     response-timeout: 5s             # HTTP 응답 타임아웃
-    cache-follower-timeout-seconds: 32  # 캐시 Follower 대기 타임아웃 (TimeLimiter 28s + 여유 4s)
+    cache-follower-timeout-seconds: 30  # Issue #225: 32s → 30s (TimeLimiter 28s + 여유 2s, Zombie Request 방지)
     latch-initial-ttl-seconds: 60    # 래치 초기 TTL (리더 크래시 대비)
     latch-finalize-ttl-seconds: 10   # 래치 정리 후 TTL (팔로워 조회 여유)
 

@@ -55,3 +55,6 @@ temp_*.txt
 # Personal documents (resume, cover letters) - moved to 99_Archive
 docs/99_Archive/
 scripts/*
+/.claude/settings.json
+/docker/logs/mysql/slow.log
+/.claude/ralph-loop.local.md

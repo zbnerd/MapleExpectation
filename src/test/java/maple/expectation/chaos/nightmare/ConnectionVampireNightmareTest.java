@@ -23,34 +23,35 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 /**
- * Nightmare 04: Connection Vampire - DB Connection Pool 고갈 테스트
+ * Nightmare 04: Connection Vampire - DB Connection Pool 고갈 방지 검증 테스트
  *
  * <h4>5-Agent Council</h4>
  * <ul>
  *   <li>Red (SRE): 장애 주입 - 외부 API 10초 지연으로 커넥션 점유 유발</li>
- *   <li>Blue (Architect): 흐름 검증 - @Transactional 내 외부 API 블로킹 호출 패턴</li>
+ *   <li>Blue (Architect): 흐름 검증 - 트랜잭션 경계 분리 패턴 적용</li>
  *   <li>Green (Performance): 메트릭 검증 - HikariCP Pool 사용률, Connection Wait Time</li>
  *   <li>Purple (Auditor): 데이터 무결성 - 트랜잭션 롤백 시 일관성 유지</li>
- *   <li>Yellow (QA Master): 테스트 전략 - Pool 고갈 시 Fail-Fast 검증</li>
+ *   <li>Yellow (QA Master): 테스트 전략 - Pool 고갈 방지 검증</li>
  * </ul>
  *
- * <h4>예상 결과: FAIL</h4>
- * <p>GameCharacterService.createNewCharacter()가 @Transactional 범위 내에서
- * nexonApiClient.getOcidByCharacterName().join()을 호출하여 최대 28초간
- * DB 커넥션을 점유합니다.</p>
+ * <h4>예상 결과: PASS (Issue #226 수정 후)</h4>
+ * <p>GameCharacterService.createNewCharacter()가 트랜잭션 경계 분리 패턴을 적용하여
+ * API 호출은 트랜잭션 밖에서, DB 저장은 트랜잭션 안에서 수행합니다.
+ * 커넥션 점유 시간: 28초 → ~100ms</p>
  *
- * <h4>취약점 위치</h4>
- * <p>GameCharacterService.java Line 70-102</p>
+ * <h4>해결된 취약점</h4>
+ * <p>GameCharacterService.java, OcidResolver.java - 트랜잭션 경계 분리</p>
  *
  * <h4>관련 CS 원리</h4>
  * <ul>
- *   <li>Connection Pool Exhaustion: 커넥션 점유로 인한 풀 고갈</li>
- *   <li>Transaction Scope: 트랜잭션 경계가 외부 I/O를 포함하면 안됨</li>
- *   <li>Blocking I/O in Transaction: .join() 호출이 트랜잭션 내에서 블로킹</li>
- *   <li>Little's Law: L = λW (대기 커넥션 = 도착률 × 평균 점유 시간)</li>
+ *   <li>Transaction Scope Minimization: 트랜잭션 경계를 DB 작업에만 한정</li>
+ *   <li>Connection Pool Efficiency: 외부 I/O를 트랜잭션 밖에서 처리</li>
+ *   <li>Separation of Concerns: API 호출과 DB 작업 분리</li>
+ *   <li>Little's Law: L = λW (짧은 점유 시간 = 적은 대기 커넥션)</li>
  * </ul>
  *
  * @see maple.expectation.service.v2.GameCharacterService#createNewCharacter(String)
+ * @see <a href="https://github.com/issue/226">Issue #226: Connection Vampire 방지</a>
  */
 @Slf4j
 @Tag("nightmare")
@@ -80,21 +81,28 @@ class ConnectionVampireNightmareTest extends AbstractContainerBaseTest {
     }
 
     /**
-     * Red's Test 1: 외부 API 지연 시 DB Connection Pool 고갈 검증
+     * Red's Test 1: 외부 API 지연 시에도 DB Connection Pool 고갈 방지 검증 (Issue #226 수정 후)
      *
      * <p><b>시나리오</b>:
      * <ol>
-     *   <li>외부 API에 10초 지연 주입 (Mock)</li>
+     *   <li>외부 API에 5초 지연 주입 (Mock)</li>
      *   <li>동시에 20개 요청 발생 (Pool 크기의 2배)</li>
-     *   <li>모든 요청이 트랜잭션 내에서 API 응답 대기</li>
-     *   <li>Pool 고갈로 connection-timeout 발생 예상</li>
+     *   <li>트랜잭션 경계 분리로 API 호출은 트랜잭션 밖에서 수행</li>
+     *   <li>Pool 고갈 없이 모든 요청 성공 예상</li>
      * </ol>
      *
-     * <p><b>예상 실패</b>: connection-timeout 발생으로 요청 실패</p>
+     * <p><b>예상 성공</b>: 트랜잭션 경계 분리로 Connection Pool 고갈 방지</p>
+     *
+     * <p><b>Issue #226 수정 사항</b>:
+     * <ul>
+     *   <li>Before: @Transactional 범위 내 .join() 호출 → 최대 28초 DB Connection 점유</li>
+     *   <li>After: API 호출은 트랜잭션 밖, DB 작업만 트랜잭션 안 → ~100ms 점유</li>
+     * </ul>
+     * </p>
      */
     @Test
-    @DisplayName("외부 API 지연 시 DB Connection Pool 고갈 검증")
-    void shouldExhaustConnectionPool_whenExternalApiDelayed() throws Exception {
+    @DisplayName("외부 API 지연 시에도 DB Connection Pool 고갈 방지 검증")
+    void shouldNotExhaustConnectionPool_whenExternalApiDelayed_afterFix() throws Exception {
         // Given: Mock API with 5 second delay (connection-timeout보다 길게)
         long apiDelayMs = 5000;
         when(nexonApiClient.getOcidByCharacterName(anyString()))
@@ -110,7 +118,7 @@ class ConnectionVampireNightmareTest extends AbstractContainerBaseTest {
         CountDownLatch startLatch = new CountDownLatch(1);
         CountDownLatch doneLatch = new CountDownLatch(concurrentRequests);
 
-        log.info("[Red] Starting Connection Vampire test...");
+        log.info("[Red] Starting Connection Vampire Prevention test (Issue #226 Fixed)...");
         log.info("[Red] API Delay: {}ms, Concurrent Requests: {}", apiDelayMs, concurrentRequests);
 
         // When: 동시 커넥션 요청
@@ -163,10 +171,10 @@ class ConnectionVampireNightmareTest extends AbstractContainerBaseTest {
         // Then: 결과 출력
         printConnectionVampireResults(concurrentRequests, completed, avgAcquireTime, maxAcquireTime);
 
-        // 검증: Connection timeout이 발생해야 함 (Pool 고갈 증명)
+        // 검증: Connection timeout이 발생하지 않아야 함 (Issue #226 수정 효과 증명)
         assertThat(connectionTimeoutCount.get())
-                .as("[Nightmare] @Transactional + 외부 API 호출로 인한 Connection Pool 고갈")
-                .isGreaterThan(0);
+                .as("[Issue #226 Fixed] 트랜잭션 경계 분리로 Connection Pool 고갈 방지")
+                .isEqualTo(0);
     }
 
     /**
@@ -366,6 +374,10 @@ class ConnectionVampireNightmareTest extends AbstractContainerBaseTest {
             log.info(" Fix: Separate transaction scope from external API calls");
         } else {
             log.info(" Verdict: PASS - No Connection Pool Exhaustion");
+            log.info(" ");
+            log.info(" Issue #226 Fix Applied: Transaction Boundary Separation");
+            log.info(" API calls outside TX, DB operations inside TX");
+            log.info(" Connection hold time: 28s → ~100ms");
         }
         log.info("==========================================================");
     }
