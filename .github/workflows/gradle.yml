@@ -47,8 +47,16 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      # PR: -PfastTest (slow 제외 → 5-7분), Push to master: 전체 테스트
       - name: Test with Gradle
-        run: ./gradlew test -i
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            echo "🚀 Running fast tests (PR Gate)"
+            ./gradlew test -PfastTest --stacktrace
+          else
+            echo "🔬 Running full tests (Push to master)"
+            ./gradlew test --stacktrace
+          fi
 
       - name: Build JAR
         run: ./gradlew clean build -x test

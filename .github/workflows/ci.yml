@@ -108,10 +108,18 @@ jobs:
       # ------------------------------------------------------------------
       # Step 5: Run Tests (Gate - Must Pass)
       # ------------------------------------------------------------------
+      # PR: -PfastTest (slow, sentinel, quarantine 제외 → 5-7분)
+      # Push to develop: 전체 테스트 (10-15분)
       - name: Run Tests
         id: test
         run: |
-          ./gradlew clean test --no-daemon --info --stacktrace
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            echo "🚀 Running fast tests (PR Gate)"
+            ./gradlew clean test -PfastTest --no-daemon --stacktrace
+          else
+            echo "🔬 Running full tests (Push to develop)"
+            ./gradlew clean test --no-daemon --stacktrace
+          fi
         env:
           SPRING_PROFILES_ACTIVE: test
           DOCKER_HOST: unix:///var/run/docker.sock
