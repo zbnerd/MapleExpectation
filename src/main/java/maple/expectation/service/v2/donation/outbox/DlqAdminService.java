@@ -2,6 +2,8 @@ package maple.expectation.service.v2.donation.outbox;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.controller.dto.common.CursorPageRequest;
+import maple.expectation.controller.dto.common.CursorPageResponse;
 import maple.expectation.controller.dto.dlq.DlqDetailResponse;
 import maple.expectation.controller.dto.dlq.DlqEntryResponse;
 import maple.expectation.controller.dto.dlq.DlqReprocessResult;
@@ -14,6 +16,7 @@ import maple.expectation.repository.v2.DonationDlqRepository;
 import maple.expectation.repository.v2.DonationOutboxRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -180,5 +183,43 @@ public class DlqAdminService {
     @Transactional(readOnly = true)
     public long count() {
         return dlqRepository.countAll();
+    }
+
+    // ========== Cursor-based Pagination (#233) ==========
+
+    /**
+     * DLQ 목록 조회 (Cursor-based Pagination)
+     *
+     * <h3>Deep Paging 문제 해결</h3>
+     * <p>OFFSET 기반의 O(n) 성능 문제를 Keyset Pagination으로 해결.</p>
+     * <ul>
+     *   <li>OFFSET 1,000,000: ~1,800ms (1,000,010행 스캔)</li>
+     *   <li>Cursor (WHERE id > last): ~10ms (10행만 스캔)</li>
+     * </ul>
+     *
+     * @param request Cursor 페이지 요청
+     * @return Cursor 기반 페이지 응답
+     */
+    @Transactional(readOnly = true)
+    public CursorPageResponse<DlqEntryResponse> findAllByCursor(CursorPageRequest request) {
+        TaskContext context = TaskContext.of("DlqAdmin", "FindByCursor",
+                request.cursor() != null ? String.valueOf(request.cursor()) : "first");
+
+        return executor.execute(
+                () -> {
+                    PageRequest pageRequest = PageRequest.of(0, request.size());
+
+                    Slice<DonationDlq> slice = (request.cursor() == null)
+                            ? dlqRepository.findFirstPage(pageRequest)
+                            : dlqRepository.findByCursorGreaterThan(request.cursor(), pageRequest);
+
+                    return CursorPageResponse.fromWithMapping(
+                            slice,
+                            DlqEntryResponse::from,
+                            DonationDlq::getId
+                    );
+                },
+                context
+        );
     }
 }

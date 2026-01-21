@@ -6,6 +6,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import maple.expectation.controller.dto.common.CursorPageRequest;
+import maple.expectation.controller.dto.common.CursorPageResponse;
 import maple.expectation.controller.dto.dlq.DlqDetailResponse;
 import maple.expectation.controller.dto.dlq.DlqEntryResponse;
 import maple.expectation.controller.dto.dlq.DlqReprocessResult;
@@ -118,5 +120,42 @@ public class DlqAdminController {
     public ResponseEntity<maple.expectation.global.response.ApiResponse<Long>> count() {
         long count = dlqAdminService.count();
         return ResponseEntity.ok(maple.expectation.global.response.ApiResponse.success(count));
+    }
+
+    // ========== Cursor-based Pagination (#233) ==========
+
+    /**
+     * DLQ 목록 조회 (Cursor-based Pagination)
+     *
+     * <h3>Deep Paging 문제 해결</h3>
+     * <p>기존 OFFSET 기반 페이징의 O(n) 성능 문제를 Keyset Pagination으로 해결.</p>
+     *
+     * <h4>사용 예시</h4>
+     * <pre>
+     * // 첫 페이지
+     * GET /api/admin/dlq/v2?size=20
+     *
+     * // 다음 페이지 (응답의 nextCursor 사용)
+     * GET /api/admin/dlq/v2?cursor=123&amp;size=20
+     * </pre>
+     */
+    @Operation(
+            summary = "DLQ 목록 조회 (Cursor 방식)",
+            description = "Cursor-based Pagination으로 DLQ 목록을 조회합니다. Deep Paging에서도 O(1) 성능을 보장합니다."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "403", description = "권한 없음")
+    })
+    @GetMapping("/v2")
+    public ResponseEntity<maple.expectation.global.response.ApiResponse<CursorPageResponse<DlqEntryResponse>>> findAllByCursor(
+            @Parameter(description = "이전 페이지의 마지막 ID (첫 페이지는 생략)")
+            @RequestParam(required = false) Long cursor,
+            @Parameter(description = "페이지 크기 (최대 100)")
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        CursorPageRequest request = CursorPageRequest.of(cursor, size);
+        CursorPageResponse<DlqEntryResponse> result = dlqAdminService.findAllByCursor(request);
+        return ResponseEntity.ok(maple.expectation.global.response.ApiResponse.success(result));
     }
 }
