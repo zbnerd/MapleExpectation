@@ -1,6 +1,7 @@
 package maple.expectation.service.v2.cache;
 
-import lombok.RequiredArgsConstructor;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.executor.CheckedLogicExecutor;
 import maple.expectation.global.executor.TaskContext;
@@ -25,10 +26,19 @@ import java.util.Base64;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class EquipmentFingerprintGenerator {
 
     private final CheckedLogicExecutor checkedExecutor;
+
+    // P1-6 Fix: 메트릭 카운터 (TODO 코멘트 제거)
+    private final Counter fingerprintNullCounter;
+
+    public EquipmentFingerprintGenerator(CheckedLogicExecutor checkedExecutor, MeterRegistry meterRegistry) {
+        this.checkedExecutor = checkedExecutor;
+        this.fingerprintNullCounter = Counter.builder("expectation.fingerprint.null.count")
+                .description("updatedAt이 null인 fingerprint 생성 횟수")
+                .register(meterRegistry);
+    }
 
     /**
      * updatedAt을 epoch second로 변환
@@ -39,7 +49,7 @@ public class EquipmentFingerprintGenerator {
     public String generate(LocalDateTime updatedAt) {
         if (updatedAt == null) {
             log.debug("[Fingerprint] updatedAt is null, using '0'");
-            // TODO: metric - expectation.fingerprint.null.count
+            fingerprintNullCounter.increment();
             return "0";
         }
 

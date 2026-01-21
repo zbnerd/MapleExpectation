@@ -10,6 +10,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import maple.expectation.global.ratelimit.exception.RateLimitExceededException;
+
 import java.time.LocalDateTime;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.RejectedExecutionException;
@@ -19,6 +21,30 @@ import java.util.stream.Collectors;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    /**
+     * [Issue #152] Rate Limit 초과 예외 처리 (429 Too Many Requests)
+     *
+     * <p>5-Agent Council 합의: 429 응답에 Retry-After 헤더 포함</p>
+     *
+     * @param e RateLimitExceededException
+     * @return 429 응답 + Retry-After 헤더
+     */
+    @ExceptionHandler(RateLimitExceededException.class)
+    protected ResponseEntity<ErrorResponse> handleRateLimitExceeded(RateLimitExceededException e) {
+        log.warn("Rate limit exceeded: retryAfter={}s", e.getRetryAfterSeconds());
+
+        return ResponseEntity
+                .status(HttpStatus.TOO_MANY_REQUESTS)
+                .header("Retry-After", String.valueOf(e.getRetryAfterSeconds()))
+                .header("X-RateLimit-Remaining", "0")
+                .body(ErrorResponse.builder()
+                        .status(HttpStatus.TOO_MANY_REQUESTS.value())
+                        .code(e.getErrorCode().getCode())
+                        .message(e.getMessage())
+                        .timestamp(LocalDateTime.now())
+                        .build());
+    }
 
     /**
      * [1순위 가치] 비즈니스 예외 처리 (동적 메시지 포함)

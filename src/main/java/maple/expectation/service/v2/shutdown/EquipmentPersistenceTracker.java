@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Equipment 비동기 저장 작업 추적기 (최종 평탄화 완료)
@@ -23,10 +24,13 @@ public class EquipmentPersistenceTracker {
 
     private final LogicExecutor executor;
     private final ConcurrentHashMap<String, CompletableFuture<Void>> pendingOperations = new ConcurrentHashMap<>();
-    private volatile boolean shutdownInProgress = false;
+
+    // P1-9 Fix: CLAUDE.md Section 23 - volatile → AtomicBoolean (CAS 연산으로 race condition 방지)
+    private final AtomicBoolean shutdownInProgress = new AtomicBoolean(false);
 
     public void trackOperation(String ocid, CompletableFuture<Void> future) {
-        if (shutdownInProgress) {
+        // P1-9 Fix: AtomicBoolean.get()으로 thread-safe 읽기
+        if (shutdownInProgress.get()) {
             log.warn("⚠️ [Persistence] Shutdown 진행 중 - 작업 거부: {}", ocid);
             throw new IllegalStateException("Shutdown 진행 중에는 등록할 수 없습니다.");
         }
@@ -50,7 +54,11 @@ public class EquipmentPersistenceTracker {
      * try-catch도, throws Throwable도 없는 순수 비즈니스 로직입니다.
      */
     public boolean awaitAllCompletion(Duration timeout) {
-        shutdownInProgress = true;
+        // P1-9 Fix: CAS 연산으로 shutdown 상태 원자적 전환
+        if (!shutdownInProgress.compareAndSet(false, true)) {
+            log.warn("⚠️ [Persistence] Shutdown 이미 진행 중");
+            return false;
+        }
         log.info("🚫 [Persistence] Shutdown 시작 - 새로운 작업 등록 차단");
 
         if (pendingOperations.isEmpty()) return true;
@@ -91,7 +99,8 @@ public class EquipmentPersistenceTracker {
     }
 
     public void resetForTesting() {
-        shutdownInProgress = false;
+        // P1-9 Fix: AtomicBoolean.set()으로 리셋
+        shutdownInProgress.set(false);
         pendingOperations.clear();
         log.debug("🔄 [Persistence] 테스트용 리셋 완료");
     }

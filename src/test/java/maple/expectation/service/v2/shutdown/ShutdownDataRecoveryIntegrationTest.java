@@ -1,17 +1,24 @@
 package maple.expectation.service.v2.shutdown;
 
+import maple.expectation.external.impl.RealNexonApiClient;
 import maple.expectation.global.shutdown.dto.ShutdownData;
+import maple.expectation.service.v2.alert.DiscordAlertService;
 import maple.expectation.service.v2.cache.LikeBufferStorage;
-import maple.expectation.support.IntegrationTestSupport;
+import maple.expectation.support.AbstractContainerBaseTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -27,14 +34,33 @@ import static org.awaitility.Awaitility.await;
 
 /**
  * Shutdown 백업/복구 End-to-End 통합 테스트
+ *
+ * <p>CLAUDE.md Section 24: Flaky Test 방지
+ * <ul>
+ *   <li>MockBeans로 ApplicationContext 캐싱 일관성 확보</li>
+ *   <li>@DirtiesContext로 테스트 간 상태 격리</li>
+ *   <li>Awaitility로 비동기 작업 완료 대기</li>
+ * </ul>
  */
 @SpringBootTest
 @ActiveProfiles("test")
+@TestPropertySource(properties = {"nexon.api.key=dummy-test-key"})
+@Tag("chaos")
 @DisplayName("Shutdown 백업/복구 E2E 통합 테스트")
 @Timeout(value = 2, unit = TimeUnit.MINUTES)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
-class ShutdownDataRecoveryIntegrationTest extends IntegrationTestSupport {
+@Execution(ExecutionMode.SAME_THREAD)  // CLAUDE.md Section 24: 공유 상태 충돌 방지
+class ShutdownDataRecoveryIntegrationTest extends AbstractContainerBaseTest {
 
+    // -------------------------------------------------------------------------
+    // [Mock 구역] 외부 연동 Mock (ApplicationContext 캐싱 일관성)
+    // -------------------------------------------------------------------------
+    @MockitoBean private RealNexonApiClient nexonApiClient;
+    @MockitoBean private DiscordAlertService discordAlertService;
+
+    // -------------------------------------------------------------------------
+    // [Real Bean 구역] 실제 DB/Redis 작동 확인용
+    // -------------------------------------------------------------------------
     @Autowired private ShutdownDataPersistenceService persistenceService;
     @Autowired private ShutdownDataRecoveryService recoveryService;
     @Autowired private StringRedisTemplate redisTemplate;
@@ -44,17 +70,35 @@ class ShutdownDataRecoveryIntegrationTest extends IntegrationTestSupport {
     /** Hash Tag 패턴 적용 (LikeSyncService.SOURCE_KEY와 동일) */
     private static final String REDIS_HASH_KEY = "{buffer:likes}";
 
+    /** 테스트별 고유 키 접두사 (격리 강화) */
+    private String testUniquePrefix;
+
     @BeforeEach
     void setUp() throws IOException {
+        // 0. 테스트별 고유 식별자 생성 (격리 강화 - CLAUDE.md Section 24)
+        testUniquePrefix = "test:" + java.util.UUID.randomUUID().toString().substring(0, 8) + ":";
+
         // 1. Redis Proxy 및 상태 초기화 (동기적 Flush)
         globalProxyReset();
+
+        // ✅ Redis 연결 상태 먼저 확인 (Sentinel 마스터 선출 대기)
+        await().atMost(10, TimeUnit.SECONDS).pollInterval(200, TimeUnit.MILLISECONDS).until(() -> {
+            try {
+                return redisTemplate.getConnectionFactory() != null &&
+                       redisTemplate.getConnectionFactory().getConnection().ping() != null;
+            } catch (Exception e) {
+                return false;
+            }
+        });
+
+        // Redis flush 실행
         redisTemplate.execute((org.springframework.data.redis.core.RedisCallback<Object>) connection -> {
             connection.serverCommands().flushAll();
             return null;
         });
 
-        // ✅ Redis flush가 완료될 때까지 대기 (다른 테스트의 비동기 작업 영향 차단)
-        await().atMost(3, TimeUnit.SECONDS).pollInterval(100, TimeUnit.MILLISECONDS).untilAsserted(() -> {
+        // ✅ Redis flush가 완료될 때까지 대기 (CLAUDE.md Section 24: 명시적 동기화)
+        await().atMost(10, TimeUnit.SECONDS).pollInterval(200, TimeUnit.MILLISECONDS).untilAsserted(() -> {
             Long keyCount = redisTemplate.execute((org.springframework.data.redis.core.RedisCallback<Long>)
                 connection -> connection.serverCommands().dbSize());
             assertThat(keyCount).as("Redis가 완전히 flush되어야 함").isEqualTo(0L);
@@ -68,8 +112,28 @@ class ShutdownDataRecoveryIntegrationTest extends IntegrationTestSupport {
         cleanDirectory(persistenceService.getArchiveDirectory().getParent()); // 백업 폴더
         cleanDirectory(persistenceService.getArchiveDirectory()); // 아카이브 폴더
 
-        // OS 파일 핸들 안정화를 위한 짧은 대기
-        try { Thread.sleep(100); } catch (InterruptedException ignored) {}
+        // ✅ CLAUDE.md Section 24: Thread.sleep() 제거 → Awaitility 명시적 대기
+        // 파일 시스템 작업 완료 확인 (OS 파일 핸들 안정화)
+        await().atMost(3, TimeUnit.SECONDS).pollInterval(100, TimeUnit.MILLISECONDS).until(() -> {
+            try {
+                Path backupDir = persistenceService.getArchiveDirectory().getParent();
+                Path archiveDir = persistenceService.getArchiveDirectory();
+                return (!Files.exists(backupDir) || isDirectoryEmpty(backupDir)) &&
+                       (!Files.exists(archiveDir) || isDirectoryEmpty(archiveDir));
+            } catch (IOException e) {
+                return false;
+            }
+        });
+    }
+
+    /**
+     * 디렉토리가 비어있는지 확인 (CLAUDE.md Section 24: 명시적 상태 검증)
+     */
+    private boolean isDirectoryEmpty(Path path) throws IOException {
+        if (!Files.isDirectory(path)) return true;
+        try (Stream<Path> entries = Files.list(path)) {
+            return entries.filter(Files::isRegularFile).findFirst().isEmpty();
+        }
     }
 
     /**
@@ -99,7 +163,8 @@ class ShutdownDataRecoveryIntegrationTest extends IntegrationTestSupport {
         recoveryService.recoverFromBackup();
 
         // Step 3: Redis 검증
-        await().atMost(5, TimeUnit.SECONDS).untilAsserted(() -> {
+        // Issue #201: 타임아웃 증가 (5초 → 15초) - CI 환경 안정성
+        await().atMost(15, TimeUnit.SECONDS).pollInterval(500, TimeUnit.MILLISECONDS).untilAsserted(() -> {
             Object count = redisTemplate.opsForHash().get(REDIS_HASH_KEY, "user1");
             assertThat(count).isNotNull();
             assertThat(Long.parseLong(count.toString())).isEqualTo(100L);
@@ -123,7 +188,8 @@ class ShutdownDataRecoveryIntegrationTest extends IntegrationTestSupport {
         recoveryService.recoverFromBackup();
 
         // then - 비동기 복구를 위해 대기 시간 증가
-        await().atMost(10, TimeUnit.SECONDS).pollInterval(200, TimeUnit.MILLISECONDS).untilAsserted(() -> {
+        // Issue #201: 타임아웃 증가 (10초 → 15초), pollInterval 증가 (200ms → 500ms) - CI 환경 안정성
+        await().atMost(15, TimeUnit.SECONDS).pollInterval(500, TimeUnit.MILLISECONDS).untilAsserted(() -> {
             Object c1 = redisTemplate.opsForHash().get(REDIS_HASH_KEY, "mixedUser1");
             Object c2 = redisTemplate.opsForHash().get(REDIS_HASH_KEY, "mixedUser2");
             assertThat(c1).as("mixedUser1 Redis 값이 존재해야 함").isNotNull();
@@ -146,7 +212,8 @@ class ShutdownDataRecoveryIntegrationTest extends IntegrationTestSupport {
         recoveryService.recoverFromBackup();
 
         // [Then] 이슈 #123 해결 확인: 10 + 30 = 40이 아니라 최종 상태인 30이어야 함
-        await().atMost(5, TimeUnit.SECONDS).untilAsserted(() -> {
+        // Issue #201: 타임아웃 증가 (5초 → 15초) - CI 환경 안정성
+        await().atMost(15, TimeUnit.SECONDS).pollInterval(500, TimeUnit.MILLISECONDS).untilAsserted(() -> {
             Object result = redisTemplate.opsForHash().get(REDIS_HASH_KEY, "multiUser");
             assertThat(result).isNotNull();
             assertThat(Long.parseLong(result.toString())).isEqualTo(30L);

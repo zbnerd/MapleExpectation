@@ -166,4 +166,37 @@ public interface ExceptionTranslator {
         };
     }
 
+    /**
+     * 애플리케이션 시작 시 초기화 작업용 예외 변환기 (#240)
+     *
+     * <h3>사용 사례</h3>
+     * <ul>
+     *   <li>Lookup Table 초기화 실패</li>
+     *   <li>Cache Warmup 실패</li>
+     *   <li>Configuration 로딩 실패</li>
+     * </ul>
+     *
+     * @param componentName 초기화 중인 컴포넌트 이름
+     * @return 시작 전용 예외 변환기
+     */
+    static ExceptionTranslator forStartup(String componentName) {
+        return (e, context) -> {
+            // P0: Error 격리 (OOM 등은 상위로 즉시 폭발)
+            if (e instanceof Error) {
+                throw (Error) e;
+            }
+
+            // BaseException은 그대로 전파 (InsufficientResourceException 등)
+            if (e instanceof BaseException) {
+                return (BaseException) e;
+            }
+
+            // 기타 예외는 InternalSystemException으로 변환
+            return new InternalSystemException(
+                    "startup:" + componentName + ":" + context.operation(),
+                    e
+            );
+        };
+    }
+
 }

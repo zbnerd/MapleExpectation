@@ -99,10 +99,17 @@ public class ShutdownDataRecoveryService {
      * </ol>
      */
     private boolean processBackupFile(Path backupFile) {
-        Optional<ShutdownData> dataOpt = persistenceService.readBackupFile(backupFile);
-        if (dataOpt.isEmpty()) return false;
+        // P0-4 Fix: CLAUDE.md Section 4 - Optional Chaining Best Practice
+        // .get() 대신 .map().orElse() 패턴 사용
+        return persistenceService.readBackupFile(backupFile)
+                .map(data -> processBackupData(backupFile, data))
+                .orElse(false);
+    }
 
-        ShutdownData data = dataOpt.get();
+    /**
+     * 백업 데이터 처리 (Optional 체이닝에서 분리)
+     */
+    private boolean processBackupData(Path backupFile, ShutdownData data) {
         log.info("📝 [Shutdown Recovery] 처리 중: {} (항목: {}개)", backupFile.getFileName(), data.getTotalItems());
 
         // P1 Fix: 실패 항목만 수집

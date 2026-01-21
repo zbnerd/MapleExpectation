@@ -6,13 +6,14 @@ import maple.expectation.repository.v2.DonationHistoryRepository;
 import maple.expectation.repository.v2.MemberRepository;
 import maple.expectation.service.v2.auth.AdminService;
 import maple.expectation.support.EnableTimeLogging;
+import maple.expectation.support.IntegrationTestSupport;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
@@ -38,12 +39,14 @@ import static org.assertj.core.api.Assertions.assertThat;
  *   <li>동시성: 잔액 부족 시 단일 성공</li>
  *   <li>Hotspot: 다중 발신자 → 단일 수신자</li>
  * </ul>
+ *
+ * <p>CLAUDE.md Section 24 준수: @Execution(SAME_THREAD)로 병렬 실행 충돌 방지</p>
+ * <p>IntegrationTestSupport 상속: 격리된 Redis 컨테이너 사용</p>
  */
 @Slf4j
 @EnableTimeLogging
-@SpringBootTest
-@ActiveProfiles("test")
-public class DonationTest {
+@Execution(ExecutionMode.SAME_THREAD)
+public class DonationTest extends IntegrationTestSupport {
 
     @Autowired
     DonationService donationService;

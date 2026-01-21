@@ -1,0 +1,68 @@
+# Issue #209: Promtail Configuration
+# 5-Agent Council 합의:
+# - Red (Lead): Multiline 파싱 설계
+# - Green: Query Time 추출 및 라벨링
+# - Yellow: 검증 파이프라인 구성
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # ============================================
+  # Application Logs (기존)
+  # ============================================
+  - job_name: maple_logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          app: maple-expectation
+          job: varlogs
+          __path__: /var/log/app/*.log
+
+  # ============================================
+  # MySQL Slow Query Log (Issue #209)
+  # ============================================
+  - job_name: mysql_slow_query
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          app: mysql
+          job: slow-query
+          __path__: /var/log/mysql/slow.log
+    pipeline_stages:
+      # Stage 1: Multiline 처리 (# Time: 으로 시작하는 라인을 첫 줄로)
+      - multiline:
+          firstline: '^# Time:'
+          max_wait_time: 3s
+
+      # Stage 2: 정규식으로 Query Time 추출
+      - regex:
+          expression: 'Query_time:\s+(?P<query_time>[\d.]+)\s+Lock_time:\s+(?P<lock_time>[\d.]+)'
+
+      # Stage 3: User 추출
+      - regex:
+          expression: 'User@Host:\s+(?P<user>\w+)\[.*\]\s+@\s+'
+
+      # Stage 4: 라벨 추가
+      - labels:
+          query_time:
+          lock_time:
+          user:
+
+      # Stage 5: 타임스탬프 추출 (MySQL 8.0 ISO 형식)
+      - regex:
+          expression: '^# Time:\s+(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z)'
+
+      - timestamp:
+          source: timestamp
+          format: '2006-01-02T15:04:05.000000Z'
+          location: UTC

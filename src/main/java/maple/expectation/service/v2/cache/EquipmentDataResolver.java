@@ -1,7 +1,11 @@
 package maple.expectation.service.v2.cache;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.error.exception.ApiTimeoutException;
+import maple.expectation.global.executor.LogicExecutor;
+import maple.expectation.global.executor.TaskContext;
 import maple.expectation.provider.EquipmentDataProvider;
 import maple.expectation.service.v2.worker.EquipmentDbWorker;
 import maple.expectation.util.GzipUtils;
@@ -51,14 +55,26 @@ public class EquipmentDataResolver {
     private final EquipmentDataProvider dataProvider;
     private final EquipmentDbWorker dbWorker;
     private final Executor expectationExecutor;
+    private final LogicExecutor executor;
+
+    // P1-7 Fix: DB 저장 실패 메트릭 (fire-and-forget 관측성)
+    private final Counter dbSaveFailCounter;
 
     public EquipmentDataResolver(
             EquipmentDataProvider dataProvider,
             EquipmentDbWorker dbWorker,
-            @Qualifier("expectationComputeExecutor") Executor expectationExecutor) {
+            @Qualifier("expectationComputeExecutor") Executor expectationExecutor,
+            LogicExecutor executor,
+            MeterRegistry meterRegistry) {
         this.dataProvider = dataProvider;
         this.dbWorker = dbWorker;
         this.expectationExecutor = expectationExecutor;
+        this.executor = executor;
+
+        // P1-7 Fix: fire-and-forget DB 저장 실패 관측용 메트릭
+        this.dbSaveFailCounter = Counter.builder("equipment.data.db.save.fail")
+                .description("Equipment DB 비동기 저장 실패 횟수 (fire-and-forget)")
+                .register(meterRegistry);
     }
 
     /**
@@ -78,12 +94,15 @@ public class EquipmentDataResolver {
      * @return 장비 데이터 byte[] Future
      */
     public CompletableFuture<byte[]> resolveAsync(String ocid, String userIgn) {
-        try {
-            return resolveAsyncInternal(ocid, userIgn);
-        } catch (Exception e) {
-            log.error("[DataResolver] Sync exception during resolve for ocid={}", maskOcid(ocid), e);
-            return CompletableFuture.failedFuture(e);
-        }
+        // P0-3 Fix: CLAUDE.md Section 12 - Zero try-catch policy
+        // LogicExecutor.executeOrDefault() 패턴으로 동기 예외를 안전하게 처리
+        return executor.executeOrDefault(
+                () -> resolveAsyncInternal(ocid, userIgn),
+                CompletableFuture.failedFuture(
+                        new IllegalStateException("[DataResolver] Resolve failed for ocid=" + maskOcid(ocid))
+                ),
+                TaskContext.of("DataResolver", "ResolveAsync", maskOcid(ocid))
+        );
     }
 
     /**
@@ -151,6 +170,7 @@ public class EquipmentDataResolver {
                     dbWorker.persistRawJson(ocid, json)
                             .exceptionally(ex -> {
                                 log.warn("[DataResolver] DB save failed (non-blocking): {}", ex.getMessage());
+                                dbSaveFailCounter.increment();
                                 return null;
                             });
 

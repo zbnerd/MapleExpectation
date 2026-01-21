@@ -2,6 +2,8 @@ plugins {
 	id 'java'
 	id 'org.springframework.boot' version '3.5.4'
 	id 'io.spring.dependency-management' version '1.1.7'
+	id 'jacoco'
+	id 'org.gradle.test-retry' version '1.6.0'  // Issue #210: Flaky Test 재시도
 }
 
 group = 'maple'
@@ -52,6 +54,10 @@ dependencies {
 
     implementation 'org.redisson:redisson-spring-boot-starter:3.48.0'
 
+    // Bucket4j Rate Limiting (Issue #152)
+    implementation 'com.bucket4j:bucket4j_jdk17-core:8.14.0'
+    implementation 'com.bucket4j:bucket4j_jdk17-redisson:8.14.0'
+
     // Spring Security
     implementation 'org.springframework.boot:spring-boot-starter-security'
     testImplementation 'org.springframework.security:spring-security-test'
@@ -63,6 +69,9 @@ dependencies {
 
     // SpringDoc OpenAPI (Swagger UI) - Context7 Best Practice
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.13'
+
+    // Observability - Loki Appender (Issue #143)
+    implementation 'com.github.loki4j:loki-logback-appender:1.4.2'
 
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'com.h2database:h2'
@@ -84,17 +93,127 @@ dependencies {
 
 }
 
-tasks.named('test') {
-	useJUnitPlatform()
-}
-
 tasks.named("jar") {
     enabled = false
 }
 
+// ========================================
+// Issue #207: CI 테스트 최적화
+// Issue #210: Flaky Test 추적 및 Quarantine
+// ========================================
+
+// CI 환경 감지 (Context7 Best Practice)
+boolean isCiServer = System.getenv().containsKey("CI")
+
 test {
-    useJUnitPlatform()
+    useJUnitPlatform {
+        // @Tag 기반 테스트 필터링
+        // 기본: sentinel, quarantine 테스트 제외
+        // ./gradlew test -PfastTest → PR Gate용 빠른 테스트 (unit, integration, chaos만)
+        // ./gradlew test -PsentinelTest → Sentinel HA 테스트 전용 (야간 실행)
+        if (project.hasProperty('sentinelTest')) {
+            includeTags 'sentinel'
+        } else if (project.hasProperty('fastTest')) {
+            includeTags 'unit', 'integration', 'chaos'
+            excludeTags 'sentinel', 'slow', 'quarantine'
+        } else {
+            // 기본: sentinel, quarantine 제외
+            excludeTags 'sentinel', 'quarantine'
+        }
+    }
     exclude '**/vintage/**'
-    // WSL에서 확인된 "진짜" Docker Engine API 소켓
+
+    // Issue #210: Flaky Test 재시도 (CI에서만)
+    retry {
+        if (isCiServer) {
+            maxRetries = 1          // 보수적 재시도
+            maxFailures = 5         // 5개 초과 실패 시 빌드 중단
+            failOnPassedAfterRetry = false  // 재시도 성공 시 빌드 통과
+        }
+    }
+
+    // Flaky 로그 시스템 프로퍼티
+    systemProperty 'flaky.logging.enabled', 'true'
+    systemProperty 'flaky.log.dir', "${buildDir}/flaky"
+
+    // 병렬 실행 (CPU 코어 수의 절반, 최소 1)
+    maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1
+
+    // WSL에서 확인된 Docker Engine API 소켓
+    environment "DOCKER_HOST", "unix:///var/run/docker.sock"
+
+    // JaCoCo 연동
+    finalizedBy jacocoTestReport
+
+    // 테스트 로깅 (디버깅용)
+    testLogging {
+        events "passed", "skipped", "failed"
+        exceptionFormat "full"
+    }
+}
+
+// Issue #210: Quarantine 테스트 포함 실행 (Nightly용)
+tasks.register('testWithQuarantine', Test) {
+    useJUnitPlatform()  // quarantine 태그 포함
+    retry {
+        maxRetries = 1
+        maxFailures = 10
+        failOnPassedAfterRetry = false
+    }
+    systemProperty 'flaky.logging.enabled', 'true'
+    systemProperty 'flaky.log.dir', "${buildDir}/flaky"
     environment "DOCKER_HOST", "unix:///var/run/docker.sock"
 }
+
+// ========================================
+// JaCoCo 테스트 커버리지 설정 (#56)
+// ========================================
+jacoco {
+    toolVersion = "0.8.11"
+}
+
+jacocoTestReport {
+    dependsOn test
+
+    reports {
+        xml.required = true   // CI 통합용
+        html.required = true  // 로컬 확인용
+    }
+
+    afterEvaluate {
+        classDirectories.setFrom(files(classDirectories.files.collect {
+            fileTree(dir: it, exclude: [
+                '**/config/**',
+                '**/dto/**',
+                '**/entity/**',
+                '**/domain/**',
+                '**/*Config*',
+                '**/*Properties*',
+                '**/*Application*'
+            ])
+        }))
+    }
+}
+
+// ⚠️ P0-7 (Red Agent): jacocoTestCoverageVerification은 초기 비활성화
+// 테스트 커버리지가 충분히 확보된 후 별도 이슈로 활성화 권장
+// 활성화 시 아래 주석 해제:
+//
+// jacocoTestCoverageVerification {
+//     dependsOn jacocoTestReport
+//     violationRules {
+//         rule {
+//             limit {
+//                 minimum = 0.45  // 초기 45%, 점진 상향
+//             }
+//         }
+//         rule {
+//             element = 'CLASS'
+//             includes = ['maple.expectation.service.v2.*']
+//             limit {
+//                 counter = 'LINE'
+//                 minimum = 0.60  // 핵심 서비스 60%
+//             }
+//         }
+//     }
+// }

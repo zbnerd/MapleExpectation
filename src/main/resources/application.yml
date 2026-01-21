@@ -16,6 +16,10 @@ spring:
       register-mbeans: true # JMX를 통해 지표 노출 활성화
       connection-timeout: 3000      # 커넥션 획득 타임아웃 3초 (Red Agent P1 Fix)
       leak-detection-threshold: 60000  # 60초 이상 반납 안되면 누수 의심 로그
+      # [P0-N07 Fix] MDL Freeze 방지 - 세션 lock_wait_timeout 설정
+      # 단일 문장만 지원 (P1-GREEN-01), MDL에는 lock_wait_timeout이 효과적
+      # Issue #225: lock_wait_timeout 10s → 8s (Timeout Hierarchy 정렬 - Redis timeout과 동일)
+      connection-init-sql: "SET SESSION lock_wait_timeout = 8"
 
   # 공통 JPA 설정
   jpa:
@@ -93,6 +97,7 @@ resilience4j:
           - io.netty.handler.timeout.ReadTimeoutException  # Reactor Netty responseTimeout 발생 시
           - org.springframework.web.reactive.function.client.WebClientRequestException # 네트워크 단절 대응
           - java.net.UnknownHostException
+          - maple.expectation.global.error.exception.ExternalServiceException  # Issue #202: 외부 서비스 장애 시 재시도
       nexonLockRetry:
         maxAttempts: 5             # 최대 5번 시도 (락 경합이 심할 때를 대비해 조금 넉넉히)
         waitDuration: 200ms        # 0.2초 간격으로 다시 시도
@@ -118,6 +123,11 @@ logging:
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %5p [%X{requestId}] --- [%thread] %-40.40logger{39} : %m%n"
 
+# Observability 설정 (Issue #143)
+observability:
+  loki:
+    url: ${LOKI_URL:http://localhost:3100}
+
 # 넥슨 API 설정
 nexon:
   api:
@@ -125,7 +135,7 @@ nexon:
     # 타임아웃 설정 (기본값 - 필요 시 환경별로 오버라이드)
     connect-timeout: 3s              # TCP 연결 타임아웃
     response-timeout: 5s             # HTTP 응답 타임아웃
-    cache-follower-timeout-seconds: 32  # 캐시 Follower 대기 타임아웃 (TimeLimiter 28s + 여유 4s)
+    cache-follower-timeout-seconds: 30  # Issue #225: 32s → 30s (TimeLimiter 28s + 여유 2s, Zombie Request 방지)
     latch-initial-ttl-seconds: 60    # 래치 초기 TTL (리더 크래시 대비)
     latch-finalize-ttl-seconds: 10   # 래치 정리 후 TTL (팔로워 조회 여유)
 
@@ -187,4 +197,32 @@ cors:
     - "http://localhost:3000"  # 기본값 (환경별 오버라이드 필수)
   allow-credentials: true
   max-age: 3600  # 1시간
+
+# Rate Limiting 설정 (Issue #152: Bucket4j + Redis)
+# 5-Agent Council 합의: 가용성 > 보안 (fail-open), Admin 바이패스
+ratelimit:
+  enabled: true
+  failure-mode: fail-open  # Redis 장애 시 요청 허용 (가용성 우선)
+  key-prefix: "{ratelimit}"  # Redis Cluster Hash Tag
+  ip:
+    enabled: true
+    capacity: 100          # 1분당 100 요청
+    window: 1m
+    refill-tokens: 10      # 6초마다 10 토큰 리필
+    refill-period: 6s
+  user:
+    enabled: true
+    capacity: 200          # 인증 사용자: 1분당 200 요청
+    window: 1m
+    refill-tokens: 20
+    refill-period: 6s
+  trusted-headers:         # IP 스푸핑 방지 (순서대로 확인)
+    - "X-Forwarded-For"
+    - "X-Real-IP"
+  bypass-paths:            # Rate Limit 제외 경로
+    - "/swagger-ui/**"
+    - "/v3/api-docs/**"
+    - "/actuator/health"
+    - "/actuator/info"
+    - "/actuator/prometheus"  # TEMP: Prometheus 스크래핑 허용
 

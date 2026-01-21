@@ -14,15 +14,29 @@ import java.util.UUID;
 
 /**
  * 로그 추적용 MDC 필터 (LogicExecutor 평탄화 완료)
+ *
+ * <h4>MDC 키</h4>
+ * <ul>
+ *   <li>{@link #REQUEST_ID_KEY}: 요청 추적용 Correlation ID</li>
+ * </ul>
+ *
+ * <h4>비동기 전파</h4>
+ * <p>{@code ExecutorConfig.contextPropagatingDecorator()}가 이 MDC 값을
+ * 비동기 워커 스레드로 전파합니다.</p>
+ *
+ * @see maple.expectation.config.ExecutorConfig#contextPropagatingDecorator()
  */
 @Component
-@RequiredArgsConstructor // ✅ 생성자 주입 추가
+@RequiredArgsConstructor
 public class MDCFilter implements Filter {
 
-    private final LogicExecutor executor; // ✅ 지능형 실행기 주입
+    private final LogicExecutor executor;
 
-    private static final String CORRELATION_ID_HEADER = "X-Correlation-ID";
-    private static final String REQUEST_ID_MDC_KEY = "requestId";
+    /** HTTP 헤더 이름: X-Correlation-ID */
+    public static final String CORRELATION_ID_HEADER = "X-Correlation-ID";
+
+    /** MDC 키: requestId (비동기 전파 대상) */
+    public static final String REQUEST_ID_KEY = "requestId";
 
     @Override
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
@@ -60,7 +74,7 @@ public class MDCFilter implements Filter {
      * MDC 주입 및 응답 헤더 설정
      */
     private void setupMdcContext(String correlationId, HttpServletResponse response) {
-        MDC.put(REQUEST_ID_MDC_KEY, correlationId);
+        MDC.put(REQUEST_ID_KEY, correlationId);
         response.setHeader(CORRELATION_ID_HEADER, correlationId);
     }
 }

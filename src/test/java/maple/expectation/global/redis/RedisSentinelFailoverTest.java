@@ -1,14 +1,13 @@
 package maple.expectation.global.redis;
 
-import maple.expectation.support.AbstractSentinelContainerBaseTest;
-import maple.expectation.support.IntegrationTestSupport;
+import maple.expectation.support.SentinelContainerBase;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.test.context.ActiveProfiles;
 
 import java.util.concurrent.TimeUnit;
 
@@ -17,6 +16,8 @@ import static org.awaitility.Awaitility.await;
 
 /**
  * Redis Sentinel Failover 자동화 테스트
+ *
+ * <p>SentinelContainerBase 상속 (7개 컨테이너: MySQL + Redis Master/Slave + Toxiproxy + 3 Sentinels)
  *
  * <p>테스트 목적:
  * <ul>
@@ -31,10 +32,12 @@ import static org.awaitility.Awaitility.await;
  *   <li>애플리케이션은 localhost:MAPPED_PORT로 연결</li>
  *   <li>Redisson NatMapper가 내부 주소를 외부 주소로 자동 변환</li>
  * </ul>
+ *
+ * @see SentinelContainerBase 7개 컨테이너 구성
  */
-@ActiveProfiles("test")
+@Tag("sentinel")
 @DisplayName("Redis Sentinel Failover 자동화 테스트")
-class RedisSentinelFailoverTest extends IntegrationTestSupport {
+class RedisSentinelFailoverTest extends SentinelContainerBase {
 
     @Autowired
     private RedisTemplate<String, String> redisTemplate;
@@ -98,8 +101,18 @@ class RedisSentinelFailoverTest extends IntegrationTestSupport {
         // When: Master 장애 발생
         failMaster();
 
-        // Failover 대기 (1.5초)
-        Thread.sleep(1500);
+        // CLAUDE.md Section 24: Thread.sleep() 제거 → Awaitility로 Failover 완료 대기
+        await()
+                .atMost(5, TimeUnit.SECONDS)
+                .pollInterval(200, TimeUnit.MILLISECONDS)
+                .until(() -> {
+                    try {
+                        return "PONG".equals(redisTemplate.getConnectionFactory()
+                                .getConnection().ping());
+                    } catch (Exception e) {
+                        return false;
+                    }
+                });
 
         // Then: 새 Master에서 락 정상 동작
         await()
@@ -159,11 +172,35 @@ class RedisSentinelFailoverTest extends IntegrationTestSupport {
 
         // When: Master 장애 → Failover
         failMaster();
-        Thread.sleep(1500);
+
+        // CLAUDE.md Section 24: Thread.sleep() 제거 → Awaitility로 Failover 완료 대기
+        await()
+                .atMost(5, TimeUnit.SECONDS)
+                .pollInterval(200, TimeUnit.MILLISECONDS)
+                .until(() -> {
+                    try {
+                        return "PONG".equals(redisTemplate.getConnectionFactory()
+                                .getConnection().ping());
+                    } catch (Exception e) {
+                        return false;
+                    }
+                });
 
         // Master 복구
         recoverMaster();
-        Thread.sleep(1000);
+
+        // CLAUDE.md Section 24: Thread.sleep() 제거 → Awaitility로 복구 완료 대기
+        await()
+                .atMost(5, TimeUnit.SECONDS)
+                .pollInterval(200, TimeUnit.MILLISECONDS)
+                .until(() -> {
+                    try {
+                        return "PONG".equals(redisTemplate.getConnectionFactory()
+                                .getConnection().ping());
+                    } catch (Exception e) {
+                        return false;
+                    }
+                });
 
         // Then: 정상 동작
         await()

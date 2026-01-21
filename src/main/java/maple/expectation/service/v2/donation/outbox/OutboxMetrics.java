@@ -36,6 +36,8 @@ public class OutboxMetrics {
     private Counter processedCounter;
     private Counter failedCounter;
     private Counter dlqCounter;
+    private Counter dlqReprocessedCounter;
+    private Counter dlqDiscardedCounter;
     private Counter fileBackupCounter;
     private Counter criticalCounter;
     private Counter integrityFailureCounter;
@@ -57,6 +59,8 @@ public class OutboxMetrics {
         processedCounter = registry.counter("outbox.processed.total");
         failedCounter = registry.counter("outbox.failed.total");
         dlqCounter = registry.counter("outbox.dlq.total");
+        dlqReprocessedCounter = registry.counter("outbox.dlq.reprocessed.total");
+        dlqDiscardedCounter = registry.counter("outbox.dlq.discarded.total");
         fileBackupCounter = registry.counter("outbox.safety.file.total");
         criticalCounter = registry.counter("outbox.safety.critical.total");
         integrityFailureCounter = registry.counter("outbox.integrity.failure.total");
@@ -80,6 +84,14 @@ public class OutboxMetrics {
 
     public void incrementDlq() {
         dlqCounter.increment();
+    }
+
+    public void incrementDlqReprocessed() {
+        dlqReprocessedCounter.increment();
+    }
+
+    public void incrementDlqDiscarded() {
+        dlqDiscardedCounter.increment();
     }
 
     public void incrementFileBackup() {

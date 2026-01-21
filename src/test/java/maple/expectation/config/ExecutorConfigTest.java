@@ -74,9 +74,10 @@ class ExecutorConfigTest {
                 .cause()
                 .hasMessageContaining("ExpectationExecutor queue full");
 
-        // Cleanup
+        // Cleanup: CLAUDE.md Section 23 - shutdown() 후 awaitTermination() 필수
         blocker.countDown();
         taskExecutor.shutdown();
+        taskExecutor.getThreadPoolExecutor().awaitTermination(10, TimeUnit.SECONDS);
     }
 
     @Test
@@ -113,9 +114,10 @@ class ExecutorConfigTest {
                 .cause()
                 .hasMessageContaining("AlertExecutor queue full");
 
-        // Cleanup
+        // Cleanup: CLAUDE.md Section 23 - shutdown() 후 awaitTermination() 필수
         blocker.countDown();
         taskExecutor.shutdown();
+        taskExecutor.getThreadPoolExecutor().awaitTermination(10, TimeUnit.SECONDS);
     }
 
     @Test
@@ -152,9 +154,10 @@ class ExecutorConfigTest {
         double afterCount = meterRegistry.counter("executor.rejected", "name", "expectation.compute").count();
         assertThat(afterCount).isGreaterThan(beforeCount);
 
-        // Cleanup
+        // Cleanup: CLAUDE.md Section 23 - shutdown() 후 awaitTermination() 필수
         blocker.countDown();
         taskExecutor.shutdown();
+        taskExecutor.getThreadPoolExecutor().awaitTermination(10, TimeUnit.SECONDS);
     }
 
     @Test
@@ -191,9 +194,10 @@ class ExecutorConfigTest {
         double afterCount = meterRegistry.counter("executor.rejected", "name", "alert").count();
         assertThat(afterCount).isGreaterThan(beforeCount);
 
-        // Cleanup
+        // Cleanup: CLAUDE.md Section 23 - shutdown() 후 awaitTermination() 필수
         blocker.countDown();
         taskExecutor.shutdown();
+        taskExecutor.getThreadPoolExecutor().awaitTermination(10, TimeUnit.SECONDS);
     }
 
     @Test

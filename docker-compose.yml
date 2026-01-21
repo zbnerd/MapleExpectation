@@ -17,6 +17,8 @@ services:
       --default-authentication-plugin=mysql_native_password
     volumes:
       - ./mysql_data:/var/lib/mysql
+      - ./docker/mysql/conf.d:/etc/mysql/conf.d:ro
+      - ./docker/logs/mysql:/var/log/mysql
     networks:
       - maple-network
 
