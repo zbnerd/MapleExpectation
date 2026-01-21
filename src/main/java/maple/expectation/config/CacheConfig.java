@@ -94,6 +94,12 @@ public class CacheConfig {
 
     /**
      * 🚩 L2 (Redis): 분산 저장소 - 중앙 캐시 전략
+     *
+     * <h4>Issue #240: cubeTrials 캐시 ClassCastException 수정</h4>
+     * <ul>
+     *   <li>GenericJackson2JsonRedisSerializer는 Double 타입 보존 실패</li>
+     *   <li>JdkSerializationRedisSerializer 사용으로 타입 안전성 확보</li>
+     * </ul>
      */
     private CacheManager createL2Manager(RedisConnectionFactory factory) {
         RedisCacheConfiguration defaultConfig = RedisCacheConfiguration.defaultCacheConfig()
@@ -101,13 +107,20 @@ public class CacheConfig {
                 .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()))
                 .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(new GenericJackson2JsonRedisSerializer()));
 
+        // [Issue #240] cubeTrials 전용 설정: JdkSerializer로 Double 타입 보존
+        // GenericJackson2JsonRedisSerializer는 primitive wrapper(Double)를 String으로 역직렬화하는 버그 존재
+        RedisCacheConfiguration cubeTrialsConfig = RedisCacheConfiguration.defaultCacheConfig()
+                .entryTtl(Duration.ofMinutes(20))
+                .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()))
+                .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(RedisSerializer.java()));
+
         Map<String, RedisCacheConfiguration> configurations = new HashMap<>();
 
         // [이슈 #11] DB(15분)보다 짧게 -> 10분
         configurations.put("equipment", defaultConfig.entryTtl(Duration.ofMinutes(10)));
 
-        // [이슈 #12] 원본(이슈 기준)보다 짧게 -> 20분
-        configurations.put("cubeTrials", defaultConfig.entryTtl(Duration.ofMinutes(20)));
+        // [이슈 #12, #240] cubeTrials: JdkSerializer 사용 (Double 타입 보존)
+        configurations.put("cubeTrials", cubeTrialsConfig);
 
         // OCID: 충분히 길게 -> 60분
         configurations.put("ocidCache", defaultConfig.entryTtl(Duration.ofMinutes(60)));

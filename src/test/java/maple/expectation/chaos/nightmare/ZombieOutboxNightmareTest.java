@@ -149,7 +149,7 @@ class ZombieOutboxNightmareTest extends IntegrationTestSupport {
         Member admin = saveAndTrack(Member.createSystemAdmin(testAdminFingerprint, 0L));
         Member guest = saveAndTrack(Member.createGuest(10000L));
 
-        String requestId = "ZOMBIE-" + UUID.randomUUID();
+        String requestId = "ZOMBIE-" + UUID.randomUUID().toString().substring(0, 8);
         createdRequestIds.add(requestId);
 
         log.info("[Red] Creating real Outbox via DonationService.sendCoffee()...");
@@ -184,7 +184,7 @@ class ZombieOutboxNightmareTest extends IntegrationTestSupport {
         log.info("│   Nightmare 13: Zombie Outbox Recovery (Real Service)      │");
         log.info("├────────────────────────────────────────────────────────────┤");
         log.info("│ Service Used: DonationService.sendCoffee()                 │");
-        log.info("│ Request ID: {}...                                          │", requestId.substring(0, 20));
+        log.info("│ Request ID: {}                                              │", requestId);
 
         if (recovered != null) {
             log.info("│ Initial Status: PENDING → Forced to PROCESSING            │");
@@ -227,12 +227,12 @@ class ZombieOutboxNightmareTest extends IntegrationTestSupport {
 
         // 여러 Donation 실행
         for (int i = 0; i < zombieCount; i++) {
-            String requestId = "ZOMBIE-MULTI-" + i + "-" + UUID.randomUUID();
+            String requestId = "ZM-" + i + "-" + UUID.randomUUID().toString().substring(0, 8);
             requestIds.add(requestId);
             createdRequestIds.add(requestId);
 
             donationService.sendCoffee(guest.getUuid(), testAdminFingerprint, 1000L, requestId);
-            log.info("[Blue] Created Outbox {}: {}...", i + 1, requestId.substring(0, 25));
+            log.info("[Blue] Created Outbox {}: {}", i + 1, requestId);
         }
 
         // 모든 Outbox를 Zombie로 변환
@@ -296,8 +296,8 @@ class ZombieOutboxNightmareTest extends IntegrationTestSupport {
         Member guest = saveAndTrack(Member.createGuest(20000L));
 
         // 2개의 Outbox 생성
-        String recentRequestId = "ZOMBIE-RECENT-" + UUID.randomUUID();
-        String staleRequestId = "ZOMBIE-STALE-" + UUID.randomUUID();
+        String recentRequestId = "ZM-REC-" + UUID.randomUUID().toString().substring(0, 8);
+        String staleRequestId = "ZM-STL-" + UUID.randomUUID().toString().substring(0, 8);
         createdRequestIds.add(recentRequestId);
         createdRequestIds.add(staleRequestId);
 
@@ -364,7 +364,7 @@ class ZombieOutboxNightmareTest extends IntegrationTestSupport {
         Member admin = saveAndTrack(Member.createSystemAdmin(testAdminFingerprint, 0L));
         Member guest = saveAndTrack(Member.createGuest(10000L));
 
-        String requestId = "ZOMBIE-INTEGRITY-" + UUID.randomUUID();
+        String requestId = "ZOMBIE-INT-" + UUID.randomUUID().toString().substring(0, 8);
         createdRequestIds.add(requestId);
 
         // 실제 Donation 실행

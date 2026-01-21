@@ -163,7 +163,7 @@ class PoisonPillNightmareTest extends IntegrationTestSupport {
         Member admin = saveAndTrack(Member.createSystemAdmin(testAdminFingerprint, 0L));
         Member guest = saveAndTrack(Member.createGuest(10000L));
 
-        String requestId = "POISON-INTEGRITY-" + UUID.randomUUID();
+        String requestId = "POISON-" + UUID.randomUUID().toString().substring(0, 8);
         createdRequestIds.add(requestId);
 
         donationService.sendCoffee(guest.getUuid(), testAdminFingerprint, 1000L, requestId);
@@ -371,7 +371,7 @@ class PoisonPillNightmareTest extends IntegrationTestSupport {
         Member admin = saveAndTrack(Member.createSystemAdmin(testAdminFingerprint, 0L));
         Member guest = saveAndTrack(Member.createGuest(10000L));
 
-        String requestId = "RETRY-EXHAUST-" + UUID.randomUUID();
+        String requestId = "RETRY-" + UUID.randomUUID().toString().substring(0, 8);
         createdRequestIds.add(requestId);
 
         donationService.sendCoffee(guest.getUuid(), testAdminFingerprint, 1000L, requestId);
@@ -434,7 +434,7 @@ class PoisonPillNightmareTest extends IntegrationTestSupport {
         Member admin = saveAndTrack(Member.createSystemAdmin(testAdminFingerprint, 0L));
         Member guest = saveAndTrack(Member.createGuest(10000L));
 
-        String requestId = "INTEGRITY-PRESERVE-" + UUID.randomUUID();
+        String requestId = "DLQ-PRESERVE-" + UUID.randomUUID().toString().substring(0, 8);
         createdRequestIds.add(requestId);
 
         donationService.sendCoffee(guest.getUuid(), testAdminFingerprint, 5000L, requestId);
