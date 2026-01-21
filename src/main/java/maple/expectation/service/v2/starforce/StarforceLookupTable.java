@@ -25,15 +25,34 @@ import java.math.BigDecimal;
 public interface StarforceLookupTable {
 
     /**
-     * 현재 스타에서 목표 스타까지 기대 비용 계산
+     * 현재 스타에서 목표 스타까지 기대 비용 계산 (기본 옵션 적용)
      *
-     * @param currentStar 현재 스타포스 (0~25)
-     * @param targetStar 목표 스타포스 (currentStar ~ 25)
+     * <p>기본 옵션: 스타캐치 O, 썬데이메이플 O, 30% 할인 O, 파괴방지 X</p>
+     *
+     * @param currentStar 현재 스타포스 (0~30)
+     * @param targetStar 목표 스타포스 (currentStar ~ 30)
      * @param itemLevel 아이템 레벨 (1~300)
      * @return 기대 비용 (메소)
      * @throws IllegalArgumentException 유효하지 않은 스타 범위
      */
     BigDecimal getExpectedCost(int currentStar, int targetStar, int itemLevel);
+
+    /**
+     * 레벨별 최대 스타포스 반환
+     *
+     * <ul>
+     *   <li>~94lv: 5성</li>
+     *   <li>95~107: 8성</li>
+     *   <li>108~117: 10성</li>
+     *   <li>118~127: 15성</li>
+     *   <li>128~137: 20성</li>
+     *   <li>138+: 30성</li>
+     * </ul>
+     *
+     * @param itemLevel 아이템 레벨
+     * @return 최대 스타포스
+     */
+    int getMaxStarForLevel(int itemLevel);
 
     /**
      * 특정 스타에서 성공 확률 조회

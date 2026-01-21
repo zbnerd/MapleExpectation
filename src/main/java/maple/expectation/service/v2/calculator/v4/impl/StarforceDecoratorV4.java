@@ -27,7 +27,6 @@ import java.util.Optional;
 public class StarforceDecoratorV4 extends EquipmentEnhanceDecorator {
 
     private static final int PRECISION_SCALE = 2;
-    private static final int DEFAULT_TARGET_STAR = 22; // 일반적인 목표 스타포스
 
     private final StarforceLookupTable lookupTable;
     private final int currentStar;
@@ -58,14 +57,14 @@ public class StarforceDecoratorV4 extends EquipmentEnhanceDecorator {
     }
 
     /**
-     * 기본 목표 스타포스(22성)로 생성
+     * 레벨별 최대 스타로 생성 (레벨에 따라 자동 결정)
      */
     public StarforceDecoratorV4(
             EquipmentExpectationCalculator target,
             StarforceLookupTable lookupTable,
             int currentStar,
             int itemLevel) {
-        this(target, lookupTable, currentStar, DEFAULT_TARGET_STAR, itemLevel);
+        this(target, lookupTable, currentStar, lookupTable.getMaxStarForLevel(itemLevel), itemLevel);
     }
 
     @Override
