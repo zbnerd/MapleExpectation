@@ -226,7 +226,8 @@ Test:           ██████████            16개 (16%)
 
 ## 1. 프로젝트 소개
 
-<img width="5556" height="4528" alt="image" src="https://github.com/user-attachments/assets/6a4daa9d-b4f5-4a49-8e51-5311cb816014" />
+<img width="5688" height="4528" alt="image" src="https://github.com/user-attachments/assets/0a19451d-e612-432e-9acc-6be8c9895da8" />
+
 범례
 - ──── (Solid): Implemented (Current)
 
