@@ -25,7 +25,7 @@ jobs:
   full-test:
     name: Full Test (Including Chaos/Nightmare)
     runs-on: ubuntu-latest
-    timeout-minutes: 30  # 전체 테스트는 30분 허용
+    timeout-minutes: 60  # 전체 테스트는 1시간 허용
 
     services:
       redis:

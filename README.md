@@ -1,314 +1,123 @@
 # MapleExpectation
 
-## 👀 TLDR — How to Read This Repository (For Reviewers)
+<div align="center">
 
-> 이 프로젝트는 **“기능 구현”이 아니라 “운영 가능한 백엔드 시스템을 어떻게 설계했는지”**를 보여주기 위한 개인 프로젝트입니다.
+### **"1 Request ≈ 150 Standard Requests"**
+#### 200~300KB JSON Throughput을 견디기 위한 7대 핵심모듈 아키텍처
 
-### ✅ 2분만 볼 경우
-- **Performance 섹션**: 실제 수치 기반 성능 결과 (RPS / p95 / 실패율)
-- **QuickStart**: 로컬에서 바로 실행 가능 여부
-- **Professional Summary**: 이 프로젝트로 증명하고 싶은 엔지니어링 역량
-
-### 🧠 10분 더 볼 경우
-- **Engineering Standards & Operational Reality**
-  - Backpressure
-  - Timeout Layering
-  - SLA/SLO 설계
-- **핵심 모듈 아키텍처**
-  - LogicExecutor / Policy Pipeline
-  - Tiered Cache (L1/L2)
-  - Resilience4j (Circuit Breaker)
-  - Transactional Outbox
-
-### 🏗️ 깊게 볼 경우 (아키텍처 인터뷰용)
-- `docs/` 내 **Sequence Diagram**
-- PR / Issue 기반 의사결정 히스토리
-- 장애 상황을 가정한 설계 (Timeout, DLQ, Shutdown)
-
-> ⚠️ 모든 기술 선택에는 **“왜 이 선택을 했는지”**가 PR과 Issue에 기록되어 있습니다.  
-> README는 결과 요약이며, **의사결정 과정은 Git 히스토리에 있습니다.**
-
-## Performance
-> **RPS 50.8+ | p50 27ms | p95 360ms | p99 640ms | 0% Failure** - Locust Load Test (VUser 100, Warm Cache)
-> [View Benchmark Report](docs/PERFORMANCE_260105.md)
-
-**테스트 조건 상세:**
-- **Target API:** `GET /api/v3/characters/{ign}/expectation`
-- **Warm Cache:** `expectationResult`/`ocid`/`equipment` 캐시가 프라이밍된 상태 (테스트 시작 전 각 캐릭터 1회 호출)
-- **Cold Cache:** 첫 요청 기준 (프라임 포함, Nexon API 호출 1회 발생 가능)
-- **External API:** Warm에서는 캐시 HIT로 Nexon API 호출이 차단(또는 최소화), Cold 첫 요청에서만 포함될 수 있음
-- **Dataset:** `TEST_CHARACTERS` 12개 라운드로빈 ([`locust/locustfile.py`](locust/locustfile.py) 참조)
-- **검증 범위:** 현재 VUser 100 검증 완료 / 설계 목표 1,000명 (수평 확장 시)
+</div>
 
 ---
 
-## 🚀 QuickStart (2-3분)
-
-> Docker와 JDK 17이 설치되어 있어야 합니다.
-
-### Step 1: 인프라 + 서버 구동
-
-```bash
-# 터미널 1: 인프라 구동 (MySQL, Redis)
-docker-compose up -d
-
-# 터미널 2: 애플리케이션 시작 (첫 실행 시 빌드 포함)
-./gradlew bootRun --args='--spring.profiles.active=local'
-```
-
-### Step 2: 동작 확인
-
-```bash
-# Health Check (서버 준비 확인)
-curl http://localhost:8080/actuator/health
-
-# 핵심 API 호출 (V3 기대값 계산 - 인증 불필요)
-curl "http://localhost:8080/api/v3/characters/%EA%B0%95%EC%9D%80%ED%98%B8/expectation"
-```
-
-**예상 결과:**
-- Health: `{"status":"UP"}`
-- API: `{"userIgn":"강은호", "totalCost":..., "items":[...]}`
-
-> ⚠️ **첫 호출 시 Cold Cache**로 인해 290ms~690ms 소요될 수 있습니다. (Nexon API 호출 포함)
+> **RPS 50.8+ | p50 27ms | p95 360ms | 0% Failure** - [Locust Load Test Report](docs/PERFORMANCE_260105.md)
 
 ---
 
-## ⚠️ Engineering Standards & Operational Reality
+## Why This Architecture? (오버엔지니어링이 아닌 이유)
 
-### 1. Performance Context (Benchmark Conditions)
+### 트래픽 밀도(Traffic Density) 비교
 
-| 항목 | 값 |
-|------|-----|
-| **Environment** | Local Development (MacBook Pro M1, 16GB RAM) |
-| **Database** | Docker MySQL 8.0 (Local Container) |
-| **Cache** | Docker Redis 7.0 (Local Container) |
-| **Workload** | Locust 동시 사용자 100명 (VUser 100), SpawnRate 20/s, Duration 30s |
-| **Cache State** | Warm Cache (Warmup 후 측정) |
-| **Result** | RPS 50.8, Failure Rate 0%, **p50 27ms, p95 360ms, p99 640ms** |
+| 구분 | 일반 웹 서비스 | MapleExpectation |
+|------|---------------|------------------|
+| **요청당 페이로드** | ~2KB | **200~300KB** |
+| **메모리 할당량** | ~10MB/100명 | **1.5GB/100명** |
+| **직렬화 비용** | 1ms | **150ms** |
+| **네트워크 I/O** | 0.2Mbps | **24Mbps** |
 
-**캐시 시나리오별 응답 시간:**
-| 시나리오 | p50 | p95 | p99 | 설명 |
-|----------|-----|-----|-----|------|
-| Warm Cache (HIT) | 27ms | 100ms | 200ms | 캐시 적중 (Nexon API 호출 없음 또는 최소화) |
-| Cold Cache (MISS) | 290ms | 620ms | 690ms | 첫 요청 (프라임 포함, Nexon API 1회 포함 가능) |
-
-> ⚠️ **주의**: 위 벤치마크는 **로컬 개발 환경**에서 측정되었습니다.
-> 프로덕션 환경(AWS t3.small: 2vCPU, 2GB)에서는 네트워크 지연, 리소스 제약 등으로 인해 성능이 달라질 수 있습니다.
-> 실제 프로덕션 SLA 수립 시 별도의 부하 테스트가 필요합니다.
-
-### 2. Admission Control (Backpressure Design)
-
-시스템 과부하 시 **503 Service Unavailable + Retry-After 헤더**로 클라이언트에 재시도를 안내합니다.
-
-<img width="771" height="503" alt="image" src="https://github.com/user-attachments/assets/adf69973-1c96-47b7-9750-3aa55b4e64d7" />
-
-
-**설정값:**
-| 항목 | 값 | 설명 |
-|------|-----|------|
-| Queue Capacity | 100 | 최대 대기 작업 수 |
-| Rejected Policy | AbortPolicy | 큐 포화 시 즉시 거부 |
-| Retry-After | 60s | 클라이언트 재시도 권장 시간 |
-
-**구현 코드:**
-- Executor 설정: [`src/main/java/maple/expectation/config/ExecutorConfig.java`](src/main/java/maple/expectation/config/ExecutorConfig.java)
-- 503 응답 처리: [`src/main/java/maple/expectation/global/error/GlobalExceptionHandler.java`](src/main/java/maple/expectation/global/error/GlobalExceptionHandler.java)
-
-### 3. Timeout Layering (장애 격리 전략)
-
-외부 API 호출 시 **3단계 타임아웃 레이어링**으로 장애를 격리합니다.
-
-| Layer | Timeout | 용도 |
-|-------|---------|------|
-| TCP Connect | 3s | 네트워크 연결 실패 조기 탐지 |
-| HTTP Response | 5s | 느린 응답 차단 |
-| TimeLimiter | 28s | 전체 작업 상한 (3회 재시도 포함) |
-
-**타임아웃 예산 계산:**
 ```
-maxAttempts × (connect + response) + (maxAttempts-1) × waitDuration + margin
-= 3 × (3s + 5s) + 2 × 0.5s + 3s = 28s
+[ 등가 계산식 ]
+300KB / 2KB = 150배
+
+∴ 동시 접속자 100명 = 일반 서비스 15,000명 동시 접속과 동등한 리소스 부하
 ```
 
-**설정 위치:** [`src/main/resources/application.yml`](src/main/resources/application.yml) (resilience4j 섹션)
+### 왜 이 모듈들이 "필수"인가?
 
-### 4. SLA/SLO 명세 (목표치)
-
-> 아래는 **설계 목표치**이며, 프로덕션 모니터링 데이터 축적 후 조정 예정입니다.
-
-| 지표 | 목표 (SLO) | 임계치 (Alert) |
-|------|-----------|----------------|
-| API 응답 시간 (p95) | < 500ms | > 1,000ms |
-| 캐시 HIT 비율 | > 80% | < 60% |
-| 서킷브레이커 OPEN | 0회/일 | > 3회/일 |
-| 에러율 | < 0.1% | > 1% |
-
-### 5. Benchmark 재현 방법
-
-```bash
-# 1. 인프라 구동
-docker-compose up -d
-
-# 2. 애플리케이션 시작
-./gradlew bootRun --args='--spring.profiles.active=local'
-
-# 3. Locust 부하 테스트 실행 (V3 API)
-locust -f locust/locustfile.py --tags v3 --headless -u 100 -r 20 -t 30s --host=http://localhost:8080
-
-# 4. 좋아요 API 테스트 (인증 필요)
-export NEXON_API_KEY="your_api_key"
-export LOGIN_IGN="your_character_name"
-locust -f locust/locustfile.py --tags like_sync_test --headless -u 50 -r 10 -t 60s --host=http://localhost:8080
-```
-
-> 테스트 파일: [`locust/locustfile.py`](locust/locustfile.py)
-
-**보안:**
-- API Key는 환경변수(`NEXON_API_KEY`)로만 주입되며 코드에 하드코딩 금지
-- `LoginRequest.toString()`에서 마스킹 처리 ([`src/main/java/maple/expectation/controller/auth/dto/LoginRequest.java`](src/main/java/maple/expectation/controller/auth/dto/LoginRequest.java) 참조)
-- 테스트 중 로그에 API Key 평문 노출 없음
-
+| 문제 상황 | 일반적 접근 | 결과 | 본 프로젝트 해결책 |
+|----------|------------|------|------------------|
+| 300KB JSON 파싱 | `ObjectMapper.readValue()` DOM 방식 | **OOM (50명 동시접속 시)** | **Streaming Parser** |
+| 외부 API 3초 지연 | 동기 호출 대기 | **Thread Pool 고갈** | **Resilience4j + 비동기 파이프라인** |
+| 캐시 만료 + 1,000명 동시 | 모두 DB 직접 호출 | **Cache Stampede** | **TieredCache + Singleflight** |
+| 트랜잭션 내 외부 I/O | `.join()` 블로킹 | **Connection Pool 고갈** | **트랜잭션 범위 분리** |
 
 ---
 
-## Professional Summary
-> **"시스템의 가용성과 확장성을 숫자로 증명하고, 장애 대응 시나리오를 설계하는 엔지니어"**
->
-> 단순히 기능을 구현하는 것을 넘어, **수평적 확장(Scale-out)**이 가능한 분산 환경을 설계합니다.
-> 외부 의존성 장애가 전체 시스템으로 전이되지 않도록 **회복 탄력성(Resilience)**을 확보하고,
-> 데이터 정합성과 가용성의 최적점을 찾는 엔지니어링 결정에 강점이 있습니다.
+## System Architecture
 
----
+<img width="5556" height="4528" alt="architecture" src="https://github.com/user-attachments/assets/6a4daa9d-b4f5-4a49-8e51-5311cb816014" />
 
-## Development Journey
-
-> **집중 개발 3개월 | 230 커밋 | 27,799 LoC | 48 테스트**
-
-### 개발 기간 및 규모
-
-| 지표 | 수치 | 의미 |
-|------|------|------|
-| **집중 개발 기간** | 2025.11 ~ 2026.01 (3개월) | 211 커밋 (전체의 92%) |
-| **총 커밋** | 230개 | 일평균 2.3커밋 |
-| **Java 파일** | 272개 | 대규모 애플리케이션 |
-| **코드 라인** | 27,799 LoC | 실무 수준 규모 |
-| **테스트 파일** | 48개 | 테스트 커버리지 중시 |
-| **PR/Issue 연결** | 110개 | 체계적인 이슈 관리 |
-
-### 커밋 유형 분석
-
-```
-Feature 개발:    ████████████████████  33개 (34%)
-Refactoring:    ████████████████████  32개 (33%)
-Performance:    ████████              13개 (13%)
-Bugfix:         ████████              12개 (12%)
-Test:           ██████████            16개 (16%)
-```
-
-### 월별 개발 집중도
-
-```
-2025-07  ██                                        7 commits  (프로토타입)
-2025-11  ████                                     12 commits  (본격 개발 시작)
-2025-12  ████████████████████████████████████████ 159 commits (핵심 아키텍처)
-2026-01  ████████████████                         52 commits  (안정화/최적화)
-```
-
-### 개발 프로세스
-
-- **Issue-Driven:** 186개 Issue 기반 체계적 개발
-- **PR Review:** 모든 변경사항 PR을 통한 리뷰 후 병합
-- **Convention:** feat/fix/refactor/perf 커밋 컨벤션 준수
-- **Documentation:** CLAUDE.md 기반 코딩 표준 문서화
-
----
-
-## 1. 프로젝트 소개
-
-<img width="5556" height="4528" alt="image" src="https://github.com/user-attachments/assets/6a4daa9d-b4f5-4a49-8e51-5311cb816014" />
-범례
+**범례**
 - ──── (Solid): Implemented (Current)
-
 - --- --- --- (Dashed): Planned (Future Roadmap)
 
-**넥슨 Open API**를 활용하여 유저 장비 데이터를 수집하고, 확률형 아이템(큐브)의 기댓값을 계산하여 **"스펙 완성 비용"을 시뮬레이션해주는 서비스**입니다.
+---
 
-저사양 서버 환경(AWS t3.small: 2vCPU, 2GB RAM)을 **목표 인프라**로 설정하고, 고부하 상황에서도 안정적으로 동작하도록 성능 병목을 수치화하고 아키텍처를 고도화했습니다.
+## 7대 핵심모듈 아키텍처
 
-**설계 목표:**
-- 동시 사용자 1,000명 이상 수용 가능한 확장성
-- 캐시 HIT 시 p95 < 500ms 응답 시간
-- 외부 API 장애 격리 (Circuit Breaker)
+### 1. LogicExecutor Pipeline (try-catch 제거)
+
+<img width="756" height="362" alt="LogicExecutor" src="https://github.com/user-attachments/assets/a43b8f43-fd49-489c-ab24-4c91a27584f5" />
+
+```java
+// Bad: 스파게티 try-catch
+try {
+    return repository.findById(id);
+} catch (Exception e) {
+    log.error("Error", e);
+    return null;
+}
+
+// Good: LogicExecutor 템플릿
+return executor.executeOrDefault(
+    () -> repository.findById(id),
+    null,
+    TaskContext.of("Domain", "FindById", id)
+);
+```
+
+**6가지 실행 패턴**: `execute`, `executeVoid`, `executeOrDefault`, `executeWithRecovery`, `executeWithFinally`, `executeWithTranslation`
 
 ---
 
-## 2. 핵심 모듈 아키텍처
+### 2. Resilience4j (장애 격리)
 
-### 2.1 LogicExecutor/Policy Pipeline
+<img width="626" height="364" alt="Resilience4j" src="https://github.com/user-attachments/assets/373b1203-55b7-4c94-99df-2b85c927d1b9" />
 
-실행 흐름 추상화를 통해 **try-catch 제거** 및 **일관된 예외 처리**를 제공합니다.
+```yaml
+# 3단계 타임아웃 레이어링
+TCP Connect: 3s      # 네트워크 연결 실패 조기 탐지
+HTTP Response: 5s    # 느린 응답 차단
+TimeLimiter: 28s     # 전체 작업 상한 (3회 재시도 포함)
 
-<img width="756" height="362" alt="image" src="https://github.com/user-attachments/assets/a43b8f43-fd49-489c-ab24-4c91a27584f5" />
+# Circuit Breaker
+실패율 임계치: 50%
+대기 시간: 10s
+Half-Open 허용: 3회
+```
 
-
-**핵심 메서드:**
-| 메서드 | 용도 |
-|--------|------|
-| `execute()` | 일반 실행, 예외 시 상위 전파 |
-| `executeVoid()` | 반환값 없는 작업 (Runnable) |
-| `executeOrDefault()` | 예외 시 기본값 반환 |
-| `executeWithFinally()` | finally 블록 보장 |
-| `executeWithTranslation()` | 기술 예외 → 도메인 예외 변환 |
-
-**시퀀스 다이어그램:** [docs/logic-executor-sequence.md](docs/logic-executor-sequence.md)
-
----
-
-### 2.2 Resilience4j 회복 탄력성
-
-외부 API 장애가 내부로 전파되지 않도록 **서킷브레이커** 패턴을 적용합니다.
-
-<img width="626" height="364" alt="image" src="https://github.com/user-attachments/assets/373b1203-55b7-4c94-99df-2b85c927d1b9" />
-
-
-**설정값:**
-| CircuitBreaker | 실패율 임계치 | 대기 시간 | Half-Open 허용 |
-|----------------|--------------|----------|---------------|
-| nexonApi | 50% | 10s | 3회 |
-| redisLock | 60% | 30s | 3회 |
-
-**Marker Interface:**
-- `CircuitBreakerIgnoreMarker`: 비즈니스 예외 (4xx) - 서킷 상태에 영향 없음
+**Marker Interface 분류**:
+- `CircuitBreakerIgnoreMarker`: 비즈니스 예외 (4xx) - 서킷 상태 무영향
 - `CircuitBreakerRecordMarker`: 시스템 예외 (5xx) - 실패로 기록
 
-**시퀀스 다이어그램:** [docs/resilience-sequence.md](docs/resilience-sequence.md)
+---
+
+### 3. TieredCache (L1/L2) + Singleflight
+
+<img width="728" height="523" alt="TieredCache" src="https://github.com/user-attachments/assets/b3ad5614-2ef7-4cda-b29f-cdcdec44dc9e" />
+
+```
+L1 HIT: < 5ms (Caffeine 로컬 메모리)
+L2 HIT: < 20ms (Redis)
+MISS: Singleflight로 1회만 DB 호출, 나머지 대기 후 결과 공유
+```
+
+**효과**: Cache Stampede 완전 방지, DB 쿼리 비율 ≤ 10%
 
 ---
 
-### 2.3 TieredCache (L1/L2)
+### 4. AOP+Async 비동기 파이프라인
 
-**Multi-Layer 캐시**와 **분산 Single-flight** 패턴으로 Cache Stampede를 방지합니다.
-
-
-<img width="728" height="523" alt="image" src="https://github.com/user-attachments/assets/b3ad5614-2ef7-4cda-b29f-cdcdec44dc9e" />
-
-
-**핵심 규칙:**
-- **Write Order:** L2 → L1 (원자성 보장)
-- **TTL 규칙:** L1 TTL ≤ L2 TTL
-- **Watchdog 모드:** leaseTime 생략으로 자동 갱신
-
-**시퀀스 다이어그램:** [docs/cache-sequence.md](docs/cache-sequence.md)
-
----
-
-### 2.4 AOP+Async 비동기 파이프라인
-
-**톰캣 스레드 즉시 반환**(0ms 목표)으로 고처리량 API를 구현합니다.
-
-<img width="525" height="551" alt="image" src="https://github.com/user-attachments/assets/792c224c-7fc6-41f7-82ba-d43438bede85" />
-
+<img width="525" height="551" alt="AsyncPipeline" src="https://github.com/user-attachments/assets/792c224c-7fc6-41f7-82ba-d43438bede85" />
 
 **Two-Phase Snapshot:**
 | Phase | 목적 | 로드 데이터 |
@@ -316,126 +125,239 @@ Test:           ██████████            16개 (16%)
 | LightSnapshot | 캐시 키 생성 | 최소 필드 (ocid, fingerprint) |
 | FullSnapshot | 계산 (MISS 시만) | 전체 필드 |
 
-**시퀀스 다이어그램:** [docs/async-pipeline-sequence.md](docs/async-pipeline-sequence.md)
-
 ---
 
-### 2.5 Transactional Outbox 패턴
+### 5. Transactional Outbox (분산 트랜잭션)
 
-**Transactional Outbox**로 분산 환경에서 데이터 일관성과 멱등성을 보장합니다.
-
-<img width="541" height="421" alt="image" src="https://github.com/user-attachments/assets/16b60110-3d1e-46be-801d-762d8c151644" />
-
-
-**핵심 특성:**
-| 특성 | 구현 | 효과 |
-|------|------|------|
-| Content Hash | SHA-256 | 데이터 변조 감지 |
-| SKIP LOCKED | 분산 폴링 | 중복 처리 방지 |
-| Exponential Backoff | 30s → 60s → 120s | 부하 분산 |
+<img width="541" height="421" alt="Outbox" src="https://github.com/user-attachments/assets/16b60110-3d1e-46be-801d-762d8c151644" />
 
 **Triple Safety Net (데이터 영구 손실 방지):**
 1. **1차**: DB Dead Letter Queue
 2. **2차**: File Backup (DB 실패 시)
 3. **3차**: Discord Critical Alert (최후의 안전망)
 
-**시퀀스 다이어그램:** [docs/outbox-sequence.md](docs/outbox-sequence.md)
+---
+
+### 6. Graceful Shutdown (4단계 순차 종료)
+
+<img width="362" height="689" alt="GracefulShutdown" src="https://github.com/user-attachments/assets/70ce9987-1a8f-430f-b4ae-2184a7b16973" />
+
+```
+Phase 1: 새 요청 거부 (Admission Control)
+Phase 2: 진행 중 작업 완료 대기 (30s)
+Phase 3: 버퍼 플러시 (Like Buffer → DB)
+Phase 4: 리소스 해제 (Connection Pool, Redis)
+```
 
 ---
 
-### 2.6 Graceful Shutdown
+### 7. DP Calculator (Kahan Summation 정밀도)
 
-**4단계 순차 종료**로 진행 중인 작업과 데이터를 안전하게 보존합니다.
+<img width="239" height="549" alt="DPCalculator" src="https://github.com/user-attachments/assets/ef52dd64-4b6c-473f-a730-1d6bec86bf90" />
 
-<img width="362" height="689" alt="image" src="https://github.com/user-attachments/assets/70ce9987-1a8f-430f-b4ae-2184a7b16973" />
-
-
-**DLQ (Dead Letter Queue):**
-- 복구 실패 시 `LikeSyncFailedEvent` 발행
-- 파일 백업 → 메트릭 기록 → Discord 알림
-
-**시퀀스 다이어그램:** [docs/shutdown-sequence.md](docs/shutdown-sequence.md)
-
----
-
-### 2.7 Expectation Calculator (DP)
-
-**동적 프로그래밍(DP)**으로 큐브 기대값을 계산합니다.
-
-<img width="239" height="549" alt="image" src="https://github.com/user-attachments/assets/ef52dd64-4b6c-473f-a730-1d6bec86bf90" />
-
-
-**정밀도 보장:**
-- Kahan Summation Algorithm (부동소수점 오차 최소화)
-- double 기반 고성능 연산 (재미용 서비스 특성상 금융급 정확도 불필요)
-
-**시퀀스 다이어그램:** [docs/dp-calculator-sequence.md](docs/dp-calculator-sequence.md)
+```java
+// 부동소수점 오차 누적 방지
+double sum = 0.0, c = 0.0;  // Kahan Summation
+for (double value : values) {
+    double y = value - c;
+    double t = sum + y;
+    c = (t - sum) - y;
+    sum = t;
+}
+```
 
 ---
 
-## 3. 핵심 기술적 성과
+## Admission Control (Backpressure Design)
 
-### 장애 격리 및 회복 탄력성 (Resilience)
-- **문제:** 외부 API 장애 시 연쇄 장애(Cascading Failure) 발생 위험
-- **해결:** Resilience4j Circuit Breaker 도입 및 Scenario A/B/C 명세화
-- **결과:** 외부 장애 상황에서도 시스템 가용성 유지
+<img width="771" height="503" alt="Backpressure" src="https://github.com/user-attachments/assets/adf69973-1c96-47b7-9750-3aa55b4e64d7" />
 
-### 분산 환경 동시성 제어 (Scalability)
-- **문제:** 서버 수평 확장 시 단일 서버 락 사용 불가
-- **해결:** Redisson 분산 락 + Watchdog 모드 (자동 갱신)
-- **결과:** 동시 요청 처리 성능 **480% 향상** (5.3s → 1.1s)
+시스템 과부하 시 **503 Service Unavailable + Retry-After 헤더**로 클라이언트에 재시도를 안내합니다.
 
-### 데이터 최적화 (Efficiency)
-- **GZIP 압축:** 350KB JSON → 17KB (95% 절감)
-- **스트리밍 직렬화:** RPS 11배 향상
-- **인덱스 튜닝:** 조회 성능 50배 개선 (0.98s → 0.02s)
+| 항목 | 값 | 설명 |
+|------|-----|------|
+| Queue Capacity | 100 | 최대 대기 작업 수 |
+| Rejected Policy | AbortPolicy | 큐 포화 시 즉시 거부 |
+| Retry-After | 60s | 클라이언트 재시도 권장 시간 |
 
 ---
 
-## 4. 기술 스택
+## Chaos Engineering: Nightmare Tests
+
+> **18개 극한 시나리오 테스트**로 시스템의 회복 탄력성을 검증했습니다.
+
+### 테스트 결과 요약 (N01~N06)
+
+| 테스트 | 시나리오 | 결과 | 발견된 문제 | 해결 방안 |
+|--------|---------|------|------------|----------|
+| **N01** | Thundering Herd (Cache Stampede) | **PASS** | - | Singleflight 효과적 작동 |
+| **N02** | Deadlock Trap | **FAIL→FIX** | Lock Ordering 미적용 | 알파벳순 테이블 접근 + @Retryable |
+| **N03** | Thread Pool Exhaustion | **FAIL→FIX** | CallerRunsPolicy 블로킹 | AbortPolicy + Bulkhead 패턴 |
+| **N04** | Connection Vampire | **CONDITIONAL** | @Transactional + .join() | 트랜잭션 범위와 외부 I/O 분리 |
+| **N05** | Celebrity Problem (Hot Key) | **PASS** | - | TieredCache + Singleflight |
+| **N06** | Timeout Cascade | **FAIL→FIX** | Zombie Request 발생 | 타임아웃 계층 정렬 |
+
+### N02: Deadlock Trap - 문제 발견 및 해결
+
+**문제**: Transaction A(TABLE_A→TABLE_B)와 Transaction B(TABLE_B→TABLE_A)가 교차 락 획득 시 100% Deadlock 발생
+
+```sql
+-- 재현: Coffman Conditions 4가지 조건 모두 충족
+-- 1. Mutual Exclusion: InnoDB Row Lock
+-- 2. Hold and Wait: TABLE_A 보유 상태에서 TABLE_B 대기
+-- 3. No Preemption: 락 자발적 해제 없음
+-- 4. Circular Wait: A→B, B→A 순환 대기
+```
+
+**해결**:
+```java
+// Lock Ordering 적용 - 알파벳순 테이블 접근
+@Transactional
+public void updateWithLockOrdering(Long equipmentId, Long userId) {
+    equipmentRepository.findByIdWithLock(equipmentId);  // e < u
+    userRepository.findByIdWithLock(userId);
+}
+```
+
+### N03: Thread Pool Exhaustion - 문제 발견 및 해결
+
+**문제**: `CallerRunsPolicy`로 인해 메인 스레드 2010ms 블로킹 → API 응답 불가
+
+```
+Pool: core=2, max=2, queue=2 (총 용량 4)
+제출된 작업: 60개 (용량의 15배)
+결과: 56개 작업이 메인 스레드에서 실행 → 블로킹!
+```
+
+**해결**:
+```java
+// AbortPolicy + Resilience4j Bulkhead
+executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
+
+@Bulkhead(name = "asyncService", type = Bulkhead.Type.THREADPOOL)
+public CompletableFuture<String> asyncMethod() { ... }
+```
+
+### N06: Timeout Cascade - 문제 발견 및 해결
+
+**문제**: 클라이언트 타임아웃(3s) < 서버 처리 체인(17s+) → Zombie Request 발생
+
+```
+Client Timeout: 3초 → 연결 종료
+Server Chain: Redis Retry 3회 × 3초 + 오버헤드 = 17초+
+결과: 클라이언트 종료 후 14초 동안 서버 작업 계속 (리소스 낭비)
+```
+
+**해결**:
+```yaml
+# 타임아웃 계층 정렬: 클라이언트 > TimeLimiter > Retry Chain
+resilience4j.timelimiter.instances.default.timeoutDuration: 8s  # 28s → 8s
+redis.timeout: 2s  # 3s → 2s
+nexon-api.retry.maxAttempts: 2  # 3 → 2
+```
+
+---
+
+## Performance
+
+### 벤치마크 결과
+
+| 메트릭 | Cold Cache | Warm Cache |
+|--------|------------|------------|
+| **p50** | 290ms | **27ms** |
+| **p95** | 620ms | **360ms** |
+| **p99** | 690ms | **640ms** |
+| **RPS** | - | **50.8+** |
+| **Error Rate** | - | **0%** |
+
+### 최적화 성과
+
+| 항목 | Before | After | 개선율 |
+|------|--------|-------|--------|
+| JSON 압축 | 350KB | 17KB | **95%** |
+| 동시 요청 처리 | 5.3s | 1.1s | **480%** |
+| DB 인덱스 튜닝 | 0.98s | 0.02s | **50x** |
+| 메모리 사용량 | 300MB | 30MB | **90%** |
+
+---
+
+## QuickStart (2-3분)
+
+```bash
+# 1. 인프라 구동 (MySQL, Redis)
+docker-compose up -d
+
+# 2. 애플리케이션 시작
+./gradlew bootRun --args='--spring.profiles.active=local'
+
+# 3. API 테스트
+curl "http://localhost:8080/api/v3/characters/강은호/expectation"
+```
+
+---
+
+## Tech Stack
 
 | 분류 | 기술 |
 |------|------|
-| Backend | Java 17, Spring Boot 3.5.4 |
-| Database | MySQL 8.0, JPA/Hibernate |
-| Cache | Redis 7.0 (Redisson), Caffeine |
-| Resilience | Resilience4j 2.2.0 |
-| Testing | JUnit 5, Testcontainers, Locust |
-| Monitoring | Micrometer, Actuator |
-| Infra | AWS EC2, GitHub Actions |
+| **Core** | Java 17, Spring Boot 3.5.4 |
+| **Database** | MySQL 8.0, JPA/Hibernate |
+| **Cache** | Caffeine (L1), Redis/Redisson 3.27.0 (L2) |
+| **Resilience** | Resilience4j 2.2.0 (Circuit Breaker, Retry, TimeLimiter) |
+| **Testing** | JUnit 5, Testcontainers, Locust |
+| **Monitoring** | Prometheus, Loki, Grafana |
 
 ---
 
-## 5. 모니터링 지표
+## Development Journey
 
-| 분류 | 지표 | 임계치 | 의미 |
-|------|------|--------|------|
-| Redis | `redis.connection.error` | > 0 | 분산 락/캐시 불능 |
-| Resilience | `circuitbreaker.state` | "OPEN" | 외부 API 장애 |
-| App | `like.buffer.total_pending` | > 1,000 | 버퍼 포화 |
-| DB | `hikaricp.connections.pending` | > 0 | 커넥션 풀 고갈 |
-| Executor | `executor.rejected` | > 0 | 스레드 풀 포화 |
+> **집중 개발 3개월 | 230 커밋 | 27,799 LoC | 48 테스트**
 
----
-
-## 6. 시퀀스 다이어그램 목록
-
-| 모듈 | 파일 |
-|------|------|
-| LogicExecutor Pipeline | [docs/logic-executor-sequence.md](docs/logic-executor-sequence.md) |
-| CircuitBreaker 상태 전이 | [docs/resilience-sequence.md](docs/resilience-sequence.md) |
-| TieredCache Single-flight | [docs/cache-sequence.md](docs/cache-sequence.md) |
-| Transactional Outbox | [docs/outbox-sequence.md](docs/outbox-sequence.md) |
-| Graceful Shutdown 4단계 | [docs/shutdown-sequence.md](docs/shutdown-sequence.md) |
-| Async Pipeline (V2 API) | [docs/async-pipeline-sequence.md](docs/async-pipeline-sequence.md) |
-| DP Calculator | [docs/dp-calculator-sequence.md](docs/dp-calculator-sequence.md) |
+```
+Feature 개발:    ████████████████████  33개 (34%)
+Refactoring:    ████████████████████  32개 (33%)
+Performance:    ████████              13개 (13%)
+Test:           ██████████            16개 (16%)
+```
 
 ---
 
-## 7. 협업 프로세스
+## 5-Agent Council (AI-Augmented Development)
 
-- **Issue-Driven Development:** 모든 작업은 이슈 발행 후 시작
-- **Rationale in PR:** PR마다 기술적 선택의 근거와 트레이드오프 기록
-- **Git Flow:** develop → feature → PR → main
+본 프로젝트는 **5개 AI 에이전트 페르소나**를 활용한 협업 프로토콜로 개발되었습니다.
+
+| Agent | 역할 | 검증 영역 |
+|-------|------|----------|
+| **Blue** | Architect | SOLID, Design Pattern, Clean Architecture |
+| **Green** | Performance Guru | O(1) 지향, Redis Lua, SQL Tuning |
+| **Yellow** | QA Master | Edge Case, Boundary Test, Locust |
+| **Purple** | Auditor | 데이터 무결성, 보안, 정밀 계산 |
+| **Red** | SRE Gatekeeper | Resilience, Timeout, Graceful Shutdown |
+
+**Pentagonal Pipeline**: Draft(Blue) → Optimize(Green) → Test(Yellow) → Audit(Purple) → Deploy Check(Red)
 
 ---
+
+## 문서 구조
+
+```
+docs/
+├── 00_Start_Here/           # 프로젝트 개요
+│   ├── architecture.md      # 시스템 아키텍처 (Mermaid)
+│   └── multi-agent-protocol.md  # 5-Agent Council
+├── 01_Chaos_Engineering/    # Nightmare Tests (N01~N18)
+│   └── 06_Nightmare/        # 시나리오 + 결과 리포트
+├── 02_Technical_Guides/     # 인프라, 비동기, 테스트 가이드
+└── 03_Sequence_Diagrams/    # 모듈별 시퀀스 다이어그램
+```
+
+---
+
+## License
+
+MIT License
+
+---
+
+*Generated by 5-Agent Council*
+*Last Updated: 2026-01-23*
