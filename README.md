@@ -7,11 +7,6 @@
 
 </div>
 
----
-
-> **RPS 50.8+ | p50 27ms | p95 360ms | 0% Failure** - [Locust Load Test Report](docs/PERFORMANCE_260105.md)
-
----
 
 ## Why This Architecture? (오버엔지니어링이 아닌 이유)
 
