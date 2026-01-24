@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.ratelimit.config.RateLimitProperties;
 import maple.expectation.global.ratelimit.strategy.IpBasedRateLimiter;
 import maple.expectation.global.ratelimit.strategy.UserBasedRateLimiter;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 /**
@@ -28,6 +29,7 @@ import org.springframework.stereotype.Service;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@ConditionalOnProperty(prefix = "ratelimit", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class RateLimitingService {
 
     private final IpBasedRateLimiter ipRateLimiter;

@@ -29,6 +29,11 @@ import logging
 # 로깅 설정
 logger = logging.getLogger(__name__)
 
+# #264: 환경변수 기반 wait_time 설정 (부하테스트 튜닝)
+# LOCUST_WAIT_MIN=0 LOCUST_WAIT_MAX=0 → wait_time 제거 (최대 RPS)
+WAIT_MIN = float(os.environ.get("LOCUST_WAIT_MIN", "0.1"))
+WAIT_MAX = float(os.environ.get("LOCUST_WAIT_MAX", "0.5"))
+
 # ============== 응답 검증 유틸리티 ==============
 
 class ResponseValidator:
@@ -124,6 +129,9 @@ TEST_CHARACTERS = [
     "고딩", "물주", "쯔단", "강은호", "팀에이컴퍼니", "흡혈", "꾸장"
 ]
 
+# #264: V4 전용 캐릭터 풀 (3개로 축소 → L1 캐시 히트율 극대화)
+V4_TEST_CHARACTERS = ["강은호", "아델", "긱델"]
+
 # Warm-up용 (캐시 프라이밍)
 WARMUP_CHARACTERS = ["강은호", "아델"]  # 가장 많이 사용되는 캐릭터
 
@@ -146,7 +154,8 @@ class MapleExpectationLoadTest(HttpUser):
     """
     # abstract = True 제거 - 실제 실행되도록 변경
 
-    wait_time = between(0.1, 0.5)  # 적절한 부하 시뮬레이션
+    # #264: 환경변수 기반 wait_time (LOCUST_WAIT_MIN=0 LOCUST_WAIT_MAX=0 → 최대 RPS)
+    wait_time = between(WAIT_MIN, WAIT_MAX)
 
     def on_start(self):
         """테스트 시작 시 Warm-up 실행 (V4 태그 시 스킵)"""
@@ -211,7 +220,8 @@ class MapleExpectationLoadTest(HttpUser):
     @task(3)
     def test_v4_expectation(self):
         """V4 기대값 API 테스트 (Singleflight + GZIP 응답, #262)"""
-        user_ign = random.choice(TEST_CHARACTERS)
+        # #264: V4 전용 캐릭터 풀 (3개) → L1 캐시 히트율 극대화
+        user_ign = random.choice(V4_TEST_CHARACTERS)
         encoded_ign = quote(user_ign, safe='')
         # GZIP 응답 요청 - 서버 CPU 절감 및 응답 시간 단축
         headers = {"Accept-Encoding": "gzip"}

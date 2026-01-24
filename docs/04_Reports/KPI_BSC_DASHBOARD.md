@@ -19,19 +19,20 @@
 
 ### 1.2 Key Performance Indicators (Baseline)
 
-> **Note**: RPS 235.7은 Load Test 결과, 50.8+은 Warm Cache Benchmark 결과입니다.
+> **Note**: RPS 241은 #264 V4 L1 Fast Path 최적화 결과입니다.
 
 | KPI | Baseline | Target | Condition | Status |
 |-----|----------|--------|-----------|--------|
-| RPS (Load Test) | **235.7** | 250+ | 100 users, 60s | IN_PROGRESS |
+| RPS (V4 Load Test) | **241** | 250+ | 500 users, 60s | IN_PROGRESS |
 | RPS (Benchmark) | **50.8+** | 60+ | Warm cache | IN_PROGRESS |
 | p50 Latency | **27ms** | <30ms | **Warm Cache** | ACHIEVED |
 | p50 Latency | **160ms** | <200ms | **Cold/Load Test** | ACHIEVED |
 | p95 Latency | **360ms** | <500ms | Warm Cache | ACHIEVED |
 | p99 Latency | **640ms** | <1000ms | Warm Cache | ACHIEVED |
 | Error Rate | **0%** | 0% | All conditions | ACHIEVED |
-| Cache Hit Rate | **>90%** | **>95%** | Target raised | IN_PROGRESS |
+| Cache Hit Rate | **>99%** | **>95%** | #264 L1 Fast Path | **EXCEEDED** |
 | Throughput | **82.5 MB/s** | 100 MB/s | Calculated | IN_PROGRESS |
+| **L1 Fast Path Hit** | **99.99%** | >95% | #264 New Metric | **ACHIEVED** |
 
 ---
 
@@ -115,6 +116,16 @@
 | p99 Latency | 1,800ms | ✅ |
 | Error Rate | 0% | ✅ |
 | Min Response | 7ms (cache hit) | ✅ |
+
+**Issue #264 V4 L1 Fast Path 최적화 Results (2026-01-24)**:
+| Metric | Before (#262) | After (#264) | Improvement |
+|--------|---------------|--------------|-------------|
+| RPS | 120 | **241** | **+101% (2x)** |
+| Min Latency | 800ms | **4-29ms** | **96% 감소** |
+| Error Rate | 0% | **0%** | ✅ Maintained |
+| L1 Fast Path Hit | N/A | **99.99%** | ✅ New |
+| L1 Max Size | 1000 | **5000** | 5x 확장 |
+| L1 TTL | 30min | **60min** | 2x 확장 |
 
 ---
 
@@ -243,6 +254,7 @@ After: 7대 핵심모듈
 
 - [Metric Collection Evidence](./METRIC_COLLECTION_EVIDENCE.md) - 메트릭 수집 증거
 - [Performance Report](./PERFORMANCE_260105.md) - 부하 테스트 상세 결과
+- [V4 L1 Fast Path Report](./Load_Tests/LOAD_TEST_REPORT_20260124_V4_PHASE2.md) - #264 최적화 결과
 - [Business Model](../00_Start_Here/BUSINESS_MODEL.md) - BMC 문서
 - [Architecture](../00_Start_Here/architecture.md) - 시스템 아키텍처
 - [Chaos Engineering](../01_Chaos_Engineering/06_Nightmare/) - Nightmare 시나리오

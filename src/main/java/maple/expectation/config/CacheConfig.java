@@ -90,10 +90,13 @@ public class CacheConfig {
                         .build());
 
         // #240 V4: GZIP 압축 전체 응답 캐시
+        // #264: L1 캐시 튜닝 (5-Agent Council 합의)
+        // - TTL 30min → 60min: L1 히트율 향상
+        // - max 1000 → 5000: 메모리 5x 확장 (≈25MB, t3.small 허용 범위)
         l1Manager.registerCustomCache("expectationV4",
                 Caffeine.newBuilder()
-                        .expireAfterWrite(30, TimeUnit.MINUTES)
-                        .maximumSize(1000)
+                        .expireAfterWrite(60, TimeUnit.MINUTES)
+                        .maximumSize(5000)
                         .recordStats()
                         .build());
 
@@ -123,8 +126,9 @@ public class CacheConfig {
                 .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(RedisSerializer.java()));
 
         // #240 V4: GZIP 압축 byte[] 전용 설정 (JdkSerializer로 바이트 배열 보존)
+        // #264: L2 TTL 동기화 (L1 60min과 일치)
         RedisCacheConfiguration expectationV4Config = RedisCacheConfiguration.defaultCacheConfig()
-                .entryTtl(Duration.ofMinutes(30))
+                .entryTtl(Duration.ofMinutes(60))
                 .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()))
                 .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(RedisSerializer.java()));
 
