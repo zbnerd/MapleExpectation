@@ -192,13 +192,13 @@ public class SecurityConfig {
                 .anyRequest().authenticated()
             )
 
-            // JWT 인증 필터 추가 (UsernamePasswordAuthenticationFilter 이전)
-            .addFilterBefore(jwtAuthenticationFilter,
-                UsernamePasswordAuthenticationFilter.class)
-
-            // PR #192 Fix: Rate Limiting 필터는 JWT 필터 이후에 배치
-            // (User-based rate limiting에 SecurityContext 필요)
-            .addFilterAfter(rateLimitingFilter, JwtAuthenticationFilter.class)
+            // #262 Fix: Spring Security 6.x 필터 순서 문제 해결
+            // 커스텀 필터는 표준 필터 기준으로만 순서 지정 가능
+            // addFilterBefore 호출 순서 = 실행 순서
+            // 실행 순서: JWT → RateLimit → UsernamePassword
+            // (JWT가 먼저 인증 후, RateLimit이 user-based rate limiting 수행)
+            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterBefore(rateLimitingFilter, UsernamePasswordAuthenticationFilter.class)
 
             // 인증 실패 핸들링
             .exceptionHandling(ex -> ex
