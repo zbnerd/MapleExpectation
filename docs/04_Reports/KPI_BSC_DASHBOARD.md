@@ -107,6 +107,15 @@
 | N05 | Celebrity Problem | - | PASS | TieredCache + Singleflight |
 | N06 | Timeout Cascade | FAIL | PASS | Timeout hierarchy fix |
 
+**Issue #262 V4 Singleflight Test Results (2026-01-24)**:
+| Metric | 100 Users | Status |
+|--------|-----------|--------|
+| RPS | 97.42 | ✅ |
+| p50 Latency | 490ms | ✅ |
+| p99 Latency | 1,800ms | ✅ |
+| Error Rate | 0% | ✅ |
+| Min Response | 7ms (cache hit) | ✅ |
+
 ---
 
 ## 3. Improvement Journey (Before/After)
