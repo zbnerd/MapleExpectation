@@ -66,7 +66,7 @@ MapleExpectation API는 **"이삿짐 트럭 한 대 처리하는 수준(300KB)"*
 |--------|--------|----------|
 | RPS | 555 | **83,250** (2KB 기준) |
 | Throughput | 166.5 MB/s | - |
-| 서버 스펙 | t3.small (2GB RAM) | **$15/월** |
+| 테스트 환경 | 로컬 개발 환경 | Docker Compose |
 
 > **"Spring Boot를 썼지만, 성능은 Nginx(C언어) 수준"**
 >
