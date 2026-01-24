@@ -18,7 +18,7 @@ MapleExpectation Load Test Suite
     - Warm-up: 각 캐릭터 1회씩 호출 후 본 테스트 진행
     - 환경 고정: JVM -Xmx512m, Redis maxmemory 256mb, MySQL 기본 설정
 """
-from locust import HttpUser, task, between, tag, events
+from locust import HttpUser, task, between, constant, tag, events
 from locust.runners import MasterRunner
 from urllib.parse import quote
 import random
@@ -146,10 +146,16 @@ class MapleExpectationLoadTest(HttpUser):
     """
     # abstract = True 제거 - 실제 실행되도록 변경
 
-    wait_time = between(1, 3)
+    wait_time = between(0.1, 0.5)  # 적절한 부하 시뮬레이션
 
     def on_start(self):
-        """테스트 시작 시 Warm-up 실행"""
+        """테스트 시작 시 Warm-up 실행 (V4 태그 시 스킵)"""
+        # V4 부하테스트 시 warmup 스킵 (--tags v4)
+        import sys
+        if 'v4' in sys.argv:
+            logger.info("[Locust] Skipping warm-up for V4 test")
+            return
+
         logger.info("[Locust] Starting warm-up phase...")
         for char in WARMUP_CHARACTERS:
             try:
@@ -200,6 +206,45 @@ class MapleExpectationLoadTest(HttpUser):
                 response.failure(error_msg)
             else:
                 response.success()
+
+    @tag('v4')
+    @task(3)
+    def test_v4_expectation(self):
+        """V4 기대값 API 테스트 (Singleflight + GZIP 응답, #262)"""
+        user_ign = random.choice(TEST_CHARACTERS)
+        encoded_ign = quote(user_ign, safe='')
+        # GZIP 응답 요청 - 서버 CPU 절감 및 응답 시간 단축
+        headers = {"Accept-Encoding": "gzip"}
+        with self.client.get(
+            f"/api/v4/characters/{encoded_ign}/expectation",
+            name="/v4/expectation",
+            headers=headers,
+            catch_response=True
+        ) as response:
+            # V4 GZIP 응답 검증 (#262)
+            if response.status_code >= 500:
+                response.failure(f"Server Error: {response.status_code}")
+            elif response.status_code >= 400:
+                response.failure(f"Client Error: {response.status_code}")
+            else:
+                try:
+                    # GZIP 응답 확인 (Content-Encoding: gzip)
+                    content_encoding = response.headers.get("Content-Encoding", "")
+                    is_gzip = "gzip" in content_encoding.lower()
+
+                    # Python requests 라이브러리가 자동으로 GZIP 압축 해제함
+                    data = response.json()
+
+                    # V4 응답 형식: userIgn, totalExpectedCost
+                    if "userIgn" in data and "totalExpectedCost" in data:
+                        # GZIP 응답 성공 시 로그 (디버깅용)
+                        if is_gzip:
+                            logger.debug(f"[V4] GZIP response: {len(response.content)} bytes")
+                        response.success()
+                    else:
+                        response.failure(f"Missing required fields in response: {list(data.keys())[:5]}")
+                except Exception as e:
+                    response.failure(f"JSON Parse Error: {str(e)}")
 
 
 class LikeSyncLoadTest(HttpUser):
