@@ -1,6 +1,7 @@
 package maple.expectation.global.cache;
 
 import io.micrometer.core.instrument.MeterRegistry;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.executor.LogicExecutor;
@@ -37,6 +38,11 @@ public class TieredCacheManager extends AbstractCacheManager {
     private final CacheManager l2Manager;
     private final LogicExecutor executor;
     private final RedissonClient redissonClient; // Issue #148: 분산 락용
+    /**
+     * -- GETTER --
+     *  메트릭 레지스트리 접근자 (#264 Fast Path 메트릭용)
+     */
+    @Getter
     private final MeterRegistry meterRegistry;   // Issue #148: 메트릭 수집용
 
     /**
@@ -75,4 +81,32 @@ public class TieredCacheManager extends AbstractCacheManager {
         // Issue #148: TieredCache에 RedissonClient, MeterRegistry 전달
         return new TieredCache(l1, l2, executor, redissonClient, meterRegistry);
     }
+
+    /**
+     * L1 캐시 직접 접근 (Fast Path용) (#264)
+     *
+     * <h4>Issue #264: 캐시 히트 성능 최적화</h4>
+     * <ul>
+     *   <li>L1(Caffeine) 캐시에서 직접 조회</li>
+     *   <li>TieredCache/LogicExecutor 오버헤드 우회</li>
+     *   <li>Executor 스레드 풀 경합 방지</li>
+     * </ul>
+     *
+     * <h4>Context7 Best Practice: Caffeine getIfPresent()</h4>
+     * <p>값이 있으면 즉시 반환, 없으면 null (loader 실행 X)</p>
+     *
+     * <h4>5-Agent Council 합의</h4>
+     * <ul>
+     *   <li>🟢 Green: 캐시 히트 시 RPS 3-5배 향상 기대</li>
+     *   <li>🔵 Blue: OCP 준수 - 기존 코드 수정 없음</li>
+     *   <li>🔴 Red: Graceful Degradation - L1 미스 시 기존 경로로 폴백</li>
+     * </ul>
+     *
+     * @param name 캐시 이름
+     * @return L1 캐시 인스턴스 (Caffeine) - null 가능 (캐시 미등록 시)
+     */
+    public Cache getL1CacheDirect(String name) {
+        return l1Manager.getCache(name);
+    }
+
 }

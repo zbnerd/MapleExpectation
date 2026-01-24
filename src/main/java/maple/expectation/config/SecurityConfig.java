@@ -28,6 +28,8 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
+import java.util.Optional;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 /**
  * Spring Security 설정 (6.x Lambda DSL)
@@ -94,6 +96,7 @@ public class SecurityConfig {
      * <p>P0-2 FIX: LogicExecutor 주입으로 Fail-Open 에러 처리 보장</p>
      */
     @Bean
+    @ConditionalOnProperty(prefix = "ratelimit", name = "enabled", havingValue = "true", matchIfMissing = true)
     public RateLimitingFilter rateLimitingFilter(
             RateLimitingFacade rateLimitingFacade,
             RateLimitProperties rateLimitProperties,
@@ -105,6 +108,7 @@ public class SecurityConfig {
      * Rate Limiting 필터 서블릿 컨테이너 중복 등록 방지 (Issue #152)
      */
     @Bean
+    @ConditionalOnProperty(prefix = "ratelimit", name = "enabled", havingValue = "true", matchIfMissing = true)
     public FilterRegistrationBean<RateLimitingFilter> rateLimitFilterRegistration(
             RateLimitingFilter filter) {
         FilterRegistrationBean<RateLimitingFilter> registration =
@@ -116,7 +120,7 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http,
                                             JwtAuthenticationFilter jwtAuthenticationFilter,
-                                            RateLimitingFilter rateLimitingFilter) throws Exception {
+                                            Optional<RateLimitingFilter> rateLimitingFilter) throws Exception {
         http
             // CSRF 비활성화 (REST API)
             .csrf(AbstractHttpConfigurer::disable)
@@ -197,8 +201,13 @@ public class SecurityConfig {
             // addFilterBefore 호출 순서 = 실행 순서
             // 실행 순서: JWT → RateLimit → UsernamePassword
             // (JWT가 먼저 인증 후, RateLimit이 user-based rate limiting 수행)
-            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-            .addFilterBefore(rateLimitingFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+
+        // #264: Rate Limiting 비활성화 시 필터 스킵
+        rateLimitingFilter.ifPresent(filter ->
+            http.addFilterBefore(filter, UsernamePasswordAuthenticationFilter.class));
+
+        http
 
             // 인증 실패 핸들링
             .exceptionHandling(ex -> ex
