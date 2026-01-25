@@ -3,6 +3,7 @@ package maple.expectation.global.ratelimit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.ratelimit.config.RateLimitProperties;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
 
@@ -29,6 +30,7 @@ import org.springframework.util.AntPathMatcher;
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@ConditionalOnProperty(prefix = "ratelimit", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class RateLimitingFacade {
 
     private final RateLimitingService rateLimitingService;

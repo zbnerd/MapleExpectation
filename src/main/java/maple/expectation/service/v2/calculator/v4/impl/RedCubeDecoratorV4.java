@@ -60,7 +60,11 @@ public class RedCubeDecoratorV4 extends EquipmentEnhanceDecorator {
     public BigDecimal calculateTrials() {
         if (trials == null) {
             Double rawTrials = trialsProvider.calculateExpectedTrials(input, CubeType.RED);
-            trials = rawTrials != null ? BigDecimal.valueOf(rawTrials) : BigDecimal.ZERO;
+            // P0 Fix (#262): Infinity 값은 BigDecimal로 변환 불가 → ZERO 처리
+            // 무한대 = 불가능한 조합 = 비용 계산 의미 없음
+            trials = (rawTrials != null && Double.isFinite(rawTrials))
+                    ? BigDecimal.valueOf(rawTrials)
+                    : BigDecimal.ZERO;
         }
         return trials;
     }

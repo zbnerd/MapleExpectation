@@ -130,6 +130,9 @@ public class TieredCache implements Cache {
      *   <li>Follower: 락 대기 → L2에서 읽기 → L1 Backfill</li>
      *   <li>락 실패 시: Fallback으로 직접 실행 (가용성 우선)</li>
      * </ul>
+     *
+     * <h4>#262 실험 결과</h4>
+     * <p>Local Coalescing 시도 → L2 조회도 블로킹되어 RPS 33% 악화 → 롤백</p>
      */
     @Override
     @SuppressWarnings("unchecked")

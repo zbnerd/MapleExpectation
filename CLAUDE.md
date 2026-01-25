@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 MapleExpectation is a Spring Boot application that calculates MapleStory equipment upgrade costs using Nexon's Open API. Built for resilience and scalability, it handles 1,000+ concurrent users on low-spec infrastructure (AWS t3.small) with 240 RPS throughput.
 
 **Core Technologies:**
-- **Java 17** - Modern features (Records, Pattern Matching, Switch Expressions)
+- **Java 21** - Virtual Threads, Records, Pattern Matching, Switch Expressions (#262)
 - **Spring Boot 3.5.4** - Latest stable release
 - **MySQL 8.0** - Persistent storage with GZIP compression
 - **Redis** (Redisson 3.27.0) - Distributed caching and locking
@@ -73,7 +73,7 @@ docker exec -it redis_container redis-cli
 ## 1. Tech Stack & Context (Refer to Context 7)
 
 이 프로젝트의 빌드 환경과 라이브러리 구성을 반드시 참조하여 최신 권장 방식(Best Practice)으로 구현하십시오.
-- **Core:** Java 17, Spring Boot 3.5.4, Gradle
+- **Core:** Java 21, Spring Boot 3.5.4, Gradle
 - **Dependencies:** Resilience4j(BOM 2.2.0), Redisson(3.27.0), Caffeine, JPA, MySQL, Jackson CSV
 - **Infrastructure:** Docker Socket (unix:///var/run/docker.sock) for Testcontainers
 
@@ -162,7 +162,7 @@ docs/
 
 - **Sequential Thinking:** 작업 전 의존성, 최신 문법, 인프라 영향을 단계별로 분석하여 디테일을 확보합니다.
 - **SOLID 원칙:** SRP, OCP, LSP, ISP, DIP를 엄격히 준수하여 응집도를 높이고 결합도를 낮춥니다.
-- **Modern Java:** Java 17의 Records, Pattern Matching, Switch Expressions 등을 적극 활용합니다.
+- **Modern Java:** Java 21의 Virtual Threads, Records, Pattern Matching, Switch Expressions 등을 적극 활용합니다.
 
 ### Optional Chaining Best Practice (Modern Null Handling)
 

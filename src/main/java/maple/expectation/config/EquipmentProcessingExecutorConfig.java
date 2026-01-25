@@ -11,7 +11,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 
 /**
- * Equipment Processing 전용 Thread Pool (#240)
+ * Equipment Processing 전용 Thread Pool (#240, #264)
  *
  * <h3>5-Agent Council 합의사항</h3>
  * <ul>
@@ -20,11 +20,18 @@ import java.util.concurrent.ThreadPoolExecutor;
  *   <li>🔵 Blue (Architect): 비즈니스 Thread Pool과 격리</li>
  * </ul>
  *
- * <h3>설정 근거 (t3.small: 2 vCPU, 2GB RAM)</h3>
+ * <h3>Issue #264: Thread Pool 병목 해결</h3>
  * <ul>
- *   <li>Core 2: vCPU 수에 맞춘 기본 스레드</li>
- *   <li>Max 4: CPU 바운드 작업 고려, 2배 확장</li>
- *   <li>Queue 50: PER(100)보다 작음 - Equipment 처리가 더 무거움</li>
+ *   <li>문제: Core 2, Max 4 → L1 캐시 미스 시 RPS 120 병목</li>
+ *   <li>해결: Core 8, Max 16, Queue 200으로 확장</li>
+ *   <li>참고: L1 Fast Path로 캐시 히트 시 스레드풀 우회</li>
+ * </ul>
+ *
+ * <h3>설정 근거</h3>
+ * <ul>
+ *   <li>Core 8: I/O 바운드 작업 (API 호출, DB) 고려</li>
+ *   <li>Max 16: 피크 시 2배 확장 여유</li>
+ *   <li>Queue 200: 스파이크 흡수 버퍼</li>
  *   <li>AbortPolicy: 읽기 작업이므로 재시도 가능 (DiscardPolicy와 달리 503 반환)</li>
  * </ul>
  *
@@ -40,7 +47,7 @@ public class EquipmentProcessingExecutorConfig {
     private final MeterRegistry meterRegistry;
 
     /**
-     * Equipment Processing 전용 Executor
+     * Equipment Processing 전용 Executor (#264 확장)
      *
      * <h4>CLAUDE.md Section 22 준수</h4>
      * <ul>
@@ -59,9 +66,10 @@ public class EquipmentProcessingExecutorConfig {
     @Bean("equipmentProcessingExecutor")
     public Executor equipmentProcessingExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(2);
-        executor.setMaxPoolSize(4);
-        executor.setQueueCapacity(50);
+        // #264: Thread Pool 확장 (병목 해결)
+        executor.setCorePoolSize(8);    // 2 → 8 (I/O 바운드 고려)
+        executor.setMaxPoolSize(16);    // 4 → 16 (피크 시 확장)
+        executor.setQueueCapacity(200); // 50 → 200 (스파이크 흡수)
         executor.setThreadNamePrefix("equip-proc-");
 
         // AbortPolicy: 큐 포화 시 RejectedExecutionException 발생
@@ -81,11 +89,11 @@ public class EquipmentProcessingExecutorConfig {
     /**
      * Thread Pool 메트릭 등록
      *
-     * <h4>Prometheus Alert 권장 임계값 (Red Agent)</h4>
+     * <h4>Prometheus Alert 권장 임계값 (Red Agent) - #264 업데이트</h4>
      * <ul>
-     *   <li>queue.size > 40: WARNING (80% capacity)</li>
-     *   <li>queue.size == 50: CRITICAL (requests rejected)</li>
-     *   <li>active.count == 4: WARNING (pool saturated)</li>
+     *   <li>queue.size > 160: WARNING (80% capacity of 200)</li>
+     *   <li>queue.size == 200: CRITICAL (requests rejected)</li>
+     *   <li>active.count >= 14: WARNING (87.5% pool saturated)</li>
      * </ul>
      */
     private void registerMetrics(ThreadPoolTaskExecutor executor) {

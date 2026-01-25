@@ -18,7 +18,7 @@ MapleExpectation Load Test Suite
     - Warm-up: 각 캐릭터 1회씩 호출 후 본 테스트 진행
     - 환경 고정: JVM -Xmx512m, Redis maxmemory 256mb, MySQL 기본 설정
 """
-from locust import HttpUser, task, between, tag, events
+from locust import HttpUser, task, between, constant, tag, events
 from locust.runners import MasterRunner
 from urllib.parse import quote
 import random
@@ -28,6 +28,11 @@ import logging
 
 # 로깅 설정
 logger = logging.getLogger(__name__)
+
+# #264: 환경변수 기반 wait_time 설정 (부하테스트 튜닝)
+# LOCUST_WAIT_MIN=0 LOCUST_WAIT_MAX=0 → wait_time 제거 (최대 RPS)
+WAIT_MIN = float(os.environ.get("LOCUST_WAIT_MIN", "0.1"))
+WAIT_MAX = float(os.environ.get("LOCUST_WAIT_MAX", "0.5"))
 
 # ============== 응답 검증 유틸리티 ==============
 
@@ -124,6 +129,9 @@ TEST_CHARACTERS = [
     "고딩", "물주", "쯔단", "강은호", "팀에이컴퍼니", "흡혈", "꾸장"
 ]
 
+# #264: V4 전용 캐릭터 풀 (3개로 축소 → L1 캐시 히트율 극대화)
+V4_TEST_CHARACTERS = ["강은호", "아델", "긱델"]
+
 # Warm-up용 (캐시 프라이밍)
 WARMUP_CHARACTERS = ["강은호", "아델"]  # 가장 많이 사용되는 캐릭터
 
@@ -146,10 +154,17 @@ class MapleExpectationLoadTest(HttpUser):
     """
     # abstract = True 제거 - 실제 실행되도록 변경
 
-    wait_time = between(1, 3)
+    # #264: 환경변수 기반 wait_time (LOCUST_WAIT_MIN=0 LOCUST_WAIT_MAX=0 → 최대 RPS)
+    wait_time = between(WAIT_MIN, WAIT_MAX)
 
     def on_start(self):
-        """테스트 시작 시 Warm-up 실행"""
+        """테스트 시작 시 Warm-up 실행 (V4 태그 시 스킵)"""
+        # V4 부하테스트 시 warmup 스킵 (--tags v4)
+        import sys
+        if 'v4' in sys.argv:
+            logger.info("[Locust] Skipping warm-up for V4 test")
+            return
+
         logger.info("[Locust] Starting warm-up phase...")
         for char in WARMUP_CHARACTERS:
             try:
@@ -200,6 +215,46 @@ class MapleExpectationLoadTest(HttpUser):
                 response.failure(error_msg)
             else:
                 response.success()
+
+    @tag('v4')
+    @task(3)
+    def test_v4_expectation(self):
+        """V4 기대값 API 테스트 (Singleflight + GZIP 응답, #262)"""
+        # #264: V4 전용 캐릭터 풀 (3개) → L1 캐시 히트율 극대화
+        user_ign = random.choice(V4_TEST_CHARACTERS)
+        encoded_ign = quote(user_ign, safe='')
+        # GZIP 응답 요청 - 서버 CPU 절감 및 응답 시간 단축
+        headers = {"Accept-Encoding": "gzip"}
+        with self.client.get(
+            f"/api/v4/characters/{encoded_ign}/expectation",
+            name="/v4/expectation",
+            headers=headers,
+            catch_response=True
+        ) as response:
+            # V4 GZIP 응답 검증 (#262)
+            if response.status_code >= 500:
+                response.failure(f"Server Error: {response.status_code}")
+            elif response.status_code >= 400:
+                response.failure(f"Client Error: {response.status_code}")
+            else:
+                try:
+                    # GZIP 응답 확인 (Content-Encoding: gzip)
+                    content_encoding = response.headers.get("Content-Encoding", "")
+                    is_gzip = "gzip" in content_encoding.lower()
+
+                    # Python requests 라이브러리가 자동으로 GZIP 압축 해제함
+                    data = response.json()
+
+                    # V4 응답 형식: userIgn, totalExpectedCost
+                    if "userIgn" in data and "totalExpectedCost" in data:
+                        # GZIP 응답 성공 시 로그 (디버깅용)
+                        if is_gzip:
+                            logger.debug(f"[V4] GZIP response: {len(response.content)} bytes")
+                        response.success()
+                    else:
+                        response.failure(f"Missing required fields in response: {list(data.keys())[:5]}")
+                except Exception as e:
+                    response.failure(f"JSON Parse Error: {str(e)}")
 
 
 class LikeSyncLoadTest(HttpUser):

@@ -9,7 +9,7 @@ spring:
     password: ${DB_ROOT_PASSWORD}
 
     hikari:
-      maximum-pool-size: 50
+      maximum-pool-size: 100
       minimum-idle: 50
       # [P0-N07 Fix] MDL Freeze 방지 - 로컬 환경도 동일 설정
       connection-init-sql: "SET SESSION lock_wait_timeout = 10"
@@ -18,13 +18,12 @@ spring:
     hibernate:
       ddl-auto: update
 
-  # Redis Sentinel 설정
+  # Redis Standalone 설정 (Sentinel 장애 시 폴백)
   data:
     redis:
-      # Sentinel 모드
-      sentinel:
-        master: mymaster
-        nodes: localhost:26379,localhost:26380,localhost:26381
+      host: localhost
+      port: 6379
+      # Redisson 기본 설정 사용 (커스텀 설정 제거 - 오버헤드 테스트)
 
 discord:
   webhook-url: ${DISCORD_WEBHOOK_URL}
@@ -35,6 +34,10 @@ cube:
     policy: LENIENT  # 로컬 환경: 확률 테이블 정규화 허용 (Σp ≈ 1.0)
 
 
+
+# Rate Limiting 비활성화 (부하 테스트용)
+ratelimit:
+  enabled: false
 
 # CORS 설정 (Issue #172: 로컬 개발 환경)
 cors:
