@@ -8,7 +8,7 @@
 |------|-------------|
 | **Problem** | MapleStory 장비 강화 비용 계산 (요청당 200~300KB JSON 처리) |
 | **Solution** | 7대 핵심모듈 아키텍처로 10만 RPS급 등가 처리량 달성 |
-| **Result** | **RPS 719**, **180 MB/s**, p50 164ms, **0% Failure** (로컬 벤치마크 #266) |
+| **Result** | **RPS 719**, **Rx 1.7Gbps / Tx 28Mbps**, p50 164ms, **0% Failure** (로컬 벤치마크 #266) |
 
 ### Target Users
 
