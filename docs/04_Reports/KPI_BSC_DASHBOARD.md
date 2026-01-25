@@ -13,7 +13,7 @@
 | Dimension | Value |
 |-----------|-------|
 | **Target Users** | MapleStory players (casual to hardcore), Backend developers, Performance researchers |
-| **Value Proposition** | 1,000 concurrent users on single t3.small, RPS 235.7, 0% failure |
+| **Value Proposition** | 1,000 concurrent users, RPS 719, Rx 1.7Gbps, 0% failure |
 | **Core Technology** | Java 17, Spring Boot 3.5.4, Redis+MySQL, Resilience4j |
 | **Architecture** | 7 Core Modules (LogicExecutor, TieredCache, Resilience4j, etc.) |
 
@@ -200,7 +200,7 @@ After: 7대 핵심모듈
 ## 4. Monitoring Dashboard Links
 
 | Dashboard | URL | Purpose | Refresh |
-|-----------|-----|---------|--------|
+|-----------|-----|---------|---------|
 | Prometheus Metrics | `http://localhost:3000/d/spring-boot-metrics` | Core JVM/HTTP/Cache/CB | 15s |
 | Lock Health | `http://localhost:3000/d/lock-health-p0` | P0 Lock 모니터링 | 15s |
 | Prometheus Raw | `http://localhost:9090` | 메트릭 쿼리 | - |
