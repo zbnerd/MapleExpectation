@@ -14,7 +14,7 @@
 |-----------|-------|
 | **Target Users** | MapleStory players (casual to hardcore), Backend developers, Performance researchers |
 | **Value Proposition** | 1,000 concurrent users, RPS 719, Rx 1.7Gbps, 0% failure |
-| **Core Technology** | Java 17, Spring Boot 3.5.4, Redis+MySQL, Resilience4j |
+| **Core Technology** | Java 21, Spring Boot 3.5.4, Redis+MySQL, Resilience4j |
 | **Architecture** | 7 Core Modules (LogicExecutor, TieredCache, Resilience4j, etc.) |
 
 ### 1.2 Key Performance Indicators (Baseline)

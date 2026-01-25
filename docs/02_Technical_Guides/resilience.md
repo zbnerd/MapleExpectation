@@ -1,8 +1,11 @@
-가능하면 적절한 디자인패턴을 적용해서 리팩토링하기 좋은 클린코드 만들어줘야해. SOLID원칙은 반드시지키도록하고 작업전 CLAUDE.md 선참조는 필수야. sequential thinking, context7 사용해서 best practice 찾아내서 다음을 반영해줘.:
-[
-금융수준으로 엄격하게 타이트하게 구현해야하고 CLAUDE.md 꼭 참고 먼저하도록해. 그리고 구현 끝났으면 컴파일만하고 나에게 컨펌받아.
-]
-sequential thinking, context7 사용해서 best practice 찾아낸게 있으면 CLAUDE.md에 꼭반영해야해.
+# Resilience Guide
+
+> **상위 문서:** [CLAUDE.md](../CLAUDE.md)
+
+이 문서는 MapleExpectation 프로젝트의 회복 탄력성(Resilience) 패턴 및 외부 API 장애 대응 전략을 정의합니다.
+
+---
+
 # 🛡️ 외부 API 장애 대응 전략 (Resilience Strategy)
 
 ## 1. 개요
