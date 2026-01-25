@@ -10,7 +10,7 @@
 | **What** | MapleStory Equipment Upgrade Cost Calculator |
 | **Stack** | Java 21, Spring Boot 3.5.4, Redis, MySQL, Resilience4j |
 | **Highlight** | 7 Core Modules: LogicExecutor, TieredCache, Singleflight, Circuit Breaker |
-| **Result** | **RPS 719**, p50 164ms, **0% Failure** (로컬 벤치마크 #266) |
+| **Result** | **RPS 719**, **180 MB/s**, p50 164ms, **0% Failure** (로컬 벤치마크 #266) |
 
 ---
 
