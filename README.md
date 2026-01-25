@@ -37,6 +37,20 @@
 | [Business Model](docs/00_Start_Here/BUSINESS_MODEL.md) | BMC 문서 |
 | [Architecture](docs/00_Start_Here/architecture.md) | 시스템 아키텍처 다이어그램 |
 | [Chaos Tests](docs/01_Chaos_Engineering/06_Nightmare/) | N01-N18 Nightmare 시나리오 |
+| [Adoption Guide](docs/05_Guides/adoption.md) | 단계별 도입 가이드 |
+| [ADRs](docs/adr/) | Architecture Decision Records |
+
+### Fit Check (30초 자가진단)
+
+> 아래 중 **2개 이상** 해당하면 단순 최적화가 아닌 **아키텍처 수준의 해결책**이 필요합니다.
+
+| Check | Condition | Description |
+|:-----:|-----------|-------------|
+| ☐ | payload > 100KB | 요청당 JSON 크기가 100KB 이상 |
+| ☐ | 외부 API p95 > 500ms | 외부 의존성 응답이 느림 |
+| ☐ | Thread Pool 잠김 경험 | 동시 요청에서 처리 지연 |
+| ☐ | 캐시 만료 시 DB 폭주 | Cache Stampede 경험 |
+| ☐ | 장애 전파 경험 | 일부 장애가 전체로 번짐 |
 
 </div>
 
