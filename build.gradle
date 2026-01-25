@@ -97,6 +97,15 @@ tasks.named("jar") {
     enabled = false
 }
 
+// JVM 메모리 설정 (bootRun)
+bootRun {
+    jvmArgs = [
+        '-Xms512m',
+        '-Xmx1024m',
+        '-XX:+UseG1GC'
+    ]
+}
+
 // ========================================
 // Issue #207: CI 테스트 최적화
 // Issue #210: Flaky Test 추적 및 Quarantine

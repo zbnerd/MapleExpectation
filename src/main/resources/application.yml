@@ -99,7 +99,7 @@ resilience4j:
           - java.net.UnknownHostException
           - maple.expectation.global.error.exception.ExternalServiceException  # Issue #202: 외부 서비스 장애 시 재시도
       nexonLockRetry:
-        maxAttempts: 5             # 최대 5번 시도 (락 경합이 심할 때를 대비해 조금 넉넉히)
+        maxAttempts: 5             # 최대 5번 시도 (락 경합이 심할 때를 대비해 조금 넓넉히)
         waitDuration: 200ms        # 0.2초 간격으로 다시 시도
         retryExceptions:           # 이 예외가 발생했을 때만 재시도함
           - maple.expectation.global.error.exception.DistributedLockException
@@ -128,7 +128,7 @@ observability:
   loki:
     url: ${LOKI_URL:http://localhost:3100}
 
-# 넥슨 API 설정
+# 넥손 API 설정
 nexon:
   api:
     key: ${NEXON_API_KEY}
@@ -141,6 +141,7 @@ nexon:
 
 server:
   shutdown: graceful
+  # Tomcat 스레드 설정 제거 - Virtual Thread 모드에서는 불필요
 
 app:
   optimization:
@@ -197,32 +198,3 @@ cors:
     - "http://localhost:3000"  # 기본값 (환경별 오버라이드 필수)
   allow-credentials: true
   max-age: 3600  # 1시간
-
-# Rate Limiting 설정 (Issue #152: Bucket4j + Redis)
-# 5-Agent Council 합의: 가용성 > 보안 (fail-open), Admin 바이패스
-ratelimit:
-  enabled: true
-  failure-mode: fail-open  # Redis 장애 시 요청 허용 (가용성 우선)
-  key-prefix: "{ratelimit}"  # Redis Cluster Hash Tag
-  ip:
-    enabled: true
-    capacity: 100          # 1분당 100 요청
-    window: 1m
-    refill-tokens: 10      # 6초마다 10 토큰 리필
-    refill-period: 6s
-  user:
-    enabled: true
-    capacity: 200          # 인증 사용자: 1분당 200 요청
-    window: 1m
-    refill-tokens: 20
-    refill-period: 6s
-  trusted-headers:         # IP 스푸핑 방지 (순서대로 확인)
-    - "X-Forwarded-For"
-    - "X-Real-IP"
-  bypass-paths:            # Rate Limit 제외 경로
-    - "/swagger-ui/**"
-    - "/v3/api-docs/**"
-    - "/actuator/health"
-    - "/actuator/info"
-    - "/actuator/prometheus"  # TEMP: Prometheus 스크래핑 허용
-
