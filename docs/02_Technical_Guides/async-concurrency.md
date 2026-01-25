@@ -20,7 +20,7 @@ public ResponseEntity<Response> getExpectation(@PathVariable String userIgn) {
     return ResponseEntity.ok(result);
 }
 
-// Good (톰캣 스레드 즉시 반환 -> RPS 240+ 달성)
+// Good (톰캣 스레드 즉시 반환 -> RPS 719 달성)
 @GetMapping("/{userIgn}/expectation")
 public CompletableFuture<ResponseEntity<Response>> getExpectation(@PathVariable String userIgn) {
     return service.calculateAsync(userIgn)  // 비동기 호출
