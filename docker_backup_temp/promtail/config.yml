@@ -1,0 +1,28 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: maple_logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          app: maple-expectation
+          job: varlogs
+          __path__: /var/log/app/*.log
+
+  - job_name: mysql_slow_query
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          app: mysql-db
+          job: slow-query
+          __path__: /var/log/mysql/mysql-slow.log

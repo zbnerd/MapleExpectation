@@ -1,23 +1,21 @@
-# ADR-007: AOP + Async + Cache 결합부 설계
+# ADR-007: NexonDataCacheAspect 및 비동기 컨텍스트 관리
 
 ## 상태
 Accepted
 
 ## 맥락 (Context)
 
-Nexon API 데이터 캐싱과 비동기 처리를 결합할 때 다음 문제가 발생했습니다:
+TieredCache와 Singleflight 패턴(ADR-003)을 Nexon API 호출에 적용할 때 다음 문제가 발생했습니다:
 
 **관찰된 문제:**
-- Cache Stampede: 캐시 만료 + 100명 동시 요청 → API 100회 호출
 - AOP와 CompletableFuture 결합 시 ThreadLocal 컨텍스트 유실
 - 동기/비동기 반환 타입 혼재로 래핑 로직 복잡
-
-**README 문제 정의:**
-> 캐시 만료 + 1,000명 동시 요청 → 모두 DB 직접 호출 → Cache Stampede
+- 경로별 L2 캐시 저장 정책 분기 필요 (Equipment 조회 vs Expectation 계산)
 
 **부하테스트 결과 (#266):**
-- Singleflight + TieredCache로 DB 호출 97% 감소
 - L1 Fast Path로 응답 시간 27ms → 5ms (5.4x 개선)
+
+> **참고:** Cache Stampede 방지를 위한 Singleflight 패턴은 [ADR-003](ADR-003-tiered-cache-singleflight.md) 참조
 
 ## 검토한 대안 (Options Considered)
 
@@ -28,31 +26,31 @@ Nexon API 데이터 캐싱과 비동기 처리를 결합할 때 다음 문제가
 public CompletableFuture<Equipment> getEquipment(String ocid) { ... }
 ```
 - 장점: 선언적, 간단
-- 단점: 프록시 중첩 순서 문제, Stampede 방지 안됨
+- 단점: 프록시 중첩 순서 문제, ThreadLocal 유실
 - **결론: 제어 불가**
 
-### 옵션 B: 수동 캐시 + synchronized
+### 옵션 B: 서비스 레이어에서 수동 캐시 관리
 ```java
-synchronized (key.intern()) {
-    if (cache.get(key) == null) {
-        cache.put(key, fetchFromApi());
-    }
+public Equipment getEquipment(String ocid) {
+    Equipment cached = cache.get(ocid);
+    if (cached != null) return cached;
+    // ... API 호출 및 캐시 저장
 }
 ```
-- 장점: Stampede 방지
-- 단점: 분산 환경 미지원, 성능 저하
-- **결론: 확장성 부족**
+- 장점: 명시적 제어
+- 단점: 보일러플레이트 코드 산재, 일관성 부족
+- **결론: 유지보수 어려움**
 
-### 옵션 C: AOP Aspect + Redisson Latch + Singleflight
-- 장점: 분산 Stampede 방지, L1/L2 계층, 비동기 지원
+### 옵션 C: 커스텀 AOP Aspect + Redisson Latch
+- 장점: 선언적 사용, 분산 락 통합, 컨텍스트 관리 일원화
 - 단점: 구현 복잡도
 - **결론: 채택**
 
 ## 결정 (Decision)
 
-**NexonDataCacheAspect + Redisson CountDownLatch + TieredCache 조합을 적용합니다.**
+**NexonDataCacheAspect를 통한 선언적 캐시 + 분산 락 + ThreadLocal 보존을 적용합니다.**
 
-### 1. NexonDataCacheAspect 흐름
+### 1. NexonDataCacheAspect 구조
 ```java
 // maple.expectation.aop.aspect.NexonDataCacheAspect
 @Around("@annotation(NexonDataCache) && args(ocid, ..)")
@@ -66,7 +64,7 @@ private Object executeDistributedStrategy(...) {
     String latchKey = "latch:eq:" + ocid;
     RCountDownLatch latch = redissonClient.getCountDownLatch(latchKey);
 
-    // 2. Leader/Follower 분기
+    // 2. Leader/Follower 분기 (ADR-003 Singleflight 적용)
     if (latch.trySetCount(1)) {
         return executeAsLeader(joinPoint, ocid, returnType, latch);
     }
@@ -74,34 +72,16 @@ private Object executeDistributedStrategy(...) {
 }
 ```
 
-### 2. Leader/Follower 패턴 (Singleflight)
-```
-[동시 요청 100개] → [Latch 경쟁]
-      ↓
-┌─────────────────────────────────────┐
-│ Leader (1명)                        │
-│  - Nexon API 호출                   │
-│  - 결과 캐시 저장                   │
-│  - Latch countDown()                │
-└─────────────────────────────────────┘
-      ↓
-┌─────────────────────────────────────┐
-│ Followers (99명)                    │
-│  - Latch await() 대기               │
-│  - 캐시에서 결과 조회               │
-└─────────────────────────────────────┘
-```
-
-### 3. ThreadLocal 컨텍스트 보존
+### 2. ThreadLocal 컨텍스트 보존 (핵심)
 ```java
 // 비동기 콜백에서 컨텍스트 복원
 private Object handleAsyncResult(CompletableFuture<?> future, String ocid, RCountDownLatch latch) {
-    // 현재 컨텍스트 스냅샷
+    // 현재 스레드의 컨텍스트 스냅샷
     Boolean skipContextSnap = SkipEquipmentL2CacheContext.snapshot();
 
     return future.handle((res, ex) -> executor.executeWithFinally(
             () -> {
-                // 컨텍스트 복원
+                // 콜백 스레드에서 컨텍스트 복원
                 SkipEquipmentL2CacheContext.restore(skipContextSnap);
                 return processAsyncCallback(res, ex, ocid);
             },
@@ -110,6 +90,46 @@ private Object handleAsyncResult(CompletableFuture<?> future, String ocid, RCoun
     ));
 }
 ```
+
+**문제 상황:**
+```
+[Thread-1] SkipEquipmentL2CacheContext.set(true)
+    ↓
+[Thread-1] CompletableFuture.supplyAsync(...)
+    ↓
+[ForkJoinPool-1] 콜백 실행 → ThreadLocal 값 없음 (null)
+```
+
+**해결:**
+```
+[Thread-1] snapshot = SkipEquipmentL2CacheContext.snapshot()  // true 캡처
+    ↓
+[ForkJoinPool-1] SkipEquipmentL2CacheContext.restore(snapshot)  // true 복원
+```
+
+### 3. 경로별 L2 캐시 분기
+```java
+// maple.expectation.aop.context.SkipEquipmentL2CacheContext
+public class SkipEquipmentL2CacheContext {
+    private static final ThreadLocal<Boolean> SKIP_L2 = new ThreadLocal<>();
+
+    public static void enableSkip() { SKIP_L2.set(true); }
+    public static boolean enabled() { return Boolean.TRUE.equals(SKIP_L2.get()); }
+}
+
+// Aspect에서 사용
+if (SkipEquipmentL2CacheContext.enabled()) {
+    log.debug("[NexonCache] L2 save skipped (Expectation path): {}", ocid);
+    return;  // L2 저장 스킵
+}
+cacheService.saveCache(ocid, response);
+```
+
+**분기 이유:**
+| 경로 | L2 저장 | 이유 |
+|------|---------|------|
+| Equipment 단독 조회 | O | 재사용 가능 |
+| Expectation 계산 경로 | X | DB에 이미 저장됨 (중복 방지) |
 
 ### 4. Latch TTL 관리 (Zombie 방지)
 ```yaml
@@ -121,53 +141,35 @@ nexon:
     cache-follower-timeout-seconds: 30  # Follower 대기 상한
 ```
 
-### 5. L1 Fast Path (#264)
+### 5. 사용 예시
 ```java
-// Controller Level - GZIP 데이터 직접 반환
-@GetMapping("/{userIgn}/expectation")
-public CompletableFuture<ResponseEntity<?>> getExpectation(...) {
-    // Fast Path: L1 캐시에서 GZIP 직접 반환 (역직렬화 스킵)
-    if (isGzipAccepted(acceptEncoding)) {
-        Optional<byte[]> gzipData = service.getGzipFromL1CacheDirect(cacheKey);
-        if (gzipData.isPresent()) {
-            return CompletableFuture.completedFuture(
-                ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_ENCODING, "gzip")
-                    .body(gzipData.get())
-            );
-        }
-    }
-    // Full Path: 비동기 파이프라인
-    return service.calculateAsync(userIgn).thenApply(this::toResponse);
+// 서비스에서 어노테이션만 선언
+@NexonDataCache
+public CompletableFuture<EquipmentResponse> getEquipment(String ocid) {
+    return nexonApiClient.fetchEquipment(ocid);
 }
-```
 
-### 6. 경로별 L2 캐시 분기
-```java
-// Expectation 경로: L2 저장 스킵 (DB에 이미 저장)
-if (SkipEquipmentL2CacheContext.enabled()) {
-    log.debug("[NexonCache] L2 save skipped (Expectation path): {}", ocid);
-    return;
+// Expectation 계산 시 L2 스킵 활성화
+public void calculateExpectation(String userIgn) {
+    SkipEquipmentL2CacheContext.enableSkip();
+    try {
+        equipmentService.getEquipment(ocid);  // L2 저장 안 함
+    } finally {
+        SkipEquipmentL2CacheContext.clear();
+    }
 }
-cacheService.saveCache(ocid, response);
 ```
 
 ## 결과 (Consequences)
 
-| 시나리오 | Before | After |
-|----------|--------|-------|
-| 캐시 만료 + 100 동시 요청 | API 100회 | **API 1회** |
-| L1 HIT 응답 시간 | 27ms | **5ms** |
-| DB 호출 비율 | 100% | **3%** |
-
-**부하테스트 효과 (#266):**
-- RPS 555 → 719 (+30%)
-- 10만 RPS급 등가 처리량 달성
+| 지표 | Before | After |
+|------|--------|-------|
+| ThreadLocal 유실 | 발생 | **방지** |
+| L2 중복 저장 | 발생 | **경로별 분기** |
+| 캐시 로직 산재 | 서비스마다 | **Aspect 일원화** |
 
 ## 참고 자료
 - `maple.expectation.aop.aspect.NexonDataCacheAspect`
 - `maple.expectation.aop.context.SkipEquipmentL2CacheContext`
-- `maple.expectation.global.cache.TieredCacheManager`
-- `maple.expectation.service.v2.cache.EquipmentCacheService`
-- `docs/01_Chaos_Engineering/06_Nightmare/N01_Thundering_Herd/`
-- `docs/01_Chaos_Engineering/06_Nightmare/N05_Hot_Key/`
+- `maple.expectation.aop.annotation.NexonDataCache`
+- [ADR-003: TieredCache + Singleflight](ADR-003-tiered-cache-singleflight.md)
