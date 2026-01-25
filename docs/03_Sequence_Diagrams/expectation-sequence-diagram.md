@@ -11,7 +11,7 @@ Trace Log 기반으로 비동기 파이프라인, 캐시 레이어, 외부 API �
 
 | 패턴 | 설명 | 효과 |
 |------|------|------|
-| **Non-Blocking Async** | 톰캣 스레드 즉시 반환 (0ms) | RPS 240+ 달성 |
+| **Non-Blocking Async** | 톰캣 스레드 즉시 반환 (0ms) | RPS 719 달성 (wrk 벤치마크) |
 | **Two-Phase Snapshot** | Light → Full 단계적 로드 | 캐시 HIT 시 불필요한 DB 조회 방지 |
 | **Single-Flight** | 동일 키 동시 요청 시 1회만 계산 | 중복 계산 방지 |
 | **Tiered Cache (L1/L2)** | Caffeine → Redis | 레이턴시 최소화 |
