@@ -142,6 +142,8 @@ nexon:
 server:
   shutdown: graceful
   # Tomcat 스레드 설정 제거 - Virtual Thread 모드에서는 불필요
+  tomcat:
+    max-http-post-size: 262144  # 256KB (#266 P1-4: JSON DoS 방어)
 
 app:
   optimization:
@@ -190,6 +192,13 @@ auth:
     allowlist: ${ADMIN_FINGERPRINTS:}  # 쉼표 구분 fingerprint 목록
   session:
     ttl: 1800  # 30분 (초)
+
+# Expectation Buffer 설정 (#266 ADR 정합성)
+expectation:
+  buffer:
+    shutdown-await-timeout-seconds: 30  # Shutdown 시 진행 중인 offer 대기 (초)
+    cas-max-retries: 10                  # CAS 연산 최대 재시도 횟수
+    max-queue-size: 10000                # 버퍼 최대 크기 (백프레셔 임계값)
 
 # CORS 설정 (Issue #172: 환경별 분리)
 # 주의: 반드시 환경별 프로필(local/prod)에서 allowed-origins 오버라이드 필요

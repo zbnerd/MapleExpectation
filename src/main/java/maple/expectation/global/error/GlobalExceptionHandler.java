@@ -1,11 +1,13 @@
 package maple.expectation.global.error;
 
+import com.fasterxml.jackson.core.exc.StreamConstraintsException;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.error.dto.ErrorResponse;
 import maple.expectation.global.error.exception.base.BaseException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -227,6 +229,51 @@ public class GlobalExceptionHandler {
                         .status(HttpStatus.BAD_REQUEST.value())
                         .code(CommonErrorCode.INVALID_INPUT_VALUE.getCode())
                         .message(String.format(CommonErrorCode.INVALID_INPUT_VALUE.getMessage(), errorMessage))
+                        .timestamp(LocalDateTime.now())
+                        .build());
+    }
+
+    // ==================== Issue #266: JSON 파싱 보안 처리 ====================
+
+    /**
+     * [Issue #266 P1-4] JSON 파싱 예외 처리 (DoS 방어)
+     *
+     * <h3>5-Agent Council 합의</h3>
+     * <ul>
+     *   <li>Purple (Auditor): StreamConstraintsException 감지 시 명확한 메시지 반환</li>
+     *   <li>Red (SRE): JSON Bomb 공격 로그 기록</li>
+     * </ul>
+     *
+     * <h3>처리 대상</h3>
+     * <ul>
+     *   <li>StreamConstraintsException: 깊이/크기 제한 초과</li>
+     *   <li>기타 JSON 파싱 오류: 잘못된 형식</li>
+     * </ul>
+     *
+     * @return 400 Bad Request + C001 에러코드
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    protected ResponseEntity<ErrorResponse> handleHttpMessageNotReadable(
+            HttpMessageNotReadableException e) {
+
+        String message = "Invalid JSON format";
+        Throwable cause = e.getCause();
+
+        // StreamConstraintsException: JSON 깊이/크기 제한 초과 (DoS 공격 의심)
+        if (cause instanceof StreamConstraintsException) {
+            message = "JSON exceeds size/depth limits";
+            log.warn("[Security] JSON constraints violation - potential DoS attack: {}",
+                    cause.getMessage());
+        } else {
+            log.warn("JSON parsing failed: {}", e.getMessage());
+        }
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ErrorResponse.builder()
+                        .status(HttpStatus.BAD_REQUEST.value())
+                        .code(CommonErrorCode.INVALID_INPUT_VALUE.getCode())
+                        .message(message)
                         .timestamp(LocalDateTime.now())
                         .build());
     }

@@ -73,9 +73,19 @@ public class ExpectationBatchWriteScheduler {
      *
      * <h4>CLAUDE.md Section 12 준수</h4>
      * <p>try-catch 금지 → LogicExecutor.executeOrCatch() 사용</p>
+     *
+     * <h4>P0: Red Agent 스케줄러 양보</h4>
+     * <p>Shutdown 중이면 스케줄러가 양보하여 ShutdownHandler에게 버퍼 처리를 위임합니다.
+     * 이렇게 함으로써 스케줄러와 ShutdownHandler 간의 경합을 방지합니다.</p>
      */
     @Scheduled(fixedDelay = 5000)
     public void flush() {
+        // Red Agent: Shutdown 중이면 스케줄러는 양보
+        if (buffer.isShuttingDown()) {
+            log.debug("[ExpectationBatch] Skipping flush during shutdown");
+            return;
+        }
+
         TaskContext context = TaskContext.of("Scheduler", "ExpectationBatch.Flush");
 
         executor.executeOrCatch(() -> {
