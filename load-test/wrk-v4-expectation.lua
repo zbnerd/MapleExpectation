@@ -12,13 +12,13 @@ local function urlencode(str)
 end
 
 -- 테스트용 캐릭터 IGN 목록 (URL 인코딩된 형태로 저장)
--- 은월 = %EC%9D%80%EC%9B%94
--- 호영 = %ED%98%B8%EC%98%81
--- 라라 = %EB%9D%BC%EB%9D%BC
+-- 아델 = %EC%95%84%EB%8D%B8
+-- 강은호 = %EA%B0%95%EC%9D%80%ED%98%B8
+-- 진격캐넌 = %EC%A7%84%EA%B2%A9%EC%BA%90%EB%84%8C
 local igns = {
-    "%EC%9D%80%EC%9B%94",  -- 은월
-    "%ED%98%B8%EC%98%81",  -- 호영
-    "%EB%9D%BC%EB%9D%BC"   -- 라라
+    "%EC%95%84%EB%8D%B8",           -- 아델
+    "%EA%B0%95%EC%9D%80%ED%98%B8",  -- 강은호
+    "%EC%A7%84%EA%B2%A9%EC%BA%90%EB%84%8C"  -- 진격캐넌
 }
 
 local counter = 0
