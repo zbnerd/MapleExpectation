@@ -2,6 +2,12 @@
 
 <div align="center">
 
+![CI Pipeline](https://github.com/zbnerd/MapleExpectation/actions/workflows/ci.yml/badge.svg)
+![Nightly Tests](https://github.com/zbnerd/MapleExpectation/actions/workflows/nightly.yml/badge.svg)
+![Java](https://img.shields.io/badge/Java-21-007396?logo=openjdk)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.4-6DB33F?logo=springboot)
+![License](https://img.shields.io/badge/License-MIT-blue)
+
 ## TL;DR
 
 | What | Description |
@@ -367,6 +373,51 @@ curl "http://localhost:8080/api/v3/characters/강은호/expectation"
 
 ---
 
+## Testing & CI/CD
+
+### 테스트 구성
+
+| 카테고리 | 테스트 수 | 설명 |
+|----------|-----------|------|
+| **Unit Tests** | 90+ 파일 | Mock 기반 빠른 검증 |
+| **Integration Tests** | 20+ 파일 | Testcontainers (MySQL/Redis) |
+| **Chaos Tests** | 18 시나리오 | Nightmare N01-N18 |
+| **Total** | **498 @Test** | 전체 테스트 케이스 |
+
+### CI/CD Pipeline
+
+| Workflow | Trigger | 테스트 범위 | Timeout |
+|----------|---------|-------------|---------|
+| **CI Pipeline** | PR/Push to develop | `-PfastTest` (Unit Only) | 10분 |
+| **Nightly Full** | 매일 KST 00:00 | 전체 (Chaos 포함) | 60분 |
+
+```bash
+# 빠른 테스트 (CI 수준)
+./gradlew test -PfastTest
+
+# 전체 테스트 (Nightly 수준)
+./gradlew test
+```
+
+### 테스트 전략
+
+```
+CI Gate (PR)          Nightly (Daily)
+    │                      │
+    ▼                      ▼
+┌─────────┐          ┌─────────────┐
+│ fastTest│          │  Full Test  │
+│ 3-5분   │          │  30-60분    │
+└────┬────┘          └──────┬──────┘
+     │                      │
+     ▼                      ▼
+  Unit Only           + Chaos Tests
+                      + Nightmare N01-N18
+                      + Sentinel Failover
+```
+
+---
+
 ## Development Journey
 
 > **집중 개발 3개월 | 230 커밋 | 27,799 LoC | 479 테스트**
@@ -406,7 +457,13 @@ docs/
 ├── 01_Chaos_Engineering/    # Nightmare Tests (N01~N18)
 │   └── 06_Nightmare/        # 시나리오 + 결과 리포트
 ├── 02_Technical_Guides/     # 인프라, 비동기, 테스트 가이드
-└── 03_Sequence_Diagrams/    # 모듈별 시퀀스 다이어그램
+├── 03_Sequence_Diagrams/    # 모듈별 시퀀스 다이어그램
+├── 04_Operations/           # 운영 가이드
+│   └── observability.md     # Prometheus, Grafana, 메트릭
+├── 04_Reports/              # 부하테스트, KPI 리포트
+│   └── Load_Tests/          # wrk/Locust 벤치마크 결과
+└── demo/                    # 데모 가이드
+    └── DEMO_GUIDE.md        # 10분 시연 스크립트
 ```
 
 ---
