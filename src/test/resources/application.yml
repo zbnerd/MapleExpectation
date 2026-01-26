@@ -96,6 +96,8 @@ springdoc:
 scheduler:
   like-sync:
     enabled: false
+  expectation-sync:
+    enabled: false
 
 # CORS 설정 (테스트 환경)
 cors:
@@ -110,8 +112,3 @@ expectation:
     shutdown-await-timeout-seconds: 10  # 테스트용 짧은 타임아웃
     cas-max-retries: 10
     max-queue-size: 1000  # 테스트용 작은 큐 크기
-
-# Expectation Sync 스케줄러 비활성화 (Flaky Test 방지)
-scheduler:
-  expectation-sync:
-    enabled: false
