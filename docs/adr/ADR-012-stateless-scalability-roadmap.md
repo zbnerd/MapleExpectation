@@ -197,6 +197,240 @@ public void stop() {
 }
 ```
 
+## 메시지 큐 추상화 설계 (Strategy Pattern)
+
+### 설계 원칙: OCP (Open-Closed Principle)
+
+추후 Redis List → Kafka, RabbitMQ, AWS SQS 등으로 **무중단 전환**이 가능하도록 전략 패턴으로 추상화합니다.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Message Queue Abstraction                 │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │              <<interface>>                            │   │
+│  │           WriteBackBufferStrategy                     │   │
+│  ├──────────────────────────────────────────────────────┤   │
+│  │  + offer(task: WriteTask): boolean                   │   │
+│  │  + poll(batchSize: int): List<WriteTask>             │   │
+│  │  + size(): long                                       │   │
+│  │  + getType(): BufferType                              │   │
+│  └──────────────────────────────────────────────────────┘   │
+│              △                    △                    △     │
+│              │                    │                    │     │
+│     ┌────────┴───┐      ┌────────┴───┐      ┌────────┴───┐ │
+│     │ InMemory   │      │   Redis    │      │   Kafka    │ │
+│     │ Strategy   │      │  Strategy  │      │  Strategy  │ │
+│     │   (V4)     │      │   (V5)     │      │   (V6)     │ │
+│     └────────────┘      └────────────┘      └────────────┘ │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 1. 인터페이스 정의
+```java
+/**
+ * Write-Behind Buffer 전략 인터페이스
+ * 구현체 교체만으로 In-Memory ↔ Redis ↔ Kafka 전환 가능
+ */
+public interface WriteBackBufferStrategy {
+
+    /**
+     * 버퍼에 작업 추가
+     * @return 성공 여부 (Backpressure 시 false)
+     */
+    boolean offer(ExpectationWriteTask task);
+
+    /**
+     * 버퍼에서 배치 단위로 작업 조회 및 제거 (Atomic)
+     */
+    List<ExpectationWriteTask> poll(int batchSize);
+
+    /**
+     * 현재 대기 중인 작업 수
+     */
+    long size();
+
+    /**
+     * 버퍼 타입 식별 (모니터링용)
+     */
+    BufferType getType();
+
+    /**
+     * 헬스체크
+     */
+    default boolean isHealthy() {
+        return true;
+    }
+}
+
+public enum BufferType {
+    IN_MEMORY,   // V4: ConcurrentLinkedQueue
+    REDIS_LIST,  // V5: Redis LPUSH/RPOP
+    KAFKA,       // V6: Kafka Topic
+    SQS          // AWS SQS (옵션)
+}
+```
+
+### 2. 구현체별 전략
+```java
+// V4: In-Memory (현재)
+@Component
+@ConditionalOnProperty(name = "buffer.strategy", havingValue = "in-memory", matchIfMissing = true)
+public class InMemoryBufferStrategy implements WriteBackBufferStrategy {
+
+    private final ConcurrentLinkedQueue<ExpectationWriteTask> queue = new ConcurrentLinkedQueue<>();
+
+    @Override
+    public boolean offer(ExpectationWriteTask task) {
+        return queue.offer(task);
+    }
+
+    @Override
+    public List<ExpectationWriteTask> poll(int batchSize) {
+        List<ExpectationWriteTask> batch = new ArrayList<>(batchSize);
+        for (int i = 0; i < batchSize; i++) {
+            ExpectationWriteTask task = queue.poll();
+            if (task == null) break;
+            batch.add(task);
+        }
+        return batch;
+    }
+
+    @Override
+    public BufferType getType() { return BufferType.IN_MEMORY; }
+}
+
+// V5: Redis List
+@Component
+@ConditionalOnProperty(name = "buffer.strategy", havingValue = "redis")
+public class RedisBufferStrategy implements WriteBackBufferStrategy {
+
+    private final RedissonClient redisson;
+    private static final String BUFFER_KEY = "expectation:write:buffer";
+
+    @Override
+    public boolean offer(ExpectationWriteTask task) {
+        RList<String> list = redisson.getList(BUFFER_KEY);
+        return list.add(serialize(task));
+    }
+
+    @Override
+    public List<ExpectationWriteTask> poll(int batchSize) {
+        // Lua Script로 Atomic하게 조회 + 삭제
+        return redisson.getScript().eval(RScript.Mode.READ_WRITE,
+            "local items = redis.call('LRANGE', KEYS[1], 0, ARGV[1]-1)\n" +
+            "redis.call('LTRIM', KEYS[1], ARGV[1], -1)\n" +
+            "return items",
+            RScript.ReturnType.MULTI,
+            List.of(BUFFER_KEY),
+            batchSize
+        ).stream().map(this::deserialize).toList();
+    }
+
+    @Override
+    public BufferType getType() { return BufferType.REDIS_LIST; }
+}
+
+// V6: Kafka (미래)
+@Component
+@ConditionalOnProperty(name = "buffer.strategy", havingValue = "kafka")
+public class KafkaBufferStrategy implements WriteBackBufferStrategy {
+
+    private final KafkaTemplate<String, String> kafkaTemplate;
+    private static final String TOPIC = "expectation-write-buffer";
+
+    @Override
+    public boolean offer(ExpectationWriteTask task) {
+        kafkaTemplate.send(TOPIC, serialize(task));
+        return true;
+    }
+
+    @Override
+    public List<ExpectationWriteTask> poll(int batchSize) {
+        // Kafka Consumer는 별도 Worker에서 처리
+        throw new UnsupportedOperationException("Kafka uses dedicated consumer");
+    }
+
+    @Override
+    public BufferType getType() { return BufferType.KAFKA; }
+}
+```
+
+### 3. 설정 기반 전환
+```yaml
+# application.yml - 설정값 하나로 전략 교체
+buffer:
+  strategy: in-memory  # in-memory | redis | kafka
+
+---
+# application-prod.yml (V5 전환 시)
+buffer:
+  strategy: redis
+  redis:
+    key: "expectation:write:buffer"
+    batch-size: 100
+
+---
+# application-enterprise.yml (V6 전환 시)
+buffer:
+  strategy: kafka
+  kafka:
+    topic: "expectation-write-buffer"
+    partition-count: 10
+```
+
+### 4. 서비스 계층 (전략 주입)
+```java
+@Service
+@RequiredArgsConstructor
+public class ExpectationWriteService {
+
+    private final WriteBackBufferStrategy bufferStrategy;  // 전략 주입
+
+    public void saveAsync(Long characterId, List<PresetExpectation> presets) {
+        ExpectationWriteTask task = new ExpectationWriteTask(characterId, presets, Instant.now());
+
+        if (!bufferStrategy.offer(task)) {
+            // Backpressure: 버퍼 가득 찬 경우 동기 저장 폴백
+            log.warn("Buffer full, falling back to sync save");
+            repository.save(task.toEntity());
+        }
+
+        // 메트릭: 어떤 전략이 사용 중인지 태그
+        meterRegistry.counter("buffer.offer",
+            "strategy", bufferStrategy.getType().name()
+        ).increment();
+    }
+}
+```
+
+### 5. 전략 비교표
+
+| 전략 | 지연 | 처리량 | 내구성 | 비용 | 전환 시점 |
+|------|------|--------|--------|------|-----------|
+| **In-Memory** | 0.1ms | 965 RPS | Low | Free | 현재 (V4) |
+| **Redis List** | 1-2ms | 500 RPS/대 | Medium | $ | 800+ RPS (V5) |
+| **Kafka** | 5-10ms | 무제한 | High | $$$ | 10,000+ RPS (V6) |
+| **AWS SQS** | 10-20ms | 무제한 | High | $$ | 서버리스 전환 시 |
+
+### 6. 면접 포인트
+
+> **Q: "왜 처음부터 Kafka를 안 쓰고 Redis부터 시작하나요?"**
+>
+> **A:** "**YAGNI (You Aren't Gonna Need It)** 원칙입니다.
+>
+> 현재 트래픽(100-500 RPS)에서 Kafka는 과잉 설계입니다.
+> 하지만 **전략 패턴으로 추상화**해두었기 때문에:
+>
+> 1. `buffer.strategy: redis` → `buffer.strategy: kafka`
+> 2. 설정 파일 한 줄 변경으로 전환 완료
+> 3. 코드 변경 없이 인프라만 교체
+>
+> 이것이 **OCP(Open-Closed Principle)**의 실전 적용입니다.
+> 확장에는 열려있고, 수정에는 닫혀있는 설계입니다."
+
 ## 트레이드오프 분석
 
 ### 성능 vs 확장성 매트릭스
