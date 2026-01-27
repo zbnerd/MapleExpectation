@@ -73,6 +73,22 @@ dependencies {
     // Observability - Loki Appender (Issue #143)
     implementation 'com.github.loki4j:loki-logback-appender:1.4.2'
 
+    // ========================================
+    // Issue #251: AI SRE + OpenTelemetry
+    // ========================================
+
+    // LangChain4j - AI SRE 분석 (Context7 Best Practice: 1.9.1 버전)
+    implementation 'dev.langchain4j:langchain4j-spring-boot-starter:1.9.1-beta17'
+    implementation 'dev.langchain4j:langchain4j-open-ai-spring-boot-starter:1.9.1-beta17'
+
+    // OpenTelemetry - 분산 추적 (Context7 Best Practice)
+    implementation 'io.micrometer:micrometer-tracing-bridge-otel'
+    implementation 'io.opentelemetry:opentelemetry-exporter-otlp'
+    implementation 'io.opentelemetry.contrib:opentelemetry-samplers:1.33.0-alpha'
+
+    // Spring Batch - 주기적 리포트 (Issue #251 Phase 4)
+    implementation 'org.springframework.boot:spring-boot-starter-batch'
+
     compileOnly 'org.projectlombok:lombok:1.18.30'
 	runtimeOnly 'com.h2database:h2'
     runtimeOnly 'com.mysql:mysql-connector-j'
