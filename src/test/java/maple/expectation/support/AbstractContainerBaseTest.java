@@ -39,7 +39,7 @@ public abstract class AbstractContainerBaseTest {
                 .withPassword("1234")
                 .withNetwork(NETWORK)
                 .waitingFor(Wait.forLogMessage(".*ready for connections.*\\s", 2))
-                .withStartupTimeout(Duration.ofMinutes(2));
+                .withStartupTimeout(Duration.ofMinutes(5));
 
         // 2) Redis 설정
         REDIS = new GenericContainer<>(DockerImageName.parse("redis:7.0"))

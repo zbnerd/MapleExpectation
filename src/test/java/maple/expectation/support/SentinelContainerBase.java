@@ -73,7 +73,7 @@ public abstract class SentinelContainerBase {
             .withNetwork(NETWORK)
             .withNetworkAliases("mysql-db")
             .waitingFor(Wait.forLogMessage(".*ready for connections.*\\s", 2))
-            .withStartupTimeout(Duration.ofMinutes(2));
+            .withStartupTimeout(Duration.ofMinutes(5));
 
     // -------------------------------------------------------------------------
     // Redis Master/Slave
@@ -97,7 +97,7 @@ public abstract class SentinelContainerBase {
     // -------------------------------------------------------------------------
     protected static final ToxiproxyContainer TOXIPROXY = new ToxiproxyContainer(DockerImageName.parse("ghcr.io/shopify/toxiproxy:2.5.0"))
             .withNetwork(NETWORK)
-            .withStartupTimeout(Duration.ofMinutes(2));
+            .withStartupTimeout(Duration.ofMinutes(5));
 
     // -------------------------------------------------------------------------
     // Sentinel Nodes x 3
