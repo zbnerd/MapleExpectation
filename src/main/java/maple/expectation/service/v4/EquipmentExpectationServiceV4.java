@@ -594,6 +594,11 @@ public class EquipmentExpectationServiceV4 {
 
     /**
      * 단일 프리셋 계산 (#240 V4: 프리셋별 파싱 + 놀장/에디셔널 지원)
+     *
+     * <h3>잠재능력 없는 장비 처리</h3>
+     * <p>특수스킬반지 등 잠재능력이 없는 장비는 isReady()=false지만
+     * hasBasicInfo()=true로 파싱됩니다. 이런 장비는 기본 정보만 표시하고
+     * 기대값은 0원으로 처리합니다.</p>
      */
     private PresetExpectation calculatePreset(byte[] equipmentData, int presetNo) {
         // 프리셋별 장비 파싱 (preset 1~3)
@@ -604,6 +609,13 @@ public class EquipmentExpectationServiceV4 {
         CostBreakdownDto totalBreakdown = CostBreakdownDto.empty();
 
         for (var cubeInput : cubeInputs) {
+            // 잠재능력 없는 장비 처리 (특수스킬반지 등)
+            if (!cubeInput.isReady()) {
+                ItemExpectationV4 itemResult = buildNoPotentialItem(cubeInput, presetNo);
+                itemResults.add(itemResult);
+                continue;
+            }
+
             // 놀장 여부 판별 (#240 V4)
             boolean isNoljang = cubeInput.isNoljangEquipment();
 
@@ -673,6 +685,7 @@ public class EquipmentExpectationServiceV4 {
                     .currentStar(input.getCurrentStar())
                     .targetStar(input.getTargetStar())
                     .isNoljang(isNoljang)
+                    .specialRingLevel(cubeInput.getSpecialRingLevel())
                     .blackCubeExpectation(blackCubeExpectation)
                     .additionalCubeExpectation(additionalCubeExpectation)
                     .starforceExpectation(starforceExpectation)
@@ -689,6 +702,34 @@ public class EquipmentExpectationServiceV4 {
                 .totalCostText(CostFormatter.format(totalCost))
                 .costBreakdown(totalBreakdown)
                 .items(itemResults)
+                .build();
+    }
+
+    /**
+     * 잠재능력 없는 장비의 ItemExpectationV4 생성
+     *
+     * <p>특수스킬반지 등 잠재능력이 붙지 않는 장비를 위한 빌더.
+     * 기본 정보(이름, 아이콘, 슬롯)만 표시하고 기대값은 0원입니다.</p>
+     */
+    private ItemExpectationV4 buildNoPotentialItem(maple.expectation.dto.CubeCalculationInput cubeInput, int presetNo) {
+        return ItemExpectationV4.builder()
+                .itemName(cubeInput.getItemName())
+                .itemIcon(cubeInput.getItemIcon())
+                .itemPart(cubeInput.getPart())
+                .itemLevel(cubeInput.getLevel())
+                .expectedCost(BigDecimal.ZERO)
+                .expectedCostText("0원")
+                .costBreakdown(CostBreakdownDto.empty())
+                .enhancePath("")
+                .potentialGrade(null)  // 잠재능력 없음
+                .additionalPotentialGrade(null)
+                .currentStar(0)
+                .targetStar(cubeInput.getStarforce())
+                .isNoljang(cubeInput.isNoljangEquipment())
+                .specialRingLevel(cubeInput.getSpecialRingLevel())
+                .blackCubeExpectation(CubeExpectationDto.empty())
+                .additionalCubeExpectation(CubeExpectationDto.empty())
+                .starforceExpectation(StarforceExpectationDto.empty())
                 .build();
     }
 
