@@ -85,6 +85,13 @@ resilience4j:
           - org.redisson.client.RedisTimeoutException
           - java.util.concurrent.TimeoutException
           - maple.expectation.global.error.exception.DistributedLockException
+      openAiApi:  # [P0-Red] Issue #251: OpenAI API Circuit Breaker
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 60s       # LLM 복구 시간 확보
+        minimumNumberOfCalls: 5
+        permittedNumberOfCallsInHalfOpenState: 3
+        registerHealthIndicator: true
 
   retry:
     retry-aspect-order: 399 # Retry가 CircuitBreaker를 감싸도록 설정
@@ -248,3 +255,49 @@ resilience:
     # P1-1: 분산 락 설정
     lock-wait-seconds: 5
     lock-lease-seconds: 30
+
+# ========================================
+# Issue #251: AI SRE + OpenTelemetry
+# ========================================
+
+# LangChain4j OpenAI 설정 (Context7 Best Practice)
+langchain4j:
+  open-ai:
+    chat-model:
+      api-key: ${OPENAI_API_KEY:}
+      model-name: gpt-4o-mini  # 비용 효율적인 모델
+      temperature: 0.3  # 결정론적 응답 선호
+      timeout: 30s
+      log-requests: false
+      log-responses: false
+
+# AI SRE 설정
+ai:
+  sre:
+    enabled: ${AI_SRE_ENABLED:false}  # 기본 비활성화 (prod에서 true)
+    daily-limit: 100  # [P0-Green] 일일 LLM 호출 한도
+    throttle-seconds: 60  # 동일 에러 패턴 스로틀링 간격
+
+# Spring Batch 설정 (Issue #251 Phase 4)
+spring:
+  batch:
+    jdbc:
+      initialize-schema: embedded  # 개발환경에서만 자동 생성
+    job:
+      enabled: false  # 스케줄러로만 트리거
+
+# OpenTelemetry 설정 (Context7 Best Practice)
+management:
+  tracing:
+    enabled: ${OTEL_ENABLED:false}  # 기본 비활성화 (prod에서 true)
+    sampling:
+      probability: 0.05  # [P0-Green] 5% Head Sampling
+
+otel:
+  exporter:
+    otlp:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318}
+      protocol: http/protobuf
+  instrumentation:
+    jdbc:
+      statement-sanitizer: true  # [P0-Purple] SQL 파라미터 마스킹
