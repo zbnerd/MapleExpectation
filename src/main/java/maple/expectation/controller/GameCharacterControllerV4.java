@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.dto.v4.EquipmentExpectationResponseV4;
 import maple.expectation.service.v4.EquipmentExpectationServiceV4;
+import maple.expectation.service.v4.warmup.PopularCharacterTracker;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -42,6 +43,7 @@ import java.util.concurrent.CompletableFuture;
 public class GameCharacterControllerV4 {
 
     private final EquipmentExpectationServiceV4 expectationService;
+    private final PopularCharacterTracker popularCharacterTracker;
 
     /**
      * 전체 기대값 조회 (GZIP 응답 지원) (#262 성능 최적화, #264 Fast Path)
@@ -84,6 +86,9 @@ public class GameCharacterControllerV4 {
 
         log.debug("[V4] Calculating expectation for: {} (force={}, gzip={})",
                 maskIgn(userIgn), force, acceptsGzip(acceptEncoding));
+
+        // #275 Auto Warmup: 호출 횟수 기록 (Fire-and-Forget)
+        popularCharacterTracker.recordAccess(userIgn);
 
         // #264 Fast Path: GZIP 요청 + force=false + L1 캐시 히트 시 스레드풀 우회
         if (acceptsGzip(acceptEncoding) && !force) {

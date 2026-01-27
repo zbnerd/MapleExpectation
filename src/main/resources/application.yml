@@ -154,6 +154,9 @@ app:
   shutdown:
     backup-directory: /tmp/maple-shutdown
     archive-directory: /tmp/maple-shutdown/processed
+  buffer:
+    redis:
+      enabled: false  # V5 Stateless (#271): 단일 인스턴스 기본값 (Scale-out 시 true)
 
 # SpringDoc OpenAPI (Swagger UI) - Context7 Best Practice
 springdoc:
@@ -199,6 +202,15 @@ expectation:
     shutdown-await-timeout-seconds: 30  # Shutdown 시 진행 중인 offer 대기 (초)
     cas-max-retries: 10                  # CAS 연산 최대 재시도 횟수
     max-queue-size: 10000                # 버퍼 최대 크기 (백프레셔 임계값)
+
+# 스케줄러 설정
+scheduler:
+  like-sync:
+    enabled: true  # 좋아요 동기화 스케줄러 활성화
+  warmup:
+    enabled: false  # #275 Auto Warmup: 인기 캐릭터 자동 웜업 (prod에서 활성화)
+    top-count: 50   # 웜업할 상위 캐릭터 수
+    delay-between-ms: 100  # 요청 간 지연 (Thundering Herd 방지)
 
 # CORS 설정 (Issue #172: 환경별 분리)
 # 주의: 반드시 환경별 프로필(local/prod)에서 allowed-origins 오버라이드 필요
