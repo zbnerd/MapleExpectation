@@ -23,7 +23,8 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "donation_dlq",
         indexes = {
-                @Index(name = "idx_dlq_moved_at", columnList = "moved_at")
+                @Index(name = "idx_dlq_moved_at", columnList = "moved_at"),
+                @Index(name = "idx_dlq_request_id", columnList = "request_id")
         })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)

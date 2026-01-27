@@ -16,6 +16,8 @@ import java.time.LocalDateTime;
  * <p>Issue #120: 장비 데이터 만료 여부 판단 로직 캡슐화</p>
  */
 @Entity
+@Table(name = "character_equipment",
+        indexes = @Index(name = "idx_character_equipment_updated_at", columnList = "updated_at"))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class CharacterEquipment {
