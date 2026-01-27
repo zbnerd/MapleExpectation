@@ -117,11 +117,23 @@ boolean isCiServer = System.getenv().containsKey("CI")
 test {
     useJUnitPlatform {
         // @Tag 기반 테스트 필터링
-        // ./gradlew test -PfastTest → CI Gate (chaos, nightmare, slow 제외 → 3-5분)
+        // ./gradlew test -PfastTest → CI Gate (chaos, nightmare, slow 제외 → 1-2분)
+        // ./gradlew test -PintegrationTest → Integration 테스트만 (3-5분)
+        // ./gradlew test -PchaosTest → Chaos 테스트만 (5-10분)
+        // ./gradlew test -PnightmareTest → Nightmare 테스트만 (10-15분)
         // ./gradlew test -PsentinelTest → Sentinel HA 테스트 전용 (야간)
         // ./gradlew test → Nightly 전체 테스트
         if (project.hasProperty('sentinelTest')) {
             includeTags 'sentinel'
+        } else if (project.hasProperty('integrationTest')) {
+            // Integration 테스트만 실행
+            includeTags 'integration'
+        } else if (project.hasProperty('chaosTest')) {
+            // Chaos 테스트만 실행
+            includeTags 'chaos'
+        } else if (project.hasProperty('nightmareTest')) {
+            // Nightmare 테스트만 실행
+            includeTags 'nightmare'
         } else if (project.hasProperty('fastTest')) {
             // CI Gate: integration, chaos, nightmare 등 무거운 테스트 제외 (1-2분)
             excludeTags 'sentinel', 'slow', 'quarantine', 'chaos', 'nightmare', 'integration'
@@ -145,8 +157,11 @@ test {
     systemProperty 'flaky.logging.enabled', 'true'
     systemProperty 'flaky.log.dir', "${buildDir}/flaky"
 
-    // 병렬 실행 (CPU 코어 수의 절반, 최소 1)
-    maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1
+    // 병렬 실행 설정
+    // - CI 환경 (2 vCPU): 최소 2로 강제하여 병렬 실행 보장
+    // - 로컬 환경: CPU 코어 수의 절반 (기존 로직 유지)
+    maxParallelForks = isCiServer ? Math.max(2, Runtime.runtime.availableProcessors())
+                                  : (Runtime.runtime.availableProcessors().intdiv(2) ?: 1)
 
     // WSL에서 확인된 Docker Engine API 소켓
     environment "DOCKER_HOST", "unix:///var/run/docker.sock"

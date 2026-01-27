@@ -1,8 +1,16 @@
 # =============================================================================
-# MapleExpectation Nightly Full Test
+# MapleExpectation Nightly Full Test (단계별 실행)
 # =============================================================================
 # 매일 자정(KST) 전체 테스트 실행 (chaos, nightmare 포함)
 # CI Gate에서는 fastTest만 실행하므로, 전체 테스트는 여기서 수행
+#
+# [단계별 실행] (Issue #194)
+# Step 1: Unit Tests (fastTest) - 빠른 피드백
+# Step 2: Integration Tests - DB/Redis 연동
+# Step 3: Chaos Tests - 장애 주입 테스트
+# Step 4: Nightmare Tests - 극한 시나리오
+#
+# [최적화] services 제거 - Testcontainers가 컨테이너를 직접 관리
 # =============================================================================
 
 name: Nightly Full Test
@@ -12,48 +20,41 @@ on:
     # 매일 KST 00:00 (UTC 15:00)
     - cron: '0 15 * * *'
   workflow_dispatch:  # 수동 실행 가능
+    inputs:
+      skip_unit:
+        description: 'Skip Unit Tests'
+        type: boolean
+        default: false
+      skip_integration:
+        description: 'Skip Integration Tests'
+        type: boolean
+        default: false
+      skip_chaos:
+        description: 'Skip Chaos Tests'
+        type: boolean
+        default: false
+      skip_nightmare:
+        description: 'Skip Nightmare Tests'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
   checks: write
 
 env:
-  JAVA_VERSION: '21'  # #262: Virtual Thread 지원을 위해 21로 업그레이드
-  GRADLE_OPTS: '-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true'
+  JAVA_VERSION: '21'
+  GRADLE_OPTS: '-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.jvmargs=-Xmx2g'
 
 jobs:
-  full-test:
-    name: Full Test (Including Chaos/Nightmare)
+  # ==========================================================================
+  # STEP 1: Unit Tests (Fast Feedback)
+  # ==========================================================================
+  unit-tests:
+    name: 'Step 1: Unit Tests'
     runs-on: ubuntu-latest
-    timeout-minutes: 60  # 전체 테스트는 1시간 허용
-
-    services:
-      redis:
-        image: redis:7.0-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 10
-          --memory 256m
-
-      mysql:
-        image: mysql:8.0
-        ports:
-          - 3306:3306
-        env:
-          MYSQL_ROOT_PASSWORD: testpassword
-          MYSQL_DATABASE: maple_test
-          MYSQL_USER: testuser
-          MYSQL_PASSWORD: testpassword
-        options: >-
-          --health-cmd "mysqladmin ping -h 127.0.0.1 -u root -ptestpassword"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
-          --memory 512m
+    timeout-minutes: 10
+    if: ${{ github.event.inputs.skip_unit != 'true' }}
 
     steps:
       - name: Checkout Repository
@@ -69,36 +70,210 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          cache-read-only: false  # Nightly는 캐시 갱신 허용
+          cache-read-only: false
 
       - name: Grant Execute Permission
         run: chmod +x gradlew
 
-      # 전체 테스트 (chaos, nightmare 포함)
-      - name: Run Full Tests
+      - name: Run Unit Tests
         run: |
-          echo "🔬 Running FULL tests (including chaos/nightmare)"
-          ./gradlew clean test --no-daemon --stacktrace
+          echo "🧪 Step 1: Running Unit Tests (fastTest)"
+          ./gradlew clean test -PfastTest --no-daemon --stacktrace
         env:
           SPRING_PROFILES_ACTIVE: test
           DOCKER_HOST: unix:///var/run/docker.sock
           TESTCONTAINERS_RYUK_DISABLED: true
+          CI: true
 
-      - name: Upload Test Reports
+      - name: Upload Unit Test Reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: nightly-test-reports
+          name: unit-test-reports
           path: |
             build/reports/tests/
             build/test-results/
           retention-days: 14
 
-      - name: Publish Test Results
+  # ==========================================================================
+  # STEP 2: Integration Tests
+  # ==========================================================================
+  integration-tests:
+    name: 'Step 2: Integration Tests'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: unit-tests
+    if: ${{ github.event.inputs.skip_integration != 'true' && (success() || github.event.inputs.skip_unit == 'true') }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Grant Execute Permission
+        run: chmod +x gradlew
+
+      - name: Run Integration Tests
+        run: |
+          echo "🔗 Step 2: Running Integration Tests"
+          ./gradlew test -PintegrationTest --no-daemon --stacktrace
+        env:
+          SPRING_PROFILES_ACTIVE: test
+          DOCKER_HOST: unix:///var/run/docker.sock
+          TESTCONTAINERS_RYUK_DISABLED: true
+          CI: true
+
+      - name: Upload Integration Test Reports
         if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-reports
+          path: |
+            build/reports/tests/
+            build/test-results/
+          retention-days: 14
+
+  # ==========================================================================
+  # STEP 3: Chaos Tests
+  # ==========================================================================
+  chaos-tests:
+    name: 'Step 3: Chaos Tests'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: integration-tests
+    if: ${{ github.event.inputs.skip_chaos != 'true' && (success() || github.event.inputs.skip_integration == 'true') }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Grant Execute Permission
+        run: chmod +x gradlew
+
+      - name: Run Chaos Tests
+        run: |
+          echo "💥 Step 3: Running Chaos Tests"
+          ./gradlew test -PchaosTest --no-daemon --stacktrace
+        env:
+          SPRING_PROFILES_ACTIVE: test
+          DOCKER_HOST: unix:///var/run/docker.sock
+          TESTCONTAINERS_RYUK_DISABLED: true
+          CI: true
+
+      - name: Upload Chaos Test Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chaos-test-reports
+          path: |
+            build/reports/tests/
+            build/test-results/
+          retention-days: 14
+
+  # ==========================================================================
+  # STEP 4: Nightmare Tests
+  # ==========================================================================
+  nightmare-tests:
+    name: 'Step 4: Nightmare Tests'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: chaos-tests
+    if: ${{ github.event.inputs.skip_nightmare != 'true' && (success() || github.event.inputs.skip_chaos == 'true') }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Grant Execute Permission
+        run: chmod +x gradlew
+
+      - name: Run Nightmare Tests
+        run: |
+          echo "😱 Step 4: Running Nightmare Tests"
+          ./gradlew test -PnightmareTest --no-daemon --stacktrace
+        env:
+          SPRING_PROFILES_ACTIVE: test
+          DOCKER_HOST: unix:///var/run/docker.sock
+          TESTCONTAINERS_RYUK_DISABLED: true
+          CI: true
+
+      - name: Upload Nightmare Test Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightmare-test-reports
+          path: |
+            build/reports/tests/
+            build/test-results/
+          retention-days: 14
+
+  # ==========================================================================
+  # FINAL: Summary & Notification
+  # ==========================================================================
+  summary:
+    name: 'Summary'
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests, chaos-tests, nightmare-tests]
+    if: always()
+
+    steps:
+      - name: Download All Reports
+        uses: actions/download-artifact@v4
+        with:
+          path: all-reports
+        continue-on-error: true
+
+      - name: Test Summary
+        run: |
+          echo "📊 Nightly Test Summary"
+          echo "======================="
+          echo "Unit Tests: ${{ needs.unit-tests.result }}"
+          echo "Integration Tests: ${{ needs.integration-tests.result }}"
+          echo "Chaos Tests: ${{ needs.chaos-tests.result }}"
+          echo "Nightmare Tests: ${{ needs.nightmare-tests.result }}"
+
+      - name: Upload Combined Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-combined-reports
+          path: all-reports/
+          retention-days: 14
+        continue-on-error: true
+
+      - name: Publish Test Results
         uses: dorny/test-reporter@v1
         with:
           name: Nightly Test Results
-          path: 'build/test-results/test/*.xml'
+          path: 'all-reports/**/test/*.xml'
           reporter: java-junit
-          fail-on-error: false  # Nightly는 실패해도 알림만
+          fail-on-error: false
+        continue-on-error: true
