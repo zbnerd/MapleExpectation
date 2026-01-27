@@ -2,16 +2,27 @@ package maple.expectation.service.v2.donation;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.domain.v2.Member;
 import maple.expectation.global.error.exception.AdminMemberNotFoundException;
-import maple.expectation.global.error.exception.InsufficientPointException;
+import maple.expectation.global.error.exception.SenderMemberNotFoundException;
 import maple.expectation.repository.v2.MemberRepository;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 내부 포인트 시스템 기반 결제 전략
+ * 내부 포인트 시스템 기반 결제 전략 (Hybrid: Rich Domain + Atomic Query)
  *
- * <p>Member 테이블의 point 필드를 사용하여 결제를 처리합니다.
- * 발신자의 포인트를 차감하고 수신자(Admin)의 포인트를 증가시킵니다.</p>
+ * <p>Issue #120: Rich Domain Model 전환</p>
+ *
+ * <h3>하이브리드 전략</h3>
+ * <ul>
+ *   <li><b>Sender (발신자)</b>: Rich Domain (member.deductPoints())
+ *       - 각 사용자는 자신의 데이터만 수정하므로 충돌 가능성 낮음
+ *       - @Version 낙관적 락으로 보호</li>
+ *   <li><b>Receiver (Admin)</b>: 원자적 쿼리 (memberRepository.increasePointByUuid())
+ *       - Hot Key 문제: 모든 후원이 단일 Admin으로 집중됨
+ *       - 100명 동시 요청 시 원자적 UPDATE로 Lost Update 방지</li>
+ * </ul>
  *
  * <h3>포트원 연동 시 교체 방법:</h3>
  * <pre>{@code
@@ -32,17 +43,31 @@ public class InternalPointPaymentStrategy implements PaymentStrategy {
 
     private final MemberRepository memberRepository;
 
+    /**
+     * 포인트 이체 처리 (Hybrid: Rich Domain + Atomic Query)
+     *
+     * <p>Issue #120: Sender에 Member.deductPoints() 적용 (플랜 핵심 요구사항)</p>
+     *
+     * @param senderUuid 발신자 UUID
+     * @param receiverFingerprint 수신자(Admin) fingerprint (Member.uuid로 사용)
+     * @param amount 이체 금액
+     */
     @Override
+    @Transactional
     public void processPayment(String senderUuid, String receiverFingerprint, Long amount) {
         log.debug("[Payment] Processing internal point transfer: sender={}, amount={}",
                 maskUuid(senderUuid), amount);
 
-        // 1. 발신자 포인트 차감
-        if (memberRepository.decreasePoint(senderUuid, amount) == 0) {
-            throw new InsufficientPointException("이체 실패: 잔액 부족 또는 유효하지 않은 발신자");
-        }
+        // 1. 발신자: Rich Domain (Issue #120 핵심)
+        //    - 각 사용자는 자신의 데이터만 수정 → 충돌 가능성 낮음
+        //    - @Version 낙관적 락으로 보호
+        Member sender = memberRepository.findByUuid(senderUuid)
+                .orElseThrow(() -> new SenderMemberNotFoundException(maskUuid(senderUuid)));
+        sender.deductPoints(amount);  // InsufficientPointException 발생 가능
 
-        // 2. 수신자(Admin) 포인트 증가
+        // 2. 수신자(Admin): 원자적 쿼리 (Hot Key 보호)
+        //    - 모든 후원이 단일 Admin으로 집중 → 동시성 경합 심함
+        //    - 원자적 UPDATE로 Lost Update 방지
         if (memberRepository.increasePointByUuid(receiverFingerprint, amount) == 0) {
             throw new AdminMemberNotFoundException();
         }

@@ -44,7 +44,7 @@ public abstract class AbstractSentinelContainerBaseTest {
 
     protected static final ToxiproxyContainer TOXIPROXY = new ToxiproxyContainer(DockerImageName.parse("ghcr.io/shopify/toxiproxy:2.5.0"))
             .withNetwork(NETWORK)
-            .withStartupTimeout(Duration.ofMinutes(2)) // 충분한 시작 시간 확보
+            .withStartupTimeout(Duration.ofMinutes(5)) // 충분한 시작 시간 확보
             .waitingFor(Wait.forHttp("/version").forPort(8474));
 
     protected static final GenericContainer<?> SENTINEL_1 = createSentinelContainer(26379);
