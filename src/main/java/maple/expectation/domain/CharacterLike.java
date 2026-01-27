@@ -27,7 +27,10 @@ import java.time.LocalDateTime;
         name = "uk_target_liker",
         columnNames = {"target_ocid", "liker_fingerprint"}
     ),
-    indexes = @Index(name = "idx_target_ocid", columnList = "target_ocid")
+    indexes = {
+        @Index(name = "idx_target_ocid", columnList = "target_ocid"),
+        @Index(name = "idx_liker_fingerprint", columnList = "liker_fingerprint")
+    }
 )
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
