@@ -219,3 +219,32 @@ cors:
     - "http://localhost:3000"  # 기본값 (환경별 오버라이드 필수)
   allow-credentials: true
   max-age: 3600  # 1시간
+
+# MySQL Resilience 설정 (Issue #218: Stateless 아키텍처)
+resilience:
+  mysql-fallback:
+    enabled: true
+    # P1-2: Hash Tag 적용 (Redis Cluster 환경 동일 슬롯 보장)
+    state-key: "{mysql}:state"
+    ttl-lock-key: "{mysql}:ttl:lock"
+    compensation-stream: "{mysql}:compensation:stream"
+    compensation-dlq: "{mysql}:compensation:dlq"
+    # P0-2: Debounce 설정 (Flapping 방지)
+    debounce-seconds: 5
+    # P1-N5: 상태 키 TTL (인스턴스 크래시 대비)
+    state-ttl-seconds: 300  # 5분
+    # P1-4: Sync 재시도 설정
+    sync-batch-size: 100
+    sync-max-retries: 3
+    sync-consumer-group: compensation-sync
+    # P0-1: 대상 캐시 패턴 (equipment, ocidCache만)
+    target-cache-patterns:
+      - "equipment:*"
+      - "ocidCache:*"
+    # P0-N2: SCAN 성능 설정
+    scan-count: 1000
+    # P1-N3: Stream MAXLEN (메모리 제한)
+    stream-max-len: 10000
+    # P1-1: 분산 락 설정
+    lock-wait-seconds: 5
+    lock-lease-seconds: 30
