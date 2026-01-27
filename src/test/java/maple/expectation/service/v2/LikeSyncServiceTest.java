@@ -11,6 +11,7 @@ import maple.expectation.global.executor.TaskContext;
 import maple.expectation.global.executor.function.ThrowingRunnable;
 import maple.expectation.repository.v2.RedisBufferRepository;
 import maple.expectation.service.v2.cache.LikeBufferStorage;
+import maple.expectation.service.v2.cache.LikeBufferStrategy;
 import maple.expectation.service.v2.like.dto.FetchResult;
 import maple.expectation.service.v2.like.strategy.AtomicFetchStrategy;
 import maple.expectation.service.v2.shutdown.ShutdownDataPersistenceService;
@@ -44,6 +45,7 @@ class LikeSyncServiceTest {
 
     private LikeSyncService likeSyncService;
 
+    @Mock private LikeBufferStrategy likeBufferStrategy;
     @Mock private LikeBufferStorage likeBufferStorage;
     @Mock private LikeSyncExecutor syncExecutor;
     @Mock private StringRedisTemplate redisTemplate;
@@ -119,7 +121,11 @@ class LikeSyncServiceTest {
         lenient().when(meterRegistry.timer(anyString(), any(String[].class))).thenReturn(mockTimer);
         lenient().when(meterRegistry.summary(anyString())).thenReturn(mockSummary);
 
+        // V5 Stateless: LikeBufferStrategy mock (In-Memory 모드로 테스트)
+        lenient().when(likeBufferStrategy.getType()).thenReturn(LikeBufferStrategy.StrategyType.IN_MEMORY);
+
         likeSyncService = new LikeSyncService(
+                likeBufferStrategy,
                 likeBufferStorage,
                 syncExecutor,
                 redisTemplate,

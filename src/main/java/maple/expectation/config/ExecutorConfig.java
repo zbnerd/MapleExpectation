@@ -47,6 +47,20 @@ public class ExecutorConfig {
 
     /** 로그 샘플링 간격: 1초에 1회만 WARN 로그 (log storm 방지) */
     private static final long REJECT_LOG_INTERVAL_NANOS = TimeUnit.SECONDS.toNanos(1);
+
+    /**
+     * 인스턴스별 로그 샘플링 카운터 (#271 V5 P1 검토 완료)
+     *
+     * <h4>Stateless 검토 결과</h4>
+     * <p>이 카운터들은 <b>로그 샘플링 용도</b>로, 정확한 클러스터 집계가 필요 없습니다:</p>
+     * <ul>
+     *   <li>목적: log storm 방지 (1초에 1회만 WARN)</li>
+     *   <li>영향: 인스턴스별 독립 샘플링 → 정상 동작</li>
+     *   <li>결론: Micrometer Counter로 교체 불필요 (이미 rejected Counter 별도 존재)</li>
+     * </ul>
+     *
+     * <p>실제 rejected 메트릭은 {@code executor.rejected} Counter로 Micrometer에 집계됩니다.</p>
+     */
     private static final AtomicLong lastRejectLogNanos = new AtomicLong(0);
     private static final AtomicLong rejectedSinceLastLog = new AtomicLong(0);
 
@@ -95,7 +109,12 @@ public class ExecutorConfig {
     // Expectation Executor Rejection Policy (Issue #168)
     // ========================================
 
-    /** Expectation Executor용 샘플링 카운터 (AlertExecutor와 분리) */
+    /**
+     * Expectation Executor용 샘플링 카운터 (AlertExecutor와 분리)
+     *
+     * <h4>#271 V5 P1 검토 완료</h4>
+     * <p>로그 샘플링 전용 → Micrometer 교체 불필요 (executor.rejected Counter가 메트릭 담당)</p>
+     */
     private static final AtomicLong expectationLastRejectNanos = new AtomicLong(0);
     private static final AtomicLong expectationRejectedSinceLastLog = new AtomicLong(0);
 
@@ -236,12 +255,12 @@ public class ExecutorConfig {
         return runnable -> {
             // 1. 호출 스레드에서 현재 상태 캡처
             var mdcContextMap = org.slf4j.MDC.getCopyOfContextMap();
-            Boolean cacheContextSnap = SkipEquipmentL2CacheContext.snapshot();
+            String cacheContextSnap = SkipEquipmentL2CacheContext.snapshot(); // V5: MDC 기반
 
             return () -> {
                 // 2. 워커 스레드에서 기존 상태 백업
                 var mdcBefore = org.slf4j.MDC.getCopyOfContextMap();
-                Boolean cacheContextBefore = SkipEquipmentL2CacheContext.snapshot();
+                String cacheContextBefore = SkipEquipmentL2CacheContext.snapshot(); // V5: MDC 기반
 
                 // 3. 캡처된 상태로 설정
                 if (mdcContextMap != null) {

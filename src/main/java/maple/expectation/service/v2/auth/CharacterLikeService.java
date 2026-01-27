@@ -11,7 +11,7 @@ import maple.expectation.global.security.AuthenticatedUser;
 import maple.expectation.repository.v2.CharacterLikeRepository;
 import maple.expectation.service.v2.LikeProcessor;
 import maple.expectation.service.v2.OcidResolver;
-import maple.expectation.service.v2.cache.LikeRelationBuffer;
+import maple.expectation.service.v2.cache.LikeRelationBufferStrategy;
 import org.springframework.stereotype.Service;
 
 import java.util.Set;
@@ -37,7 +37,7 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class CharacterLikeService {
 
-    private final LikeRelationBuffer likeRelationBuffer;
+    private final LikeRelationBufferStrategy likeRelationBuffer;
     private final CharacterLikeRepository characterLikeRepository;
     private final OcidResolver ocidResolver;
     private final LikeProcessor likeProcessor;

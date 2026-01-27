@@ -217,38 +217,30 @@ public class TieredCache implements Cache {
                 TaskContext.of("Cache", "AcquireLock", keyStr)
         );
 
-        // 락 획득 실패 또는 Redis 장애 → Fallback (try-finally 밖에서 처리)
+        // 락 획득 실패 또는 Redis 장애 → Fallback
         if (!acquired) {
             log.warn("[TieredCache] Lock acquisition failed, executing directly: {}", lockKey);
             recordLockFailure();
             return executeAndCache(key, valueLoader);
         }
 
-        // 락 획득 성공 시에만 try-finally 진입 (Redisson 공식 패턴)
-        try {
-            return executeDoubleCheckAndLoad(key, valueLoader);
-        } finally {
-            // Graceful Degradation: unlock도 Redis 장애 허용
-            unlockSafely(lock, keyStr);
-        }
+        // Section 12 준수: try-finally → executeWithFinally
+        return executor.executeWithFinally(
+                () -> executeDoubleCheckAndLoad(key, valueLoader),
+                () -> unlockSafelyDirect(lock),
+                TaskContext.of("Cache", "DoubleCheckLoad", keyStr)
+        );
     }
 
     /**
-     * 락 해제 (Graceful Degradation: Redis 장애 허용)
+     * 락 해제 (Direct - executeWithFinally의 finallyBlock용)
      *
-     * <p><b>CLAUDE.md 섹션 12 패턴 3:</b> executeOrDefault로 Redis 장애 시에도 정상 흐름 유지</p>
+     * <p>Section 15: 메서드 참조로 중첩 회피</p>
      */
-    private void unlockSafely(RLock lock, String keyStr) {
-        executor.executeOrDefault(
-                () -> {
-                    if (lock.isHeldByCurrentThread()) {
-                        lock.unlock();
-                    }
-                    return null;
-                },
-                null,
-                TaskContext.of("Cache", "ReleaseLock", keyStr)
-        );
+    private void unlockSafelyDirect(RLock lock) {
+        if (lock.isHeldByCurrentThread()) {
+            lock.unlock();
+        }
     }
 
     /**

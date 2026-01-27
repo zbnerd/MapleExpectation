@@ -48,6 +48,14 @@ public class MySqlNamedLockStrategy implements LockStrategy {
      * 반드시 finally 블록에서 cleanupLockTracking()을 호출해야 합니다.</p>
      *
      * <p>Deque 사용 이유: LIFO 순서로 락 해제 추적 용이</p>
+     *
+     * <h4>V5 Stateless Architecture 검증 완료 (#271)</h4>
+     * <ul>
+     *   <li>용도: Lock Ordering 추적 (Deadlock 방지)</li>
+     *   <li>범위: 요청 내 일시적 상태, cross-request 상태 아님</li>
+     *   <li>정리: cleanupLockTracking()에서 빈 Deque면 remove() 호출</li>
+     *   <li>MDC 전환 불필요: 락 특화 로깅 이미 존재, 고빈도 작업</li>
+     * </ul>
      */
     private static final ThreadLocal<Deque<String>> ACQUIRED_LOCKS =
             ThreadLocal.withInitial(ArrayDeque::new);

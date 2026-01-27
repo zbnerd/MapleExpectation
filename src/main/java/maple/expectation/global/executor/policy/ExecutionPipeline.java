@@ -47,6 +47,15 @@ public class ExecutionPipeline {
     private static final int MAX_NESTING_DEPTH = 32;
     private static final int MAX_CAUSE_CHAIN_DEPTH = 32;
 
+    /**
+     * V5 Stateless Architecture 검증 완료 (#271):
+     * <ul>
+     *   <li>용도: Reentrancy 폭주 방지 (fail-fast)</li>
+     *   <li>범위: 요청 내 일시적 상태, cross-request 상태 아님</li>
+     *   <li>정리: finally 블록에서 depth==0이면 remove() 호출</li>
+     *   <li>MDC 전환 불필요: 고빈도 작업, 내부 구현 상세</li>
+     * </ul>
+     */
     private static final ThreadLocal<Integer> NESTING_DEPTH = ThreadLocal.withInitial(() -> 0);
 
     private record Slot(ExecutionPolicy policy, FailureMode mode) { }

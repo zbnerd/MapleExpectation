@@ -1,0 +1,340 @@
+package maple.expectation.global.queue.like;
+
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
+import lombok.extern.slf4j.Slf4j;
+import maple.expectation.global.executor.LogicExecutor;
+import maple.expectation.global.executor.TaskContext;
+import maple.expectation.global.queue.RedisKey;
+import maple.expectation.service.v2.cache.LikeRelationBufferStrategy;
+import org.redisson.api.RScript;
+import org.redisson.api.RSet;
+import org.redisson.api.RedissonClient;
+import org.redisson.client.codec.StringCodec;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
+
+/**
+ * Redis 기반 좋아요 관계 버퍼 (#271 V5 Stateless Architecture)
+ *
+ * <h3>역할</h3>
+ * <p>Redis SET을 사용하여 좋아요 관계(fingerprint:targetOcid)를 저장합니다.
+ * Scale-out 환경에서 중복 검사와 배치 동기화를 지원합니다.</p>
+ *
+ * <h3>기존 LikeRelationBuffer 대비 개선</h3>
+ * <ul>
+ *   <li>기존: L1 Caffeine + L2 Redis → 로컬 상태 존재</li>
+ *   <li>개선: Redis SET Only → 완전 Stateless</li>
+ * </ul>
+ *
+ * <h3>Redis 구조</h3>
+ * <pre>
+ * {likes}:relations (SET)
+ * └── fingerprint:targetOcid (members)
+ *
+ * {likes}:relations:pending (SET)
+ * └── DB 동기화 대기 중인 관계
+ * </pre>
+ *
+ * <h3>원자적 연산</h3>
+ * <ul>
+ *   <li>SADD: 원자적 추가 (중복 검사 포함)</li>
+ *   <li>SISMEMBER: O(1) 존재 확인</li>
+ *   <li>SPOP: Lua Script로 원자적 fetch + remove</li>
+ * </ul>
+ *
+ * <h3>5-Agent Council 합의</h3>
+ * <ul>
+ *   <li>Blue (Architect): Stateless 설계로 Scale-out 지원</li>
+ *   <li>Green (Performance): SISMEMBER O(1) 복잡도</li>
+ *   <li>Red (SRE): 인스턴스 장애 시에도 관계 데이터 보존</li>
+ *   <li>Purple (Auditor): Lua Script 원자성으로 데이터 유실 방지</li>
+ * </ul>
+ *
+ * @see RedisKey#LIKE_RELATIONS 관계 SET 키
+ * @see RedisKey#LIKE_RELATIONS_PENDING 대기열 SET 키
+ */
+@Slf4j
+public class RedisLikeRelationBuffer implements LikeRelationBufferStrategy {
+
+    private static final String LUA_FETCH_PENDING = """
+            -- Fetch and remove entries from pending set atomically
+            -- Returns: list of removed members
+            local pending_key = KEYS[1]
+            local limit = tonumber(ARGV[1])
+
+            local members = redis.call('SRANDMEMBER', pending_key, limit)
+            if members and #members > 0 then
+                redis.call('SREM', pending_key, unpack(members))
+            end
+
+            return members or {}
+            """;
+
+    private final RedissonClient redissonClient;
+    private final LogicExecutor executor;
+    private final MeterRegistry meterRegistry;
+    private final String relationsKey;
+    private final String pendingKey;
+
+    /** Lua Script SHA 캐싱 */
+    private final AtomicReference<String> fetchPendingSha = new AtomicReference<>();
+
+    public RedisLikeRelationBuffer(
+            RedissonClient redissonClient,
+            LogicExecutor executor,
+            MeterRegistry meterRegistry) {
+        this.redissonClient = redissonClient;
+        this.executor = executor;
+        this.meterRegistry = meterRegistry;
+        this.relationsKey = RedisKey.LIKE_RELATIONS.getKey();
+        this.pendingKey = RedisKey.LIKE_RELATIONS_PENDING.getKey();
+
+        registerMetrics();
+        log.info("[RedisLikeRelationBuffer] Initialized with keys: {}, {}", relationsKey, pendingKey);
+    }
+
+    @Override
+    public StrategyType getType() {
+        return StrategyType.REDIS;
+    }
+
+    private void registerMetrics() {
+        // 전체 관계 수
+        Gauge.builder("like.relation.buffer.total", this, buffer -> getRelationsSize())
+                .description("Redis 버퍼의 전체 좋아요 관계 수")
+                .register(meterRegistry);
+
+        // 대기 중인 관계 수
+        Gauge.builder("like.relation.buffer.pending", this, buffer -> getPendingSize())
+                .description("DB 동기화 대기 중인 좋아요 관계 수")
+                .register(meterRegistry);
+    }
+
+    /**
+     * 좋아요 관계 추가 (원자적)
+     *
+     * <p>Redis SADD는 원자적으로 중복 검사 + 추가를 수행합니다.
+     * 신규 추가 시 Pending Set에도 자동 등록됩니다.</p>
+     *
+     * @param fingerprint 좋아요를 누른 계정의 fingerprint
+     * @param targetOcid  대상 캐릭터의 OCID
+     * @return true: 신규 추가, false: 중복, null: Redis 장애
+     */
+    @Override
+    public Boolean addRelation(String fingerprint, String targetOcid) {
+        String relationKey = buildRelationKey(fingerprint, targetOcid);
+
+        return executor.executeOrDefault(
+                () -> {
+                    // SADD는 원자적으로 중복 검사 + 추가
+                    boolean isNew = getRelationSet().add(relationKey);
+
+                    if (isNew) {
+                        // 신규 관계 → Pending Set에 추가
+                        getPendingSet().add(relationKey);
+
+                        meterRegistry.counter("like.relation.add.success").increment();
+                        log.debug("[LikeRelation] Added: {}", relationKey);
+                    } else {
+                        meterRegistry.counter("like.relation.add.duplicate").increment();
+                        log.debug("[LikeRelation] Duplicate: {}", relationKey);
+                    }
+
+                    return isNew;
+                },
+                null,  // Redis 장애 시 null 반환
+                TaskContext.of("LikeRelation", "Add", relationKey)
+        );
+    }
+
+    /**
+     * 좋아요 관계 존재 확인
+     *
+     * @param fingerprint 좋아요를 누른 계정의 fingerprint
+     * @param targetOcid  대상 캐릭터의 OCID
+     * @return true: 존재, false: 없음, null: Redis 장애
+     */
+    @Override
+    public Boolean exists(String fingerprint, String targetOcid) {
+        String relationKey = buildRelationKey(fingerprint, targetOcid);
+
+        return executor.executeOrDefault(
+                () -> getRelationSet().contains(relationKey),
+                null,
+                TaskContext.of("LikeRelation", "Exists", relationKey)
+        );
+    }
+
+    /**
+     * Pending Set에서 원자적 fetch + remove
+     *
+     * <p>DB 동기화 스케줄러가 사용합니다. Lua Script로 원자적 처리.</p>
+     *
+     * @param limit 최대 조회 개수
+     * @return 제거된 관계 키 Set
+     */
+    @Override
+    public Set<String> fetchAndRemovePending(int limit) {
+        return executor.executeOrDefault(
+                () -> doFetchAndRemovePending(limit),
+                Collections.emptySet(),
+                TaskContext.of("LikeRelation", "FetchPending")
+        );
+    }
+
+    /**
+     * Lua Script 실행 (Section 12 준수: try-catch → executeOrCatch)
+     */
+    @SuppressWarnings("unchecked")
+    private Set<String> doFetchAndRemovePending(int limit) {
+        RScript script = redissonClient.getScript(StringCodec.INSTANCE);
+        String sha = fetchPendingSha.get();
+
+        // Section 12: try-catch → executeOrCatch
+        List<String> result = executor.executeOrCatch(
+                () -> evalPendingWithCachedSha(script, sha, limit),
+                e -> evalPendingWithReloadedSha(script, limit),
+                TaskContext.of("LikeRelation", "EvalScript")
+        );
+
+        if (!result.isEmpty()) {
+            meterRegistry.counter("like.relation.pending.fetched").increment(result.size());
+            log.info("[LikeRelation] FetchedPending: {} entries", result.size());
+        }
+
+        return Set.copyOf(result);
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> evalPendingWithCachedSha(RScript script, String sha, int limit) {
+        if (sha == null) {
+            throw new IllegalStateException("SHA not cached");
+        }
+        return script.evalSha(
+                RScript.Mode.READ_WRITE,
+                sha,
+                RScript.ReturnType.MULTI,
+                List.of(pendingKey),
+                String.valueOf(limit)
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> evalPendingWithReloadedSha(RScript script, int limit) {
+        String sha = script.scriptLoad(LUA_FETCH_PENDING);
+        fetchPendingSha.set(sha);
+        return script.evalSha(
+                RScript.Mode.READ_WRITE,
+                sha,
+                RScript.ReturnType.MULTI,
+                List.of(pendingKey),
+                String.valueOf(limit)
+        );
+    }
+
+    /**
+     * 관계 삭제 (좋아요 취소)
+     *
+     * @param fingerprint 좋아요를 누른 계정의 fingerprint
+     * @param targetOcid  대상 캐릭터의 OCID
+     * @return true: 삭제됨, false: 없었음, null: Redis 장애
+     */
+    @Override
+    public Boolean removeRelation(String fingerprint, String targetOcid) {
+        String relationKey = buildRelationKey(fingerprint, targetOcid);
+
+        return executor.executeOrDefault(
+                () -> {
+                    boolean removed = getRelationSet().remove(relationKey);
+                    if (removed) {
+                        // Pending에서도 제거 (아직 DB에 반영 안됐을 수 있음)
+                        getPendingSet().remove(relationKey);
+                        meterRegistry.counter("like.relation.remove.success").increment();
+                        log.debug("[LikeRelation] Removed: {}", relationKey);
+                    }
+                    return removed;
+                },
+                null,
+                TaskContext.of("LikeRelation", "Remove", relationKey)
+        );
+    }
+
+    /**
+     * 전체 관계 SET 접근
+     */
+    public RSet<String> getRelationSet() {
+        return redissonClient.getSet(relationsKey);
+    }
+
+    /**
+     * Pending SET 접근
+     */
+    public RSet<String> getPendingSet() {
+        return redissonClient.getSet(pendingKey);
+    }
+
+    /**
+     * 전체 관계 수 조회
+     */
+    @Override
+    public int getRelationsSize() {
+        return executor.executeOrDefault(
+                () -> getRelationSet().size(),
+                0,
+                TaskContext.of("LikeRelation", "Size")
+        );
+    }
+
+    /**
+     * Pending 관계 수 조회
+     */
+    @Override
+    public int getPendingSize() {
+        return executor.executeOrDefault(
+                () -> getPendingSet().size(),
+                0,
+                TaskContext.of("LikeRelation", "PendingSize")
+        );
+    }
+
+    /**
+     * 관계 키 생성
+     *
+     * @param fingerprint 좋아요 누른 계정 fingerprint
+     * @param targetOcid  대상 캐릭터 OCID
+     * @return fingerprint:targetOcid 형식
+     */
+    @Override
+    public String buildRelationKey(String fingerprint, String targetOcid) {
+        return fingerprint + ":" + targetOcid;
+    }
+
+    /**
+     * 관계 키 파싱
+     *
+     * @param relationKey fingerprint:targetOcid 형식
+     * @return [fingerprint, targetOcid]
+     */
+    @Override
+    public String[] parseRelationKey(String relationKey) {
+        return relationKey.split(":", 2);
+    }
+
+    /**
+     * 관계 키 조회 (테스트용)
+     */
+    public String getRelationsKey() {
+        return relationsKey;
+    }
+
+    /**
+     * Pending 키 조회 (테스트용)
+     */
+    public String getPendingKey() {
+        return pendingKey;
+    }
+}

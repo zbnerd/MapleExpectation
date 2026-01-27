@@ -1,7 +1,11 @@
 # ADR-012: Stateless 아키텍처 전환 로드맵 및 트레이드오프 분석
 
 ## 상태
-Proposed (V5 로드맵)
+✅ **Accepted & Implemented** (2026-01-27)
+
+> **구현 완료:** Issue #271에서 V5 Stateless Architecture 전환이 완료되었습니다.
+> - Feature Flag: `app.buffer.redis.enabled=true`로 Scale-out 모드 활성화
+> - 관련 문서: STATEFUL_REFACTORING_TARGETS.md, composed-bouncing-frost.md
 
 ## 맥락 (Context)
 

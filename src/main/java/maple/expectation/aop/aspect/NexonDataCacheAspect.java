@@ -92,7 +92,7 @@ public class NexonDataCacheAspect {
      * 비동기 결과 처리 (평탄화)
      */
     private Object handleAsyncResult(CompletableFuture<?> future, String ocid, RCountDownLatch latch) {
-        Boolean skipContextSnap = SkipEquipmentL2CacheContext.snapshot();
+        String skipContextSnap = SkipEquipmentL2CacheContext.snapshot(); // V5: MDC 기반
 
         return future.handle((res, ex) -> executor.executeWithFinally(
                 () -> processAsyncCallback(res, ex, ocid, skipContextSnap),
@@ -104,8 +104,8 @@ public class NexonDataCacheAspect {
     /**
      * 비동기 콜백 처리 로직 (평탄화)
      */
-    private Object processAsyncCallback(Object res, Throwable ex, String ocid, Boolean skipContextSnap) {
-        Boolean before = SkipEquipmentL2CacheContext.snapshot();
+    private Object processAsyncCallback(Object res, Throwable ex, String ocid, String skipContextSnap) {
+        String before = SkipEquipmentL2CacheContext.snapshot(); // V5: MDC 기반
         SkipEquipmentL2CacheContext.restore(skipContextSnap);
 
         return executor.executeWithFinally(

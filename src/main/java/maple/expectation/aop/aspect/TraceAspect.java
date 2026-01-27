@@ -6,6 +6,7 @@ import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Pointcut;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
@@ -17,8 +18,23 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * 트레이스 어스펙트
- * - 순환 참조 방지를 위해 LogicExecutor 의존성을 제거하고 try-catch-finally 패턴 적용
+ * 트레이스 어스펙트 (#271 V5 Stateless Architecture)
+ *
+ * <h3>V5 Stateless 전환</h3>
+ * <p>ThreadLocal에서 MDC(Mapped Diagnostic Context)로 마이그레이션:
+ * <ul>
+ *   <li>call depth를 MDC "traceDepth" 키로 관리</li>
+ *   <li>로그에서 depth 확인 가능 → Observability 향상</li>
+ *   <li>depth==0이면 MDC.remove()로 완전 정리 (스레드풀 누수 방지)</li>
+ * </ul>
+ *
+ * <h3>5-Agent Council 합의</h3>
+ * <ul>
+ *   <li>Blue (Architect): MDC 전환으로 로그 추적성 확보</li>
+ *   <li>Red (SRE): remove() 보장으로 스레드풀 누수 방지</li>
+ * </ul>
+ *
+ * <p>순환 참조 방지를 위해 LogicExecutor 의존성을 제거하고 try-catch-finally 패턴 적용
  */
 @Slf4j
 @Aspect
@@ -32,10 +48,14 @@ public class TraceAspect {
 
     private static final int MAX_ARG_LENGTH = 100;
 
+    /** V5: MDC 키 (로그에서 확인 가능) */
+    private static final String MDC_DEPTH_KEY = "traceDepth";
+
     // ❌ LogicExecutor 제거 (순환 참조 원인)
     // private final LogicExecutor executor;
 
-    private final ThreadLocal<Integer> depthHolder = ThreadLocal.withInitial(() -> 0);
+    // V5: ThreadLocal → MDC 마이그레이션
+    // private final ThreadLocal<Integer> depthHolder = ThreadLocal.withInitial(() -> 0);
 
     @Pointcut("execution(* maple.expectation.service..*.*(..)) " +
             "|| execution(* maple.expectation.external..*.*(..)) " +
@@ -98,13 +118,13 @@ public class TraceAspect {
     }
 
     private TraceState prepareTrace(ProceedingJoinPoint joinPoint, String className, String methodName) {
-        int depth = depthHolder.get();
+        int depth = getMdcDepth();
         String indent = "|  ".repeat(depth);
         String args = formatArgs(joinPoint.getArgs());
 
         log.info("{}--> [START] {}.{}(args: [{}])", indent, className, methodName, args);
 
-        depthHolder.set(depth + 1);
+        setMdcDepth(depth + 1);
         StopWatch sw = new StopWatch();
         sw.start();
 
@@ -119,13 +139,45 @@ public class TraceAspect {
             log.info("{}<-- [END] {}.{} ({} ms)", state.indent, state.className, state.methodName, tookMs);
         }
 
-        if (state.depth > 0) depthHolder.set(state.depth);
-        else depthHolder.remove();
+        // V5: depth 복원 (state.depth는 "이전" depth)
+        if (state.depth > 0) {
+            setMdcDepth(state.depth);
+        } else {
+            MDC.remove(MDC_DEPTH_KEY); // V5: depth==0이면 MDC 정리 (스레드풀 누수 방지)
+        }
     }
 
     private void handleTraceException(TraceState state, Throwable e) {
         log.error("{}<X- [EXCEPTION] {}.{} throws {}",
                 state.indent, state.className, state.methodName, e.getClass().getSimpleName());
+    }
+
+    // ==================== V5: MDC 기반 Depth 관리 ====================
+
+    /**
+     * MDC에서 현재 depth 조회
+     *
+     * @return 현재 depth (기본값: 0)
+     */
+    private int getMdcDepth() {
+        String depthStr = MDC.get(MDC_DEPTH_KEY);
+        if (depthStr == null) {
+            return 0;
+        }
+        try {
+            return Integer.parseInt(depthStr);
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    /**
+     * MDC에 depth 설정
+     *
+     * @param depth 설정할 depth 값
+     */
+    private void setMdcDepth(int depth) {
+        MDC.put(MDC_DEPTH_KEY, String.valueOf(depth));
     }
 
     private String formatArgs(Object[] args) {

@@ -45,6 +45,20 @@ import java.util.concurrent.Executor;
  *   <li>갱신 실패해도 기존 데이터 유지</li>
  * </ul>
  *
+ * <h3>#271 V5 Stateless Architecture 평가</h3>
+ * <p>{@code wrapperTypeCache}는 ConcurrentHashMap이지만 다음 이유로 인스턴스별 유지 가능:</p>
+ * <ul>
+ *   <li>읽기 전용 캐시: JavaType 파싱 결과 캐싱 (변경 없음)</li>
+ *   <li>인스턴스별 독립: 동일 Method에 대해 동일한 JavaType 생성</li>
+ *   <li>P2-GREEN-01: 성능 최적화용, 비즈니스 영향 없음</li>
+ * </ul>
+ *
+ * <h4>5-Agent Council 합의 (P1-4)</h4>
+ * <ul>
+ *   <li>Blue (Architect): 읽기 전용 캐시로 Scale-out 안전</li>
+ *   <li>Green (Performance): 인스턴스별 캐싱으로 JVM 내 최적화</li>
+ * </ul>
+ *
  * @see ProbabilisticCache
  * @see CachedWrapper
  */

@@ -163,11 +163,11 @@ public class EquipmentService {
      */
     @TraceLog
     public CompletableFuture<TotalExpectationResponse> calculateTotalExpectationAsync(String userIgn) {
-        Boolean beforeContext = SkipEquipmentL2CacheContext.snapshot();
+        String beforeContext = SkipEquipmentL2CacheContext.snapshot();
 
         return CompletableFuture
                 .supplyAsync(() -> {
-                    SkipEquipmentL2CacheContext.restore(Boolean.TRUE);
+                    SkipEquipmentL2CacheContext.restore("true"); // V5: MDC 기반
                     return fetchLightSnapshot(userIgn);
                 }, expectationComputeExecutor)
                 .thenCompose(light -> processAfterLightSnapshot(userIgn, light))

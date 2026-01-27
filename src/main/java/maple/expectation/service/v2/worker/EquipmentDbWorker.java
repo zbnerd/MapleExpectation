@@ -9,7 +9,7 @@ import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.global.executor.strategy.ExceptionTranslator;
 import maple.expectation.repository.v2.CharacterEquipmentRepository;
-import maple.expectation.service.v2.shutdown.EquipmentPersistenceTracker;
+import maple.expectation.service.v2.shutdown.PersistenceTrackerStrategy;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
@@ -41,7 +41,7 @@ public class EquipmentDbWorker {
 
     private final CharacterEquipmentRepository repository;
     private final ObjectMapper objectMapper;
-    private final EquipmentPersistenceTracker persistenceTracker;
+    private final PersistenceTrackerStrategy persistenceTracker;
     private final LogicExecutor executor;
 
     /**

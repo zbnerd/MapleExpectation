@@ -8,14 +8,12 @@ import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.repository.v2.CharacterLikeRepository;
 import maple.expectation.service.v2.cache.LikeRelationBuffer;
-import org.redisson.api.RSet;
+import maple.expectation.service.v2.cache.LikeRelationBufferStrategy;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -38,15 +36,22 @@ public class LikeRelationSyncService {
 
     private static final int BATCH_SIZE = 100;
 
-    private final LikeRelationBuffer likeRelationBuffer;
+    private final LikeRelationBufferStrategy likeRelationBuffer;
     private final CharacterLikeRepository characterLikeRepository;
     private final LogicExecutor executor;
 
     /**
      * L1 → L2 동기화 (스케줄러 호출)
+     *
+     * <p>In-Memory 전략에서만 의미있습니다.
+     * Redis 전략에서는 L1이 없으므로 no-op입니다.</p>
      */
     public void flushLocalToRedis() {
-        likeRelationBuffer.flushLocalToRedis();
+        // Strategy 패턴: In-Memory 구현체만 flushLocalToRedis() 보유
+        if (likeRelationBuffer instanceof LikeRelationBuffer inMemoryBuffer) {
+            inMemoryBuffer.flushLocalToRedis();
+        }
+        // Redis 전략은 L1이 없으므로 no-op
     }
 
     /**
@@ -64,33 +69,22 @@ public class LikeRelationSyncService {
     @ObservedTransaction("scheduler.like.relation_sync")
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public SyncResult syncRedisToDatabase() {
-        RSet<String> pendingSet = likeRelationBuffer.getPendingSet();
-        Set<String> pendingKeys = pendingSet.readAll();
+        int pendingSize = likeRelationBuffer.getPendingSize();
 
-        if (pendingKeys.isEmpty()) {
+        if (pendingSize == 0) {
             return SyncResult.empty();
         }
 
-        log.info("📤 [LikeRelationSync] 동기화 시작: {}건", pendingKeys.size());
+        log.info("📤 [LikeRelationSync] 동기화 시작: 최대 {}건 예상", pendingSize);
 
         AtomicInteger successCount = new AtomicInteger(0);
         AtomicInteger skipCount = new AtomicInteger(0);
         AtomicInteger failCount = new AtomicInteger(0);
 
-        // 배치 처리
-        List<String> batch = new ArrayList<>(BATCH_SIZE);
-        for (String relationKey : pendingKeys) {
-            batch.add(relationKey);
-
-            if (batch.size() >= BATCH_SIZE) {
-                processBatch(batch, pendingSet, successCount, skipCount, failCount);
-                batch.clear();
-            }
-        }
-
-        // 남은 배치 처리
-        if (!batch.isEmpty()) {
-            processBatch(batch, pendingSet, successCount, skipCount, failCount);
+        // 배치 단위로 원자적 fetch + remove
+        Set<String> batch;
+        while (!(batch = likeRelationBuffer.fetchAndRemovePending(BATCH_SIZE)).isEmpty()) {
+            processBatch(batch, successCount, skipCount, failCount);
         }
 
         SyncResult result = new SyncResult(successCount.get(), skipCount.get(), failCount.get());
@@ -99,14 +93,14 @@ public class LikeRelationSyncService {
         return result;
     }
 
-    private void processBatch(List<String> batch, RSet<String> pendingSet,
+    private void processBatch(Set<String> batch,
                               AtomicInteger successCount, AtomicInteger skipCount, AtomicInteger failCount) {
         for (String relationKey : batch) {
-            processRelationKey(relationKey, pendingSet, successCount, skipCount, failCount);
+            processRelationKey(relationKey, successCount, skipCount, failCount);
         }
     }
 
-    private void processRelationKey(String relationKey, RSet<String> pendingSet,
+    private void processRelationKey(String relationKey,
                                     AtomicInteger successCount, AtomicInteger skipCount, AtomicInteger failCount) {
         TaskContext context = TaskContext.of("LikeRelationSync", "SaveToDb", relationKey);
 
@@ -115,7 +109,6 @@ public class LikeRelationSyncService {
                     String[] parts = likeRelationBuffer.parseRelationKey(relationKey);
                     if (parts.length != 2) {
                         log.warn("⚠️ [LikeRelationSync] 잘못된 관계 키 형식: {}", relationKey);
-                        pendingSet.remove(relationKey);
                         skipCount.incrementAndGet();
                         return null;
                     }
@@ -125,7 +118,6 @@ public class LikeRelationSyncService {
 
                     // DB 저장 시도
                     saveToDatabase(fingerprint, targetOcid);
-                    pendingSet.remove(relationKey);
                     successCount.incrementAndGet();
 
                     return null;
@@ -133,11 +125,10 @@ public class LikeRelationSyncService {
                 e -> {
                     if (e instanceof DataIntegrityViolationException) {
                         // UNIQUE 위반 = 이미 동기화됨 (정상)
-                        pendingSet.remove(relationKey);
                         skipCount.incrementAndGet();
                         log.debug("🔄 [LikeRelationSync] 이미 동기화됨: {}", relationKey);
                     } else {
-                        // 실제 오류 → 다음 동기화에서 재시도
+                        // 실제 오류 → 재처리를 위해 다시 추가
                         failCount.incrementAndGet();
                         log.error("❌ [LikeRelationSync] DB 저장 실패: {}", relationKey, e);
                     }

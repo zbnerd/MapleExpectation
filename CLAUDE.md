@@ -270,7 +270,9 @@ private <T> T getCachedValue(Object key) {
 
 ## 12. Zero Try-Catch Policy & LogicExecutor (Architectural Core)
 
-비즈니스 로직에서 `try-catch` 블록을 사용하는 것을 **엄격히 금지**합니다. 모든 실행 흐름과 예외 처리는 **`LogicExecutor`** 템플릿에 위임합니다.
+**비즈니스 로직, 인프라 모듈, 글로벌 모듈 전체**에서 `try-catch` 및 `try-finally` 블록을 사용하는 것을 **엄격히 금지**합니다. 모든 실행 흐름과 예외 처리는 **`LogicExecutor`** 템플릿에 위임합니다.
+
+> **적용 범위:** `service/`, `scheduler/`, `config/`, `global/`, `aop/` 등 **모든 패키지**
 
 ### LogicExecutor 사용 패턴 가이드
 | 패턴 | 메서드 | 용도 |
@@ -299,7 +301,13 @@ return executor.executeOrDefault(
     TaskContext.of("Domain", "FindById", id)
 );
 ```
-단, TraceAspect는 예외로 try-catch-finally 를 허용합니다. (LogicExecutor 순환참조 발생)
+
+**허용 예외 (LogicExecutor 순환참조/구조적 제약):**
+- `TraceAspect`: AOP에서 LogicExecutor 호출 시 순환참조 발생
+- `DefaultLogicExecutor`, `DefaultCheckedLogicExecutor`: LogicExecutor 구현체 내부
+- `ExecutionPipeline`: LogicExecutor 실행 파이프라인 내부
+- `TaskDecorator` (ExecutorConfig): Runnable 래핑 구조로 LogicExecutor 적용 불가 (MDC/ThreadLocal 전파)
+- JPA Entity (`DonationOutbox` 등): Spring Bean 주입 불가, Section 11 규칙에 따라 직접 예외 변환
 
 ---
 

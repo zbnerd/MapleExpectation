@@ -12,6 +12,8 @@ import org.redisson.api.RSet;
 import org.redisson.api.RedissonClient;
 import org.springframework.stereotype.Component;
 
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
@@ -35,10 +37,12 @@ import java.util.concurrent.TimeUnit;
  * </p>
  *
  * <p>CLAUDE.md 섹션 17 준수: L1 TTL ≤ L2 TTL, Graceful Degradation</p>
+ *
+ * @see LikeRelationBufferStrategy 전략 인터페이스
  */
 @Slf4j
 @Component
-public class LikeRelationBuffer {
+public class LikeRelationBuffer implements LikeRelationBufferStrategy {
 
     private static final String REDIS_SET_KEY = "buffer:like:relations";
     private static final String REDIS_PENDING_SET_KEY = "buffer:like:relations:pending";
@@ -82,6 +86,11 @@ public class LikeRelationBuffer {
                 .register(registry);
     }
 
+    @Override
+    public StrategyType getType() {
+        return StrategyType.IN_MEMORY;
+    }
+
     /**
      * 좋아요 관계 추가 (L1 + L2 계층)
      *
@@ -97,6 +106,7 @@ public class LikeRelationBuffer {
      * @param targetOcid  대상 캐릭터의 OCID
      * @return true if 신규 좋아요, false if 중복, null if Redis 장애
      */
+    @Override
     public Boolean addRelation(String fingerprint, String targetOcid) {
         String relationKey = buildRelationKey(fingerprint, targetOcid);
 
@@ -144,6 +154,7 @@ public class LikeRelationBuffer {
      *
      * @return true if 이미 좋아요함, null if Redis 장애
      */
+    @Override
     public Boolean exists(String fingerprint, String targetOcid) {
         String relationKey = buildRelationKey(fingerprint, targetOcid);
 
@@ -211,6 +222,7 @@ public class LikeRelationBuffer {
      * 관계 키 생성
      * Format: {fingerprint}:{targetOcid}
      */
+    @Override
     public String buildRelationKey(String fingerprint, String targetOcid) {
         return fingerprint + ":" + targetOcid;
     }
@@ -220,7 +232,80 @@ public class LikeRelationBuffer {
      *
      * @return [fingerprint, targetOcid]
      */
+    @Override
     public String[] parseRelationKey(String relationKey) {
         return relationKey.split(":", 2);
+    }
+
+    /**
+     * 좋아요 관계 삭제
+     */
+    @Override
+    public Boolean removeRelation(String fingerprint, String targetOcid) {
+        String relationKey = buildRelationKey(fingerprint, targetOcid);
+
+        // L1 제거
+        localCache.invalidate(relationKey);
+        localPendingSet.remove(relationKey);
+
+        // L2 제거
+        return executor.executeOrDefault(
+                () -> {
+                    boolean removed = getRelationSet().remove(relationKey);
+                    getPendingSet().remove(relationKey);
+                    return removed;
+                },
+                false,
+                TaskContext.of("LikeRelation", "Remove", relationKey)
+        );
+    }
+
+    /**
+     * DB 동기화 대기 중인 관계 조회 + 제거 (원자적)
+     */
+    @Override
+    public Set<String> fetchAndRemovePending(int limit) {
+        return executor.executeOrDefault(
+                () -> {
+                    Set<String> result = new HashSet<>();
+                    RSet<String> pendingSet = getPendingSet();
+
+                    for (int i = 0; i < limit; i++) {
+                        String relationKey = pendingSet.removeRandom();
+                        if (relationKey == null) {
+                            break;
+                        }
+                        result.add(relationKey);
+                    }
+
+                    return result;
+                },
+                Set.of(),
+                TaskContext.of("LikeRelation", "FetchPending")
+        );
+    }
+
+    /**
+     * 전체 관계 수 조회
+     */
+    @Override
+    public int getRelationsSize() {
+        return executor.executeOrDefault(
+                () -> getRelationSet().size(),
+                0,
+                TaskContext.of("LikeRelation", "GetSize")
+        );
+    }
+
+    /**
+     * 대기 중인 관계 수 조회
+     */
+    @Override
+    public int getPendingSize() {
+        return executor.executeOrDefault(
+                () -> getPendingSet().size(),
+                0,
+                TaskContext.of("LikeRelation", "GetPendingSize")
+        );
     }
 }
