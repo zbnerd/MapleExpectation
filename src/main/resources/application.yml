@@ -176,7 +176,7 @@ app:
     archive-directory: /tmp/maple-shutdown/processed
   buffer:
     redis:
-      enabled: false  # V5 Stateless (#271): 단일 인스턴스 기본값 (Scale-out 시 true)
+      enabled: true  # V5 Stateless (#271): Redis Only 모드 활성화
 
 # SpringDoc OpenAPI (Swagger UI) - Context7 Best Practice
 springdoc:

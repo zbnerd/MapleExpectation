@@ -2,7 +2,9 @@ package maple.expectation.repository.v2;
 
 import maple.expectation.domain.CharacterLike;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 
@@ -47,4 +49,15 @@ public interface CharacterLikeRepository extends JpaRepository<CharacterLike, Lo
      * @return 좋아요 수
      */
     long countByLikerFingerprint(String likerFingerprint);
+
+    /**
+     * 특정 캐릭터에 대한 특정 계정의 좋아요 삭제
+     *
+     * @param targetOcid       대상 캐릭터 OCID
+     * @param likerFingerprint 좋아요를 누른 계정의 fingerprint
+     * @return 삭제된 행 수
+     */
+    @Modifying
+    @Transactional
+    long deleteByTargetOcidAndLikerFingerprint(String targetOcid, String likerFingerprint);
 }

@@ -9,6 +9,7 @@ import maple.expectation.global.queue.RedisKey;
 import org.redisson.api.RMap;
 import org.redisson.api.RScript;
 import org.redisson.api.RedissonClient;
+import org.redisson.client.codec.LongCodec;
 import org.redisson.client.codec.StringCodec;
 import maple.expectation.service.v2.cache.LikeBufferStrategy;
 
@@ -304,10 +305,10 @@ public class RedisLikeBufferStorage implements LikeBufferStrategy {
     }
 
     /**
-     * Redis HASH 버퍼 접근
+     * Redis HASH 버퍼 접근 (LongCodec 사용)
      */
     private RMap<String, Long> getBuffer() {
-        return redissonClient.getMap(bufferKey);
+        return redissonClient.getMap(bufferKey, LongCodec.INSTANCE);
     }
 
     /**

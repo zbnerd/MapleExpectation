@@ -11,6 +11,7 @@ import maple.expectation.global.security.AuthenticatedUser;
 import maple.expectation.repository.v2.CharacterLikeRepository;
 import maple.expectation.service.v2.LikeProcessor;
 import maple.expectation.service.v2.OcidResolver;
+import maple.expectation.service.v2.cache.LikeBufferStrategy;
 import maple.expectation.service.v2.cache.LikeRelationBufferStrategy;
 import org.springframework.stereotype.Service;
 
@@ -38,28 +39,86 @@ import java.util.Set;
 public class CharacterLikeService {
 
     private final LikeRelationBufferStrategy likeRelationBuffer;
+    private final LikeBufferStrategy likeBufferStrategy;
     private final CharacterLikeRepository characterLikeRepository;
     private final OcidResolver ocidResolver;
     private final LikeProcessor likeProcessor;
     private final LogicExecutor executor;
 
     /**
-     * 캐릭터에 좋아요를 누릅니다.
+     * 좋아요 토글 결과 DTO
+     *
+     * @param liked        토글 후 좋아요 상태 (true: 좋아요됨, false: 취소됨)
+     * @param bufferDelta  현재 버퍼의 delta 값 (DB 반영 전)
+     */
+    public record LikeToggleResult(boolean liked, long bufferDelta) {}
+
+    /**
+     * 캐릭터 좋아요 토글 (좋아요 ↔ 취소)
      *
      * <p>흐름 (DB 호출 0회):
      * <ol>
      *   <li>OCID 조회 (캐싱됨)</li>
      *   <li>Self-Like 검증 (메모리)</li>
-     *   <li>L1/L2 중복 검사 + 버퍼 등록</li>
-     *   <li>likeCount 버퍼 증가 (@BufferedLike)</li>
+     *   <li>현재 좋아요 상태 확인</li>
+     *   <li>토글: 좋아요 추가 또는 취소</li>
+     *   <li>버퍼의 현재 delta 조회 (원자적)</li>
      * </ol>
      * </p>
      *
      * @param targetUserIgn 대상 캐릭터 닉네임
      * @param user          인증된 사용자
+     * @return 토글 결과 (liked, bufferDelta)
      * @throws SelfLikeNotAllowedException 자신의 캐릭터에 좋아요 시도
-     * @throws DuplicateLikeException      이미 좋아요를 누른 경우
      */
+    @ObservedTransaction("service.v2.auth.CharacterLikeService.toggleLike")
+    public LikeToggleResult toggleLike(String targetUserIgn, AuthenticatedUser user) {
+        String cleanIgn = targetUserIgn.trim();
+        TaskContext context = TaskContext.of("Like", "Toggle", cleanIgn);
+
+        return executor.execute(() -> doToggleLike(cleanIgn, user), context);
+    }
+
+    private LikeToggleResult doToggleLike(String targetUserIgn, AuthenticatedUser user) {
+        // 1. 대상 캐릭터의 OCID 조회 (캐싱됨)
+        String targetOcid = resolveOcid(targetUserIgn);
+
+        // 2. Self-Like 검증 (메모리)
+        validateNotSelfLike(user.myOcids(), targetOcid);
+
+        // 3. 현재 좋아요 상태 확인
+        boolean currentlyLiked = checkLikeStatus(targetOcid, user.fingerprint());
+
+        boolean liked;
+        Long newDelta;
+        if (currentlyLiked) {
+            // 4a. 좋아요 취소
+            removeFromBuffer(targetOcid, user.fingerprint());
+            newDelta = likeProcessor.processUnlike(targetUserIgn);
+            log.info("Unlike buffered: targetIgn={}, fingerprint={}..., newDelta={}",
+                    targetUserIgn, user.fingerprint().substring(0, 8), newDelta);
+            liked = false;
+        } else {
+            // 4b. 좋아요 추가
+            addToBuffer(targetOcid, user.fingerprint());
+            newDelta = likeProcessor.processLike(targetUserIgn);
+            log.info("Like buffered: targetIgn={}, fingerprint={}..., newDelta={}",
+                    targetUserIgn, user.fingerprint().substring(0, 8), newDelta);
+            liked = true;
+        }
+
+        // increment가 반환한 새 delta 직접 사용 (별도 get 불필요)
+        long delta = (newDelta != null) ? newDelta : 0L;
+
+        return new LikeToggleResult(liked, delta);
+    }
+
+    /**
+     * 캐릭터에 좋아요를 누릅니다.
+     *
+     * @deprecated 토글 방식의 {@link #toggleLike} 사용 권장
+     */
+    @Deprecated
     @ObservedTransaction("service.v2.auth.CharacterLikeService.likeCharacter")
     public void likeCharacter(String targetUserIgn, AuthenticatedUser user) {
         String cleanIgn = targetUserIgn.trim();
@@ -68,6 +127,7 @@ public class CharacterLikeService {
         executor.executeVoid(() -> doLikeCharacter(cleanIgn, user), context);
     }
 
+    @Deprecated
     private void doLikeCharacter(String targetUserIgn, AuthenticatedUser user) {
         // 1. 대상 캐릭터의 OCID 조회 (캐싱됨)
         String targetOcid = resolveOcid(targetUserIgn);
@@ -86,11 +146,69 @@ public class CharacterLikeService {
     }
 
     /**
+     * 현재 좋아요 상태 확인 (L1 → L2 → DB)
+     */
+    private boolean checkLikeStatus(String targetOcid, String fingerprint) {
+        // L1/L2 버퍼 확인
+        Boolean existsInBuffer = likeRelationBuffer.exists(fingerprint, targetOcid);
+        log.info("🔍 [LikeStatus] Buffer check: fingerprint={}..., targetOcid={}, existsInBuffer={}",
+                fingerprint.substring(0, 8), targetOcid, existsInBuffer);
+
+        if (existsInBuffer != null && existsInBuffer) {
+            log.info("✅ [LikeStatus] Found in buffer");
+            return true;
+        }
+
+        // DB 확인
+        boolean existsInDb = characterLikeRepository.existsByTargetOcidAndLikerFingerprint(targetOcid, fingerprint);
+        log.info("🔍 [LikeStatus] DB check: existsInDb={}", existsInDb);
+
+        return existsInDb;
+    }
+
+    /**
+     * L1/L2 버퍼에 관계 추가 (토글용 - 예외 없음)
+     */
+    private void addToBuffer(String targetOcid, String fingerprint) {
+        Boolean isNew = likeRelationBuffer.addRelation(fingerprint, targetOcid);
+
+        if (isNew == null) {
+            // Redis 장애 시에도 진행 (배치에서 복구)
+            log.warn("⚠️ [LikeService] Redis 장애로 관계 버퍼링 스킵");
+        }
+    }
+
+    /**
+     * 좋아요 관계 삭제 (버퍼 + DB)
+     *
+     * <p>Write-Behind 패턴에서 삭제는 즉시 처리:
+     * <ul>
+     *   <li>버퍼에서 삭제 (pending 동기화 방지)</li>
+     *   <li>DB에서도 삭제 (이미 동기화된 경우)</li>
+     * </ul>
+     * </p>
+     */
+    private void removeFromBuffer(String targetOcid, String fingerprint) {
+        // 1. 버퍼에서 삭제
+        Boolean removed = likeRelationBuffer.removeRelation(fingerprint, targetOcid);
+
+        if (removed == null) {
+            log.warn("⚠️ [LikeService] Redis 장애로 버퍼 삭제 스킵");
+        }
+
+        // 2. DB에서도 삭제 (이미 동기화된 경우)
+        executor.executeVoid(
+                () -> characterLikeRepository.deleteByTargetOcidAndLikerFingerprint(targetOcid, fingerprint),
+                TaskContext.of("Like", "DeleteFromDb", targetOcid)
+        );
+    }
+
+    /**
      * L1/L2 버퍼에 관계 추가 (중복 시 예외)
      *
-     * <p>Graceful Degradation:
-     * Redis 장애 시 DB Fallback으로 처리</p>
+     * @deprecated 토글 방식의 {@link #addToBuffer} 사용 권장
      */
+    @Deprecated
     private void addToBufferOrThrow(String targetOcid, String fingerprint) {
         Boolean isNew = likeRelationBuffer.addRelation(fingerprint, targetOcid);
 
