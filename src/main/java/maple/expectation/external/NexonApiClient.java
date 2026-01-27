@@ -1,6 +1,7 @@
 package maple.expectation.external;
 
 import maple.expectation.aop.annotation.NexonDataCache;
+import maple.expectation.external.dto.v2.CharacterBasicResponse;
 import maple.expectation.external.dto.v2.CharacterOcidResponse;
 import maple.expectation.external.dto.v2.EquipmentResponse;
 import java.util.concurrent.CompletableFuture;
@@ -15,6 +16,17 @@ public interface NexonApiClient {
      * @return OCID 응답 Future
      */
     CompletableFuture<CharacterOcidResponse> getOcidByCharacterName(String characterName);
+
+    /**
+     * OCID로 캐릭터 기본 정보 조회 (비동기)
+     *
+     * <p>Nexon API /maplestory/v1/character/basic 호출</p>
+     * <p>world_name, character_class, character_image 등 반환</p>
+     *
+     * @param ocid 캐릭터 고유 ID
+     * @return 캐릭터 기본 정보 응답 Future
+     */
+    CompletableFuture<CharacterBasicResponse> getCharacterBasic(String ocid);
 
     @NexonDataCache
     CompletableFuture<EquipmentResponse> getItemDataByOcid(String ocid);

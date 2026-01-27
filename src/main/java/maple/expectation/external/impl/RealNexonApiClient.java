@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.aop.annotation.NexonDataCache;
 import maple.expectation.external.NexonApiClient;
+import maple.expectation.external.dto.v2.CharacterBasicResponse;
 import maple.expectation.external.dto.v2.CharacterOcidResponse;
 import maple.expectation.external.dto.v2.EquipmentResponse;
 import maple.expectation.global.error.exception.CharacterNotFoundException;
@@ -61,6 +62,26 @@ public class RealNexonApiClient implements NexonApiClient {
                     // 5xx: 서킷브레이커 동작을 위해 상위 전파
                     return Mono.error(ex);
                 })
+                .timeout(API_TIMEOUT)
+                .toFuture();
+    }
+
+    /**
+     * OCID로 캐릭터 기본 정보 조회 (비동기)
+     *
+     * <p>Nexon API /maplestory/v1/character/basic 호출</p>
+     */
+    @Override
+    public CompletableFuture<CharacterBasicResponse> getCharacterBasic(String ocid) {
+        log.info("[NexonApi] Character basic info request: ocid={}", ocid);
+        return mapleWebClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/maplestory/v1/character/basic")
+                        .queryParam("ocid", ocid)
+                        .build())
+                .header("x-nxopen-api-key", apiKey)
+                .retrieve()
+                .bodyToMono(CharacterBasicResponse.class)
                 .timeout(API_TIMEOUT)
                 .toFuture();
     }

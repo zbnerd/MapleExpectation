@@ -28,6 +28,15 @@ public class GameCharacterFacade {
     private final RedissonClient redissonClient;
     private final LogicExecutor executor;
 
+    /**
+     * 캐릭터 조회 + 기본 정보 보강
+     *
+     * <p>expectation-sequence-diagram 패턴 적용:</p>
+     * <ul>
+     *   <li>Phase 2: Light Snapshot (캐릭터 조회)</li>
+     *   <li>Phase 4: Full Snapshot (기본 정보 보강 - worldName이 null이면 API 호출)</li>
+     * </ul>
+     */
     public GameCharacter findCharacterByUserIgn(String userIgn) {
         String cleanUserIgn = userIgn.trim();
         TaskContext context = TaskContext.of("CharacterFacade", "FindCharacter", cleanUserIgn);
@@ -37,8 +46,11 @@ public class GameCharacterFacade {
                 throw new CharacterNotFoundException(cleanUserIgn);
             }
 
-            return gameCharacterService.getCharacterIfExist(cleanUserIgn)
+            GameCharacter character = gameCharacterService.getCharacterIfExist(cleanUserIgn)
                     .orElseGet(() -> waitForWorkerResult(cleanUserIgn));
+
+            // Phase 4: 기본 정보 보강 (worldName이 null이면 API 호출 + 비동기 DB 저장)
+            return gameCharacterService.enrichCharacterBasicInfo(character);
         }, context);
     }
 

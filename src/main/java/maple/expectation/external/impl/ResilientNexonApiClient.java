@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import maple.expectation.aop.annotation.ObservedTransaction;
 import maple.expectation.domain.v2.CharacterEquipment;
 import maple.expectation.external.NexonApiClient;
+import maple.expectation.external.dto.v2.CharacterBasicResponse;
 import maple.expectation.external.dto.v2.CharacterOcidResponse;
 import maple.expectation.external.dto.v2.EquipmentResponse;
 import maple.expectation.global.error.exception.EquipmentDataProcessingException;
@@ -73,6 +74,20 @@ public class ResilientNexonApiClient implements NexonApiClient {
         return delegate.getOcidByCharacterName(name);
     }
 
+    /**
+     * OCID로 캐릭터 기본 정보 조회 (비동기)
+     *
+     * <p>Resilience4j 적용: CircuitBreaker + Retry + TimeLimiter</p>
+     */
+    @Override
+    @ObservedTransaction("external.api.nexon.basic")
+    @TimeLimiter(name = NEXON_API)
+    @CircuitBreaker(name = NEXON_API)
+    @Retry(name = NEXON_API, fallbackMethod = "getCharacterBasicFallback")
+    public CompletableFuture<CharacterBasicResponse> getCharacterBasic(String ocid) {
+        return delegate.getCharacterBasic(ocid);
+    }
+
     @Override
     @ObservedTransaction("external.api.nexon.itemdata")
     @TimeLimiter(name = NEXON_API)
@@ -82,7 +97,6 @@ public class ResilientNexonApiClient implements NexonApiClient {
         return delegate.getItemDataByOcid(ocid);
     }
 
-    // --- Fallback Methods (박멸 완료) ---
 
     /**
      * OCID 조회 fallback (비동기)
@@ -92,6 +106,17 @@ public class ResilientNexonApiClient implements NexonApiClient {
     public CompletableFuture<CharacterOcidResponse> getOcidFallback(String name, Throwable t) {
         handleIgnoreMarker(t);
         log.error("[Resilience] OCID 최종 조회 실패. name={}", name, t);
+        return CompletableFuture.failedFuture(new ExternalServiceException(SERVICE_NEXON, t));
+    }
+
+    /**
+     * 캐릭터 기본 정보 조회 fallback (비동기)
+     *
+     * <p>캐릭터 기본 정보는 DB에 캐싱되지 않으므로 단순 실패 처리</p>
+     */
+    public CompletableFuture<CharacterBasicResponse> getCharacterBasicFallback(String ocid, Throwable t) {
+        handleIgnoreMarker(t);
+        log.error("[Resilience] Character basic 최종 조회 실패. ocid={}", ocid, t);
         return CompletableFuture.failedFuture(new ExternalServiceException(SERVICE_NEXON, t));
     }
 

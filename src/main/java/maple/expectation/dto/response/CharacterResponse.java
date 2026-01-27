@@ -11,11 +11,17 @@ import maple.expectation.domain.v2.GameCharacter;
  * @param userIgn 캐릭터 닉네임
  * @param ocid 캐릭터 고유 ID
  * @param likeCount 좋아요 수
+ * @param worldName 월드명
+ * @param characterClass 직업명
+ * @param characterImage 캐릭터 이미지 URL
  */
 public record CharacterResponse(
         String userIgn,
         String ocid,
-        Long likeCount
+        Long likeCount,
+        String worldName,
+        String characterClass,
+        String characterImage
 ) {
     /**
      * Entity → DTO 변환 팩토리 메서드
@@ -27,7 +33,10 @@ public record CharacterResponse(
         return new CharacterResponse(
                 entity.getUserIgn(),
                 entity.getOcid(),
-                entity.getLikeCount()
+                entity.getLikeCount(),
+                entity.getWorldName(),
+                entity.getCharacterClass(),
+                entity.getCharacterImage()
         );
     }
 }

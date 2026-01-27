@@ -31,6 +31,13 @@ spring:
         format_sql: false
         show_sql: false
 
+  # Spring Batch 설정 (Issue #251 Phase 4)
+  batch:
+    jdbc:
+      initialize-schema: embedded  # 개발환경에서만 자동 생성
+    job:
+      enabled: false  # 스케줄러로만 트리거
+
 management:
   endpoints:
     web:
@@ -46,6 +53,11 @@ management:
   metrics:
     tags:
       application: ${spring.application.name} # 모든 메트릭에 앱 이름 태그 부여
+  # OpenTelemetry tracing 설정 (Context7 Best Practice)
+  tracing:
+    enabled: ${OTEL_ENABLED:false}  # 기본 비활성화 (prod에서 true)
+    sampling:
+      probability: 0.05  # [P0-Green] 5% Head Sampling
 
 resilience4j:
   circuitbreaker:
@@ -151,6 +163,7 @@ server:
   # Tomcat 스레드 설정 제거 - Virtual Thread 모드에서는 불필요
   tomcat:
     max-http-post-size: 262144  # 256KB (#266 P1-4: JSON DoS 방어)
+    uri-encoding: UTF-8  # 한글 URL 지원
 
 app:
   optimization:
@@ -278,20 +291,9 @@ ai:
     daily-limit: 100  # [P0-Green] 일일 LLM 호출 한도
     throttle-seconds: 60  # 동일 에러 패턴 스로틀링 간격
 
-# Spring Batch 설정 (Issue #251 Phase 4)
-spring:
-  batch:
-    jdbc:
-      initialize-schema: embedded  # 개발환경에서만 자동 생성
-    job:
-      enabled: false  # 스케줄러로만 트리거
+# Spring Batch 설정 - spring.batch는 상단 spring: 블록에 병합됨
 
-# OpenTelemetry 설정 (Context7 Best Practice)
-management:
-  tracing:
-    enabled: ${OTEL_ENABLED:false}  # 기본 비활성화 (prod에서 true)
-    sampling:
-      probability: 0.05  # [P0-Green] 5% Head Sampling
+# OpenTelemetry 설정 - management.tracing은 상단 management: 블록에 병합됨
 
 otel:
   exporter:
