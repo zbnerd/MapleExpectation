@@ -93,4 +93,18 @@ public class SessionService {
     public boolean existsSession(String sessionId) {
         return sessionRepository.existsById(sessionId);
     }
+
+    /**
+     * 세션 TTL을 갱신합니다 (Issue #279: Token Refresh 시 사용).
+     *
+     * @param sessionId 세션 ID
+     * @return 갱신 성공 여부
+     */
+    public boolean refreshSession(String sessionId) {
+        boolean refreshed = sessionRepository.refreshTtl(sessionId);
+        if (refreshed) {
+            log.debug("Session TTL refreshed: sessionId={}", sessionId);
+        }
+        return refreshed;
+    }
 }

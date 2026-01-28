@@ -149,7 +149,7 @@ public class SecurityConfig {
             // IMPORTANT: 더 구체적인 규칙이 먼저 와야 함 (Spring Security 6.x 규칙)
             .authorizeHttpRequests(auth -> auth
                 // Public endpoints
-                .requestMatchers("/auth/login").permitAll()
+                .requestMatchers("/auth/login", "/auth/refresh").permitAll()
                 .requestMatchers("/api/public/**").permitAll()
                 .requestMatchers("/actuator/health").permitAll()
                 .requestMatchers("/actuator/info").permitAll()

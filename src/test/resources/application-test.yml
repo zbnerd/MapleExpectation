@@ -93,6 +93,9 @@ ratelimit:
 auth:
   jwt:
     secret: test-jwt-secret-key-for-unit-tests-32chars
+    expiration: 900  # 15분 (Issue #279)
+  refresh-token:
+    expiration: 604800  # 7일 (Issue #279)
   fingerprint:
     secret: test-fingerprint-secret-key-32chars123
   admin:
