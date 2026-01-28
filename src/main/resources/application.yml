@@ -166,6 +166,7 @@ server:
     uri-encoding: UTF-8  # 한글 URL 지원
 
 app:
+  instance-id: ${HOSTNAME:${random.uuid}}  # Issue #278: Scale-out Pub/Sub Self-skip용
   optimization:
     use-compression: true
   aop:
@@ -203,6 +204,9 @@ like:
     recovery:
       enabled: true  # 서버 시작 시 Orphan Key 자동 복구 (@PostConstruct)
     temp-key-ttl-seconds: 3600  # 임시 키 TTL (1시간) - JVM 크래시 대비 안전장치
+  # Issue #278: Scale-out 환경 실시간 좋아요 동기화
+  realtime:
+    enabled: true  # Pub/Sub 활성화 (인스턴스 간 L1 캐시 무효화)
 
 # BYOK 인증 설정 (Issue #146)
 auth:

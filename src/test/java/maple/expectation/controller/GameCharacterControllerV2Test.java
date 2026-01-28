@@ -1,11 +1,15 @@
 package maple.expectation.controller;
 
+import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.external.dto.v2.EquipmentResponse;
 import maple.expectation.external.dto.v2.TotalExpectationResponse;
 import maple.expectation.global.response.ApiResponse;
 import maple.expectation.global.security.AuthenticatedUser;
 import maple.expectation.service.v2.EquipmentService;
+import maple.expectation.service.v2.GameCharacterService;
 import maple.expectation.service.v2.auth.CharacterLikeService;
+import maple.expectation.service.v2.auth.CharacterLikeService.LikeToggleResult;
+import maple.expectation.service.v2.cache.LikeBufferStrategy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -14,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
@@ -33,7 +38,7 @@ import static org.mockito.Mockito.*;
  * <ul>
  *   <li>GET /{userIgn}/equipment - 장비 조회</li>
  *   <li>GET /{userIgn}/expectation - 기대값 계산</li>
- *   <li>POST /{userIgn}/like - 좋아요</li>
+ *   <li>POST /{userIgn}/like - 좋아요 토글</li>
  *   <li>GET /{userIgn}/like/status - 좋아요 상태 확인</li>
  * </ul>
  */
@@ -42,13 +47,22 @@ class GameCharacterControllerV2Test {
 
     private EquipmentService equipmentService;
     private CharacterLikeService characterLikeService;
+    private GameCharacterService gameCharacterService;
+    private LikeBufferStrategy likeBufferStrategy;
     private GameCharacterControllerV2 controller;
 
     @BeforeEach
     void setUp() {
         equipmentService = mock(EquipmentService.class);
         characterLikeService = mock(CharacterLikeService.class);
-        controller = new GameCharacterControllerV2(equipmentService, characterLikeService);
+        gameCharacterService = mock(GameCharacterService.class);
+        likeBufferStrategy = mock(LikeBufferStrategy.class);
+        controller = new GameCharacterControllerV2(
+                equipmentService,
+                characterLikeService,
+                gameCharacterService,
+                likeBufferStrategy
+        );
     }
 
     @Nested
@@ -125,42 +139,89 @@ class GameCharacterControllerV2Test {
     }
 
     @Nested
-    @DisplayName("좋아요 likeCharacter")
-    class LikeCharacterTest {
+    @DisplayName("좋아요 토글 toggleLike")
+    class ToggleLikeTest {
 
         @Test
-        @DisplayName("좋아요 성공")
-        void whenValidUser_shouldLikeSuccessfully() {
+        @DisplayName("좋아요 토글 성공 - 좋아요 추가")
+        void whenToggleLike_shouldReturnLikeResult() {
             // given
             String userIgn = "TargetUser";
             AuthenticatedUser user = new AuthenticatedUser(
                     "session-123", "fingerprint-abc", "api-key-test", Set.of(), "USER"
             );
-            doNothing().when(characterLikeService).likeCharacter(eq(userIgn), any(AuthenticatedUser.class));
+
+            LikeToggleResult toggleResult = new LikeToggleResult(true, 5L);
+            given(characterLikeService.toggleLike(eq(userIgn), any(AuthenticatedUser.class)))
+                    .willReturn(toggleResult);
+
+            GameCharacter mockCharacter = mock(GameCharacter.class);
+            given(mockCharacter.getLikeCount()).willReturn(10L);
+            given(gameCharacterService.getCharacterIfExist(userIgn))
+                    .willReturn(Optional.of(mockCharacter));
 
             // when
-            ResponseEntity<ApiResponse<Void>> response = controller.likeCharacter(userIgn, user);
+            ResponseEntity<ApiResponse<GameCharacterControllerV2.LikeToggleResponse>> response =
+                    controller.toggleLike(userIgn, user);
 
             // then
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
             assertThat(response.getBody()).isNotNull();
-            verify(characterLikeService).likeCharacter(userIgn, user);
+            assertThat(response.getBody().data().liked()).isTrue();
+            assertThat(response.getBody().data().likeCount()).isEqualTo(15L); // 10 + 5
+            verify(characterLikeService).toggleLike(userIgn, user);
         }
 
         @Test
-        @DisplayName("좋아요 시 CharacterLikeService 호출 검증")
-        void shouldCallCharacterLikeService() {
+        @DisplayName("좋아요 토글 성공 - 좋아요 취소")
+        void whenToggleUnlike_shouldReturnUnlikeResult() {
             // given
-            String userIgn = "LikedUser";
+            String userIgn = "TargetUser";
             AuthenticatedUser user = new AuthenticatedUser(
                     "session-456", "fingerprint-def", "api-key-test", Set.of(), "USER"
             );
 
+            LikeToggleResult toggleResult = new LikeToggleResult(false, -1L);
+            given(characterLikeService.toggleLike(eq(userIgn), any(AuthenticatedUser.class)))
+                    .willReturn(toggleResult);
+
+            GameCharacter mockCharacter = mock(GameCharacter.class);
+            given(mockCharacter.getLikeCount()).willReturn(5L);
+            given(gameCharacterService.getCharacterIfExist(userIgn))
+                    .willReturn(Optional.of(mockCharacter));
+
             // when
-            controller.likeCharacter(userIgn, user);
+            ResponseEntity<ApiResponse<GameCharacterControllerV2.LikeToggleResponse>> response =
+                    controller.toggleLike(userIgn, user);
 
             // then
-            verify(characterLikeService, times(1)).likeCharacter(userIgn, user);
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(response.getBody()).isNotNull();
+            assertThat(response.getBody().data().liked()).isFalse();
+            assertThat(response.getBody().data().likeCount()).isEqualTo(4L); // 5 - 1
+        }
+
+        @Test
+        @DisplayName("캐릭터 미존재 시 likeCount 0으로 계산")
+        void whenCharacterNotExists_shouldReturnZeroBasedCount() {
+            // given
+            String userIgn = "NonExistentUser";
+            AuthenticatedUser user = new AuthenticatedUser(
+                    "session-789", "fingerprint-ghi", "api-key-test", Set.of(), "USER"
+            );
+
+            LikeToggleResult toggleResult = new LikeToggleResult(true, 1L);
+            given(characterLikeService.toggleLike(eq(userIgn), any(AuthenticatedUser.class)))
+                    .willReturn(toggleResult);
+            given(gameCharacterService.getCharacterIfExist(userIgn))
+                    .willReturn(Optional.empty());
+
+            // when
+            ResponseEntity<ApiResponse<GameCharacterControllerV2.LikeToggleResponse>> response =
+                    controller.toggleLike(userIgn, user);
+
+            // then
+            assertThat(response.getBody().data().likeCount()).isEqualTo(1L); // 0 + 1
         }
     }
 
@@ -179,6 +240,12 @@ class GameCharacterControllerV2Test {
             );
             given(characterLikeService.hasLiked(userIgn, fingerprint)).willReturn(true);
 
+            GameCharacter mockCharacter = mock(GameCharacter.class);
+            given(mockCharacter.getLikeCount()).willReturn(10L);
+            given(gameCharacterService.getCharacterIfExist(userIgn))
+                    .willReturn(Optional.of(mockCharacter));
+            given(likeBufferStrategy.get(userIgn)).willReturn(2L);
+
             // when
             ResponseEntity<ApiResponse<GameCharacterControllerV2.LikeStatusResponse>> response =
                     controller.getLikeStatus(userIgn, user);
@@ -187,6 +254,7 @@ class GameCharacterControllerV2Test {
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
             assertThat(response.getBody()).isNotNull();
             assertThat(response.getBody().data().liked()).isTrue();
+            assertThat(response.getBody().data().likeCount()).isEqualTo(12L); // 10 + 2
         }
 
         @Test
@@ -199,6 +267,9 @@ class GameCharacterControllerV2Test {
                     "session-abc", fingerprint, "api-key-test", Set.of(), "USER"
             );
             given(characterLikeService.hasLiked(userIgn, fingerprint)).willReturn(false);
+            given(gameCharacterService.getCharacterIfExist(userIgn))
+                    .willReturn(Optional.empty());
+            given(likeBufferStrategy.get(userIgn)).willReturn(null);
 
             // when
             ResponseEntity<ApiResponse<GameCharacterControllerV2.LikeStatusResponse>> response =
@@ -208,6 +279,7 @@ class GameCharacterControllerV2Test {
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
             assertThat(response.getBody()).isNotNull();
             assertThat(response.getBody().data().liked()).isFalse();
+            assertThat(response.getBody().data().likeCount()).isEqualTo(0L);
         }
     }
 }

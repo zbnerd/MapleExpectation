@@ -132,7 +132,18 @@ public enum RedisKey {
     /**
      * 동기화 임시 키 접두사
      */
-    SYNC_TEMP_PREFIX("{likes}:sync:");
+    SYNC_TEMP_PREFIX("{likes}:sync:"),
+
+    // ============================================================
+    // Like Realtime Sync (Issue #278: Scale-out Pub/Sub)
+    // ============================================================
+
+    /**
+     * 좋아요 이벤트 Pub/Sub 토픽
+     * <p>Scale-out 환경에서 인스턴스 간 L1 캐시 무효화 이벤트 전파</p>
+     * <p>Hash Tag {likes}로 같은 슬롯 배치</p>
+     */
+    LIKE_EVENTS_TOPIC("{likes}:events");
 
     private final String key;
 

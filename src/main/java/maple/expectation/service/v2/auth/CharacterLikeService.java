@@ -13,6 +13,8 @@ import maple.expectation.service.v2.LikeProcessor;
 import maple.expectation.service.v2.OcidResolver;
 import maple.expectation.service.v2.cache.LikeBufferStrategy;
 import maple.expectation.service.v2.cache.LikeRelationBufferStrategy;
+import maple.expectation.service.v2.like.realtime.LikeEventPublisher;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 
 import java.util.Set;
@@ -31,11 +33,13 @@ import java.util.Set;
  * <p>요청 처리 시 DB 호출: 0회 (Redis만 사용)
  * 스케줄러가 배치로 DB에 동기화</p>
  *
+ * <h3>Issue #278: Scale-out 실시간 동기화</h3>
+ * <p>좋아요 토글 후 Pub/Sub 이벤트 발행 → 다른 인스턴스의 L1 캐시 무효화</p>
+ *
  * <p>CLAUDE.md 섹션 17 준수: TieredCache 패턴, Graceful Degradation</p>
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class CharacterLikeService {
 
     private final LikeRelationBufferStrategy likeRelationBuffer;
@@ -44,6 +48,34 @@ public class CharacterLikeService {
     private final OcidResolver ocidResolver;
     private final LikeProcessor likeProcessor;
     private final LogicExecutor executor;
+
+    /**
+     * Issue #278: 실시간 동기화 이벤트 발행자
+     * <p>Optional 의존성: like.realtime.enabled=false 시 null</p>
+     */
+    @Nullable
+    private final LikeEventPublisher likeEventPublisher;
+
+    /**
+     * 생성자 (LikeEventPublisher는 Optional 의존성)
+     */
+    public CharacterLikeService(
+            LikeRelationBufferStrategy likeRelationBuffer,
+            LikeBufferStrategy likeBufferStrategy,
+            CharacterLikeRepository characterLikeRepository,
+            OcidResolver ocidResolver,
+            LikeProcessor likeProcessor,
+            LogicExecutor executor,
+            @Nullable LikeEventPublisher likeEventPublisher
+    ) {
+        this.likeRelationBuffer = likeRelationBuffer;
+        this.likeBufferStrategy = likeBufferStrategy;
+        this.characterLikeRepository = characterLikeRepository;
+        this.ocidResolver = ocidResolver;
+        this.likeProcessor = likeProcessor;
+        this.executor = executor;
+        this.likeEventPublisher = likeEventPublisher;
+    }
 
     /**
      * 좋아요 토글 결과 DTO
@@ -110,7 +142,33 @@ public class CharacterLikeService {
         // increment가 반환한 새 delta 직접 사용 (별도 get 불필요)
         long delta = (newDelta != null) ? newDelta : 0L;
 
+        // 5. Issue #278: Scale-out 실시간 동기화 이벤트 발행
+        publishLikeEvent(targetUserIgn, delta, liked);
+
         return new LikeToggleResult(liked, delta);
+    }
+
+    /**
+     * Scale-out 실시간 동기화 이벤트 발행 (Issue #278)
+     *
+     * <p>다른 인스턴스의 L1 캐시 무효화를 위한 Pub/Sub 이벤트 발행</p>
+     * <p>likeEventPublisher가 null이면 단일 인스턴스 모드 (이벤트 발행 스킵)</p>
+     * <p>이벤트 발행 실패 시에도 좋아요 기능은 정상 동작 (Graceful Degradation)</p>
+     *
+     * @param targetUserIgn 대상 캐릭터 닉네임 (캐시 키)
+     * @param newDelta      버퍼의 새 delta 값
+     * @param liked         좋아요 상태 (true: LIKE, false: UNLIKE)
+     */
+    private void publishLikeEvent(String targetUserIgn, long newDelta, boolean liked) {
+        if (likeEventPublisher == null) {
+            return;
+        }
+
+        if (liked) {
+            likeEventPublisher.publishLike(targetUserIgn, newDelta);
+        } else {
+            likeEventPublisher.publishUnlike(targetUserIgn, newDelta);
+        }
     }
 
     /**

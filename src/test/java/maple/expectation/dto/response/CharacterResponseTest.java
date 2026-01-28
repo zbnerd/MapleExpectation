@@ -58,9 +58,9 @@ class CharacterResponseTest {
         @DisplayName("equals/hashCode 동작 확인")
         void shouldHaveCorrectEqualsAndHashCode() {
             // given
-            CharacterResponse response1 = new CharacterResponse("User", "ocid", 10L);
-            CharacterResponse response2 = new CharacterResponse("User", "ocid", 10L);
-            CharacterResponse response3 = new CharacterResponse("Other", "ocid", 10L);
+            CharacterResponse response1 = new CharacterResponse("User", "ocid", 10L, "Scania", "Hero", null);
+            CharacterResponse response2 = new CharacterResponse("User", "ocid", 10L, "Scania", "Hero", null);
+            CharacterResponse response3 = new CharacterResponse("Other", "ocid", 10L, "Scania", "Hero", null);
 
             // then
             assertThat(response1).isEqualTo(response2);
@@ -72,7 +72,7 @@ class CharacterResponseTest {
         @DisplayName("toString 동작 확인")
         void shouldHaveCorrectToString() {
             // given
-            CharacterResponse response = new CharacterResponse("TestUser", "test-ocid", 5L);
+            CharacterResponse response = new CharacterResponse("TestUser", "test-ocid", 5L, "Scania", "Hero", null);
 
             // then
             assertThat(response.toString())
