@@ -427,6 +427,12 @@ private List<Dto> processActiveUser(Long id) {
 - **06_Nightmare/Results**: 테스트 결과 리포트
 - **04_Reports/**: Load Test, E2E Validation 결과
 
+## Scale-out & Architecture (-> [docs/04_Reports/](docs/04_Reports/), [docs/adr/](docs/adr/))
+- **Scale-out 방해 요소 분석**: [docs/04_Reports/scale-out-blockers-analysis.md](docs/04_Reports/scale-out-blockers-analysis.md) - P0/P1 Stateful 컴포넌트 전수 분석 (22개)
+- **대규모 트래픽 성능 분석**: [docs/04_Reports/high-traffic-performance-analysis.md](docs/04_Reports/high-traffic-performance-analysis.md) - P0/P1 Thread Pool, Connection Pool, Lock 경합 (11개)
+- **ADR-014 멀티 모듈 전환**: [docs/adr/ADR-014-multi-module-cross-cutting-concerns.md](docs/adr/ADR-014-multi-module-cross-cutting-concerns.md) - 횡단 관심사 분리 설계
+- **로드맵 Phase 7**: [docs/00_Start_Here/ROADMAP.md](docs/00_Start_Here/ROADMAP.md) - #283 → #282 → #126 의존 관계
+
 ## Templates (-> [docs/98_Templates/](docs/98_Templates/))
 - **Chaos_Report_Template.md**: 카오스 리포트 양식
 - **ISSUE_TEMPLATE.md**: GitHub 이슈 양식
