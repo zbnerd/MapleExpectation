@@ -212,7 +212,9 @@ like:
 auth:
   jwt:
     secret: ${JWT_SECRET}  # 필수 환경변수 (미설정 시 앱 시작 실패)
-    expiration: 1800  # 30분 (초)
+    expiration: 900  # 15분 (초) - Issue #279: Access Token 단축
+  refresh-token:
+    expiration: 604800  # 7일 (초) - Issue #279: Refresh Token 도입
   fingerprint:
     secret: ${FINGERPRINT_SECRET}  # 필수 환경변수 (미설정 시 앱 시작 실패)
   admin:
