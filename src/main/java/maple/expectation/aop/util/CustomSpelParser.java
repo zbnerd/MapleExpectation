@@ -17,6 +17,20 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * SpEL 표현식 파싱 유틸리티 (LogicExecutor 평탄화 완료)
+ *
+ * <h3>#271 V5 Stateless Architecture 평가</h3>
+ * <p>{@code expressionCache}는 ConcurrentHashMap이지만 다음 이유로 인스턴스별 유지 가능:</p>
+ * <ul>
+ *   <li>읽기 전용 캐시: SpEL Expression 파싱 결과 캐싱 (변경 없음)</li>
+ *   <li>인스턴스별 독립: 각 인스턴스가 동일한 Expression을 파싱해도 결과 동일</li>
+ *   <li>비즈니스 영향 없음: 캐시 없어도 기능 동작, 성능 최적화용</li>
+ * </ul>
+ *
+ * <h4>5-Agent Council 합의 (P1-2)</h4>
+ * <ul>
+ *   <li>Blue (Architect): 읽기 전용 캐시로 Scale-out 안전</li>
+ *   <li>Green (Performance): 인스턴스별 캐싱으로 JVM 내 최적화</li>
+ * </ul>
  */
 @Slf4j
 @Component

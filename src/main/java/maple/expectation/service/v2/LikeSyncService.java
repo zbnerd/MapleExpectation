@@ -10,6 +10,7 @@ import maple.expectation.global.executor.TaskContext;
 import maple.expectation.global.shutdown.dto.FlushResult;
 import maple.expectation.repository.v2.RedisBufferRepository;
 import maple.expectation.service.v2.cache.LikeBufferStorage;
+import maple.expectation.service.v2.cache.LikeBufferStrategy;
 import maple.expectation.service.v2.like.compensation.CompensationCommand;
 import maple.expectation.service.v2.like.compensation.RedisCompensationCommand;
 import maple.expectation.service.v2.like.dto.FetchResult;
@@ -47,7 +48,8 @@ import java.util.concurrent.atomic.AtomicLong;
 @Service
 public class LikeSyncService {
 
-    private final LikeBufferStorage likeBufferStorage;
+    private final LikeBufferStrategy likeBufferStrategy;
+    private final LikeBufferStorage likeBufferStorage;  // In-Memory 모드 호환용 (deprecated)
     private final LikeSyncExecutor syncExecutor;
     private final StringRedisTemplate redisTemplate;
     private final RedisBufferRepository redisBufferRepository;
@@ -75,6 +77,7 @@ public class LikeSyncService {
     private static final String TEMP_KEY_PREFIX = "{buffer:likes}:sync:";
 
     public LikeSyncService(
+            LikeBufferStrategy likeBufferStrategy,
             LikeBufferStorage likeBufferStorage,
             LikeSyncExecutor syncExecutor,
             StringRedisTemplate redisTemplate,
@@ -85,6 +88,7 @@ public class LikeSyncService {
             AtomicFetchStrategy atomicFetchStrategy,
             MeterRegistry meterRegistry,
             ApplicationEventPublisher eventPublisher) {
+        this.likeBufferStrategy = likeBufferStrategy;
         this.likeBufferStorage = likeBufferStorage;
         this.syncExecutor = syncExecutor;
         this.redisTemplate = redisTemplate;
@@ -95,14 +99,26 @@ public class LikeSyncService {
         this.atomicFetchStrategy = atomicFetchStrategy;
         this.meterRegistry = meterRegistry;
         this.eventPublisher = eventPublisher;
+
+        log.info("[LikeSyncService] Using {} buffer strategy",
+                likeBufferStrategy.getType());
     }
 
-    // ========== L1 -> L2 Flush (변경 없음) ==========
+    // ========== L1 -> L2 Flush ==========
 
     /**
      * L1 -> L2 전송
+     *
+     * <p>V5 Stateless: Redis 모드에서는 이미 Redis에 직접 저장되므로 스킵</p>
      */
     public void flushLocalToRedis() {
+        // Redis 모드에서는 L1→L2 flush 불필요 (이미 Redis에 직접 저장)
+        if (likeBufferStrategy.getType() == LikeBufferStrategy.StrategyType.REDIS) {
+            log.debug("[LikeSyncService] Redis mode - L1→L2 flush skipped (direct to Redis)");
+            return;
+        }
+
+        // In-Memory 모드: 기존 로직 유지
         Map<String, AtomicLong> snapshot = likeBufferStorage.getCache().asMap();
         if (snapshot.isEmpty()) return;
         snapshot.forEach(this::processLocalBufferEntry);
@@ -110,8 +126,17 @@ public class LikeSyncService {
 
     /**
      * Graceful Shutdown용 전송
+     *
+     * <p>V5 Stateless: Redis 모드에서는 이미 Redis에 저장되어 있음</p>
      */
     public FlushResult flushLocalToRedisWithFallback() {
+        // Redis 모드에서는 이미 Redis에 저장되어 있음
+        if (likeBufferStrategy.getType() == LikeBufferStrategy.StrategyType.REDIS) {
+            log.info("[LikeSyncService] Redis mode - data already persisted in Redis");
+            return FlushResult.empty();
+        }
+
+        // In-Memory 모드: 기존 로직 유지
         Map<String, AtomicLong> snapshot = likeBufferStorage.getCache().asMap();
         if (snapshot.isEmpty()) return FlushResult.empty();
 

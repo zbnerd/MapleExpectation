@@ -57,7 +57,7 @@ public abstract class SimpleRedisContainerBase {
             .withNetwork(NETWORK)
             .withNetworkAliases("mysql-db")
             .waitingFor(Wait.forLogMessage(".*ready for connections.*\\s", 2))
-            .withStartupTimeout(Duration.ofMinutes(2));
+            .withStartupTimeout(Duration.ofMinutes(5));
 
     // -------------------------------------------------------------------------
     // Redis Container (단일 노드)

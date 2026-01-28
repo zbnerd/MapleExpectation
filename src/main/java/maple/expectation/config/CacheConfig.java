@@ -89,6 +89,14 @@ public class CacheConfig {
                         .recordStats()
                         .build());
 
+        // characterBasic: 캐릭터 기본 정보 캐시 (character_image 15분 갱신)
+        l1Manager.registerCustomCache("characterBasic",
+                Caffeine.newBuilder()
+                        .expireAfterWrite(15, TimeUnit.MINUTES)
+                        .maximumSize(5000)
+                        .recordStats()
+                        .build());
+
         // #240 V4: GZIP 압축 전체 응답 캐시
         // #264: L1 캐시 튜닝 (5-Agent Council 합의)
         // - TTL 30min → 60min: L1 히트율 향상
@@ -142,6 +150,9 @@ public class CacheConfig {
 
         // OCID: 충분히 길게 -> 60분
         configurations.put("ocidCache", defaultConfig.entryTtl(Duration.ofMinutes(60)));
+
+        // characterBasic: 캐릭터 기본 정보 캐시 (character_image 15분 갱신)
+        configurations.put("characterBasic", defaultConfig.entryTtl(Duration.ofMinutes(15)));
 
         // #240 V4: GZIP 압축 전체 응답 캐시 (byte[] 타입 보존)
         configurations.put("expectationV4", expectationV4Config);

@@ -1,6 +1,5 @@
 package maple.expectation.aop.aspect;
 
-import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.aop.collector.PerformanceStatisticsCollector;
@@ -9,19 +8,26 @@ import maple.expectation.global.executor.TaskContext;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
+import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Component;
 
 /**
  * 실행 시간 로깅 Aspect (TaskContext 및 평탄화 적용)
+ *
+ * <h3>#271 V5 Stateless Architecture</h3>
+ * <p>SmartLifecycle을 구현하여 Graceful Shutdown 시 통계를 출력합니다.
+ * Phase가 낮아 다른 컴포넌트보다 나중에 종료됩니다.</p>
  */
 @Aspect
 @Component
 @Slf4j
 @RequiredArgsConstructor
-public class LoggingAspect {
+public class LoggingAspect implements SmartLifecycle {
 
     private final PerformanceStatisticsCollector statsCollector;
     private final LogicExecutor executor;
+
+    private volatile boolean running = false;
 
     /**
      * 메서드 실행 시간 로깅 (코드 평탄화 적용)
@@ -59,13 +65,54 @@ public class LoggingAspect {
         log.warn("🔄 Micrometer 통계는 수동으로 리셋되지 않습니다. Prometheus 대시보드를 확인하세요.");
     }
 
-    @PreDestroy
-    public void printFinalStatistics() {
+    // ==================== SmartLifecycle Implementation ====================
+
+    @Override
+    public void start() {
+        this.running = true;
+        log.debug("[LoggingAspect] Started");
+    }
+
+    /**
+     * Graceful Shutdown 시 최종 통계 출력
+     *
+     * <p>#271 V5: @PreDestroy 대신 SmartLifecycle.stop() 사용</p>
+     */
+    @Override
+    public void stop() {
+        printFinalStatistics();
+        this.running = false;
+    }
+
+    /**
+     * 최종 통계 출력 (내부 헬퍼)
+     */
+    private void printFinalStatistics() {
         String[] stats = statsCollector.calculateStatistics("애플리케이션 전체 운영");
         log.info("========================================================");
         for (String stat : stats) {
             log.info(stat);
         }
         log.info("========================================================");
+    }
+
+    @Override
+    public boolean isRunning() {
+        return running;
+    }
+
+    /**
+     * 다른 Shutdown 컴포넌트보다 나중에 종료 (낮은 phase)
+     *
+     * <p>GracefulShutdownCoordinator (MAX-1000) 이후 실행</p>
+     */
+    @Override
+    public int getPhase() {
+        return Integer.MAX_VALUE - 2000;
+    }
+
+    @Override
+    public boolean isAutoStartup() {
+        return true;
     }
 }

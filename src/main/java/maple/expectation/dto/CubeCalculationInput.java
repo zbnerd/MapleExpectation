@@ -75,6 +75,12 @@ public class CubeCalculationInput {
     private String starforceScrollFlag;
 
     /**
+     * 특수 스킬 반지 레벨 (리스트레인트링, 컨티뉴어스링 등)
+     * <p>0이면 일반 장비, 1~5이면 특수 스킬 반지</p>
+     */
+    private int specialRingLevel;
+
+    /**
      * 놀장 장비 여부 판별
      * @return true if 놀장 사용
      */
@@ -171,5 +177,17 @@ public class CubeCalculationInput {
         }
 
         return hasValidOption;
+    }
+
+    /**
+     * 기본 정보 존재 여부 확인 (화면 표시용)
+     *
+     * <p>잠재능력이 없는 장비(특수스킬반지 등)도 화면에 표시하기 위해
+     * part(슬롯)만 있으면 true를 반환합니다.</p>
+     *
+     * @return part가 있으면 true
+     */
+    public boolean hasBasicInfo() {
+        return part != null && !part.trim().isEmpty();
     }
 }

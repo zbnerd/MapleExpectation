@@ -9,13 +9,13 @@ import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.global.executor.strategy.ExceptionTranslator;
 import maple.expectation.repository.v2.CharacterEquipmentRepository;
-import maple.expectation.service.v2.shutdown.EquipmentPersistenceTracker;
+import maple.expectation.service.v2.shutdown.PersistenceTrackerStrategy;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
@@ -36,12 +36,12 @@ import java.util.concurrent.CompletableFuture;
 @RequiredArgsConstructor
 public class EquipmentDbWorker {
 
-    /** DB 데이터 유효 기간 (분) */
-    private static final int DB_TTL_MINUTES = 15;
+    /** DB 데이터 유효 기간 (Issue #120 Rich Domain) */
+    private static final Duration DB_TTL = Duration.ofMinutes(15);
 
     private final CharacterEquipmentRepository repository;
     private final ObjectMapper objectMapper;
-    private final EquipmentPersistenceTracker persistenceTracker;
+    private final PersistenceTrackerStrategy persistenceTracker;
     private final LogicExecutor executor;
 
     /**
@@ -95,9 +95,9 @@ public class EquipmentDbWorker {
     // ==================== DB 조회 API (SRP: DB 계층 전담) ====================
 
     /**
-     * 유효한 DB 데이터 조회 (15분 TTL 체크)
+     * 유효한 DB 데이터 조회 (Rich Domain Model)
      *
-     * <p>updatedAt이 15분 이내인 데이터만 반환</p>
+     * <p>Issue #120: CharacterEquipment.isFresh(Duration)를 사용하여 TTL 체크</p>
      *
      * @param ocid 캐릭터 OCID
      * @return 유효한 JSON 데이터 (없거나 만료되면 empty)
@@ -105,8 +105,8 @@ public class EquipmentDbWorker {
     @Transactional(readOnly = true)
     public Optional<String> findValidJson(String ocid) {
         return executor.execute(() -> {
-            LocalDateTime threshold = LocalDateTime.now().minusMinutes(DB_TTL_MINUTES);
-            Optional<CharacterEquipment> result = repository.findByOcidAndUpdatedAtAfter(ocid, threshold);
+            Optional<CharacterEquipment> result = repository.findById(ocid)
+                    .filter(equipment -> equipment.isFresh(DB_TTL));  // Rich Domain
 
             if (result.isPresent()) {
                 log.debug("[EquipmentDb] DB HIT (TTL valid): ocid={}", maskOcid(ocid));
@@ -114,7 +114,9 @@ public class EquipmentDbWorker {
                 log.debug("[EquipmentDb] DB MISS or TTL expired: ocid={}", maskOcid(ocid));
             }
 
-            return result.map(CharacterEquipment::getJsonContent);
+            return result
+                    .filter(CharacterEquipment::hasData)  // Rich Domain
+                    .map(CharacterEquipment::getJsonContent);
         }, TaskContext.of("EquipmentDb", "FindValid", ocid));
     }
 

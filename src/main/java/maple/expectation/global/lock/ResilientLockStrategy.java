@@ -24,8 +24,23 @@ import java.util.concurrent.TimeUnit;
 /**
  * 회복력 있는 락 전략 (Redis 우선, 실패 시 MySQL로 복구)
  *
+ * <h3>3-Tier Lock Architecture (Issue #28)</h3>
+ * <pre>
+ * ┌─────────────────┐     실패     ┌─────────────────┐
+ * │ Tier 1: Redis   │ ──────────> │ Tier 2: MySQL   │
+ * │ (Redisson RLock)│             │ (GET_LOCK)      │
+ * └─────────────────┘             └─────────────────┘
+ * </pre>
+ *
+ * <h4>선택 사유</h4>
+ * <ul>
+ *   <li>Redis: 고성능, 저지연 (< 1ms), Watchdog 자동 갱신</li>
+ *   <li>MySQL Fallback: Redis 장애 시에도 가용성 보장</li>
+ *   <li>Circuit Breaker: Redis 장애 감지 → 자동 전환</li>
+ * </ul>
+ *
  * <p>LogicExecutor.executeWithFallback()을 사용하여 단일 파이프라인에서
- * try-catch/throws 없이 예외 필터링을 구현합니다.
+ * try-catch/throws 없이 예외 필터링을 구현합니다.</p>
  *
  * <p><b>예외 필터링 정책</b>:
  * <ul>
@@ -34,6 +49,8 @@ import java.util.concurrent.TimeUnit;
  *   <li>Unknown 예외 (NPE 등): 즉시 전파 (버그 조기 발견)</li>
  *   <li>Checked Throwable: 정책 위반이므로 fail-fast (IllegalStateException)</li>
  * </ul>
+ *
+ * @see <a href="docs/02_Technical_Guides/lock-strategy.md">Lock Strategy Guide</a>
  */
 @Slf4j
 @Primary

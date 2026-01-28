@@ -81,6 +81,9 @@ public class EquipmentExpectationResponseV4 {
         private final int targetStar;
         private final boolean isNoljang;         // 놀장 여부 (#240 V4)
 
+        // 특수 스킬 반지 레벨 (리스트레인트링, 컨티뉴어스링 등)
+        private final int specialRingLevel;
+
         // 큐브별 기대값 (#240 V4)
         private final CubeExpectationDto blackCubeExpectation;
         private final CubeExpectationDto additionalCubeExpectation;

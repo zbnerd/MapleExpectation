@@ -16,11 +16,17 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Equipment 비동기 저장 작업 추적기 (최종 평탄화 완료)
+ *
+ * <h3>#271 V5 Stateless Architecture</h3>
+ * <p>PersistenceTrackerStrategy 인터페이스 구현체 (In-Memory 모드)</p>
+ *
+ * @see PersistenceTrackerStrategy 전략 인터페이스
+ * @see maple.expectation.global.queue.persistence.RedisEquipmentPersistenceTracker Redis 구현체
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class EquipmentPersistenceTracker {
+public class EquipmentPersistenceTracker implements PersistenceTrackerStrategy {
 
     private final LogicExecutor executor;
     private final ConcurrentHashMap<String, CompletableFuture<Void>> pendingOperations = new ConcurrentHashMap<>();
@@ -28,6 +34,7 @@ public class EquipmentPersistenceTracker {
     // P1-9 Fix: CLAUDE.md Section 23 - volatile → AtomicBoolean (CAS 연산으로 race condition 방지)
     private final AtomicBoolean shutdownInProgress = new AtomicBoolean(false);
 
+    @Override
     public void trackOperation(String ocid, CompletableFuture<Void> future) {
         // P1-9 Fix: AtomicBoolean.get()으로 thread-safe 읽기
         if (shutdownInProgress.get()) {
@@ -53,6 +60,7 @@ public class EquipmentPersistenceTracker {
      * ✅ [최종 박멸] 새로운 패턴(executeWithFallback)을 적용한 클린 코드
      * try-catch도, throws Throwable도 없는 순수 비즈니스 로직입니다.
      */
+    @Override
     public boolean awaitAllCompletion(Duration timeout) {
         // P1-9 Fix: CAS 연산으로 shutdown 상태 원자적 전환
         if (!shutdownInProgress.compareAndSet(false, true)) {
@@ -90,18 +98,26 @@ public class EquipmentPersistenceTracker {
         );
     }
 
+    @Override
     public List<String> getPendingOcids() {
         return new ArrayList<>(pendingOperations.keySet());
     }
 
+    @Override
     public int getPendingCount() {
         return pendingOperations.size();
     }
 
+    @Override
     public void resetForTesting() {
         // P1-9 Fix: AtomicBoolean.set()으로 리셋
         shutdownInProgress.set(false);
         pendingOperations.clear();
         log.debug("🔄 [Persistence] 테스트용 리셋 완료");
+    }
+
+    @Override
+    public StrategyType getType() {
+        return StrategyType.IN_MEMORY;
     }
 }

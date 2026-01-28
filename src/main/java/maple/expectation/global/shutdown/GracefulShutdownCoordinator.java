@@ -8,7 +8,7 @@ import maple.expectation.global.lock.LockStrategy;
 import maple.expectation.global.shutdown.dto.FlushResult;
 import maple.expectation.global.shutdown.dto.ShutdownData;
 import maple.expectation.service.v2.LikeSyncService;
-import maple.expectation.service.v2.shutdown.EquipmentPersistenceTracker;
+import maple.expectation.service.v2.shutdown.PersistenceTrackerStrategy;
 import maple.expectation.service.v2.shutdown.ShutdownDataPersistenceService;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Component;
@@ -28,7 +28,7 @@ public class GracefulShutdownCoordinator implements SmartLifecycle {
 
     private final LikeSyncService likeSyncService;
     private final LockStrategy lockStrategy;
-    private final EquipmentPersistenceTracker equipmentPersistenceTracker;
+    private final PersistenceTrackerStrategy persistenceTracker;  // #271 V5: Strategy 인터페이스 사용
     private final ShutdownDataPersistenceService shutdownDataPersistenceService;
     private final LogicExecutor executor; // ✅ 지능형 실행기 주입
 
@@ -80,10 +80,10 @@ public class GracefulShutdownCoordinator implements SmartLifecycle {
     private ShutdownData waitForEquipmentPersistence() {
         return executor.execute(() -> {
             log.info("▶️ [1/4] Equipment 비동기 저장 작업 완료 대기 중...");
-            boolean allCompleted = equipmentPersistenceTracker.awaitAllCompletion(Duration.ofSeconds(20));
+            boolean allCompleted = persistenceTracker.awaitAllCompletion(Duration.ofSeconds(20));
 
             if (!allCompleted) {
-                List<String> pendingOcids = equipmentPersistenceTracker.getPendingOcids();
+                List<String> pendingOcids = persistenceTracker.getPendingOcids();
                 log.warn("⚠️ Equipment 저장 미완료 항목: {}건", pendingOcids.size());
                 return new ShutdownData(LocalDateTime.now(), shutdownDataPersistenceService.getInstanceId(), Map.of(), pendingOcids);
             }

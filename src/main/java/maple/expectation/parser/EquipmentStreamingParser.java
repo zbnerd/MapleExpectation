@@ -91,6 +91,9 @@ public class EquipmentStreamingParser {
         STARFORCE("starforce"),
         STARFORCE_SCROLL_FLAG("starforce_scroll_flag"),
 
+        // 특수 스킬 반지
+        SPECIAL_RING_LEVEL("special_ring_level"),
+
         UNKNOWN("");
 
         private final String fieldName;
@@ -147,6 +150,9 @@ public class EquipmentStreamingParser {
         // 스타포스
         fieldMappers.put(JsonField.STARFORCE, this::parseStarforce);
         fieldMappers.put(JsonField.STARFORCE_SCROLL_FLAG, (p, item) -> item.setStarforceScrollFlag(p.getText()));
+
+        // 특수 스킬 반지
+        fieldMappers.put(JsonField.SPECIAL_RING_LEVEL, this::parseSpecialRingLevel);
     }
 
     /**
@@ -257,7 +263,8 @@ public class EquipmentStreamingParser {
             if (token == JsonToken.START_OBJECT) {
                 if (++depth == 1) currentItem = new CubeCalculationInput();
             } else if (token == JsonToken.END_OBJECT) {
-                if (depth-- == 1 && currentItem != null && currentItem.isReady()) resultList.add(currentItem);
+                // hasBasicInfo(): 잠재능력 없는 장비도 포함 (특수스킬반지 등)
+                if (depth-- == 1 && currentItem != null && currentItem.hasBasicInfo()) resultList.add(currentItem);
             } else if (token == JsonToken.FIELD_NAME) {
                 mapField(parser, currentItem);
             }
@@ -310,6 +317,20 @@ public class EquipmentStreamingParser {
 
         if (starVal >= 0) {
             item.setStarforce(starVal);
+        }
+    }
+
+    /**
+     * 특수 스킬 반지 레벨 파싱
+     * <p>리스트레인트링, 컨티뉴어스링 등 (0~5)</p>
+     */
+    private void parseSpecialRingLevel(JsonParser parser, CubeCalculationInput item) throws IOException {
+        int level = (parser.currentToken() == JsonToken.VALUE_NUMBER_INT)
+                ? parser.getIntValue()
+                : statParser.parseNum(parser.getText());
+
+        if (level >= 0) {
+            item.setSpecialRingLevel(level);
         }
     }
 

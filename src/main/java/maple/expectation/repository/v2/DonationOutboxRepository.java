@@ -19,13 +19,18 @@ import java.util.Optional;
 /**
  * Outbox Repository (Issue #80)
  *
- * <h3>SKIP LOCKED 쿼리</h3>
- * <p>분산 환경에서 중복 처리를 방지하는 DB 레벨 락.</p>
+ * <h3>락 전략 (Issue #28)</h3>
+ * <p><b>SKIP LOCKED</b>: 분산 환경에서 중복 처리를 방지하는 DB 레벨 락.</p>
+ *
+ * <h4>선택 사유</h4>
  * <ul>
+ *   <li>일반 Pessimistic Lock은 대기 발생 → 처리량 저하</li>
+ *   <li>SKIP LOCKED은 잠긴 행 건너뛰기 → 병렬 처리 가능</li>
  *   <li>Redis 분산 락 대비 장점: Redis 장애 시에도 독립 동작</li>
- *   <li>레코드 단위 병렬 처리 가능</li>
+ *   <li>금융 트랜잭션이므로 @Version 낙관적 락 병행하여 강한 일관성 보장</li>
  * </ul>
  *
+ * @see <a href="docs/02_Technical_Guides/lock-strategy.md">Lock Strategy Guide - 후원 도메인</a>
  * @see maple.expectation.domain.v2.DonationOutbox
  */
 public interface DonationOutboxRepository extends JpaRepository<DonationOutbox, Long> {
@@ -33,9 +38,15 @@ public interface DonationOutboxRepository extends JpaRepository<DonationOutbox, 
     Optional<DonationOutbox> findByRequestId(String requestId);
 
     /**
-     * SKIP LOCKED: 분산 환경 중복 처리 방지
+     * SKIP LOCKED 조회 (분산 배치 처리용)
      *
-     * <p>QueryHint -2 = SKIP LOCKED (Hibernate 6.x)</p>
+     * <p><b>락 전략</b>: PESSIMISTIC_WRITE + SKIP LOCKED</p>
+     * <p><b>QueryHint -2</b>: Hibernate 6.x에서 SKIP LOCKED 지정</p>
+     *
+     * <p><b>선택 사유</b>: 분산 환경에서 여러 인스턴스가 동시에 Outbox를 폴링할 때,
+     * 잠긴 행을 건너뛰어 병렬 처리 가능. 대기 없이 즉시 다음 레코드 처리.</p>
+     *
+     * @see <a href="docs/02_Technical_Guides/lock-strategy.md">Lock Strategy Guide - SKIP LOCKED</a>
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "-2"))

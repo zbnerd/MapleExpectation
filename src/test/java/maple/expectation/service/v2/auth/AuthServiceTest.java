@@ -1,0 +1,250 @@
+package maple.expectation.service.v2.auth;
+
+import maple.expectation.controller.dto.auth.LoginRequest;
+import maple.expectation.controller.dto.auth.LoginResponse;
+import maple.expectation.domain.Session;
+import maple.expectation.external.NexonAuthClient;
+import maple.expectation.external.dto.v2.CharacterListResponse;
+import maple.expectation.global.error.exception.auth.CharacterNotOwnedException;
+import maple.expectation.global.error.exception.auth.InvalidApiKeyException;
+import maple.expectation.global.security.FingerprintGenerator;
+import maple.expectation.global.security.jwt.JwtTokenProvider;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.*;
+
+/**
+ * AuthService 단위 테스트 (Issue #194)
+ *
+ * <h4>경량 테스트 (CLAUDE.md Section 25)</h4>
+ * <p>Spring Context 없이 Mockito만으로 인증 서비스를 검증합니다.</p>
+ *
+ * <h4>테스트 범위</h4>
+ * <ul>
+ *   <li>로그인 성공 흐름</li>
+ *   <li>API Key 유효성 검증</li>
+ *   <li>캐릭터 소유권 검증</li>
+ *   <li>ADMIN 역할 판별</li>
+ *   <li>로그아웃 처리</li>
+ * </ul>
+ */
+@Tag("unit")
+class AuthServiceTest {
+
+    private static final String API_KEY = "test-api-key";
+    private static final String USER_IGN = "TestUser";
+    private static final String FINGERPRINT = "generated-fingerprint";
+    private static final String SESSION_ID = "session-123";
+    private static final String ACCESS_TOKEN = "jwt-access-token";
+    private static final long EXPIRATION_SECONDS = 3600L;
+
+    private NexonAuthClient nexonAuthClient;
+    private FingerprintGenerator fingerprintGenerator;
+    private SessionService sessionService;
+    private JwtTokenProvider jwtTokenProvider;
+    private AdminService adminService;
+    private AuthService authService;
+
+    @BeforeEach
+    void setUp() {
+        nexonAuthClient = mock(NexonAuthClient.class);
+        fingerprintGenerator = mock(FingerprintGenerator.class);
+        sessionService = mock(SessionService.class);
+        jwtTokenProvider = mock(JwtTokenProvider.class);
+        adminService = mock(AdminService.class);
+
+        authService = new AuthService(
+                nexonAuthClient,
+                fingerprintGenerator,
+                sessionService,
+                jwtTokenProvider,
+                adminService
+        );
+    }
+
+    @Nested
+    @DisplayName("로그인")
+    class LoginTest {
+
+        @Test
+        @DisplayName("로그인 성공 - USER 역할")
+        void shouldLoginSuccessfully_asUser() {
+            // given
+            LoginRequest request = new LoginRequest(API_KEY, USER_IGN);
+            CharacterListResponse charList = createCharacterListResponse(USER_IGN, "ocid-123");
+            Session session = Session.create(SESSION_ID, FINGERPRINT, API_KEY, Set.of("ocid-123"), "USER");
+
+            given(nexonAuthClient.getCharacterList(API_KEY)).willReturn(Optional.of(charList));
+            given(fingerprintGenerator.generate(API_KEY)).willReturn(FINGERPRINT);
+            given(adminService.isAdmin(FINGERPRINT)).willReturn(false);
+            given(sessionService.createSession(FINGERPRINT, API_KEY, Set.of("ocid-123"), "USER"))
+                    .willReturn(session);
+            given(jwtTokenProvider.generateToken(SESSION_ID, FINGERPRINT, "USER"))
+                    .willReturn(ACCESS_TOKEN);
+            given(jwtTokenProvider.getExpirationSeconds()).willReturn(EXPIRATION_SECONDS);
+
+            // when
+            LoginResponse response = authService.login(request);
+
+            // then
+            assertThat(response.accessToken()).isEqualTo(ACCESS_TOKEN);
+            assertThat(response.expiresIn()).isEqualTo(EXPIRATION_SECONDS);
+            assertThat(response.role()).isEqualTo("USER");
+            assertThat(response.fingerprint()).isEqualTo(FINGERPRINT);
+        }
+
+        @Test
+        @DisplayName("로그인 성공 - ADMIN 역할")
+        void shouldLoginSuccessfully_asAdmin() {
+            // given
+            LoginRequest request = new LoginRequest(API_KEY, USER_IGN);
+            CharacterListResponse charList = createCharacterListResponse(USER_IGN, "ocid-123");
+            Session session = Session.create(SESSION_ID, FINGERPRINT, API_KEY, Set.of("ocid-123"), "ADMIN");
+
+            given(nexonAuthClient.getCharacterList(API_KEY)).willReturn(Optional.of(charList));
+            given(fingerprintGenerator.generate(API_KEY)).willReturn(FINGERPRINT);
+            given(adminService.isAdmin(FINGERPRINT)).willReturn(true);
+            given(sessionService.createSession(FINGERPRINT, API_KEY, Set.of("ocid-123"), "ADMIN"))
+                    .willReturn(session);
+            given(jwtTokenProvider.generateToken(SESSION_ID, FINGERPRINT, "ADMIN"))
+                    .willReturn(ACCESS_TOKEN);
+            given(jwtTokenProvider.getExpirationSeconds()).willReturn(EXPIRATION_SECONDS);
+
+            // when
+            LoginResponse response = authService.login(request);
+
+            // then
+            assertThat(response.role()).isEqualTo("ADMIN");
+        }
+
+        @Test
+        @DisplayName("로그인 시 캐릭터명 대소문자 무시")
+        void shouldIgnoreCaseForCharacterName() {
+            // given
+            LoginRequest request = new LoginRequest(API_KEY, "testuser"); // 소문자
+            CharacterListResponse charList = createCharacterListResponse("TestUser", "ocid-123"); // 대소문자 혼합
+            Session session = Session.create(SESSION_ID, FINGERPRINT, API_KEY, Set.of("ocid-123"), "USER");
+
+            given(nexonAuthClient.getCharacterList(API_KEY)).willReturn(Optional.of(charList));
+            given(fingerprintGenerator.generate(API_KEY)).willReturn(FINGERPRINT);
+            given(adminService.isAdmin(FINGERPRINT)).willReturn(false);
+            given(sessionService.createSession(eq(FINGERPRINT), eq(API_KEY), anySet(), eq("USER")))
+                    .willReturn(session);
+            given(jwtTokenProvider.generateToken(SESSION_ID, FINGERPRINT, "USER")).willReturn(ACCESS_TOKEN);
+            given(jwtTokenProvider.getExpirationSeconds()).willReturn(EXPIRATION_SECONDS);
+
+            // when
+            LoginResponse response = authService.login(request);
+
+            // then
+            assertThat(response.accessToken()).isEqualTo(ACCESS_TOKEN);
+        }
+
+        @Test
+        @DisplayName("다중 캐릭터 계정 로그인 - 모든 OCID 수집")
+        void shouldCollectAllOcidsForMultiCharacterAccount() {
+            // given
+            LoginRequest request = new LoginRequest(API_KEY, USER_IGN);
+            CharacterListResponse charList = createMultiCharacterListResponse();
+            Session session = Session.create(SESSION_ID, FINGERPRINT, API_KEY,
+                    Set.of("ocid-1", "ocid-2", "ocid-3"), "USER");
+
+            given(nexonAuthClient.getCharacterList(API_KEY)).willReturn(Optional.of(charList));
+            given(fingerprintGenerator.generate(API_KEY)).willReturn(FINGERPRINT);
+            given(adminService.isAdmin(FINGERPRINT)).willReturn(false);
+            given(sessionService.createSession(eq(FINGERPRINT), eq(API_KEY), argThat(ocids ->
+                    ocids.size() == 3 && ocids.contains("ocid-1")), eq("USER")))
+                    .willReturn(session);
+            given(jwtTokenProvider.generateToken(SESSION_ID, FINGERPRINT, "USER")).willReturn(ACCESS_TOKEN);
+            given(jwtTokenProvider.getExpirationSeconds()).willReturn(EXPIRATION_SECONDS);
+
+            // when
+            LoginResponse response = authService.login(request);
+
+            // then
+            assertThat(response.accessToken()).isNotNull();
+        }
+    }
+
+    @Nested
+    @DisplayName("로그인 실패")
+    class LoginFailureTest {
+
+        @Test
+        @DisplayName("유효하지 않은 API Key")
+        void shouldThrowWhenInvalidApiKey() {
+            // given
+            LoginRequest request = new LoginRequest("invalid-key", USER_IGN);
+            given(nexonAuthClient.getCharacterList("invalid-key")).willReturn(Optional.empty());
+
+            // when & then
+            assertThatThrownBy(() -> authService.login(request))
+                    .isInstanceOf(InvalidApiKeyException.class);
+        }
+
+        @Test
+        @DisplayName("캐릭터 소유권 없음")
+        void shouldThrowWhenCharacterNotOwned() {
+            // given
+            LoginRequest request = new LoginRequest(API_KEY, "NotOwnedCharacter");
+            CharacterListResponse charList = createCharacterListResponse("DifferentUser", "ocid-123");
+
+            given(nexonAuthClient.getCharacterList(API_KEY)).willReturn(Optional.of(charList));
+
+            // when & then
+            assertThatThrownBy(() -> authService.login(request))
+                    .isInstanceOf(CharacterNotOwnedException.class)
+                    .hasMessageContaining("NotOwnedCharacter");
+        }
+    }
+
+    @Nested
+    @DisplayName("로그아웃")
+    class LogoutTest {
+
+        @Test
+        @DisplayName("로그아웃 성공")
+        void shouldLogoutSuccessfully() {
+            // given
+            String sessionId = "session-to-delete";
+
+            // when
+            authService.logout(sessionId);
+
+            // then
+            verify(sessionService).deleteSession(sessionId);
+        }
+    }
+
+    // ==================== Helper Methods ====================
+
+    private CharacterListResponse createCharacterListResponse(String characterName, String ocid) {
+        CharacterListResponse.CharacterInfo charInfo =
+                new CharacterListResponse.CharacterInfo(ocid, characterName, "Reboot", "Bishop", 300);
+        CharacterListResponse.AccountInfo accountInfo =
+                new CharacterListResponse.AccountInfo("account-1", List.of(charInfo));
+        return new CharacterListResponse(List.of(accountInfo));
+    }
+
+    private CharacterListResponse createMultiCharacterListResponse() {
+        List<CharacterListResponse.CharacterInfo> characters = List.of(
+                new CharacterListResponse.CharacterInfo("ocid-1", USER_IGN, "Reboot", "Bishop", 300),
+                new CharacterListResponse.CharacterInfo("ocid-2", "AltChar1", "Reboot", "Aran", 280),
+                new CharacterListResponse.CharacterInfo("ocid-3", "AltChar2", "Scania", "Phantom", 260)
+        );
+        CharacterListResponse.AccountInfo accountInfo =
+                new CharacterListResponse.AccountInfo("account-1", characters);
+        return new CharacterListResponse(List.of(accountInfo));
+    }
+}

@@ -163,11 +163,11 @@ public class EquipmentService {
      */
     @TraceLog
     public CompletableFuture<TotalExpectationResponse> calculateTotalExpectationAsync(String userIgn) {
-        Boolean beforeContext = SkipEquipmentL2CacheContext.snapshot();
+        String beforeContext = SkipEquipmentL2CacheContext.snapshot();
 
         return CompletableFuture
                 .supplyAsync(() -> {
-                    SkipEquipmentL2CacheContext.restore(Boolean.TRUE);
+                    SkipEquipmentL2CacheContext.restore("true"); // V5: MDC 기반
                     return fetchLightSnapshot(userIgn);
                 }, expectationComputeExecutor)
                 .thenCompose(light -> processAfterLightSnapshot(userIgn, light))
@@ -222,6 +222,12 @@ public class EquipmentService {
     private LightSnapshot fetchLightSnapshot(String userIgn) {
         LightSnapshot snap = readOnlyTx.execute(status -> {
             GameCharacter ch = gameCharacterFacade.findCharacterByUserIgn(userIgn);
+
+            // Issue #120: Rich Domain - 비활성 캐릭터 감지 (30일 이상 미갱신)
+            if (!ch.isActive()) {
+                log.debug("[Expectation] 비활성 캐릭터 감지: userIgn={}", userIgn);
+            }
+
             return new LightSnapshot(
                     ch.getUserIgn(),
                     ch.getOcid(),
@@ -373,10 +379,31 @@ public class EquipmentService {
         }, TaskContext.of("EquipmentService", "ProcessLegacy", userIgn));
     }
 
+    /**
+     * 장비 데이터 스트리밍 (압축 해제 후 전송)
+     *
+     * @deprecated Issue #63: streamEquipmentDataRaw() 사용 권장
+     */
+    @Deprecated(since = "v3.1", forRemoval = true)
     public void streamEquipmentData(String userIgn, OutputStream outputStream) {
         executor.executeVoid(
                 () -> equipmentProvider.streamAndDecompress(getOcid(userIgn), outputStream),
                 TaskContext.of("EquipmentService", "StreamData", userIgn)
+        );
+    }
+
+    /**
+     * 장비 데이터 Zero-Copy 스트리밍 (Issue #63)
+     *
+     * <p>GZIP 압축된 데이터를 그대로 전송합니다.</p>
+     *
+     * @param userIgn      캐릭터 닉네임
+     * @param outputStream 출력 스트림 (Content-Encoding: gzip 필요)
+     */
+    public void streamEquipmentDataRaw(String userIgn, OutputStream outputStream) {
+        executor.executeVoid(
+                () -> equipmentProvider.streamRaw(getOcid(userIgn), outputStream),
+                TaskContext.of("EquipmentService", "StreamDataRaw", userIgn)
         );
     }
 

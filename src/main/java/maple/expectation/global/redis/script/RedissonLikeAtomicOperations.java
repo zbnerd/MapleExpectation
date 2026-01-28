@@ -45,18 +45,19 @@ public class RedissonLikeAtomicOperations implements LikeAtomicOperations {
     public boolean atomicTransfer(String userIgn, long count) {
         validateInput(userIgn, count);
 
+        // Section 12 준수: try-finally → executeWithFinally
         Timer.Sample sample = Timer.start(meterRegistry);
-        try {
-            return scriptProvider.executeWithNoscriptHandling(
-                    scriptProvider::getTransferSha,
-                    LuaScripts.ATOMIC_TRANSFER,
-                    scriptProvider::updateTransferSha,
-                    sha -> executeTransferScript(sha, userIgn, count),
-                    "Transfer"
-            );
-        } finally {
-            sample.stop(meterRegistry.timer("like.sync.lua.duration", "script", "transfer"));
-        }
+        return executor.executeWithFinally(
+                () -> scriptProvider.executeWithNoscriptHandling(
+                        scriptProvider::getTransferSha,
+                        LuaScripts.ATOMIC_TRANSFER,
+                        scriptProvider::updateTransferSha,
+                        sha -> executeTransferScript(sha, userIgn, count),
+                        "Transfer"
+                ),
+                () -> stopTimer(sample, "transfer"),
+                TaskContext.of("AtomicOps", "TransferTimed", userIgn)
+        );
     }
 
     @Override
@@ -64,18 +65,19 @@ public class RedissonLikeAtomicOperations implements LikeAtomicOperations {
         validateTempKey(tempKey);
         validateInput(userIgn, count);
 
+        // Section 12 준수: try-finally → executeWithFinally
         Timer.Sample sample = Timer.start(meterRegistry);
-        try {
-            return scriptProvider.executeWithNoscriptHandling(
-                    scriptProvider::getDeleteAndDecrementSha,
-                    LuaScripts.ATOMIC_DELETE_AND_DECREMENT,
-                    scriptProvider::updateDeleteAndDecrementSha,
-                    sha -> executeDeleteAndDecrementScript(sha, tempKey, userIgn, count),
-                    "DeleteAndDecrement"
-            );
-        } finally {
-            sample.stop(meterRegistry.timer("like.sync.lua.duration", "script", "deleteAndDecrement"));
-        }
+        return executor.executeWithFinally(
+                () -> scriptProvider.executeWithNoscriptHandling(
+                        scriptProvider::getDeleteAndDecrementSha,
+                        LuaScripts.ATOMIC_DELETE_AND_DECREMENT,
+                        scriptProvider::updateDeleteAndDecrementSha,
+                        sha -> executeDeleteAndDecrementScript(sha, tempKey, userIgn, count),
+                        "DeleteAndDecrement"
+                ),
+                () -> stopTimer(sample, "deleteAndDecrement"),
+                TaskContext.of("AtomicOps", "DeleteAndDecrementTimed", userIgn)
+        );
     }
 
     @Override
@@ -83,25 +85,33 @@ public class RedissonLikeAtomicOperations implements LikeAtomicOperations {
         validateTempKey(tempKey);
         validateInput(userIgn, count);
 
+        // Section 12 준수: try-finally → executeWithFinally
         Timer.Sample sample = Timer.start(meterRegistry);
-        try {
-            boolean result = scriptProvider.executeWithNoscriptHandling(
-                    scriptProvider::getCompensationSha,
-                    LuaScripts.ATOMIC_COMPENSATION,
-                    scriptProvider::updateCompensationSha,
-                    sha -> executeCompensationScript(sha, tempKey, userIgn, count),
-                    "Compensation"
-            );
+        return executor.executeWithFinally(
+                () -> executeCompensationWithMetrics(tempKey, userIgn, count),
+                () -> stopTimer(sample, "compensation"),
+                TaskContext.of("AtomicOps", "CompensationTimed", userIgn)
+        );
+    }
 
-            if (result) {
-                meterRegistry.counter("like.sync.compensation.count").increment();
-                log.info("♻️ [Compensation] 복구 완료: {} ({}건)", userIgn, count);
-            }
+    /**
+     * Compensation 실행 및 메트릭 기록 (Section 15: 람다 추출)
+     */
+    private boolean executeCompensationWithMetrics(String tempKey, String userIgn, long count) {
+        boolean result = scriptProvider.executeWithNoscriptHandling(
+                scriptProvider::getCompensationSha,
+                LuaScripts.ATOMIC_COMPENSATION,
+                scriptProvider::updateCompensationSha,
+                sha -> executeCompensationScript(sha, tempKey, userIgn, count),
+                "Compensation"
+        );
 
-            return result;
-        } finally {
-            sample.stop(meterRegistry.timer("like.sync.lua.duration", "script", "compensation"));
+        if (result) {
+            meterRegistry.counter("like.sync.compensation.count").increment();
+            log.info("♻️ [Compensation] 복구 완료: {} ({}건)", userIgn, count);
         }
+
+        return result;
     }
 
     private boolean executeTransferScript(String sha, String userIgn, long count) {
@@ -156,6 +166,16 @@ public class RedissonLikeAtomicOperations implements LikeAtomicOperations {
                 false,
                 TaskContext.of("AtomicOps", "Compensation", userIgn)
         );
+    }
+
+    /**
+     * Timer 중지 헬퍼 (Section 15: 메서드 참조 분리)
+     *
+     * @param sample Timer 샘플
+     * @param scriptName 스크립트 이름 (메트릭 태그)
+     */
+    private void stopTimer(Timer.Sample sample, String scriptName) {
+        sample.stop(meterRegistry.timer("like.sync.lua.duration", "script", scriptName));
     }
 
     /**

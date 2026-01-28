@@ -12,6 +12,7 @@ public enum CommonErrorCode implements ErrorCode {
     CHARACTER_NOT_FOUND("C002", "존재하지 않는 캐릭터입니다 (IGN: %s)", HttpStatus.NOT_FOUND),
     INSUFFICIENT_POINTS("C003", "포인트가 부족합니다 (보유: %s, 필요: %s)", HttpStatus.BAD_REQUEST),
     DEVELOPER_NOT_FOUND("C004", "해당 개발자를 찾을 수 없습니다 (ID: %s)", HttpStatus.NOT_FOUND),
+    INVALID_CHARACTER_STATE("C005", "유효하지 않은 캐릭터 상태입니다: %s", HttpStatus.BAD_REQUEST),
 
     // === Rate Limit Errors (4xx) - Issue #152 ===
     RATE_LIMIT_EXCEEDED("R001", "요청 한도를 초과했습니다. %s초 후 다시 시도해주세요.", HttpStatus.TOO_MANY_REQUESTS),
@@ -25,6 +26,7 @@ public enum CommonErrorCode implements ErrorCode {
     FORBIDDEN("A006", "접근 권한이 없습니다.", HttpStatus.FORBIDDEN),
     ADMIN_NOT_FOUND("A007", "유효하지 않은 Admin입니다.", HttpStatus.NOT_FOUND),
     ADMIN_MEMBER_NOT_FOUND("A008", "Admin의 Member 계정이 존재하지 않습니다.", HttpStatus.NOT_FOUND),
+    SENDER_MEMBER_NOT_FOUND("A009", "발신자 Member 계정이 존재하지 않습니다 (uuid: %s)", HttpStatus.NOT_FOUND),
 
     // === DLQ Errors (4xx) ===
     DLQ_NOT_FOUND("D001", "해당 DLQ 항목을 찾을 수 없습니다 (ID: %s)", HttpStatus.NOT_FOUND),
@@ -41,7 +43,11 @@ public enum CommonErrorCode implements ErrorCode {
     REDIS_SCRIPT_EXECUTION_FAILED("S008", "Redis 스크립트 실행 실패 (스크립트: %s)", HttpStatus.INTERNAL_SERVER_ERROR),
     DATABASE_NAMED_LOCK_FAILED("S009", "DB named lock 처리 실패: %s (lockKey=%s, waitTime=%s)", HttpStatus.INTERNAL_SERVER_ERROR),
     API_TIMEOUT("S010", "외부 API 호출 시간 초과 (%s)", HttpStatus.SERVICE_UNAVAILABLE),
-    INSUFFICIENT_RESOURCE("S011", "리소스가 부족합니다: %s", HttpStatus.SERVICE_UNAVAILABLE);
+    INSUFFICIENT_RESOURCE("S011", "리소스가 부족합니다: %s", HttpStatus.SERVICE_UNAVAILABLE),
+
+    // === MySQL Resilience Errors (5xx) - Issue #218 ===
+    MYSQL_FALLBACK_FAILED("S012", "MySQL 장애 시 Fallback 실패 (ocid: %s)", HttpStatus.SERVICE_UNAVAILABLE),
+    COMPENSATION_SYNC_FAILED("S013", "Compensation Log 동기화 실패 (entryId: %s)", HttpStatus.INTERNAL_SERVER_ERROR);
 
 
     private final String code;

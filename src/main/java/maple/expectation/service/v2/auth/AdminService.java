@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -113,15 +114,23 @@ public class AdminService {
         return redissonClient.getSet(ADMIN_SET_KEY);
     }
 
+    /**
+     * Allowlist 파싱 (#271 V5 P1 Fix: Immutable Set 반환)
+     *
+     * <p>Collectors.toUnmodifiableSet()으로 불변 Set 반환하여
+     * 외부에서 수정 불가하도록 보장합니다.</p>
+     */
     private Set<String> parseAllowlist(String allowlist) {
         if (allowlist == null || allowlist.isBlank()) {
             return Set.of();
         }
 
-        return Arrays.stream(allowlist.split(","))
-            .map(String::trim)
-            .filter(s -> !s.isEmpty())
-            .collect(Collectors.toSet());
+        return Collections.unmodifiableSet(
+                Arrays.stream(allowlist.split(","))
+                        .map(String::trim)
+                        .filter(s -> !s.isEmpty())
+                        .collect(Collectors.toSet())
+        );
     }
 
     private String maskFingerprint(String fingerprint) {
