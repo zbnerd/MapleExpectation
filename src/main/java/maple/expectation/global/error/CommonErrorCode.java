@@ -54,7 +54,11 @@ public enum CommonErrorCode implements ErrorCode {
     COMPENSATION_SYNC_FAILED("S013", "Compensation Log 동기화 실패 (entryId: %s)", HttpStatus.INTERNAL_SERVER_ERROR),
 
     // === Like Sync Errors (5xx) - Issue #285 ===
-    LIKE_SYNC_CIRCUIT_OPEN("S014", "좋아요 동기화 서킷이 열렸습니다 (%s)", HttpStatus.SERVICE_UNAVAILABLE);
+    LIKE_SYNC_CIRCUIT_OPEN("S014", "좋아요 동기화 서킷이 열렸습니다 (%s)", HttpStatus.SERVICE_UNAVAILABLE),
+
+    // === Expectation Calculation Errors (5xx) ===
+    STARFORCE_TABLE_NOT_INITIALIZED("S015", "스타포스 테이블 초기화가 완료되지 않았습니다.", HttpStatus.SERVICE_UNAVAILABLE),
+    CACHE_DATA_NOT_FOUND("S016", "캐시 데이터를 찾을 수 없습니다 (key: %s)", HttpStatus.INTERNAL_SERVER_ERROR);
 
 
     private final String code;

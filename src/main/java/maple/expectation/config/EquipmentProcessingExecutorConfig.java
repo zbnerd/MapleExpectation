@@ -3,6 +3,7 @@ package maple.expectation.config;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -42,9 +43,11 @@ import java.util.concurrent.ThreadPoolExecutor;
  */
 @Configuration
 @RequiredArgsConstructor
+@EnableConfigurationProperties(ExecutorProperties.class)
 public class EquipmentProcessingExecutorConfig {
 
     private final MeterRegistry meterRegistry;
+    private final ExecutorProperties executorProperties;
 
     /**
      * Equipment Processing 전용 Executor (#264 확장)
@@ -66,10 +69,10 @@ public class EquipmentProcessingExecutorConfig {
     @Bean("equipmentProcessingExecutor")
     public Executor equipmentProcessingExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        // #264: Thread Pool 확장 (병목 해결)
-        executor.setCorePoolSize(8);    // 2 → 8 (I/O 바운드 고려)
-        executor.setMaxPoolSize(16);    // 4 → 16 (피크 시 확장)
-        executor.setQueueCapacity(200); // 50 → 200 (스파이크 흡수)
+        ExecutorProperties.PoolConfig config = executorProperties.equipment();
+        executor.setCorePoolSize(config.corePoolSize());
+        executor.setMaxPoolSize(config.maxPoolSize());
+        executor.setQueueCapacity(config.queueCapacity());
         executor.setThreadNamePrefix("equip-proc-");
 
         // AbortPolicy: 큐 포화 시 RejectedExecutionException 발생

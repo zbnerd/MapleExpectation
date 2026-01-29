@@ -162,8 +162,7 @@ public class GameCharacterControllerV4 {
 
         log.info("[V4] Force recalculating expectation for: {}", maskIgn(userIgn));
 
-        // TODO: 캐시 무효화 후 재계산 구현
-        return expectationService.calculateExpectationAsync(userIgn)
+        return expectationService.calculateExpectationAsync(userIgn, true)
                 .thenApply(ResponseEntity::ok);
     }
 

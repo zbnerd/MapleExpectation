@@ -329,7 +329,7 @@ public class TieredCache implements Cache {
     // ==================== Helper Methods ====================
 
     private String buildLockKey(String keyStr) {
-        return "cache:sf:" + l2.getName() + ":" + keyStr.hashCode();
+        return "cache:sf:" + l2.getName() + ":" + keyStr;
     }
 
     /**

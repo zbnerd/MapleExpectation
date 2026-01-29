@@ -48,6 +48,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 public class PresetCalculationExecutorConfig {
 
     private final MeterRegistry meterRegistry;
+    private final ExecutorProperties executorProperties;
 
     /**
      * 프리셋 병렬 계산 전용 Executor
@@ -66,11 +67,10 @@ public class PresetCalculationExecutorConfig {
     @Bean("presetCalculationExecutor")
     public Executor presetCalculationExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-
-        // 3 프리셋 × 동시 요청 수 고려
-        executor.setCorePoolSize(12);
-        executor.setMaxPoolSize(24);
-        executor.setQueueCapacity(100);
+        ExecutorProperties.PoolConfig config = executorProperties.preset();
+        executor.setCorePoolSize(config.corePoolSize());
+        executor.setMaxPoolSize(config.maxPoolSize());
+        executor.setQueueCapacity(config.queueCapacity());
         executor.setThreadNamePrefix("preset-calc-");
 
         // CallerRunsPolicy: 큐 포화 시 호출 스레드에서 직접 실행 (Deadlock 방지)
@@ -86,7 +86,7 @@ public class PresetCalculationExecutorConfig {
         registerMetrics(executor);
 
         log.info("[PresetCalculationExecutor] Initialized: core={}, max={}, queue={}",
-                executor.getCorePoolSize(), executor.getMaxPoolSize(), 100);
+                config.corePoolSize(), config.maxPoolSize(), config.queueCapacity());
 
         return executor;
     }
