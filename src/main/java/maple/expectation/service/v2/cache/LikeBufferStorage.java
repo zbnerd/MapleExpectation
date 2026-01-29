@@ -5,6 +5,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
@@ -34,10 +35,12 @@ public class LikeBufferStorage implements LikeBufferStrategy {
 
     private final Cache<String, AtomicLong> likeCache;
 
-    public LikeBufferStorage(MeterRegistry registry) {
+    public LikeBufferStorage(
+            MeterRegistry registry,
+            @Value("${like.buffer.local.max-size:10000}") int maxSize) {
         this.likeCache = Caffeine.newBuilder()
                 .expireAfterAccess(1, TimeUnit.MINUTES)
-                .maximumSize(1000)
+                .maximumSize(maxSize)
                 .build();
 
         Gauge.builder("like.buffer.local_pending", this,
@@ -96,19 +99,18 @@ public class LikeBufferStorage implements LikeBufferStrategy {
     /**
      * 카운터 조회 (없으면 생성)
      *
-     * @deprecated LikeSyncService와 호환성을 위해 유지. 새 코드에서는 increment() 사용
+     * <p>내부적으로 increment()에서 사용됩니다.
+     * 테스트에서 직접 AtomicLong 접근이 필요한 경우에도 사용됩니다.</p>
      */
-    @Deprecated
     public AtomicLong getCounter(String userIgn) {
         return likeCache.get(userIgn, key -> new AtomicLong(0));
     }
 
     /**
-     * 내부 캐시 접근 (LikeSyncService 호환)
+     * 내부 캐시 접근 (테스트 초기화용)
      *
-     * @deprecated 기존 LikeSyncService와 호환성을 위해 유지. 새 코드에서는 getAllCounters() 사용
+     * <p>테스트에서 {@code getCache().invalidateAll()} 등으로 초기화할 때 사용됩니다.</p>
      */
-    @Deprecated
     public Cache<String, AtomicLong> getCache() {
         return likeCache;
     }

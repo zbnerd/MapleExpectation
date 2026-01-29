@@ -9,7 +9,6 @@ import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.global.shutdown.dto.FlushResult;
 import maple.expectation.repository.v2.RedisBufferRepository;
-import maple.expectation.service.v2.cache.LikeBufferStorage;
 import maple.expectation.service.v2.cache.LikeBufferStrategy;
 import maple.expectation.service.v2.like.compensation.CompensationCommand;
 import maple.expectation.service.v2.like.compensation.RedisCompensationCommand;
@@ -49,7 +48,6 @@ import java.util.concurrent.atomic.AtomicLong;
 public class LikeSyncService {
 
     private final LikeBufferStrategy likeBufferStrategy;
-    private final LikeBufferStorage likeBufferStorage;  // In-Memory 모드 호환용 (deprecated)
     private final LikeSyncExecutor syncExecutor;
     private final StringRedisTemplate redisTemplate;
     private final RedisBufferRepository redisBufferRepository;
@@ -78,7 +76,6 @@ public class LikeSyncService {
 
     public LikeSyncService(
             LikeBufferStrategy likeBufferStrategy,
-            LikeBufferStorage likeBufferStorage,
             LikeSyncExecutor syncExecutor,
             StringRedisTemplate redisTemplate,
             RedisBufferRepository redisBufferRepository,
@@ -89,7 +86,6 @@ public class LikeSyncService {
             MeterRegistry meterRegistry,
             ApplicationEventPublisher eventPublisher) {
         this.likeBufferStrategy = likeBufferStrategy;
-        this.likeBufferStorage = likeBufferStorage;
         this.syncExecutor = syncExecutor;
         this.redisTemplate = redisTemplate;
         this.redisBufferRepository = redisBufferRepository;
@@ -118,8 +114,8 @@ public class LikeSyncService {
             return;
         }
 
-        // In-Memory 모드: 기존 로직 유지
-        Map<String, AtomicLong> snapshot = likeBufferStorage.getCache().asMap();
+        // In-Memory 모드: fetchAndClear로 원자적 스냅샷 획득
+        Map<String, Long> snapshot = likeBufferStrategy.fetchAndClear(Integer.MAX_VALUE);
         if (snapshot.isEmpty()) return;
         snapshot.forEach(this::processLocalBufferEntry);
     }
@@ -136,15 +132,15 @@ public class LikeSyncService {
             return FlushResult.empty();
         }
 
-        // In-Memory 모드: 기존 로직 유지
-        Map<String, AtomicLong> snapshot = likeBufferStorage.getCache().asMap();
+        // In-Memory 모드: fetchAndClear로 원자적 스냅샷 획득
+        Map<String, Long> snapshot = likeBufferStrategy.fetchAndClear(Integer.MAX_VALUE);
         if (snapshot.isEmpty()) return FlushResult.empty();
 
         AtomicInteger redisSuccessCount = new AtomicInteger(0);
         AtomicInteger fileBackupCount = new AtomicInteger(0);
 
-        snapshot.forEach((userIgn, atomicCount) ->
-                processShutdownFlushEntry(userIgn, atomicCount, redisSuccessCount, fileBackupCount)
+        snapshot.forEach((userIgn, count) ->
+                processShutdownFlushEntry(userIgn, count, redisSuccessCount, fileBackupCount)
         );
 
         return new FlushResult(redisSuccessCount.get(), fileBackupCount.get());
@@ -344,8 +340,8 @@ public class LikeSyncService {
 
     // ========== L1 -> L2 Helper Methods ==========
 
-    private void processLocalBufferEntry(String userIgn, AtomicLong atomicCount) {
-        long count = atomicCount.getAndSet(0);
+    private void processLocalBufferEntry(String userIgn, Long countValue) {
+        long count = (countValue != null) ? countValue : 0L;
         if (count <= 0) return;
 
         executor.executeOrCatch(
@@ -362,9 +358,9 @@ public class LikeSyncService {
         );
     }
 
-    private void processShutdownFlushEntry(String userIgn, AtomicLong atomicCount,
+    private void processShutdownFlushEntry(String userIgn, Long countValue,
                                            AtomicInteger redisSuccessCount, AtomicInteger fileBackupCount) {
-        long count = atomicCount.getAndSet(0);
+        long count = (countValue != null) ? countValue : 0L;
         if (count <= 0) return;
 
         executor.executeOrCatch(
@@ -392,8 +388,8 @@ public class LikeSyncService {
                     return null;
                 },
                 dbEx -> {
-                    likeBufferStorage.getCounter(userIgn).addAndGet(count);
-                    log.error("‼️ [Critical] Redis/DB 동시 장애. 로컬 롤백 완료.");
+                    likeBufferStrategy.increment(userIgn, count);
+                    log.error("[Critical] Redis/DB 동시 장애. 로컬 롤백 완료: {}", userIgn);
                     return null;
                 },
                 TaskContext.of("LikeSync", "RedisFailureRecovery", userIgn)

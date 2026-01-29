@@ -3,6 +3,7 @@ package maple.expectation.config;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.executor.LogicExecutor;
+import maple.expectation.global.queue.like.AtomicLikeToggleExecutor;
 import maple.expectation.global.queue.like.PartitionedFlushStrategy;
 import maple.expectation.global.queue.like.RedisLikeBufferStorage;
 import maple.expectation.global.queue.like.RedisLikeRelationBuffer;
@@ -32,8 +33,8 @@ import org.springframework.context.annotation.Primary;
  *
  * <h3>활성화 조건</h3>
  * <ul>
- *   <li>{@code app.buffer.redis.enabled=false} (기본): In-Memory Caffeine</li>
- *   <li>{@code app.buffer.redis.enabled=true}: Redis HINCRBY</li>
+ *   <li>{@code app.buffer.redis.enabled=true} (기본): Redis HINCRBY (Scale-out)</li>
+ *   <li>{@code app.buffer.redis.enabled=false}: In-Memory Caffeine (단일 인스턴스/테스트)</li>
  * </ul>
  *
  * <h3>5-Agent Council 합의</h3>
@@ -58,7 +59,7 @@ public class LikeBufferConfig {
      */
     @Bean
     @Primary
-    @ConditionalOnProperty(name = "app.buffer.redis.enabled", havingValue = "true", matchIfMissing = false)
+    @ConditionalOnProperty(name = "app.buffer.redis.enabled", havingValue = "true", matchIfMissing = true)
     public LikeBufferStrategy redisLikeBufferStrategy(
             RedissonClient redissonClient,
             LogicExecutor executor,
@@ -79,7 +80,7 @@ public class LikeBufferConfig {
      */
     @Bean
     @Primary
-    @ConditionalOnProperty(name = "app.buffer.redis.enabled", havingValue = "true", matchIfMissing = false)
+    @ConditionalOnProperty(name = "app.buffer.redis.enabled", havingValue = "true", matchIfMissing = true)
     public LikeRelationBufferStrategy redisLikeRelationBufferStrategy(
             RedissonClient redissonClient,
             LogicExecutor executor,
@@ -96,7 +97,7 @@ public class LikeBufferConfig {
      * LikeSyncScheduler에서 분산 환경 DB 동기화에 사용됩니다.</p>
      */
     @Bean
-    @ConditionalOnProperty(name = "app.buffer.redis.enabled", havingValue = "true", matchIfMissing = false)
+    @ConditionalOnProperty(name = "app.buffer.redis.enabled", havingValue = "true", matchIfMissing = true)
     public PartitionedFlushStrategy partitionedFlushStrategy(
             RedissonClient redissonClient,
             LikeBufferStrategy bufferStrategy,
@@ -113,6 +114,23 @@ public class LikeBufferConfig {
         return new PartitionedFlushStrategy(redissonClient, redisBuffer, executor, meterRegistry, syncExecutor);
     }
 
+    /**
+     * Atomic Like Toggle 실행기 (P0-1/P0-2/P0-3 해결)
+     *
+     * <p>Lua Script로 SISMEMBER + SADD/SREM + HINCRBY를 원자적으로 수행.
+     * Redis 모드에서만 활성화됩니다.</p>
+     */
+    @Bean
+    @ConditionalOnProperty(name = "app.buffer.redis.enabled", havingValue = "true", matchIfMissing = true)
+    public AtomicLikeToggleExecutor atomicLikeToggleExecutor(
+            RedissonClient redissonClient,
+            LogicExecutor executor,
+            MeterRegistry meterRegistry) {
+
+        log.info("[LikeBufferConfig] Atomic Like Toggle Executor ENABLED");
+        return new AtomicLikeToggleExecutor(redissonClient, executor, meterRegistry);
+    }
+
     // ==================== Persistence Tracker Strategy ====================
 
     /**
@@ -126,7 +144,7 @@ public class LikeBufferConfig {
      */
     @Bean
     @Primary
-    @ConditionalOnProperty(name = "app.buffer.redis.enabled", havingValue = "true", matchIfMissing = false)
+    @ConditionalOnProperty(name = "app.buffer.redis.enabled", havingValue = "true", matchIfMissing = true)
     public PersistenceTrackerStrategy redisPersistenceTrackerStrategy(
             RedissonClient redissonClient,
             LogicExecutor executor,

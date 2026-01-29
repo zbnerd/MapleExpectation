@@ -10,7 +10,6 @@ import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.global.executor.function.ThrowingRunnable;
 import maple.expectation.repository.v2.RedisBufferRepository;
-import maple.expectation.service.v2.cache.LikeBufferStorage;
 import maple.expectation.service.v2.cache.LikeBufferStrategy;
 import maple.expectation.service.v2.like.dto.FetchResult;
 import maple.expectation.service.v2.like.strategy.AtomicFetchStrategy;
@@ -46,7 +45,6 @@ class LikeSyncServiceTest {
     private LikeSyncService likeSyncService;
 
     @Mock private LikeBufferStrategy likeBufferStrategy;
-    @Mock private LikeBufferStorage likeBufferStorage;
     @Mock private LikeSyncExecutor syncExecutor;
     @Mock private StringRedisTemplate redisTemplate;
     @Mock private RedisBufferRepository redisBufferRepository;
@@ -126,7 +124,6 @@ class LikeSyncServiceTest {
 
         likeSyncService = new LikeSyncService(
                 likeBufferStrategy,
-                likeBufferStorage,
                 syncExecutor,
                 redisTemplate,
                 redisBufferRepository,

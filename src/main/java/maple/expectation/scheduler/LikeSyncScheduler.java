@@ -123,8 +123,11 @@ public class LikeSyncScheduler {
 
     /**
      * L2 → L3 DB 동기화 (likeRelation)
+     *
+     * <p>P1-10: Count(3s)와 Relation(5s)의 동기화 주기를 stagger하여
+     * 동시 락 경합을 방지합니다.</p>
      */
-    @Scheduled(fixedRate = 3000)
+    @Scheduled(fixedRate = 5000)
     public void globalSyncRelation() {
         TaskContext context = TaskContext.of("Scheduler", "GlobalSync.Relation");
 

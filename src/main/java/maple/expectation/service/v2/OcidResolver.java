@@ -63,13 +63,19 @@ public class OcidResolver {
             throw new CharacterNotFoundException(cleanIgn);
         }
 
-        // 2. DB 조회 → 있으면 반환, 없으면 → NexonAPI 호출 → DB 저장 → 반환
+        // 2. Positive Cache 확인 (P1-8 Fix: DB RTT 절약)
+        String cached = getCachedOcid(cleanIgn);
+        if (cached != null) {
+            return cached;
+        }
+
+        // 3. DB 조회 → 있으면 반환, 없으면 → NexonAPI 호출 → DB 저장 → 반환
         // P1-1 Fix: CLAUDE.md Section 4 - Optional Chaining Best Practice
         return executor.execute(
                 () -> gameCharacterRepository.findByUserIgn(cleanIgn),
                 TaskContext.of("Ocid", "DbLookup", cleanIgn)
         )
-        .map(GameCharacter::getOcid)
+        .map(gc -> cacheAndReturn(cleanIgn, gc.getOcid()))
         .orElseGet(() -> createAndGetOcid(cleanIgn));
     }
 
@@ -151,6 +157,27 @@ public class OcidResolver {
                 .ifPresent(c -> c.put(userIgn, ocid));
 
         return saved;
+    }
+
+    /**
+     * Positive Cache 조회 (P1-8: DB RTT 절약)
+     *
+     * @return 캐싱된 OCID, 없으면 null
+     */
+    private String getCachedOcid(String userIgn) {
+        return executor.executeOrDefault(() -> {
+            Cache cache = cacheManager.getCache("ocidCache");
+            return cache != null ? cache.get(userIgn, String.class) : null;
+        }, null, TaskContext.of("Cache", "CheckPositive", userIgn));
+    }
+
+    /**
+     * DB 조회 결과를 캐시에 저장 후 반환 (Tap 패턴)
+     */
+    private String cacheAndReturn(String userIgn, String ocid) {
+        Optional.ofNullable(cacheManager.getCache("ocidCache"))
+                .ifPresent(c -> c.put(userIgn, ocid));
+        return ocid;
     }
 
     /**
