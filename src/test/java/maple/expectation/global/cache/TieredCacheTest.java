@@ -64,7 +64,7 @@ class TieredCacheTest {
 
         given(l2.getName()).willReturn(CACHE_NAME);
 
-        tieredCache = new TieredCache(l1, l2, executor, redissonClient, meterRegistry);
+        tieredCache = new TieredCache(l1, l2, executor, redissonClient, meterRegistry, "test-instance", event -> { });
     }
 
     @Nested
@@ -157,7 +157,7 @@ class TieredCacheTest {
         void shouldSkipL1WhenL2Fails() {
             // given - L2 저장 실패 시뮬레이션
             executor = createFailingL2Executor();
-            tieredCache = new TieredCache(l1, l2, executor, redissonClient, meterRegistry);
+            tieredCache = new TieredCache(l1, l2, executor, redissonClient, meterRegistry, "test-instance", event -> { });
 
             // when
             tieredCache.put(KEY, VALUE);

@@ -3,6 +3,7 @@ package maple.expectation.global.cache;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.global.cache.invalidation.CacheInvalidationEvent;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.global.executor.strategy.ExceptionTranslator;
@@ -13,6 +14,7 @@ import org.springframework.cache.Cache;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 /**
  * 2층 구조 캐시 (L1: Caffeine, L2: Redis)
@@ -34,6 +36,8 @@ public class TieredCache implements Cache {
     private final LogicExecutor executor;
     private final RedissonClient redissonClient; // 분산 락용
     private final MeterRegistry meterRegistry;   // 메트릭 수집용
+    private final String instanceId;             // Issue #278: Self-skip용 (P0-2)
+    private final Consumer<CacheInvalidationEvent> invalidationCallback; // Issue #278: Cache Coherence (P0-4)
 
     /** 락 획득 대기 타임아웃 (초) */
     private static final int LOCK_WAIT_SECONDS = 30;
@@ -99,20 +103,52 @@ public class TieredCache implements Cache {
         }
     }
 
+    /**
+     * 캐시 키 무효화 (L1 → L2 → Pub/Sub 전파)
+     *
+     * <h4>Issue #278: L1 Cache Coherence (P0-1)</h4>
+     * <p>evict 후 다른 인스턴스의 L1 캐시도 무효화하도록 이벤트 발행</p>
+     */
     @Override
     public void evict(Object key) {
         executor.executeVoid(() -> {
             l1.evict(key);
             l2.evict(key);
+            publishEvictEvent(key);
         }, TaskContext.of("Cache", "Evict", key.toString()));
     }
 
+    /**
+     * 캐시 전체 무효화 (L1 → L2 → Pub/Sub 전파)
+     *
+     * <h4>Issue #278: L1 Cache Coherence (P0-1)</h4>
+     * <p>clear 후 다른 인스턴스의 L1 캐시도 전체 무효화하도록 이벤트 발행</p>
+     */
     @Override
     public void clear() {
         executor.executeVoid(() -> {
             l1.clear();
             l2.clear();
+            publishClearAllEvent();
         }, TaskContext.of("Cache", "Clear"));
+    }
+
+    /**
+     * EVICT 이벤트 발행 (Section 15: 메서드 추출)
+     */
+    private void publishEvictEvent(Object key) {
+        invalidationCallback.accept(
+                CacheInvalidationEvent.evict(getName(), key.toString(), instanceId)
+        );
+    }
+
+    /**
+     * CLEAR_ALL 이벤트 발행 (Section 15: 메서드 추출)
+     */
+    private void publishClearAllEvent() {
+        invalidationCallback.accept(
+                CacheInvalidationEvent.clearAll(getName(), instanceId)
+        );
     }
 
     @Override
