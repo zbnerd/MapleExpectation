@@ -8,6 +8,7 @@ import maple.expectation.global.error.exception.InternalSystemException;
 import maple.expectation.global.error.exception.MapleDataProcessingException;
 import maple.expectation.global.error.exception.base.BaseException;
 import maple.expectation.global.executor.TaskContext;
+import maple.expectation.global.util.ExceptionUtils;
 import org.springframework.cache.Cache;
 
 import java.io.IOException;
@@ -31,25 +32,27 @@ public interface ExceptionTranslator {
      * JSON 처리 예외 변환기
      */
     static ExceptionTranslator forJson() {
-        return (e, context) -> { // ✅ (e, context) 람다 파라미터 수정
+        return (e, context) -> {
             if (e instanceof Error) {
                 throw (Error) e;
             }
 
-            if (e instanceof JsonProcessingException) {
+            Throwable unwrapped = ExceptionUtils.unwrapAsyncException(e);
+
+            if (unwrapped instanceof JsonProcessingException) {
                 return new EquipmentDataProcessingException(
-                        "JSON 직렬화 실패 [" + context.toTaskName() + "]: " + e.getMessage(),
-                        e
+                        "JSON 직렬화 실패 [" + context.toTaskName() + "]: " + unwrapped.getMessage(),
+                        unwrapped
                 );
             }
-            if (e instanceof IOException) {
+            if (unwrapped instanceof IOException) {
                 return new EquipmentDataProcessingException(
-                        "데이터 I/O 실패 [" + context.toTaskName() + "]: " + e.getMessage(),
-                        e
+                        "데이터 I/O 실패 [" + context.toTaskName() + "]: " + unwrapped.getMessage(),
+                        unwrapped
                 );
             }
-            if (e instanceof BaseException) {
-                return (BaseException) e;
+            if (unwrapped instanceof BaseException be) {
+                return be;
             }
             return new InternalSystemException("json-processing:" + context.operation(), e);
         };
@@ -59,17 +62,19 @@ public interface ExceptionTranslator {
      * Lock 예외 변환기
      */
     static ExceptionTranslator forLock() {
-        return (e, context) -> { // ✅ (e, context) 람다 파라미터 수정
+        return (e, context) -> {
             if (e instanceof Error) {
                 throw (Error) e;
             }
 
-            if (e instanceof InterruptedException) {
+            Throwable unwrapped = ExceptionUtils.unwrapAsyncException(e);
+
+            if (unwrapped instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
-                return new DistributedLockException("락 획득 중 인터럽트 [" + context.toTaskName() + "]", e);
+                return new DistributedLockException("락 획득 중 인터럽트 [" + context.toTaskName() + "]", unwrapped);
             }
-            if (e instanceof BaseException) {
-                return (BaseException) e;
+            if (unwrapped instanceof BaseException be) {
+                return be;
             }
             return new InternalSystemException("lock-operation:" + context.operation(), e);
         };
@@ -79,16 +84,18 @@ public interface ExceptionTranslator {
      * 파일 I/O 예외 변환기
      */
     static ExceptionTranslator forFileIO() {
-        return (e, context) -> { // ✅ (e, context) 람다 파라미터 수정
+        return (e, context) -> {
             if (e instanceof Error) {
                 throw (Error) e;
             }
 
-            if (e instanceof IOException) {
-                return new InternalSystemException("file-io:" + context.toTaskName(), e);
+            Throwable unwrapped = ExceptionUtils.unwrapAsyncException(e);
+
+            if (unwrapped instanceof IOException) {
+                return new InternalSystemException("file-io:" + context.toTaskName(), unwrapped);
             }
-            if (e instanceof BaseException) {
-                return (BaseException) e;
+            if (unwrapped instanceof BaseException be) {
+                return be;
             }
             return new InternalSystemException("file-operation:" + context.operation(), e);
         };
@@ -96,15 +103,18 @@ public interface ExceptionTranslator {
 
     /**
      * 기본 예외 변환기
+     *
+     * <p>CompletionException/ExecutionException unwrap 후 BaseException 감지</p>
      */
     static ExceptionTranslator defaultTranslator() {
-        return (e, context) -> { // ✅ (e, context) 람다 파라미터 수정
+        return (e, context) -> {
             if (e instanceof Error) {
                 throw (Error) e;
             }
 
-            if (e instanceof BaseException) {
-                return (BaseException) e;
+            Throwable unwrapped = ExceptionUtils.unwrapAsyncException(e);
+            if (unwrapped instanceof BaseException be) {
+                return be;
             }
             return new InternalSystemException("default-task:" + context.toTaskName(), e);
         };
@@ -116,11 +126,19 @@ public interface ExceptionTranslator {
      */
     static ExceptionTranslator forMaple() {
         return (ex, context) -> {
-            if (ex instanceof java.io.IOException) {
-                return new MapleDataProcessingException(
-                        "메이플 데이터 파싱 중 기술적 오류 발생: " + ex.getMessage(), ex);
+            if (ex instanceof Error) {
+                throw (Error) ex;
             }
-            // 그 외 예외는 시스템 공통 예외로 처리
+
+            Throwable unwrapped = ExceptionUtils.unwrapAsyncException(ex);
+
+            if (unwrapped instanceof java.io.IOException) {
+                return new MapleDataProcessingException(
+                        "메이플 데이터 파싱 중 기술적 오류 발생: " + unwrapped.getMessage(), unwrapped);
+            }
+            if (unwrapped instanceof BaseException be) {
+                return be;
+            }
             return new InternalSystemException(context.toTaskName(), ex);
         };
     }
@@ -147,17 +165,16 @@ public interface ExceptionTranslator {
      */
     static ExceptionTranslator forRedisScript() {
         return (e, context) -> {
-            // P0: Error 격리 (OOM 등은 상위로 즉시 폭발)
             if (e instanceof Error) {
                 throw (Error) e;
             }
 
-            // BaseException은 그대로 전파
-            if (e instanceof BaseException) {
-                return (BaseException) e;
+            Throwable unwrapped = ExceptionUtils.unwrapAsyncException(e);
+
+            if (unwrapped instanceof BaseException be) {
+                return be;
             }
 
-            // Redis Script 실행 실패 → AtomicFetchException
             return new AtomicFetchException(
                     context.operation(),
                     context.dynamicValue(),
@@ -181,17 +198,16 @@ public interface ExceptionTranslator {
      */
     static ExceptionTranslator forStartup(String componentName) {
         return (e, context) -> {
-            // P0: Error 격리 (OOM 등은 상위로 즉시 폭발)
             if (e instanceof Error) {
                 throw (Error) e;
             }
 
-            // BaseException은 그대로 전파 (InsufficientResourceException 등)
-            if (e instanceof BaseException) {
-                return (BaseException) e;
+            Throwable unwrapped = ExceptionUtils.unwrapAsyncException(e);
+
+            if (unwrapped instanceof BaseException be) {
+                return be;
             }
 
-            // 기타 예외는 InternalSystemException으로 변환
             return new InternalSystemException(
                     "startup:" + componentName + ":" + context.operation(),
                     e
