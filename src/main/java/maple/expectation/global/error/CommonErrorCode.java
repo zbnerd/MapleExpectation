@@ -51,7 +51,10 @@ public enum CommonErrorCode implements ErrorCode {
 
     // === MySQL Resilience Errors (5xx) - Issue #218 ===
     MYSQL_FALLBACK_FAILED("S012", "MySQL 장애 시 Fallback 실패 (ocid: %s)", HttpStatus.SERVICE_UNAVAILABLE),
-    COMPENSATION_SYNC_FAILED("S013", "Compensation Log 동기화 실패 (entryId: %s)", HttpStatus.INTERNAL_SERVER_ERROR);
+    COMPENSATION_SYNC_FAILED("S013", "Compensation Log 동기화 실패 (entryId: %s)", HttpStatus.INTERNAL_SERVER_ERROR),
+
+    // === Like Sync Errors (5xx) - Issue #285 ===
+    LIKE_SYNC_CIRCUIT_OPEN("S014", "좋아요 동기화 서킷이 열렸습니다 (%s)", HttpStatus.SERVICE_UNAVAILABLE);
 
 
     private final String code;
