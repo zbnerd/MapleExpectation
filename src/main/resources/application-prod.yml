@@ -46,6 +46,17 @@ app:
     redis:
       enabled: true  # Scale-out 모드 활성화
 
+# Thread Pool 최적화 (P1-7: t3.small 2vCPU 기준)
+executor:
+  equipment:
+    core-pool-size: 16
+    max-pool-size: 32
+    queue-capacity: 500
+  preset:
+    core-pool-size: 6     # CPU-bound: 2vCPU × 3
+    max-pool-size: 12
+    queue-capacity: 200
+
 # #275 Auto Warmup: 프로덕션에서 활성화
 scheduler:
   warmup:

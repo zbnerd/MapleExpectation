@@ -214,7 +214,7 @@ class GameCharacterControllerV4Test {
             // given
             String userIgn = "RecalcUser";
             EquipmentExpectationResponseV4 mockResponse = createMockResponse(userIgn);
-            given(expectationService.calculateExpectationAsync(userIgn))
+            given(expectationService.calculateExpectationAsync(userIgn, true))
                     .willReturn(CompletableFuture.completedFuture(mockResponse));
 
             // when
@@ -225,7 +225,7 @@ class GameCharacterControllerV4Test {
             // then
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
             assertThat(response.getBody()).isNotNull();
-            verify(expectationService).calculateExpectationAsync(userIgn);
+            verify(expectationService).calculateExpectationAsync(userIgn, true);
         }
     }
 
