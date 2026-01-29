@@ -19,20 +19,20 @@ public interface CharacterLikeRepository extends JpaRepository<CharacterLike, Lo
     /**
      * 특정 캐릭터에 대해 특정 계정이 이미 좋아요를 눌렀는지 확인
      *
-     * @param targetOcid       대상 캐릭터 OCID
-     * @param likerFingerprint 좋아요를 누른 계정의 fingerprint
+     * @param targetOcid     대상 캐릭터 OCID
+     * @param likerAccountId 좋아요를 누른 넥슨 계정 식별자
      * @return 좋아요 존재 여부
      */
-    boolean existsByTargetOcidAndLikerFingerprint(String targetOcid, String likerFingerprint);
+    boolean existsByTargetOcidAndLikerAccountId(String targetOcid, String likerAccountId);
 
     /**
      * 특정 캐릭터에 대한 특정 계정의 좋아요 조회
      *
-     * @param targetOcid       대상 캐릭터 OCID
-     * @param likerFingerprint 좋아요를 누른 계정의 fingerprint
+     * @param targetOcid     대상 캐릭터 OCID
+     * @param likerAccountId 좋아요를 누른 넥슨 계정 식별자
      * @return 좋아요 (Optional)
      */
-    Optional<CharacterLike> findByTargetOcidAndLikerFingerprint(String targetOcid, String likerFingerprint);
+    Optional<CharacterLike> findByTargetOcidAndLikerAccountId(String targetOcid, String likerAccountId);
 
     /**
      * 특정 캐릭터의 총 좋아요 수
@@ -45,19 +45,19 @@ public interface CharacterLikeRepository extends JpaRepository<CharacterLike, Lo
     /**
      * 특정 계정이 누른 총 좋아요 수
      *
-     * @param likerFingerprint 계정의 fingerprint
+     * @param likerAccountId 넥슨 계정 식별자
      * @return 좋아요 수
      */
-    long countByLikerFingerprint(String likerFingerprint);
+    long countByLikerAccountId(String likerAccountId);
 
     /**
      * 특정 캐릭터에 대한 특정 계정의 좋아요 삭제
      *
-     * @param targetOcid       대상 캐릭터 OCID
-     * @param likerFingerprint 좋아요를 누른 계정의 fingerprint
+     * @param targetOcid     대상 캐릭터 OCID
+     * @param likerAccountId 좋아요를 누른 넥슨 계정 식별자
      * @return 삭제된 행 수
      */
     @Modifying
     @Transactional
-    long deleteByTargetOcidAndLikerFingerprint(String targetOcid, String likerFingerprint);
+    long deleteByTargetOcidAndLikerAccountId(String targetOcid, String likerAccountId);
 }

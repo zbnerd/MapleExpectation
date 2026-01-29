@@ -100,6 +100,13 @@ public enum RedisKey {
     LIKE_RELATIONS_PENDING("{likes}:relations:pending"),
 
     /**
+     * Unlike 추적 (SET)
+     * <p>Unlike 된 관계를 추적하여 cold start와 구분.
+     * DB DELETE 배치 동기화 및 hasLiked 판정에 사용.</p>
+     */
+    LIKE_RELATIONS_UNLIKED("{likes}:relations:unliked"),
+
+    /**
      * Partitioned Flush Lock 접두사
      * <p>각 파티션별 분산 락. 예: {likes}:flush:partition:0</p>
      */

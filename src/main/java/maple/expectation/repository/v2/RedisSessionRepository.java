@@ -38,6 +38,8 @@ public class RedisSessionRepository {
 
     private static final String SESSION_KEY_PREFIX = "session:";
     private static final String FIELD_FINGERPRINT = "fingerprint";
+    private static final String FIELD_USER_IGN = "userIgn";
+    private static final String FIELD_ACCOUNT_ID = "accountId";
     private static final String FIELD_API_KEY = "apiKey";
     private static final String FIELD_MY_OCIDS = "myOcids";
     private static final String FIELD_ROLE = "role";
@@ -62,6 +64,8 @@ public class RedisSessionRepository {
 
         executor.executeVoid(() -> {
             map.put(FIELD_FINGERPRINT, session.fingerprint());
+            map.put(FIELD_USER_IGN, session.userIgn());
+            map.put(FIELD_ACCOUNT_ID, session.accountId());
             map.put(FIELD_API_KEY, session.apiKey());
             map.put(FIELD_MY_OCIDS, serializeOcids(session.myOcids()));
             map.put(FIELD_ROLE, session.role());
@@ -105,6 +109,8 @@ public class RedisSessionRepository {
         Session session = new Session(
             sessionId,
             fingerprint,
+            map.get(FIELD_USER_IGN),
+            map.get(FIELD_ACCOUNT_ID),
             map.get(FIELD_API_KEY),
             deserializeOcids(map.get(FIELD_MY_OCIDS)),
             map.get(FIELD_ROLE),

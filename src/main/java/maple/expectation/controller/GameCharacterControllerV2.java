@@ -9,6 +9,7 @@ import maple.expectation.service.v2.EquipmentService;
 import maple.expectation.service.v2.auth.CharacterLikeService;
 import maple.expectation.service.v2.auth.CharacterLikeService.LikeToggleResult;
 import org.springframework.http.ResponseEntity;
+import org.springframework.lang.Nullable;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -94,18 +95,22 @@ public class GameCharacterControllerV2 {
     public record LikeToggleResponse(boolean liked, Long likeCount) {}
 
     /**
-     * 좋아요 여부 확인 API (인증 필요)
+     * 좋아요 상태 확인 API (비인증 허용)
+     *
+     * <p>비인증: liked=false, likeCount만 반환
+     * <br>인증: liked(실제 상태) + likeCount 반환</p>
      *
      * @param userIgn 대상 캐릭터 닉네임
-     * @param user    인증된 사용자
+     * @param user    인증된 사용자 (nullable)
      * @return 좋아요 여부 + 좋아요 수
      */
     @GetMapping("/{userIgn}/like/status")
     public ResponseEntity<ApiResponse<LikeStatusResponse>> getLikeStatus(
             @PathVariable String userIgn,
-            @AuthenticationPrincipal AuthenticatedUser user) {
+            @AuthenticationPrincipal @Nullable AuthenticatedUser user) {
 
-        boolean hasLiked = characterLikeService.hasLiked(userIgn, user.fingerprint());
+        boolean hasLiked = user != null
+                && characterLikeService.hasLiked(userIgn, user.accountId());
         long likeCount = characterLikeService.getEffectiveLikeCount(userIgn);
         return ResponseEntity.ok(ApiResponse.success(
                 new LikeStatusResponse(hasLiked, likeCount)));

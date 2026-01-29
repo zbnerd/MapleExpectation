@@ -172,6 +172,8 @@ class RateLimitingServiceTest {
         return new AuthenticatedUser(
                 "test-session-id",
                 fingerprint,
+                "TestUser",
+                "test-account-id",
                 "test-api-key",
                 Collections.emptySet(),
                 "USER"

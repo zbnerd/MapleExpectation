@@ -217,6 +217,8 @@ class GlobalExceptionHandlerTest {
             AuthenticatedUser user = new AuthenticatedUser(
                     "test-session-id",    // sessionId
                     "test-fingerprint-for-validation-test-1234567890abcdef12345678",  // fingerprint
+                    "TestUser",            // userIgn
+                    "test-account-id",     // accountId
                     "test-api-key",        // apiKey
                     Collections.emptySet(),// myOcids
                     "ADMIN"                // role

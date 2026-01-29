@@ -136,7 +136,7 @@ class GameCharacterControllerV2Test {
             // given
             String userIgn = "TargetUser";
             AuthenticatedUser user = new AuthenticatedUser(
-                    "session-123", "fingerprint-abc", "api-key-test", Set.of(), "USER"
+                    "session-123", "fingerprint-abc", "TestLiker", "test-account-id", "api-key-test", Set.of(), "USER"
             );
 
             // P0-4: Service에서 likeCount(15) 직접 반환
@@ -162,7 +162,7 @@ class GameCharacterControllerV2Test {
             // given
             String userIgn = "TargetUser";
             AuthenticatedUser user = new AuthenticatedUser(
-                    "session-456", "fingerprint-def", "api-key-test", Set.of(), "USER"
+                    "session-456", "fingerprint-def", "TestLiker2", "test-account-id", "api-key-test", Set.of(), "USER"
             );
 
             // P0-4: Service에서 likeCount(4) 직접 반환
@@ -187,7 +187,7 @@ class GameCharacterControllerV2Test {
             // given
             String userIgn = "NonExistentUser";
             AuthenticatedUser user = new AuthenticatedUser(
-                    "session-789", "fingerprint-ghi", "api-key-test", Set.of(), "USER"
+                    "session-789", "fingerprint-ghi", "TestLiker3", "test-account-id", "api-key-test", Set.of(), "USER"
             );
 
             // P0-4: Service에서 likeCount(1) 직접 반환 (0 + delta 1)
@@ -213,11 +213,11 @@ class GameCharacterControllerV2Test {
         void whenAlreadyLiked_shouldReturnTrue() {
             // given
             String userIgn = "LikedTarget";
-            String fingerprint = "fingerprint-123";
+            String accountId = "test-account-id";
             AuthenticatedUser user = new AuthenticatedUser(
-                    "session-789", fingerprint, "api-key-test", Set.of(), "USER"
+                    "session-789", "fingerprint-123", "LikerChar", accountId, "api-key-test", Set.of(), "USER"
             );
-            given(characterLikeService.hasLiked(userIgn, fingerprint)).willReturn(true);
+            given(characterLikeService.hasLiked(userIgn, accountId)).willReturn(true);
             // P0-8: Service에서 effectiveLikeCount 반환
             given(characterLikeService.getEffectiveLikeCount(userIgn)).willReturn(12L);
 
@@ -237,11 +237,11 @@ class GameCharacterControllerV2Test {
         void whenNotLiked_shouldReturnFalse() {
             // given
             String userIgn = "NotLikedTarget";
-            String fingerprint = "fingerprint-456";
+            String accountId = "test-account-id-2";
             AuthenticatedUser user = new AuthenticatedUser(
-                    "session-abc", fingerprint, "api-key-test", Set.of(), "USER"
+                    "session-abc", "fingerprint-456", "LikerChar2", accountId, "api-key-test", Set.of(), "USER"
             );
-            given(characterLikeService.hasLiked(userIgn, fingerprint)).willReturn(false);
+            given(characterLikeService.hasLiked(userIgn, accountId)).willReturn(false);
             given(characterLikeService.getEffectiveLikeCount(userIgn)).willReturn(0L);
 
             // when

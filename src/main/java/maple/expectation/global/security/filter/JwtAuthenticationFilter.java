@@ -138,6 +138,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         AuthenticatedUser authenticatedUser = new AuthenticatedUser(
             session.sessionId(),
             session.fingerprint(),
+            session.userIgn(),
+            session.accountId(),
             session.apiKey(),
             session.myOcids(),
             session.role()

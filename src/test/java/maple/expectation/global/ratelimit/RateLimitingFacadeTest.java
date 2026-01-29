@@ -130,7 +130,7 @@ class RateLimitingFacadeTest {
         // Given
         given(rateLimitingService.isEnabled()).willReturn(true);
         AuthenticatedUser admin = new AuthenticatedUser(
-                "session-id", "fingerprint", "api-key", Collections.emptySet(), "ADMIN"
+                "session-id", "fingerprint", "AdminUser", "test-account-id", "api-key", Collections.emptySet(), "ADMIN"
         );
         RateLimitContext context = RateLimitContext.of("192.168.1.1", admin, "/api/admin/users");
 
@@ -149,7 +149,7 @@ class RateLimitingFacadeTest {
         given(rateLimitingService.isEnabled()).willReturn(true);
         given(rateLimitingService.checkRateLimit(any())).willReturn(ConsumeResult.allowed(99));
         AuthenticatedUser user = new AuthenticatedUser(
-                "session-id", "fingerprint", "api-key", Collections.emptySet(), "USER"
+                "session-id", "fingerprint", "TestUser", "test-account-id", "api-key", Collections.emptySet(), "USER"
         );
         RateLimitContext context = RateLimitContext.of("192.168.1.1", user, "/api/v1/test");
 

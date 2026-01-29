@@ -130,21 +130,22 @@ public class CharacterLikeService {
         boolean liked;
         long newDelta;
 
+        String accountId = user.accountId();
+
         if (atomicToggle != null) {
             // Redis 모드: Lua Script Atomic Toggle (P0-1/P0-2/P0-3 해결)
-            ToggleResult result = executeAtomicToggle(user.fingerprint(), targetOcid, targetUserIgn);
+            ToggleResult result = executeAtomicToggle(accountId, targetOcid, targetUserIgn);
             liked = result.liked();
             newDelta = result.newDelta();
         } else {
             // In-Memory 모드: 기존 로직 (단일 인스턴스에서 안전)
-            LegacyToggleResult result = executeLegacyToggle(targetUserIgn, targetOcid, user.fingerprint());
+            LegacyToggleResult result = executeLegacyToggle(targetUserIgn, targetOcid, accountId);
             liked = result.liked;
             newDelta = result.newDelta;
         }
 
-        log.info("{} buffered: targetIgn={}, fingerprint={}..., newDelta={}",
-                liked ? "Like" : "Unlike", targetUserIgn,
-                user.fingerprint().substring(0, 8), newDelta);
+        log.info("{} buffered: targetIgn={}, accountId={}..., newDelta={}",
+                liked ? "Like" : "Unlike", targetUserIgn, accountId.substring(0, 8), newDelta);
 
         // 4. Scale-out 실시간 동기화 이벤트 발행 (Issue #278)
         publishLikeEvent(targetUserIgn, newDelta, liked);
@@ -161,13 +162,13 @@ public class CharacterLikeService {
      * <p>DB에 이미 동기화된 관계도 확인합니다.
      * Redis에 없고 DB에 있는 경우, DB 상태를 기반으로 unlike 처리.</p>
      */
-    private ToggleResult executeAtomicToggle(String fingerprint, String targetOcid, String userIgn) {
-        ToggleResult result = atomicToggle.toggle(fingerprint, targetOcid, userIgn);
+    private ToggleResult executeAtomicToggle(String accountId, String targetOcid, String userIgn) {
+        ToggleResult result = atomicToggle.toggle(accountId, targetOcid, userIgn);
 
         if (result == null) {
             // Redis 장애 -> DB Fallback (Graceful Degradation)
             log.warn("[LikeService] Redis failure, DB fallback for toggle");
-            return executeDbFallbackToggle(fingerprint, targetOcid, userIgn);
+            return executeDbFallbackToggle(accountId, targetOcid, userIgn);
         }
 
         return result;
@@ -176,9 +177,9 @@ public class CharacterLikeService {
     /**
      * Redis 장애 시 DB Fallback Toggle
      */
-    private ToggleResult executeDbFallbackToggle(String fingerprint, String targetOcid, String userIgn) {
+    private ToggleResult executeDbFallbackToggle(String accountId, String targetOcid, String userIgn) {
         boolean existsInDb = characterLikeRepository
-                .existsByTargetOcidAndLikerFingerprint(targetOcid, fingerprint);
+                .existsByTargetOcidAndLikerAccountId(targetOcid, accountId);
 
         if (existsInDb) {
             // DB에 있으면 unlike 처리 (DB DELETE는 batch로)
@@ -194,15 +195,15 @@ public class CharacterLikeService {
     /**
      * In-Memory 모드 Toggle (단일 인스턴스 전용)
      */
-    private LegacyToggleResult executeLegacyToggle(String userIgn, String targetOcid, String fingerprint) {
-        boolean currentlyLiked = checkLikeStatus(targetOcid, fingerprint);
+    private LegacyToggleResult executeLegacyToggle(String userIgn, String targetOcid, String accountId) {
+        boolean currentlyLiked = checkLikeStatus(targetOcid, accountId);
 
         if (currentlyLiked) {
-            likeRelationBuffer.removeRelation(fingerprint, targetOcid);
+            likeRelationBuffer.removeRelation(accountId, targetOcid);
             Long delta = likeProcessor.processUnlike(userIgn);
             return new LegacyToggleResult(false, delta != null ? delta : 0L);
         } else {
-            likeRelationBuffer.addRelation(fingerprint, targetOcid);
+            likeRelationBuffer.addRelation(accountId, targetOcid);
             Long delta = likeProcessor.processLike(userIgn);
             return new LegacyToggleResult(true, delta != null ? delta : 0L);
         }
@@ -262,20 +263,8 @@ public class CharacterLikeService {
     /**
      * 현재 좋아요 상태 확인 (Buffer -> DB Fallback)
      */
-    private boolean checkLikeStatus(String targetOcid, String fingerprint) {
-        Boolean existsInBuffer = likeRelationBuffer.exists(fingerprint, targetOcid);
-        log.debug("[LikeStatus] Buffer check: fingerprint={}..., existsInBuffer={}",
-                fingerprint.substring(0, 8), existsInBuffer);
-
-        if (existsInBuffer != null && existsInBuffer) {
-            return true;
-        }
-
-        boolean existsInDb = characterLikeRepository
-                .existsByTargetOcidAndLikerFingerprint(targetOcid, fingerprint);
-        log.debug("[LikeStatus] DB check: existsInDb={}", existsInDb);
-
-        return existsInDb;
+    private boolean checkLikeStatus(String targetOcid, String accountId) {
+        return resolveRelationStatus(accountId, targetOcid);
     }
 
     /**
@@ -303,18 +292,38 @@ public class CharacterLikeService {
      * 특정 캐릭터에 대한 좋아요 여부 확인 (Buffer -> DB)
      *
      * @param targetUserIgn 대상 캐릭터 닉네임
-     * @param fingerprint   계정의 fingerprint
+     * @param accountId     넥슨 계정 식별자
      * @return 좋아요 여부
      */
-    public boolean hasLiked(String targetUserIgn, String fingerprint) {
+    public boolean hasLiked(String targetUserIgn, String accountId) {
         String targetOcid = resolveOcid(targetUserIgn.trim());
+        return resolveRelationStatus(accountId, targetOcid);
+    }
 
-        Boolean existsInBuffer = likeRelationBuffer.exists(fingerprint, targetOcid);
-        if (existsInBuffer != null && existsInBuffer) {
+    /**
+     * 3단계 좋아요 상태 판정
+     *
+     * <ol>
+     *   <li>Redis relations SET에 있으면 → liked (확정)</li>
+     *   <li>Redis unliked SET에 있으면 → unliked (확정)</li>
+     *   <li>둘 다 없으면 → cold start, DB fallback</li>
+     * </ol>
+     */
+    private boolean resolveRelationStatus(String accountId, String targetOcid) {
+        // 1. Redis relations SET 확인
+        Boolean existsInRelations = likeRelationBuffer.exists(accountId, targetOcid);
+        if (existsInRelations != null && existsInRelations) {
             return true;
         }
 
+        // 2. Redis unliked SET 확인 (명시적 unlike 추적)
+        Boolean existsInUnliked = likeRelationBuffer.existsInUnliked(accountId, targetOcid);
+        if (existsInUnliked != null && existsInUnliked) {
+            return false;
+        }
+
+        // 3. 둘 다 없음 → cold start 또는 Redis 장애 → DB fallback
         return characterLikeRepository
-                .existsByTargetOcidAndLikerFingerprint(targetOcid, fingerprint);
+                .existsByTargetOcidAndLikerAccountId(targetOcid, accountId);
     }
 }

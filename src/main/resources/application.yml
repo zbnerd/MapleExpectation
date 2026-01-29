@@ -316,13 +316,6 @@ otel:
     jdbc:
       statement-sanitizer: true  # [P0-Purple] SQL 파라미터 마스킹
 
-# Redis 기반 Write-Behind 버퍼 (P1-2: Scale-out 지원)
-# true: Redis Reliable Queue, false: In-Memory ConcurrentLinkedQueue
-app:
-  buffer:
-    redis:
-      enabled: false  # prod 프로필에서 true로 설정
-
 # Thread Pool 설정 외부화 (P1-1)
 executor:
   equipment:
