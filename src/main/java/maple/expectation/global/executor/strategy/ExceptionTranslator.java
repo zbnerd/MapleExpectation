@@ -22,23 +22,45 @@ public interface ExceptionTranslator {
 
     /**
      * 예외를 변환하여 반환
-     * * @param e 원본 예외
-     * @param context 작업 컨텍스트 (수정됨: TaskContext 추가)
+     *
+     * @param e 원본 예외
+     * @param context 작업 컨텍스트
      * @return 변환된 RuntimeException
      */
     RuntimeException translate(Throwable e, TaskContext context);
 
     /**
+     * Error guard + async unwrap을 선행 적용하는 Decorator
+     *
+     * <p>모든 팩토리 메서드에서 반복되는 패턴을 DRY로 통합합니다:
+     * <ol>
+     *   <li>Error → 즉시 rethrow (VirtualMachineError 등)</li>
+     *   <li>CompletionException/ExecutionException → 원본으로 unwrap</li>
+     *   <li>unwrap된 예외를 내부 translator에 위임</li>
+     * </ol>
+     *
+     * @param inner unwrap된 예외를 받아 변환하는 내부 translator
+     * @return Error guard + unwrap이 적용된 ExceptionTranslator
+     */
+    static ExceptionTranslator withErrorGuardAndUnwrap(ExceptionTranslator inner) {
+        return (e, context) -> {
+            if (e instanceof Error err) {
+                throw err;
+            }
+            Throwable unwrapped = ExceptionUtils.unwrapAsyncException(e);
+            // BaseException pass-through: 이미 도메인 예외이면 그대로 반환 (DRY)
+            if (unwrapped instanceof BaseException be) {
+                return be;
+            }
+            return inner.translate(unwrapped, context);
+        };
+    }
+
+    /**
      * JSON 처리 예외 변환기
      */
     static ExceptionTranslator forJson() {
-        return (e, context) -> {
-            if (e instanceof Error) {
-                throw (Error) e;
-            }
-
-            Throwable unwrapped = ExceptionUtils.unwrapAsyncException(e);
-
+        return withErrorGuardAndUnwrap((unwrapped, context) -> {
             if (unwrapped instanceof JsonProcessingException) {
                 return new EquipmentDataProcessingException(
                         "JSON 직렬화 실패 [" + context.toTaskName() + "]: " + unwrapped.getMessage(),
@@ -51,54 +73,33 @@ public interface ExceptionTranslator {
                         unwrapped
                 );
             }
-            if (unwrapped instanceof BaseException be) {
-                return be;
-            }
-            return new InternalSystemException("json-processing:" + context.operation(), e);
-        };
+            return new InternalSystemException("json-processing:" + context.operation(), unwrapped);
+        });
     }
 
     /**
      * Lock 예외 변환기
      */
     static ExceptionTranslator forLock() {
-        return (e, context) -> {
-            if (e instanceof Error) {
-                throw (Error) e;
-            }
-
-            Throwable unwrapped = ExceptionUtils.unwrapAsyncException(e);
-
+        return withErrorGuardAndUnwrap((unwrapped, context) -> {
             if (unwrapped instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
                 return new DistributedLockException("락 획득 중 인터럽트 [" + context.toTaskName() + "]", unwrapped);
             }
-            if (unwrapped instanceof BaseException be) {
-                return be;
-            }
-            return new InternalSystemException("lock-operation:" + context.operation(), e);
-        };
+            return new InternalSystemException("lock-operation:" + context.operation(), unwrapped);
+        });
     }
 
     /**
      * 파일 I/O 예외 변환기
      */
     static ExceptionTranslator forFileIO() {
-        return (e, context) -> {
-            if (e instanceof Error) {
-                throw (Error) e;
-            }
-
-            Throwable unwrapped = ExceptionUtils.unwrapAsyncException(e);
-
+        return withErrorGuardAndUnwrap((unwrapped, context) -> {
             if (unwrapped instanceof IOException) {
                 return new InternalSystemException("file-io:" + context.toTaskName(), unwrapped);
             }
-            if (unwrapped instanceof BaseException be) {
-                return be;
-            }
-            return new InternalSystemException("file-operation:" + context.operation(), e);
-        };
+            return new InternalSystemException("file-operation:" + context.operation(), unwrapped);
+        });
     }
 
     /**
@@ -107,17 +108,9 @@ public interface ExceptionTranslator {
      * <p>CompletionException/ExecutionException unwrap 후 BaseException 감지</p>
      */
     static ExceptionTranslator defaultTranslator() {
-        return (e, context) -> {
-            if (e instanceof Error) {
-                throw (Error) e;
-            }
-
-            Throwable unwrapped = ExceptionUtils.unwrapAsyncException(e);
-            if (unwrapped instanceof BaseException be) {
-                return be;
-            }
-            return new InternalSystemException("default-task:" + context.toTaskName(), e);
-        };
+        return withErrorGuardAndUnwrap((unwrapped, context) ->
+                new InternalSystemException("default-task:" + context.toTaskName(), unwrapped)
+        );
     }
 
     /**
@@ -125,22 +118,13 @@ public interface ExceptionTranslator {
      * 기술적 예외(IOException 등)를 도메인 예외(MapleDataProcessingException)로 변환합니다.
      */
     static ExceptionTranslator forMaple() {
-        return (ex, context) -> {
-            if (ex instanceof Error) {
-                throw (Error) ex;
-            }
-
-            Throwable unwrapped = ExceptionUtils.unwrapAsyncException(ex);
-
-            if (unwrapped instanceof java.io.IOException) {
+        return withErrorGuardAndUnwrap((unwrapped, context) -> {
+            if (unwrapped instanceof IOException) {
                 return new MapleDataProcessingException(
                         "메이플 데이터 파싱 중 기술적 오류 발생: " + unwrapped.getMessage(), unwrapped);
             }
-            if (unwrapped instanceof BaseException be) {
-                return be;
-            }
-            return new InternalSystemException(context.toTaskName(), ex);
-        };
+            return new InternalSystemException(context.toTaskName(), unwrapped);
+        });
     }
 
     static ExceptionTranslator forCache(Object key, Callable<?> loader) {
@@ -164,23 +148,13 @@ public interface ExceptionTranslator {
      * </p>
      */
     static ExceptionTranslator forRedisScript() {
-        return (e, context) -> {
-            if (e instanceof Error) {
-                throw (Error) e;
-            }
-
-            Throwable unwrapped = ExceptionUtils.unwrapAsyncException(e);
-
-            if (unwrapped instanceof BaseException be) {
-                return be;
-            }
-
-            return new AtomicFetchException(
-                    context.operation(),
-                    context.dynamicValue(),
-                    e
-            );
-        };
+        return withErrorGuardAndUnwrap((unwrapped, context) ->
+                new AtomicFetchException(
+                        context.operation(),
+                        context.dynamicValue(),
+                        unwrapped
+                )
+        );
     }
 
     /**
@@ -197,22 +171,12 @@ public interface ExceptionTranslator {
      * @return 시작 전용 예외 변환기
      */
     static ExceptionTranslator forStartup(String componentName) {
-        return (e, context) -> {
-            if (e instanceof Error) {
-                throw (Error) e;
-            }
-
-            Throwable unwrapped = ExceptionUtils.unwrapAsyncException(e);
-
-            if (unwrapped instanceof BaseException be) {
-                return be;
-            }
-
-            return new InternalSystemException(
-                    "startup:" + componentName + ":" + context.operation(),
-                    e
-            );
-        };
+        return withErrorGuardAndUnwrap((unwrapped, context) ->
+                new InternalSystemException(
+                        "startup:" + componentName + ":" + context.operation(),
+                        unwrapped
+                )
+        );
     }
 
 }

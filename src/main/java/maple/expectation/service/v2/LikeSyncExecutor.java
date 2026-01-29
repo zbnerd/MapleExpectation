@@ -105,7 +105,7 @@ public class LikeSyncExecutor {
      * <p>서킷이 열리면 예외를 던져 상위 레이어에서 보상 트랜잭션이 실행되도록 합니다.</p>
      */
     @SuppressWarnings("unused")  // CircuitBreaker fallback으로 사용됨
-    private void batchFallback(List<Map.Entry<String, Long>> entries, Throwable t) {
+    void batchFallback(List<Map.Entry<String, Long>> entries, Throwable t) {
         log.warn("[LikeSync] Circuit OPEN, batch skipped ({} entries): {}",
                 entries.size(), t.getMessage());
         throw new LikeSyncCircuitOpenException(t);

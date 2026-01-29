@@ -9,16 +9,14 @@ import maple.expectation.global.error.exception.DistributedLockException;
 import maple.expectation.global.error.exception.base.ClientBaseException;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
+import maple.expectation.global.util.ExceptionUtils;
 import org.redisson.client.RedisException;
 import org.redisson.client.RedisTimeoutException;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
-import java.lang.reflect.UndeclaredThrowableException;
 import java.util.List;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -149,7 +147,7 @@ public class ResilientLockStrategy extends AbstractLockStrategy {
      * Redis 실패 시 DistributedLockException으로 명확한 실패 전달.
      */
     private boolean handleTryLockFallback(Throwable t, String key, long leaseTime) {
-        Throwable cause = unwrap(t);
+        Throwable cause = ExceptionUtils.unwrapAsyncException(t);
 
         // Biz 예외: 즉시 전파
         if (cause instanceof ClientBaseException) {
@@ -180,24 +178,6 @@ public class ResilientLockStrategy extends AbstractLockStrategy {
     // ========================================
     // 예외 필터링 헬퍼 메서드
     // ========================================
-
-    /**
-     * 래핑된 예외를 unwrap하여 원본 예외 반환
-     */
-    private Throwable unwrap(Throwable t) {
-        Throwable cur = t;
-        while (cur != null) {
-            if ((cur instanceof CompletionException
-                    || cur instanceof ExecutionException
-                    || cur instanceof UndeclaredThrowableException)
-                    && cur.getCause() != null) {
-                cur = cur.getCause();
-                continue;
-            }
-            return cur;
-        }
-        return t;
-    }
 
     /**
      * 인프라 예외 여부 판별
@@ -235,7 +215,7 @@ public class ResilientLockStrategy extends AbstractLockStrategy {
             String op,
             ThrowingSupplier<T> mysqlFallback
     ) {
-        Throwable cause = unwrap(t);
+        Throwable cause = ExceptionUtils.unwrapAsyncException(t);
 
         // InterruptedException은 Lock 도메인 예외로 정규화
         if (cause instanceof InterruptedException ie) {
@@ -362,7 +342,7 @@ public class ResilientLockStrategy extends AbstractLockStrategy {
             String keys,
             ThrowingSupplier<T> mysqlFallback
     ) {
-        Throwable cause = unwrap(t);
+        Throwable cause = ExceptionUtils.unwrapAsyncException(t);
 
         // InterruptedException 처리
         if (cause instanceof InterruptedException ie) {

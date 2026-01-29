@@ -1,7 +1,6 @@
 package maple.expectation.service.v2;
 
 import com.google.common.collect.Lists;
-import io.github.resilience4j.retry.Retry;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.aop.annotation.ObservedTransaction;
@@ -51,7 +50,6 @@ public class LikeSyncService {
     private final LikeSyncExecutor syncExecutor;
     private final StringRedisTemplate redisTemplate;
     private final RedisBufferRepository redisBufferRepository;
-    private final Retry likeSyncRetry;
     private final ShutdownDataPersistenceService shutdownDataPersistenceService;
     private final LogicExecutor executor;
     private final AtomicFetchStrategy atomicFetchStrategy;
@@ -79,7 +77,6 @@ public class LikeSyncService {
             LikeSyncExecutor syncExecutor,
             StringRedisTemplate redisTemplate,
             RedisBufferRepository redisBufferRepository,
-            Retry likeSyncRetry,
             ShutdownDataPersistenceService shutdownDataPersistenceService,
             LogicExecutor executor,
             AtomicFetchStrategy atomicFetchStrategy,
@@ -89,7 +86,6 @@ public class LikeSyncService {
         this.syncExecutor = syncExecutor;
         this.redisTemplate = redisTemplate;
         this.redisBufferRepository = redisBufferRepository;
-        this.likeSyncRetry = likeSyncRetry;
         this.shutdownDataPersistenceService = shutdownDataPersistenceService;
         this.executor = executor;
         this.atomicFetchStrategy = atomicFetchStrategy;
@@ -394,15 +390,6 @@ public class LikeSyncService {
                 },
                 TaskContext.of("LikeSync", "RedisFailureRecovery", userIgn)
         );
-    }
-
-    private boolean syncWithRetry(String userIgn, long count) {
-        return executor.executeOrDefault(() -> {
-            Retry.decorateRunnable(likeSyncRetry, () ->
-                    syncExecutor.executeIncrement(userIgn, count)
-            ).run();
-            return true;
-        }, false, TaskContext.of("LikeSync", "DbSyncWithRetry", userIgn));
     }
 
     // ========== Metrics (Micrometer) - P1 Enhancement ==========

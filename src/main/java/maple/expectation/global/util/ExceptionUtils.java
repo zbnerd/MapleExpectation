@@ -1,5 +1,6 @@
 package maple.expectation.global.util;
 
+import java.lang.reflect.UndeclaredThrowableException;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 
@@ -39,7 +40,8 @@ import java.util.concurrent.ExecutionException;
  */
 public final class ExceptionUtils {
 
-    private static final int MAX_UNWRAP_DEPTH = 10;
+    /** Throwable chain 순회 최대 깊이 (무한 루프 방지) */
+    public static final int MAX_CHAIN_DEPTH = 32;
 
     private ExceptionUtils() {
         // Utility class - private constructor
@@ -52,6 +54,7 @@ public final class ExceptionUtils {
      * <ul>
      *   <li>{@link CompletionException} - CompletableFuture.join() 시 발생</li>
      *   <li>{@link ExecutionException} - Future.get() 시 발생</li>
+     *   <li>{@link UndeclaredThrowableException} - Proxy/AOP 래핑 시 발생</li>
      * </ul>
      *
      * <h4>안전 장치</h4>
@@ -66,8 +69,10 @@ public final class ExceptionUtils {
         }
 
         Throwable current = throwable;
-        for (int i = 0; i < MAX_UNWRAP_DEPTH && current != null; i++) {
-            if (current instanceof CompletionException || current instanceof ExecutionException) {
+        for (int i = 0; i < MAX_CHAIN_DEPTH && current != null; i++) {
+            if (current instanceof CompletionException
+                    || current instanceof ExecutionException
+                    || current instanceof UndeclaredThrowableException) {
                 Throwable cause = current.getCause();
                 if (cause != null) {
                     current = cause;
@@ -123,7 +128,7 @@ public final class ExceptionUtils {
         }
 
         Throwable current = throwable;
-        for (int i = 0; i < MAX_UNWRAP_DEPTH && current != null; i++) {
+        for (int i = 0; i < MAX_CHAIN_DEPTH && current != null; i++) {
             if (targetType.isInstance(current)) {
                 return true;
             }
