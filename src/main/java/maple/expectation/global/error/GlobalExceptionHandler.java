@@ -5,6 +5,7 @@ import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.error.dto.ErrorResponse;
 import maple.expectation.global.error.exception.base.BaseException;
+import org.springframework.cache.Cache;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -100,6 +101,11 @@ public class GlobalExceptionHandler {
             return handleBaseException(be);
         }
 
+        // 1-1. Cache.ValueRetrievalException → 내부 cause 재귀 확인
+        if (cause instanceof Cache.ValueRetrievalException cvre) {
+            return handleCacheValueRetrievalException(cvre);
+        }
+
         // 2. RejectedExecutionException → 503 + Retry-After 60초 (Issue #168)
         // 5-Agent 합의: 톰캣 스레드 보호를 위해 큐 포화 시 즉시 거부 후 503 반환
         if (cause instanceof RejectedExecutionException) {
@@ -137,6 +143,34 @@ public class GlobalExceptionHandler {
                 .status(HttpStatus.SERVICE_UNAVAILABLE)
                 .header("Retry-After", String.valueOf(retryAfterSeconds))
                 .body(body);
+    }
+
+    // ==================== Cache.ValueRetrievalException 처리 ====================
+
+    /**
+     * Spring Cache Callable 내부 예외 unwrap 처리
+     *
+     * <p>TieredCache.get(key, Callable)에서 Callable 내부 예외 발생 시
+     * Spring이 {@link Cache.ValueRetrievalException}으로 래핑합니다.
+     * 비동기 파이프라인에서는 CompletionException도 벗겨진 후 이 예외가 도달합니다.</p>
+     *
+     * <h4>처리 순서</h4>
+     * <ol>
+     *   <li>cause가 BaseException → handleBaseException으로 위임 (404 등)</li>
+     *   <li>그 외 → 500 Internal Server Error</li>
+     * </ol>
+     */
+    @ExceptionHandler(Cache.ValueRetrievalException.class)
+    protected ResponseEntity<ErrorResponse> handleCacheValueRetrievalException(
+            Cache.ValueRetrievalException e) {
+        Throwable cause = e.getCause();
+
+        if (cause instanceof BaseException be) {
+            return handleBaseException(be);
+        }
+
+        log.error("Cache value retrieval failure: ", e);
+        return ErrorResponse.toResponseEntity(CommonErrorCode.INTERNAL_SERVER_ERROR);
     }
 
     // ==================== Issue #168: Executor 관련 예외 처리 ====================

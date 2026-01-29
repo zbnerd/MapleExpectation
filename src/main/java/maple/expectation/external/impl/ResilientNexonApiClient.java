@@ -11,6 +11,7 @@ import maple.expectation.external.NexonApiClient;
 import maple.expectation.external.dto.v2.CharacterBasicResponse;
 import maple.expectation.external.dto.v2.CharacterOcidResponse;
 import maple.expectation.external.dto.v2.EquipmentResponse;
+import maple.expectation.global.error.exception.CharacterNotFoundException;
 import maple.expectation.global.error.exception.EquipmentDataProcessingException;
 import maple.expectation.global.error.exception.ExternalServiceException;
 import maple.expectation.global.error.exception.marker.CircuitBreakerIgnoreMarker;
@@ -21,6 +22,8 @@ import maple.expectation.service.v2.alert.DiscordAlertService;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
+
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -112,10 +115,18 @@ public class ResilientNexonApiClient implements NexonApiClient {
     /**
      * 캐릭터 기본 정보 조회 fallback (비동기)
      *
-     * <p>캐릭터 기본 정보는 DB에 캐싱되지 않으므로 단순 실패 처리</p>
+     * <p>Nexon API 4xx 응답(유효하지 않은 OCID 등)은 캐릭터 미존재로 처리</p>
      */
     public CompletableFuture<CharacterBasicResponse> getCharacterBasicFallback(String ocid, Throwable t) {
         handleIgnoreMarker(t);
+
+        Throwable root = unwrapAsyncException(t);
+        if (root instanceof WebClientResponseException wce && wce.getStatusCode().is4xxClientError()) {
+            log.warn("[Resilience] Character basic 조회 4xx - 캐릭터 미존재 처리. ocid={}, status={}",
+                    ocid, wce.getStatusCode());
+            return CompletableFuture.failedFuture(new CharacterNotFoundException(ocid));
+        }
+
         log.error("[Resilience] Character basic 최종 조회 실패. ocid={}", ocid, t);
         return CompletableFuture.failedFuture(new ExternalServiceException(SERVICE_NEXON, t));
     }

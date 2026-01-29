@@ -113,11 +113,11 @@ public class LikeRelationSyncService {
                         return null;
                     }
 
-                    String fingerprint = parts[0];
+                    String accountId = parts[0];
                     String targetOcid = parts[1];
 
                     // DB 저장 시도
-                    saveToDatabase(fingerprint, targetOcid);
+                    saveToDatabase(accountId, targetOcid);
                     successCount.incrementAndGet();
 
                     return null;
@@ -138,13 +138,13 @@ public class LikeRelationSyncService {
         );
     }
 
-    private void saveToDatabase(String fingerprint, String targetOcid) {
+    private void saveToDatabase(String accountId, String targetOcid) {
         // 사전 체크로 불필요한 INSERT 방지
-        if (characterLikeRepository.existsByTargetOcidAndLikerFingerprint(targetOcid, fingerprint)) {
+        if (characterLikeRepository.existsByTargetOcidAndLikerAccountId(targetOcid, accountId)) {
             throw new DataIntegrityViolationException("Already exists");
         }
 
-        CharacterLike like = CharacterLike.of(targetOcid, fingerprint);
+        CharacterLike like = CharacterLike.of(targetOcid, accountId);
         characterLikeRepository.save(like);
     }
 

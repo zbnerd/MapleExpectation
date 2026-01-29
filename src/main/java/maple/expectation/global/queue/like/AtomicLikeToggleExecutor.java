@@ -46,9 +46,10 @@ public class AtomicLikeToggleExecutor {
      *
      * <p>KEYS[1] = {likes}:relations (SET)
      * KEYS[2] = {likes}:relations:pending (SET)
-     * KEYS[3] = {likes}:buffer (HASH)</p>
+     * KEYS[3] = {likes}:buffer (HASH)
+     * KEYS[4] = {likes}:relations:unliked (SET)</p>
      *
-     * <p>ARGV[1] = relationKey (fingerprint:targetOcid)
+     * <p>ARGV[1] = relationKey (accountId:targetOcid)
      * ARGV[2] = userIgn (HASH field for counter)</p>
      *
      * <p>Returns: {action, newDelta}
@@ -62,6 +63,7 @@ public class AtomicLikeToggleExecutor {
             local relations_key = KEYS[1]
             local pending_key   = KEYS[2]
             local buffer_key    = KEYS[3]
+            local unliked_key   = KEYS[4]
             local relation_val  = ARGV[1]
             local user_ign      = ARGV[2]
 
@@ -72,12 +74,14 @@ public class AtomicLikeToggleExecutor {
                 -- Currently liked -> UNLIKE (remove + decrement)
                 redis.call('SREM', relations_key, relation_val)
                 redis.call('SREM', pending_key, relation_val)
+                redis.call('SADD', unliked_key, relation_val)
                 local new_delta = redis.call('HINCRBY', buffer_key, user_ign, -1)
                 return {-1, new_delta}
             else
                 -- Not liked -> LIKE (add + increment)
                 redis.call('SADD', relations_key, relation_val)
                 redis.call('SADD', pending_key, relation_val)
+                redis.call('SREM', unliked_key, relation_val)
                 local new_delta = redis.call('HINCRBY', buffer_key, user_ign, 1)
                 return {1, new_delta}
             end
@@ -127,6 +131,7 @@ public class AtomicLikeToggleExecutor {
     private final String relationsKey;
     private final String pendingKey;
     private final String bufferKey;
+    private final String unlikedKey;
 
     /** Lua Script SHA 캐싱 */
     private final AtomicReference<String> toggleSha = new AtomicReference<>();
@@ -141,9 +146,10 @@ public class AtomicLikeToggleExecutor {
         this.relationsKey = RedisKey.LIKE_RELATIONS.getKey();
         this.pendingKey = RedisKey.LIKE_RELATIONS_PENDING.getKey();
         this.bufferKey = RedisKey.LIKE_BUFFER.getKey();
+        this.unlikedKey = RedisKey.LIKE_RELATIONS_UNLIKED.getKey();
 
-        log.info("[AtomicLikeToggle] Initialized with keys: {}, {}, {}",
-                relationsKey, pendingKey, bufferKey);
+        log.info("[AtomicLikeToggle] Initialized with keys: {}, {}, {}, {}",
+                relationsKey, pendingKey, bufferKey, unlikedKey);
     }
 
     /**
@@ -152,13 +158,13 @@ public class AtomicLikeToggleExecutor {
      * <p>단일 Lua Script로 CHECK + ACT을 원자적으로 수행합니다.
      * Race condition이 구조적으로 불가능합니다.</p>
      *
-     * @param fingerprint 좋아요를 누른 계정의 fingerprint
-     * @param targetOcid  대상 캐릭터의 OCID
-     * @param userIgn     대상 캐릭터 닉네임 (카운터 키)
+     * @param accountId 좋아요를 누른 계정의 캐릭터명
+     * @param targetOcid   대상 캐릭터의 OCID
+     * @param userIgn      대상 캐릭터 닉네임 (카운터 키)
      * @return 토글 결과 (liked, newDelta), Redis 장애 시 null
      */
-    public ToggleResult toggle(String fingerprint, String targetOcid, String userIgn) {
-        String relationKey = fingerprint + ":" + targetOcid;
+    public ToggleResult toggle(String accountId, String targetOcid, String userIgn) {
+        String relationKey = accountId + ":" + targetOcid;
         TaskContext context = TaskContext.of("LikeToggle", "Atomic", userIgn);
 
         return executor.executeOrDefault(
@@ -199,7 +205,7 @@ public class AtomicLikeToggleExecutor {
                 RScript.Mode.READ_WRITE,
                 sha,
                 RScript.ReturnType.MULTI,
-                List.of(relationsKey, pendingKey, bufferKey),
+                List.of(relationsKey, pendingKey, bufferKey, unlikedKey),
                 relationKey, userIgn
         );
     }
@@ -213,7 +219,7 @@ public class AtomicLikeToggleExecutor {
                 RScript.Mode.READ_WRITE,
                 sha,
                 RScript.ReturnType.MULTI,
-                List.of(relationsKey, pendingKey, bufferKey),
+                List.of(relationsKey, pendingKey, bufferKey, unlikedKey),
                 relationKey, userIgn
         );
     }

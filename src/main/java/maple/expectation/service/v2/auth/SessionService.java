@@ -32,14 +32,16 @@ public class SessionService {
      * 새 세션을 생성합니다.
      *
      * @param fingerprint API Key의 HMAC-SHA256 해시
+     * @param userIgn     로그인 캐릭터명
+     * @param accountId   넥슨 계정 식별자 (좋아요 중복 판별 키)
      * @param apiKey      Nexon API Key
      * @param myOcids     사용자가 소유한 캐릭터 OCID 목록
      * @param role        권한 (USER 또는 ADMIN)
      * @return 생성된 세션
      */
-    public Session createSession(String fingerprint, String apiKey, Set<String> myOcids, String role) {
+    public Session createSession(String fingerprint, String userIgn, String accountId, String apiKey, Set<String> myOcids, String role) {
         String sessionId = UUID.randomUUID().toString();
-        Session session = Session.create(sessionId, fingerprint, apiKey, myOcids, role);
+        Session session = Session.create(sessionId, fingerprint, userIgn, accountId, apiKey, myOcids, role);
 
         sessionRepository.save(session);
         log.info("Session created: sessionId={}, role={}", sessionId, role);

@@ -323,6 +323,7 @@ app:
     redis:
       enabled: false  # prod 프로필에서 true로 설정
 
+
 # Thread Pool 설정 외부화 (P1-1)
 executor:
   equipment:
