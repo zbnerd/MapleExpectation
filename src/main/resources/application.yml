@@ -196,6 +196,12 @@ springdoc:
   default-consumes-media-type: application/json
   default-produces-media-type: application/json
 
+# Cache Invalidation 설정 (Issue #278: L1 Cache Coherence)
+cache:
+  invalidation:
+    pubsub:
+      enabled: true  # Scale-out 환경 L1 캐시 무효화 Pub/Sub 활성화
+
 # Like Sync 설정 (Issue #147: Redis 원자성, Issue #48: 청킹)
 like:
   sync:

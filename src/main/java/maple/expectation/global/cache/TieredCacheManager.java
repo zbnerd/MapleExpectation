@@ -3,7 +3,9 @@ package maple.expectation.global.cache;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.global.cache.invalidation.CacheInvalidationEvent;
 import maple.expectation.global.executor.LogicExecutor;
 import org.redisson.api.RedissonClient;
 import org.springframework.cache.Cache;
@@ -14,6 +16,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Consumer;
 
 /**
  * 2계층 캐시 매니저 (L1: Caffeine, L2: Redis)
@@ -50,6 +53,21 @@ public class TieredCacheManager extends AbstractCacheManager {
      */
     private final ConcurrentMap<String, Cache> cachePool = new ConcurrentHashMap<>();
 
+    /**
+     * Issue #278 (P0-2): Scale-out Pub/Sub Self-skip용 인스턴스 ID
+     * <p>TieredCache는 Spring Bean이 아니므로 @Value 주입 불가 → Manager에서 주입받아 전달</p>
+     */
+    @Setter
+    private String instanceId = "unknown";
+
+    /**
+     * Issue #278 (P0-4): 캐시 무효화 이벤트 콜백
+     * <p>기본값: NO-OP Consumer (Feature Flag off 시 NPE 방지)</p>
+     * <p>CacheInvalidationConfig에서 @PostConstruct로 실제 Publisher 연결</p>
+     */
+    @Setter
+    private Consumer<CacheInvalidationEvent> invalidationCallback = event -> { };
+
     @Override
     protected Collection<? extends Cache> loadCaches() {
         return List.of();
@@ -71,6 +89,10 @@ public class TieredCacheManager extends AbstractCacheManager {
 
     /**
      * TieredCache 인스턴스 생성 (최초 1회만 호출됨)
+     *
+     * <h4>Issue #278: Cache Coherence 지원</h4>
+     * <p>instanceId와 invalidationCallback을 TieredCache에 전달하여
+     * evict()/clear() 시 다른 인스턴스의 L1 캐시도 무효화</p>
      */
     private Cache createTieredCache(String name) {
         Cache l1 = l1Manager.getCache(name);
@@ -78,8 +100,8 @@ public class TieredCacheManager extends AbstractCacheManager {
 
         log.debug("[TieredCacheManager] Creating TieredCache instance: name={}", name);
 
-        // Issue #148: TieredCache에 RedissonClient, MeterRegistry 전달
-        return new TieredCache(l1, l2, executor, redissonClient, meterRegistry);
+        // Issue #148 + #278: TieredCache에 RedissonClient, MeterRegistry, instanceId, callback 전달
+        return new TieredCache(l1, l2, executor, redissonClient, meterRegistry, instanceId, invalidationCallback);
     }
 
     /**

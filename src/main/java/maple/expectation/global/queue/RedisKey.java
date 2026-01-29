@@ -143,7 +143,20 @@ public enum RedisKey {
      * <p>Scale-out 환경에서 인스턴스 간 L1 캐시 무효화 이벤트 전파</p>
      * <p>Hash Tag {likes}로 같은 슬롯 배치</p>
      */
-    LIKE_EVENTS_TOPIC("{likes}:events");
+    LIKE_EVENTS_TOPIC("{likes}:events"),
+
+    // ============================================================
+    // Cache Invalidation (Issue #278: L1 Cache Coherence)
+    // ============================================================
+
+    /**
+     * 캐시 무효화 Pub/Sub 토픽
+     * <p>Scale-out 환경에서 TieredCache L1(Caffeine) 캐시 무효화 이벤트 전파</p>
+     * <p>Hash Tag {cache}로 좋아요 이벤트와 분리</p>
+     *
+     * @see maple.expectation.global.cache.invalidation.CacheInvalidationEvent
+     */
+    CACHE_INVALIDATION_TOPIC("{cache}:invalidation");
 
     private final String key;
 
