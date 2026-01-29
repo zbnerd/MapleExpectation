@@ -1,6 +1,5 @@
 package maple.expectation.service.v2;
 
-import io.github.resilience4j.retry.Retry;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -58,7 +57,6 @@ class LikeSyncServiceTest {
     @Mock private DistributionSummary mockSummary;
     @Mock private ApplicationEventPublisher eventPublisher;
 
-    private final Retry likeSyncRetry = Retry.ofDefaults("testRetry");
     private static final String SOURCE_KEY = "{buffer:likes}";
 
     @BeforeEach
@@ -127,7 +125,6 @@ class LikeSyncServiceTest {
                 syncExecutor,
                 redisTemplate,
                 redisBufferRepository,
-                likeSyncRetry,
                 shutdownDataPersistenceService,
                 executor,
                 atomicFetchStrategy,

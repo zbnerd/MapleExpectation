@@ -4,13 +4,13 @@ import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.input.Prompt;
 import dev.langchain4j.model.input.PromptTemplate;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.monitoring.context.SystemContextProvider;
 import maple.expectation.monitoring.security.PiiMaskingFilter;
 import maple.expectation.monitoring.throttle.AlertThrottler;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
@@ -19,7 +19,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
 
 /**
  * AI SRE 분석 서비스 (Issue #251)
@@ -51,7 +50,6 @@ import java.util.concurrent.Executors;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 @ConditionalOnProperty(name = "ai.sre.enabled", havingValue = "true")
 public class AiSreService {
 
@@ -60,9 +58,22 @@ public class AiSreService {
     private final PiiMaskingFilter piiFilter;
     private final AlertThrottler throttler;
     private final LogicExecutor executor;
+    private final Executor aiTaskExecutor;
 
-    // [P0-Green] Virtual Thread Executor for LLM 지연 격리
-    private final Executor aiExecutor = Executors.newVirtualThreadPerTaskExecutor();
+    public AiSreService(
+            ChatModel chatModel,
+            SystemContextProvider contextProvider,
+            PiiMaskingFilter piiFilter,
+            AlertThrottler throttler,
+            LogicExecutor executor,
+            @Qualifier("aiTaskExecutor") Executor aiTaskExecutor) {
+        this.chatModel = chatModel;
+        this.contextProvider = contextProvider;
+        this.piiFilter = piiFilter;
+        this.throttler = throttler;
+        this.executor = executor;
+        this.aiTaskExecutor = aiTaskExecutor;
+    }
 
     @Value("${ai.sre.enabled:false}")
     private boolean aiEnabled;
@@ -108,7 +119,7 @@ public class AiSreService {
     public CompletableFuture<Optional<AiAnalysisResult>> analyzeErrorAsync(Throwable exception) {
         return CompletableFuture.supplyAsync(
                 () -> analyzeError(exception),
-                aiExecutor
+                aiTaskExecutor
         );
     }
 
@@ -170,7 +181,7 @@ public class AiSreService {
      * Fallback: 규칙 기반 분석 (Circuit Breaker Open 또는 LLM 실패 시)
      */
     @SuppressWarnings("unused")
-    private Optional<AiAnalysisResult> fallbackAnalysis(Throwable exception, Throwable cause) {
+    Optional<AiAnalysisResult> fallbackAnalysis(Throwable exception, Throwable cause) {
         log.warn("[AiSre] LLM 분석 실패, 규칙 기반 분석으로 전환: {}", cause.getMessage());
 
         String errorType = exception.getClass().getSimpleName();

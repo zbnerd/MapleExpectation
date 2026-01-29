@@ -5,6 +5,7 @@ import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.error.dto.ErrorResponse;
 import maple.expectation.global.error.exception.base.BaseException;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import org.springframework.cache.Cache;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -194,6 +195,22 @@ public class GlobalExceptionHandler {
     protected ResponseEntity<ErrorResponse> handleRejectedExecution(RejectedExecutionException e) {
         log.warn("Task rejected (executor queue full - direct throw): {}", e.getMessage());
         return buildServiceUnavailableResponse(60);  // 60초 후 재시도 권장
+    }
+
+    // ==================== CircuitBreaker OPEN 처리 (P1-8) ====================
+
+    /**
+     * [P1-8] CircuitBreaker OPEN 시 503 + Retry-After 반환
+     *
+     * <p>동기 경로에서 CB가 OPEN 상태일 때 CallNotPermittedException이 발생합니다.
+     * CompletionException 래핑 없이 직접 발생하므로 전용 핸들러가 필요합니다.</p>
+     *
+     * @return 503 Service Unavailable + Retry-After 30초
+     */
+    @ExceptionHandler(CallNotPermittedException.class)
+    protected ResponseEntity<ErrorResponse> handleCallNotPermitted(CallNotPermittedException e) {
+        log.warn("[CircuitBreaker] Call not permitted (circuit OPEN): {}", e.getMessage());
+        return buildServiceUnavailableResponse(30);
     }
 
     // ==================== Issue #151: Bean Validation 처리 ====================

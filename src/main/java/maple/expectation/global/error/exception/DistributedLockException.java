@@ -14,6 +14,6 @@ public class DistributedLockException extends ServerBaseException implements Cir
     }
 
     public DistributedLockException(String lockKey, Throwable cause) {
-        super(CommonErrorCode.DATABASE_TRANSACTION_FAILURE, "락 시도 중 오류: " + lockKey);
+        super(CommonErrorCode.DATABASE_TRANSACTION_FAILURE, cause, "락 시도 중 오류: " + lockKey);
     }
 }

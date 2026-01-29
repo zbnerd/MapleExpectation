@@ -29,8 +29,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.RejectedExecutionHandler;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -172,7 +174,7 @@ public class ExecutorConfig {
 
     @Bean
     public LoggingPolicy loggingPolicy(ExecutorLoggingProperties props) {
-        return new LoggingPolicy(props.getSlowMs());
+        return new LoggingPolicy(props.slowMs());
     }
 
     @Bean
@@ -348,6 +350,47 @@ public class ExecutorConfig {
         ).bindTo(meterRegistry);
 
         return executor;
+    }
+
+    // ==================== AI Task Executor (P0-1: Semaphore 제한 Virtual Thread) ====================
+
+    /**
+     * AI LLM 호출 전용 Executor (P0-1: 무제한 Virtual Thread → Semaphore 제한)
+     *
+     * <h4>문제</h4>
+     * <p>AiSreService에서 Executors.newVirtualThreadPerTaskExecutor()를 인스턴스 필드로 직접 생성.
+     * Bean이 아니므로 관리 불가, 동시성 무제한으로 대량 에러 시 수백 LLM 호출 → OOM 위험.</p>
+     *
+     * <h4>해결</h4>
+     * <ul>
+     *   <li>Semaphore(5)로 동시 LLM 호출 최대 5개 제한</li>
+     *   <li>Virtual Thread 사용으로 I/O 대기 시 효율적</li>
+     *   <li>Spring Bean으로 관리하여 라이프사이클 추적 가능</li>
+     * </ul>
+     */
+    @Bean(name = "aiTaskExecutor")
+    public Executor aiTaskExecutor() {
+        Semaphore semaphore = new Semaphore(5);
+        Executor virtualThreadExecutor = Executors.newVirtualThreadPerTaskExecutor();
+
+        return runnable -> virtualThreadExecutor.execute(() -> {
+            boolean acquired = false;
+            try {
+                acquired = semaphore.tryAcquire(10, TimeUnit.SECONDS);
+                if (!acquired) {
+                    log.warn("[AiTaskExecutor] Semaphore timeout - LLM 호출 동시성 한도 초과");
+                    throw new RejectedExecutionException("AI task executor semaphore timeout");
+                }
+                runnable.run();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RejectedExecutionException("AI task executor interrupted", e);
+            } finally {
+                if (acquired) {
+                    semaphore.release();
+                }
+            }
+        });
     }
 
     // ==================== Expectation compute 데드라인용 전용 Executor ====================

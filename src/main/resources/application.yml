@@ -79,6 +79,7 @@ resilience4j:
         baseConfig: default
         minimumNumberOfCalls: 10        # 최소 10번 호출 후 통계 산출 (Red Agent P1 Fix)
       likeSyncDb:  # Issue #48: Like Sync DB Batch Update 전용 Circuit Breaker
+        baseConfig: default
         slidingWindowSize: 5            # 최근 5번의 청크 처리 기준
         failureRateThreshold: 60        # 60% 실패율에서 Open
         waitDurationInOpenState: 30s    # Open 후 30초 대기 (DB 복구 시간 확보)
@@ -96,14 +97,20 @@ resilience4j:
           - org.redisson.client.RedisException
           - org.redisson.client.RedisTimeoutException
           - java.util.concurrent.TimeoutException
-          - maple.expectation.global.error.exception.DistributedLockException
       openAiApi:  # [P0-Red] Issue #251: OpenAI API Circuit Breaker
+        baseConfig: default
         slidingWindowSize: 10
         failureRateThreshold: 50
         waitDurationInOpenState: 60s       # LLM 복구 시간 확보
         minimumNumberOfCalls: 5
         permittedNumberOfCallsInHalfOpenState: 3
         registerHealthIndicator: true
+
+  bulkhead:
+    instances:
+      nexonApi:
+        maxConcurrentCalls: 50          # 동시 Nexon API 호출 최대 50개
+        maxWaitDuration: 500ms          # 대기 최대 500ms
 
   retry:
     retry-aspect-order: 399 # Retry가 CircuitBreaker를 감싸도록 설정
@@ -117,6 +124,15 @@ resilience4j:
           - org.springframework.web.reactive.function.client.WebClientRequestException # 네트워크 단절 대응
           - java.net.UnknownHostException
           - maple.expectation.global.error.exception.ExternalServiceException  # Issue #202: 외부 서비스 장애 시 재시도
+      likeSyncRetry:  # P1-2: ResilienceConfig → YAML 이관
+        maxAttempts: 3             # 최대 3번 시도 (처음 1번 + 재시도 2번)
+        waitDuration: 1s           # 1초부터 시작
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2.0
+        retryExceptions:           # P1-9: 명시적 재시도 대상 (LikeSyncCircuitOpenException 제외)
+          - org.springframework.dao.DataAccessException
+          - org.springframework.jdbc.BadSqlGrammarException
+          - java.sql.SQLException
       nexonLockRetry:
         maxAttempts: 5             # 최대 5번 시도 (락 경합이 심할 때를 대비해 조금 넓넉히)
         waitDuration: 200ms        # 0.2초 간격으로 다시 시도
