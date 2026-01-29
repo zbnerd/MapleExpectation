@@ -4,8 +4,8 @@ import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.common.function.ThrowingSupplier;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.global.executor.function.ThrowingRunnable;
+import maple.expectation.global.util.InterruptUtils;
 
-import java.io.InterruptedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -45,7 +45,6 @@ import java.util.Objects;
 public class ExecutionPipeline {
 
     private static final int MAX_NESTING_DEPTH = 32;
-    private static final int MAX_CAUSE_CHAIN_DEPTH = 32;
 
     /**
      * V5 Stateless Architecture 검증 완료 (#271):
@@ -121,7 +120,7 @@ public class ExecutionPipeline {
                     }
                 }
             } catch (Throwable t) {
-                restoreInterruptIfNeeded(t);
+                InterruptUtils.restoreInterruptIfNeeded(t);
                 primary = t; // BEFORE PROPAGATE 실패 시 task 미실행
                 // onFailure는 BEFORE PROPAGATE 실패 시 호출하지 않음 (PRD 표 8.1)
             }
@@ -138,7 +137,7 @@ public class ExecutionPipeline {
                     taskOutcome = ExecutionOutcome.SUCCESS;
 
                 } catch (Throwable t) {
-                    restoreInterruptIfNeeded(t);
+                    InterruptUtils.restoreInterruptIfNeeded(t);
 
                     // elapsed 계산 (task 실패/Error 포함)
                     if (taskStarted && elapsedNanos == null) {
@@ -195,7 +194,7 @@ public class ExecutionPipeline {
                     primary = promoteError(primary, err);
                     // Error여도 after unwind 계속 수행 (PRD 4.3)
                 } catch (Throwable afterEx) {
-                    restoreInterruptIfNeeded(afterEx);
+                    InterruptUtils.restoreInterruptIfNeeded(afterEx);
 
                     if (primary != null) {
                         // 실패 경로: after 실패는 suppressed로만 보존
@@ -260,7 +259,7 @@ public class ExecutionPipeline {
         } catch (Error e) {
             throw e;
         } catch (Throwable t) {
-            restoreInterruptIfNeeded(t);
+            InterruptUtils.restoreInterruptIfNeeded(t);
             log.warn("[Policy:BEFORE] failed. policy={}, taskName={}", policyName(slot.policy()), taskName, t);
 
             if (slot.mode() == FailureMode.PROPAGATE) {
@@ -276,7 +275,7 @@ public class ExecutionPipeline {
         } catch (Error err) {
             throw err;
         } catch (Throwable t) {
-            restoreInterruptIfNeeded(t);
+            InterruptUtils.restoreInterruptIfNeeded(t);
             log.warn("[Policy:ON_SUCCESS] failed. policy={}, taskName={}", policyName(slot.policy()), taskName, t);
             // non-Error는 always swallow
         }
@@ -290,7 +289,7 @@ public class ExecutionPipeline {
         } catch (Error err) {
             throw err;
         } catch (Throwable t) {
-            restoreInterruptIfNeeded(t);
+            InterruptUtils.restoreInterruptIfNeeded(t);
             log.warn("[Policy:ON_FAILURE] failed. policy={}, taskName={}", policyName(slot.policy()), taskName, t);
             // 관측 훅 실패는 원인 추적 위해 cause에 suppressed로 보존
             addSuppressedSafely(cause, t);
@@ -303,7 +302,7 @@ public class ExecutionPipeline {
         } catch (Error err) {
             throw err;
         } catch (Throwable t) {
-            restoreInterruptIfNeeded(t);
+            InterruptUtils.restoreInterruptIfNeeded(t);
             log.warn("[Policy:AFTER] failed. policy={}, taskName={}", policyName(slot.policy()), taskName, t);
 
             if (slot.mode() == FailureMode.PROPAGATE) {
@@ -323,19 +322,6 @@ public class ExecutionPipeline {
 
         addSuppressedSafely(newError, currentPrimary);
         return newError;
-    }
-
-    private void restoreInterruptIfNeeded(Throwable t) {
-        if (t == null) return;
-
-        Throwable cur = t;
-        for (int i = 0; i < MAX_CAUSE_CHAIN_DEPTH && cur != null; i++) {
-            if (cur instanceof InterruptedException || cur instanceof InterruptedIOException) {
-                Thread.currentThread().interrupt();
-                return;
-            }
-            cur = cur.getCause();
-        }
     }
 
     private void addSuppressedSafely(Throwable primary, Throwable suppressed) {

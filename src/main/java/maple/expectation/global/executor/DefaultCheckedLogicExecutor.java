@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.executor.function.CheckedRunnable;
 import maple.expectation.global.executor.function.CheckedSupplier;
 import maple.expectation.global.executor.policy.ExecutionPipeline;
+import maple.expectation.global.util.InterruptUtils;
 
 import java.util.Objects;
 import java.util.function.Function;
@@ -49,10 +50,10 @@ public class DefaultCheckedLogicExecutor implements CheckedLogicExecutor {
             throw e;
         } catch (RuntimeException re) {
             // RuntimeException도 cause chain에 InterruptedException이 있으면 복원
-            restoreInterruptIfNeeded(re);
+            InterruptUtils.restoreInterruptIfNeeded(re);
             throw re;
         } catch (Exception e) {
-            restoreInterruptIfNeeded(e);
+            InterruptUtils.restoreInterruptIfNeeded(e);
             throw e;
         } catch (Throwable t) {
             throw new IllegalStateException(
@@ -85,7 +86,7 @@ public class DefaultCheckedLogicExecutor implements CheckedLogicExecutor {
             // RuntimeException → 그대로 throw (이미 unchecked)
             // cause chain에 InterruptedException이 있으면 복원
             if (t instanceof RuntimeException re) {
-                restoreInterruptIfNeeded(re);
+                InterruptUtils.restoreInterruptIfNeeded(re);
                 throw re;
             }
 
@@ -97,7 +98,7 @@ public class DefaultCheckedLogicExecutor implements CheckedLogicExecutor {
             }
 
             // Exception → mapper로 변환
-            restoreInterruptIfNeeded(ex);
+            InterruptUtils.restoreInterruptIfNeeded(ex);
             throw applyMapper(mapper, ex);
         }
     }
@@ -138,8 +139,13 @@ public class DefaultCheckedLogicExecutor implements CheckedLogicExecutor {
             try {
                 finalizer.run();
             } catch (Throwable ft) {
-                // ★ Must-fix: finalizer Error는 즉시 throw (suppressed 누적 금지)
-                if (ft instanceof Error e) throw e;
+                // finalizer Error는 즉시 throw, task primary는 suppressed로 보존 (P1-6)
+                if (ft instanceof Error e) {
+                    if (primary != null) {
+                        safeAddSuppressed(e, primary);
+                    }
+                    throw e;
+                }
 
                 if (primary == null) {
                     primary = ft;
@@ -160,13 +166,13 @@ public class DefaultCheckedLogicExecutor implements CheckedLogicExecutor {
         // RuntimeException → 그대로 throw
         // cause chain에 InterruptedException이 있으면 복원
         if (primary instanceof RuntimeException re) {
-            restoreInterruptIfNeeded(re);
+            InterruptUtils.restoreInterruptIfNeeded(re);
             throw re;
         }
 
         // Exception → mapper 변환 + suppressed 이관
         if (primary instanceof Exception ex) {
-            restoreInterruptIfNeeded(ex);
+            InterruptUtils.restoreInterruptIfNeeded(ex);
             RuntimeException mapped = applyMapper(mapper, ex);
             copySuppressed(ex, mapped);
             throw mapped;
@@ -244,40 +250,4 @@ public class DefaultCheckedLogicExecutor implements CheckedLogicExecutor {
         }
     }
 
-    /**
-     * InterruptedException 발생 시 인터럽트 플래그 복원
-     *
-     * <p>cause chain과 suppressed 배열을 모두 순회하여 InterruptedException이 있으면
-     * Thread.currentThread().interrupt() 호출합니다.</p>
-     *
-     * <h4>suppressed 스캔 필요 이유</h4>
-     * <p>executeWithFinallyUnchecked에서 finalizer가 InterruptedException을 던지면
-     * primary의 suppressed로 합류합니다. cause chain만 스캔하면 이를 놓칩니다.</p>
-     */
-    private void restoreInterruptIfNeeded(Throwable t) {
-        if (containsInterrupted(t, 0)) {
-            Thread.currentThread().interrupt();
-            log.debug("Restored interrupt flag due to InterruptedException in throwable graph");
-        }
-    }
-
-    /**
-     * Throwable 그래프에서 InterruptedException 존재 여부 확인
-     *
-     * @param t 검사할 Throwable
-     * @param depth 현재 깊이 (무한 루프 방지)
-     * @return InterruptedException이 존재하면 true
-     */
-    private boolean containsInterrupted(Throwable t, int depth) {
-        if (t == null || depth >= 32) return false;
-        if (t instanceof InterruptedException) return true;
-
-        // suppressed 배열 스캔
-        for (Throwable s : t.getSuppressed()) {
-            if (containsInterrupted(s, depth + 1)) return true;
-        }
-
-        // cause chain 스캔
-        return containsInterrupted(t.getCause(), depth + 1);
-    }
 }

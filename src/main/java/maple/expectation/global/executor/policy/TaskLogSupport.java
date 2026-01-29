@@ -2,6 +2,8 @@ package maple.expectation.global.executor.policy;
 
 import maple.expectation.global.executor.TaskContext;
 
+import java.util.regex.Pattern;
+
 /**
  * ExecutionPolicy 로깅 유틸리티
  *
@@ -12,6 +14,7 @@ import maple.expectation.global.executor.TaskContext;
 public final class TaskLogSupport {
 
     private static final String UNKNOWN = "unknown";
+    private static final Pattern WHITESPACE = Pattern.compile("\\s+");
 
     private TaskLogSupport() {
     }
@@ -33,7 +36,7 @@ public final class TaskLogSupport {
             if (name == null) return UNKNOWN;
 
             // 제어문자/공백 정규화 (로그 파서 안정성)
-            String normalized = name.replaceAll("\\s+", " ").trim();
+            String normalized = WHITESPACE.matcher(name).replaceAll(" ").trim();
             return normalized.isEmpty() ? UNKNOWN : normalized;
         } catch (RuntimeException e) {
             Class<?> type = context.getClass();

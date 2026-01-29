@@ -27,7 +27,7 @@ package maple.expectation.global.executor.policy;
  * @Bean
  * @Order(PolicyOrder.LOGGING)
  * public LoggingPolicy loggingPolicy(ExecutorLoggingProperties props) {
- *     return new LoggingPolicy(props.getSlowMs());
+ *     return new LoggingPolicy(props.slowMs());
  * }
  * }</pre>
  *

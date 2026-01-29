@@ -12,6 +12,7 @@ import maple.expectation.global.error.exception.auth.InvalidApiKeyException;
 import maple.expectation.global.error.exception.auth.InvalidRefreshTokenException;
 import maple.expectation.global.error.exception.auth.SessionNotFoundException;
 import maple.expectation.global.error.exception.auth.TokenReusedException;
+import maple.expectation.global.security.AccountIdGenerator;
 import maple.expectation.global.security.FingerprintGenerator;
 import maple.expectation.global.security.jwt.JwtTokenProvider;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,6 +28,7 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
@@ -61,6 +63,7 @@ class AuthServiceTest {
 
     private NexonAuthClient nexonAuthClient;
     private FingerprintGenerator fingerprintGenerator;
+    private AccountIdGenerator accountIdGenerator;
     private SessionService sessionService;
     private JwtTokenProvider jwtTokenProvider;
     private AdminService adminService;
@@ -71,14 +74,19 @@ class AuthServiceTest {
     void setUp() {
         nexonAuthClient = mock(NexonAuthClient.class);
         fingerprintGenerator = mock(FingerprintGenerator.class);
+        accountIdGenerator = mock(AccountIdGenerator.class);
         sessionService = mock(SessionService.class);
         jwtTokenProvider = mock(JwtTokenProvider.class);
         adminService = mock(AdminService.class);
         refreshTokenService = mock(RefreshTokenService.class);
 
+        // AccountIdGenerator mock: 항상 "test-account-id" 반환
+        given(accountIdGenerator.generate(anySet())).willReturn("test-account-id");
+
         authService = new AuthService(
                 nexonAuthClient,
                 fingerprintGenerator,
+                accountIdGenerator,
                 sessionService,
                 jwtTokenProvider,
                 adminService,
@@ -96,13 +104,13 @@ class AuthServiceTest {
             // given
             LoginRequest request = new LoginRequest(API_KEY, USER_IGN);
             CharacterListResponse charList = createCharacterListResponse(USER_IGN, "ocid-123");
-            Session session = Session.create(SESSION_ID, FINGERPRINT, API_KEY, Set.of("ocid-123"), "USER");
+            Session session = Session.create(SESSION_ID, FINGERPRINT, USER_IGN, "test-account-id", API_KEY, Set.of("ocid-123"), "USER");
             RefreshToken refreshToken = createRefreshToken(SESSION_ID, FINGERPRINT);
 
             given(nexonAuthClient.getCharacterList(API_KEY)).willReturn(Optional.of(charList));
             given(fingerprintGenerator.generate(API_KEY)).willReturn(FINGERPRINT);
             given(adminService.isAdmin(FINGERPRINT)).willReturn(false);
-            given(sessionService.createSession(FINGERPRINT, API_KEY, Set.of("ocid-123"), "USER"))
+            given(sessionService.createSession(eq(FINGERPRINT), eq(USER_IGN), anyString(), eq(API_KEY), eq(Set.of("ocid-123")), eq("USER")))
                     .willReturn(session);
             given(jwtTokenProvider.generateToken(SESSION_ID, FINGERPRINT, "USER"))
                     .willReturn(ACCESS_TOKEN);
@@ -129,13 +137,13 @@ class AuthServiceTest {
             // given
             LoginRequest request = new LoginRequest(API_KEY, USER_IGN);
             CharacterListResponse charList = createCharacterListResponse(USER_IGN, "ocid-123");
-            Session session = Session.create(SESSION_ID, FINGERPRINT, API_KEY, Set.of("ocid-123"), "ADMIN");
+            Session session = Session.create(SESSION_ID, FINGERPRINT, USER_IGN, "test-account-id", API_KEY, Set.of("ocid-123"), "ADMIN");
             RefreshToken refreshToken = createRefreshToken(SESSION_ID, FINGERPRINT);
 
             given(nexonAuthClient.getCharacterList(API_KEY)).willReturn(Optional.of(charList));
             given(fingerprintGenerator.generate(API_KEY)).willReturn(FINGERPRINT);
             given(adminService.isAdmin(FINGERPRINT)).willReturn(true);
-            given(sessionService.createSession(FINGERPRINT, API_KEY, Set.of("ocid-123"), "ADMIN"))
+            given(sessionService.createSession(eq(FINGERPRINT), eq(USER_IGN), anyString(), eq(API_KEY), eq(Set.of("ocid-123")), eq("ADMIN")))
                     .willReturn(session);
             given(jwtTokenProvider.generateToken(SESSION_ID, FINGERPRINT, "ADMIN"))
                     .willReturn(ACCESS_TOKEN);
@@ -157,13 +165,13 @@ class AuthServiceTest {
             // given
             LoginRequest request = new LoginRequest(API_KEY, "testuser"); // 소문자
             CharacterListResponse charList = createCharacterListResponse("TestUser", "ocid-123"); // 대소문자 혼합
-            Session session = Session.create(SESSION_ID, FINGERPRINT, API_KEY, Set.of("ocid-123"), "USER");
+            Session session = Session.create(SESSION_ID, FINGERPRINT, USER_IGN, "test-account-id", API_KEY, Set.of("ocid-123"), "USER");
             RefreshToken refreshToken = createRefreshToken(SESSION_ID, FINGERPRINT);
 
             given(nexonAuthClient.getCharacterList(API_KEY)).willReturn(Optional.of(charList));
             given(fingerprintGenerator.generate(API_KEY)).willReturn(FINGERPRINT);
             given(adminService.isAdmin(FINGERPRINT)).willReturn(false);
-            given(sessionService.createSession(eq(FINGERPRINT), eq(API_KEY), anySet(), eq("USER")))
+            given(sessionService.createSession(eq(FINGERPRINT), anyString(), anyString(), eq(API_KEY), anySet(), eq("USER")))
                     .willReturn(session);
             given(jwtTokenProvider.generateToken(SESSION_ID, FINGERPRINT, "USER")).willReturn(ACCESS_TOKEN);
             given(jwtTokenProvider.getExpirationSeconds()).willReturn(EXPIRATION_SECONDS);
@@ -184,14 +192,14 @@ class AuthServiceTest {
             // given
             LoginRequest request = new LoginRequest(API_KEY, USER_IGN);
             CharacterListResponse charList = createMultiCharacterListResponse();
-            Session session = Session.create(SESSION_ID, FINGERPRINT, API_KEY,
+            Session session = Session.create(SESSION_ID, FINGERPRINT, USER_IGN, "test-account-id", API_KEY,
                     Set.of("ocid-1", "ocid-2", "ocid-3"), "USER");
             RefreshToken refreshToken = createRefreshToken(SESSION_ID, FINGERPRINT);
 
             given(nexonAuthClient.getCharacterList(API_KEY)).willReturn(Optional.of(charList));
             given(fingerprintGenerator.generate(API_KEY)).willReturn(FINGERPRINT);
             given(adminService.isAdmin(FINGERPRINT)).willReturn(false);
-            given(sessionService.createSession(eq(FINGERPRINT), eq(API_KEY), argThat(ocids ->
+            given(sessionService.createSession(eq(FINGERPRINT), eq(USER_IGN), anyString(), eq(API_KEY), argThat(ocids ->
                     ocids.size() == 3 && ocids.contains("ocid-1")), eq("USER")))
                     .willReturn(session);
             given(jwtTokenProvider.generateToken(SESSION_ID, FINGERPRINT, "USER")).willReturn(ACCESS_TOKEN);
@@ -269,7 +277,7 @@ class AuthServiceTest {
             // given
             RefreshToken oldToken = createRefreshToken(SESSION_ID, FINGERPRINT);
             RefreshToken newToken = createNewRefreshToken(SESSION_ID, FINGERPRINT);
-            Session session = Session.create(SESSION_ID, FINGERPRINT, API_KEY, Set.of("ocid-123"), "USER");
+            Session session = Session.create(SESSION_ID, FINGERPRINT, USER_IGN, "test-account-id", API_KEY, Set.of("ocid-123"), "USER");
 
             given(refreshTokenService.rotateRefreshToken(REFRESH_TOKEN_ID)).willReturn(newToken);
             given(sessionService.getSession(SESSION_ID)).willReturn(Optional.of(session));

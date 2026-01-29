@@ -75,6 +75,7 @@ class RedisLikeBufferStorageTest {
     @SuppressWarnings("unchecked")
     private void setupRedissonMocks() {
         lenient().when(redissonClient.getMap(anyString())).thenReturn((RMap) rMap);
+        lenient().when(redissonClient.getMap(anyString(), any(Codec.class))).thenReturn((RMap) rMap);
         lenient().when(redissonClient.getScript(any(Codec.class))).thenReturn(rScript);
     }
 
@@ -319,7 +320,7 @@ class RedisLikeBufferStorageTest {
 
             // Then
             assertThat(size).isEqualTo(5);
-            verify(redissonClient).getMap(anyString());
+            verify(redissonClient).getMap(anyString(), any(Codec.class));
         }
     }
 }

@@ -142,7 +142,7 @@ class JwtAuthenticationFilterTest {
         void shouldAuthenticateWithValidToken() throws Exception {
             // given
             JwtPayload payload = JwtPayload.of(SESSION_ID, FINGERPRINT, "USER", 3600L);
-            Session session = Session.create(SESSION_ID, FINGERPRINT, API_KEY, Set.of("ocid1"), "USER");
+            Session session = Session.create(SESSION_ID, FINGERPRINT, "TestUser", "test-account-id", API_KEY, Set.of("ocid1"), "USER");
 
             given(request.getHeader("Authorization")).willReturn("Bearer " + VALID_TOKEN);
             given(jwtTokenProvider.parseToken(VALID_TOKEN)).willReturn(Optional.of(payload));
@@ -166,7 +166,7 @@ class JwtAuthenticationFilterTest {
         void shouldAuthenticateAdminRole() throws Exception {
             // given
             JwtPayload payload = JwtPayload.of(SESSION_ID, FINGERPRINT, "ADMIN", 3600L);
-            Session session = Session.create(SESSION_ID, FINGERPRINT, API_KEY, Set.of("ocid1"), "ADMIN");
+            Session session = Session.create(SESSION_ID, FINGERPRINT, "TestUser", "test-account-id", API_KEY, Set.of("ocid1"), "ADMIN");
 
             given(request.getHeader("Authorization")).willReturn("Bearer " + VALID_TOKEN);
             given(jwtTokenProvider.parseToken(VALID_TOKEN)).willReturn(Optional.of(payload));
@@ -226,7 +226,7 @@ class JwtAuthenticationFilterTest {
         void shouldFailWhenFingerprintMismatch() throws Exception {
             // given
             JwtPayload payload = JwtPayload.of(SESSION_ID, "wrong-fingerprint", "USER", 3600L);
-            Session session = Session.create(SESSION_ID, FINGERPRINT, API_KEY, Set.of("ocid1"), "USER");
+            Session session = Session.create(SESSION_ID, FINGERPRINT, "TestUser", "test-account-id", API_KEY, Set.of("ocid1"), "USER");
 
             given(request.getHeader("Authorization")).willReturn("Bearer " + VALID_TOKEN);
             given(jwtTokenProvider.parseToken(VALID_TOKEN)).willReturn(Optional.of(payload));
@@ -245,7 +245,7 @@ class JwtAuthenticationFilterTest {
         void shouldFailWhenHmacVerificationFails() throws Exception {
             // given
             JwtPayload payload = JwtPayload.of(SESSION_ID, FINGERPRINT, "USER", 3600L);
-            Session session = Session.create(SESSION_ID, FINGERPRINT, API_KEY, Set.of("ocid1"), "USER");
+            Session session = Session.create(SESSION_ID, FINGERPRINT, "TestUser", "test-account-id", API_KEY, Set.of("ocid1"), "USER");
 
             given(request.getHeader("Authorization")).willReturn("Bearer " + VALID_TOKEN);
             given(jwtTokenProvider.parseToken(VALID_TOKEN)).willReturn(Optional.of(payload));

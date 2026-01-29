@@ -3,7 +3,6 @@ package maple.expectation.global.executor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.common.function.ThrowingSupplier;
-import maple.expectation.global.executor.function.ThrowingFunction;
 import maple.expectation.global.executor.function.ThrowingRunnable;
 import maple.expectation.global.executor.policy.ExecutionPipeline;
 import maple.expectation.global.executor.policy.FinallyPolicy;
@@ -148,26 +147,9 @@ public class DefaultLogicExecutor implements LogicExecutor {
         } catch (Error e) {
             throw e;
         } catch (Throwable t) {
-            throw customTranslator.translate(t, context);
-        }
-    }
-
-    @Override
-    public <T> T executeCheckedWithHandler(
-            ThrowingSupplier<T> task,
-            ThrowingFunction<Throwable, T> handler,
-            TaskContext context
-    ) throws Throwable {
-        Objects.requireNonNull(task, "task");
-        Objects.requireNonNull(handler, "recovery");
-        Objects.requireNonNull(context, "context");
-
-        try {
-            return pipeline.executeRaw(task, context);
-        } catch (Error e) {
-            throw e;
-        } catch (Throwable t) {
-            return handler.apply(t);
+            Throwable primary = translateSafe(customTranslator, t, context);
+            throwAsUnchecked(primary);
+            return unreachable();
         }
     }
 
@@ -199,6 +181,20 @@ public class DefaultLogicExecutor implements LogicExecutor {
      * - translator가 Error로 실패: Error를 primary로 삼는다.
      * - 계약 위반(Throwable): IllegalStateException으로 래핑하여 primary로 삼는다.
      */
+    /**
+     * 임의의 translator를 안전하게 호출한다 (executeWithTranslation 전용).
+     * translatePrimary와 동일한 안전 가드를 적용하되, 주입된 기본 translator 대신 커스텀 translator를 사용한다.
+     */
+    private static Throwable translateSafe(ExceptionTranslator customTranslator, Throwable t, TaskContext context) {
+        try {
+            return customTranslator.translate(t, context);
+        } catch (RuntimeException | Error ex) {
+            return ex;
+        } catch (Throwable unexpected) {
+            return new IllegalStateException(UNEXPECTED_TRANSLATOR_FAILURE, unexpected);
+        }
+    }
+
     private Throwable translatePrimary(Throwable t, TaskContext context) {
         try {
             return translator.translate(t, context); // expected: RuntimeException
@@ -244,8 +240,8 @@ public class DefaultLogicExecutor implements LogicExecutor {
         if (primary == suppressed) return;
         try {
             primary.addSuppressed(suppressed);
-        } catch (Throwable ignore) {
-            // suppressed 추가 실패는 실행 흐름을 깨지 않는다.
+        } catch (Exception ignore) {
+            // suppressed 추가 실패는 실행 흐름을 깨지 않는다 (Error는 전파)
         }
     }
 
