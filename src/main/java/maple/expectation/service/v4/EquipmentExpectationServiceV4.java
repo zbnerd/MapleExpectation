@@ -3,23 +3,15 @@ package maple.expectation.service.v4;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.aop.annotation.TraceLog;
 import maple.expectation.domain.cost.CostFormatter;
-import maple.expectation.domain.equipment.SecondaryWeaponCategory;
 import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.global.error.exception.StarforceNotInitializedException;
-import maple.expectation.dto.v4.EquipmentCalculationInput;
 import maple.expectation.dto.v4.EquipmentExpectationResponseV4;
 import maple.expectation.dto.v4.EquipmentExpectationResponseV4.CostBreakdownDto;
-import maple.expectation.dto.v4.EquipmentExpectationResponseV4.CubeExpectationDto;
-import maple.expectation.dto.v4.EquipmentExpectationResponseV4.ItemExpectationV4;
 import maple.expectation.dto.v4.EquipmentExpectationResponseV4.PresetExpectation;
-import maple.expectation.dto.v4.EquipmentExpectationResponseV4.StarforceExpectationDto;
-import maple.expectation.service.v2.starforce.config.NoljangProbabilityTable;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.parser.EquipmentStreamingParser;
 import maple.expectation.provider.EquipmentDataProvider;
-import maple.expectation.service.v2.calculator.v4.EquipmentExpectationCalculator;
-import maple.expectation.service.v2.calculator.v4.EquipmentExpectationCalculatorFactory;
 import maple.expectation.service.v2.facade.GameCharacterFacade;
 import maple.expectation.service.v2.starforce.StarforceLookupTable;
 import maple.expectation.service.v4.cache.ExpectationCacheCoordinator;
@@ -33,7 +25,6 @@ import java.util.stream.IntStream;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -43,7 +34,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * V4 장비 기대값 서비스 - Facade (P1-5: God Class 분해)
  *
- * <h3>책임: 비동기 오케스트레이션 + 계산 로직</h3>
+ * <h3>책임: 비동기 오케스트레이션</h3>
  * <ul>
  *   <li>비동기 dispatch (calculateExpectationAsync, getGzipExpectationAsync)</li>
  *   <li>캐릭터 조회 → 장비 로드 → 프리셋 계산 → 응답 빌드</li>
@@ -51,6 +42,7 @@ import java.util.concurrent.TimeUnit;
  *
  * <h3>위임된 책임</h3>
  * <ul>
+ *   <li>프리셋 계산: {@link PresetCalculationHelper}</li>
  *   <li>캐시 관리: {@link ExpectationCacheCoordinator}</li>
  *   <li>영속성: {@link ExpectationPersistenceService}</li>
  * </ul>
@@ -65,7 +57,7 @@ public class EquipmentExpectationServiceV4 {
     private final GameCharacterFacade gameCharacterFacade;
     private final EquipmentDataProvider equipmentProvider;
     private final EquipmentStreamingParser streamingParser;
-    private final EquipmentExpectationCalculatorFactory calculatorFactory;
+    private final PresetCalculationHelper presetHelper;
     private final StarforceLookupTable starforceLookupTable;
     private final LogicExecutor executor;
     private final Executor equipmentExecutor;
@@ -78,7 +70,7 @@ public class EquipmentExpectationServiceV4 {
             GameCharacterFacade gameCharacterFacade,
             EquipmentDataProvider equipmentProvider,
             EquipmentStreamingParser streamingParser,
-            EquipmentExpectationCalculatorFactory calculatorFactory,
+            PresetCalculationHelper presetHelper,
             StarforceLookupTable starforceLookupTable,
             LogicExecutor executor,
             @Qualifier("equipmentProcessingExecutor") Executor equipmentExecutor,
@@ -89,7 +81,7 @@ public class EquipmentExpectationServiceV4 {
         this.gameCharacterFacade = gameCharacterFacade;
         this.equipmentProvider = equipmentProvider;
         this.streamingParser = streamingParser;
-        this.calculatorFactory = calculatorFactory;
+        this.presetHelper = presetHelper;
         this.starforceLookupTable = starforceLookupTable;
         this.executor = executor;
         this.equipmentExecutor = equipmentExecutor;
@@ -179,7 +171,7 @@ public class EquipmentExpectationServiceV4 {
             GameCharacter character = gameCharacterFacade.findCharacterByUserIgn(userIgn);
             byte[] equipmentData = loadEquipmentDataAsync(character)
                     .join();  // TieredCache Callable 내부 → 동기 필요
-            List<PresetExpectation> presetResults = calculateAllPresets(equipmentData, character);
+            List<PresetExpectation> presetResults = calculateAllPresets(equipmentData);
             PresetExpectation maxPreset = findMaxPreset(presetResults);
             persistenceService.saveResults(character.getId(), presetResults);
             return buildResponse(userIgn, maxPreset, presetResults, false);
@@ -229,12 +221,15 @@ public class EquipmentExpectationServiceV4 {
 
     // ==================== Preset Calculation ====================
 
-    private List<PresetExpectation> calculateAllPresets(byte[] equipmentData, GameCharacter character) {
+    private List<PresetExpectation> calculateAllPresets(byte[] equipmentData) {
         byte[] decompressedData = streamingParser.decompressIfNeeded(equipmentData);
 
         List<CompletableFuture<PresetExpectation>> futures = IntStream.rangeClosed(1, 3)
                 .mapToObj(presetNo -> CompletableFuture.supplyAsync(
-                        () -> calculatePreset(decompressedData, presetNo),
+                        () -> {
+                            var cubeInputs = streamingParser.parseCubeInputsForPreset(decompressedData, presetNo);
+                            return presetHelper.calculatePreset(cubeInputs, presetNo);
+                        },
                         presetExecutor
                 ))
                 .toList();
@@ -250,195 +245,5 @@ public class EquipmentExpectationServiceV4 {
                 () -> future.get(ASYNC_TIMEOUT_SECONDS, TimeUnit.SECONDS),
                 TaskContext.of("V4", "PresetJoin")
         );
-    }
-
-    private PresetExpectation calculatePreset(byte[] equipmentData, int presetNo) {
-        var cubeInputs = streamingParser.parseCubeInputsForPreset(equipmentData, presetNo);
-
-        List<ItemExpectationV4> itemResults = new ArrayList<>();
-        BigDecimal totalCost = BigDecimal.ZERO;
-        CostBreakdownDto totalBreakdown = CostBreakdownDto.empty();
-
-        for (var cubeInput : cubeInputs) {
-            if (!cubeInput.isReady()) {
-                itemResults.add(buildNoPotentialItem(cubeInput, presetNo));
-                continue;
-            }
-
-            boolean isNoljang = cubeInput.isNoljangEquipment();
-            int parsedStarforce = cubeInput.getStarforce();
-            int targetStar = isNoljang
-                    ? Math.min(parsedStarforce, NoljangProbabilityTable.MAX_NOLJANG_STAR)
-                    : parsedStarforce;
-
-            String potentialPart = SecondaryWeaponCategory.resolvePotentialPart(
-                    cubeInput.getPart(), cubeInput.getItemEquipmentPart());
-
-            EquipmentCalculationInput input = EquipmentCalculationInput.builder()
-                    .itemName(cubeInput.getItemName())
-                    .itemPart(potentialPart)
-                    .itemEquipmentPart(cubeInput.getItemEquipmentPart())
-                    .itemIcon(cubeInput.getItemIcon())
-                    .itemLevel(cubeInput.getLevel())
-                    .presetNo(presetNo)
-                    .isNoljang(isNoljang)
-                    .potentialGrade(cubeInput.getGrade())
-                    .potentialOptions(cubeInput.getOptions())
-                    .additionalPotentialGrade(cubeInput.getAdditionalGrade())
-                    .additionalPotentialOptions(cubeInput.getAdditionalOptions())
-                    .currentStar(0)
-                    .targetStar(targetStar)
-                    .build();
-
-            EquipmentExpectationCalculator calculator = calculatorFactory.createFullCalculator(input);
-            BigDecimal itemCost = calculator.calculateCost();
-            var costBreakdown = calculator.getDetailedCosts();
-
-            StarforceExpectationDto starforceExpectation = calculateStarforceExpectation(
-                    input.getCurrentStar(), input.getTargetStar(), input.getItemLevel(), isNoljang);
-
-            String potentialText = formatPotentialOptions(input.getPotentialOptions());
-            String additionalPotentialText = formatPotentialOptions(input.getAdditionalPotentialOptions());
-
-            CubeExpectationDto blackCubeExpectation = buildCubeExpectation(
-                    costBreakdown.blackCubeCost(), costBreakdown.blackCubeTrials(),
-                    input.getPotentialGrade(), "LEGENDARY", potentialText);
-            CubeExpectationDto additionalCubeExpectation = buildCubeExpectation(
-                    costBreakdown.additionalCubeCost(), costBreakdown.additionalCubeTrials(),
-                    input.getAdditionalPotentialGrade(), "LEGENDARY", additionalPotentialText);
-
-            ItemExpectationV4 itemResult = ItemExpectationV4.builder()
-                    .itemName(input.getItemName())
-                    .itemIcon(input.getItemIcon())
-                    .itemPart(input.getItemPart())
-                    .itemLevel(input.getItemLevel())
-                    .expectedCost(itemCost)
-                    .expectedCostText(CostFormatter.format(itemCost))
-                    .costBreakdown(CostBreakdownDto.from(costBreakdown))
-                    .enhancePath(calculator.getEnhancePath())
-                    .potentialGrade(input.getPotentialGrade())
-                    .additionalPotentialGrade(input.getAdditionalPotentialGrade())
-                    .currentStar(input.getCurrentStar())
-                    .targetStar(input.getTargetStar())
-                    .isNoljang(isNoljang)
-                    .specialRingLevel(cubeInput.getSpecialRingLevel())
-                    .blackCubeExpectation(blackCubeExpectation)
-                    .additionalCubeExpectation(additionalCubeExpectation)
-                    .starforceExpectation(starforceExpectation)
-                    .build();
-
-            itemResults.add(itemResult);
-            totalCost = totalCost.add(itemCost);
-            totalBreakdown = totalBreakdown.add(CostBreakdownDto.from(costBreakdown));
-        }
-
-        return PresetExpectation.builder()
-                .presetNo(presetNo)
-                .totalExpectedCost(totalCost)
-                .totalCostText(CostFormatter.format(totalCost))
-                .costBreakdown(totalBreakdown)
-                .items(itemResults)
-                .build();
-    }
-
-    // ==================== Helper Methods ====================
-
-    private ItemExpectationV4 buildNoPotentialItem(maple.expectation.dto.CubeCalculationInput cubeInput, int presetNo) {
-        return ItemExpectationV4.builder()
-                .itemName(cubeInput.getItemName())
-                .itemIcon(cubeInput.getItemIcon())
-                .itemPart(cubeInput.getPart())
-                .itemLevel(cubeInput.getLevel())
-                .expectedCost(BigDecimal.ZERO)
-                .expectedCostText("0원")
-                .costBreakdown(CostBreakdownDto.empty())
-                .enhancePath("")
-                .potentialGrade(null)
-                .additionalPotentialGrade(null)
-                .currentStar(0)
-                .targetStar(cubeInput.getStarforce())
-                .isNoljang(cubeInput.isNoljangEquipment())
-                .specialRingLevel(cubeInput.getSpecialRingLevel())
-                .blackCubeExpectation(CubeExpectationDto.empty())
-                .additionalCubeExpectation(CubeExpectationDto.empty())
-                .starforceExpectation(StarforceExpectationDto.empty())
-                .build();
-    }
-
-    private CubeExpectationDto buildCubeExpectation(BigDecimal cost, BigDecimal trials,
-                                                     String currentGrade, String targetGrade,
-                                                     String potentialText) {
-        if (cost == null || cost.compareTo(BigDecimal.ZERO) == 0) {
-            return CubeExpectationDto.empty();
-        }
-
-        return CubeExpectationDto.builder()
-                .expectedCost(cost)
-                .expectedCostText(CostFormatter.format(cost))
-                .expectedTrials(trials != null ? trials : BigDecimal.ZERO)
-                .currentGrade(currentGrade)
-                .targetGrade(targetGrade)
-                .potential(potentialText)
-                .build();
-    }
-
-    private String formatPotentialOptions(List<String> options) {
-        if (options == null || options.isEmpty()) {
-            return "";
-        }
-        return String.join(" | ", options);
-    }
-
-    private StarforceExpectationDto calculateStarforceExpectation(int currentStar, int targetStar,
-                                                                   int itemLevel, boolean isNoljang) {
-        if (isNoljang) {
-            BigDecimal noljangCost = NoljangProbabilityTable.getExpectedCostFromStar(
-                    currentStar, targetStar, itemLevel, true, true);
-            BigDecimal roundedCost = roundToNearest100(noljangCost);
-            return StarforceExpectationDto.builder()
-                    .currentStar(currentStar)
-                    .targetStar(targetStar)
-                    .isNoljang(true)
-                    .costWithoutDestroyPrevention(roundedCost)
-                    .costWithoutDestroyPreventionText(CostFormatter.format(roundedCost))
-                    .expectedDestroyCountWithout(BigDecimal.ZERO)
-                    .costWithDestroyPrevention(roundedCost)
-                    .costWithDestroyPreventionText(CostFormatter.format(roundedCost))
-                    .expectedDestroyCountWith(BigDecimal.ZERO)
-                    .build();
-        }
-
-        BigDecimal costWithout = starforceLookupTable.getExpectedCost(
-                currentStar, targetStar, itemLevel, true, true, true, false);
-        BigDecimal destroyCountWithout = starforceLookupTable.getExpectedDestroyCount(
-                currentStar, targetStar, true, true, false);
-
-        BigDecimal costWith = starforceLookupTable.getExpectedCost(
-                currentStar, targetStar, itemLevel, true, true, true, true);
-        BigDecimal destroyCountWith = starforceLookupTable.getExpectedDestroyCount(
-                currentStar, targetStar, true, true, true);
-
-        BigDecimal roundedCostWithout = roundToNearest100(costWithout);
-        BigDecimal roundedCostWith = roundToNearest100(costWith);
-
-        return StarforceExpectationDto.builder()
-                .currentStar(currentStar)
-                .targetStar(targetStar)
-                .isNoljang(false)
-                .costWithoutDestroyPrevention(roundedCostWithout)
-                .costWithoutDestroyPreventionText(CostFormatter.format(roundedCostWithout))
-                .expectedDestroyCountWithout(destroyCountWithout)
-                .costWithDestroyPrevention(roundedCostWith)
-                .costWithDestroyPreventionText(CostFormatter.format(roundedCostWith))
-                .expectedDestroyCountWith(destroyCountWith)
-                .build();
-    }
-
-    private BigDecimal roundToNearest100(BigDecimal value) {
-        if (value == null) {
-            return BigDecimal.ZERO;
-        }
-        return value.divide(BigDecimal.valueOf(100), 0, java.math.RoundingMode.HALF_UP)
-                .multiply(BigDecimal.valueOf(100));
     }
 }

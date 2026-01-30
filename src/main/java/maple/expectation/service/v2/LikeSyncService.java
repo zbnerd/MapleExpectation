@@ -12,6 +12,7 @@ import maple.expectation.service.v2.cache.LikeBufferStrategy;
 import maple.expectation.service.v2.like.compensation.CompensationCommand;
 import maple.expectation.service.v2.like.compensation.RedisCompensationCommand;
 import maple.expectation.service.v2.like.dto.FetchResult;
+import maple.expectation.service.v2.like.metrics.LikeSyncMetricsRecorder;
 import maple.expectation.service.v2.like.strategy.AtomicFetchStrategy;
 import maple.expectation.service.v2.shutdown.ShutdownDataPersistenceService;
 import org.springframework.beans.factory.annotation.Value;
@@ -54,6 +55,7 @@ public class LikeSyncService {
     private final LogicExecutor executor;
     private final AtomicFetchStrategy atomicFetchStrategy;
     private final MeterRegistry meterRegistry;
+    private final LikeSyncMetricsRecorder metricsRecorder;
     private final ApplicationEventPublisher eventPublisher;
 
     /**
@@ -81,6 +83,7 @@ public class LikeSyncService {
             LogicExecutor executor,
             AtomicFetchStrategy atomicFetchStrategy,
             MeterRegistry meterRegistry,
+            LikeSyncMetricsRecorder metricsRecorder,
             ApplicationEventPublisher eventPublisher) {
         this.likeBufferStrategy = likeBufferStrategy;
         this.syncExecutor = syncExecutor;
@@ -90,6 +93,7 @@ public class LikeSyncService {
         this.executor = executor;
         this.atomicFetchStrategy = atomicFetchStrategy;
         this.meterRegistry = meterRegistry;
+        this.metricsRecorder = metricsRecorder;
         this.eventPublisher = eventPublisher;
 
         log.info("[LikeSyncService] Using {} buffer strategy",
@@ -260,7 +264,7 @@ public class LikeSyncService {
                         successTotal.addAndGet(chunkTotal);
 
                         // 메트릭 기록 (Red 요구사항)
-                        meterRegistry.counter("like.sync.chunk.processed").increment();
+                        metricsRecorder.recordChunkProcessed();
                         log.debug("✅ [LikeSync] Chunk {}/{} processed ({} entries)",
                                 chunkIndex + 1, totalChunks, chunk.size());
                         return null;
@@ -284,7 +288,7 @@ public class LikeSyncService {
             int chunkIndex,
             Throwable e) {
         // 메트릭 기록 (Red 요구사항)
-        meterRegistry.counter("like.sync.chunk.failed").increment();
+        metricsRecorder.recordChunkFailed();
 
         log.error("❌ [LikeSync] Chunk {} failed ({} entries): {}",
                 chunkIndex, chunk.size(), e.getMessage());
@@ -392,49 +396,13 @@ public class LikeSyncService {
         );
     }
 
-    // ========== Metrics (Micrometer) - P1 Enhancement ==========
+    // ========== Metrics (위임: LikeSyncMetricsRecorder) ==========
 
-    /**
-     * LikeSync 메트릭 기록 (SRE 모니터링)
-     *
-     * <p>기록 항목:
-     * <ul>
-     *   <li><b>like.sync.duration</b>: 동기화 소요 시간 (Timer)</li>
-     *   <li><b>like.sync.entries</b>: 배치당 엔트리 수 (Distribution)</li>
-     *   <li><b>like.sync.total.count</b>: 배치당 총 좋아요 수</li>
-     *   <li><b>like.sync.failed.entries</b>: 실패 엔트리 수</li>
-     * </ul>
-     * </p>
-     */
     private void recordSyncMetrics(int entries, long totalCount, long failedEntries, long startNanos, String result) {
-        long durationNanos = System.nanoTime() - startNanos;
-
-        // Timer: 동기화 소요 시간
-        meterRegistry.timer("like.sync.duration", "result", result)
-                .record(durationNanos, java.util.concurrent.TimeUnit.NANOSECONDS);
-
-        // Distribution Summary: 배치당 엔트리 수
-        meterRegistry.summary("like.sync.entries").record(entries);
-
-        // Counter: 총 좋아요 수
-        if (totalCount > 0) {
-            meterRegistry.counter("like.sync.total.count", "result", result).increment(totalCount);
-        }
-
-        // Counter: 실패 엔트리 수
-        if (failedEntries > 0) {
-            meterRegistry.counter("like.sync.failed.entries").increment(failedEntries);
-        }
+        metricsRecorder.recordSyncMetrics(entries, totalCount, failedEntries, startNanos, result);
     }
 
-    /**
-     * 개별 복구 메트릭 기록
-     *
-     * @param result  success | failure
-     * @param count   복구된/실패한 좋아요 수
-     */
     private void recordRestoreMetrics(String result, long count) {
-        meterRegistry.counter("like.sync.restore.count", "result", result).increment();
-        meterRegistry.counter("like.sync.restore.likes", "result", result).increment(count);
+        metricsRecorder.recordRestoreMetrics(result, count);
     }
 }

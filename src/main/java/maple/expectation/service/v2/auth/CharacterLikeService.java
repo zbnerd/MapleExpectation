@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import maple.expectation.aop.annotation.ObservedTransaction;
 import maple.expectation.global.error.exception.auth.SelfLikeNotAllowedException;
 import maple.expectation.global.executor.LogicExecutor;
+import maple.expectation.global.util.StringMaskingUtils;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.global.queue.like.AtomicLikeToggleExecutor;
 import maple.expectation.global.queue.like.AtomicLikeToggleExecutor.ToggleResult;
@@ -144,8 +145,8 @@ public class CharacterLikeService {
             newDelta = result.newDelta;
         }
 
-        log.info("{} buffered: targetIgn={}, accountId={}..., newDelta={}",
-                liked ? "Like" : "Unlike", targetUserIgn, accountId.substring(0, 8), newDelta);
+        log.info("{} buffered: targetIgn={}, accountId={}, newDelta={}",
+                liked ? "Like" : "Unlike", targetUserIgn, StringMaskingUtils.maskAccountId(accountId), newDelta);
 
         // 4. Scale-out 실시간 동기화 이벤트 발행 (Issue #278)
         publishLikeEvent(targetUserIgn, newDelta, liked);

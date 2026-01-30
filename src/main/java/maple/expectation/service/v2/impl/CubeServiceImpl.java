@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.domain.v2.CubeType;
 import maple.expectation.dto.CubeCalculationInput;
+import maple.expectation.global.error.exception.UnsupportedCalculationEngineException;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.repository.v2.CubeProbabilityRepository;
@@ -54,8 +55,7 @@ public class CubeServiceImpl implements CubeTrialsProvider {
             // v1 엔진은 DP 입력(minTotal 등 누적 확률)을 처리할 수 없음
             if (!featureFlag.isDpEnabled()) {
                 log.warn("[CubeService] DP 모드 요청이지만 dpEnabled=false. input={}", input);
-                throw new UnsupportedOperationException(
-                        "DP 계산 엔진이 비활성화 상태입니다. 현재 누적 확률 계산(X% 이상)을 지원하지 않습니다.");
+                throw new UnsupportedCalculationEngineException();
             }
             return calculateWithDpEngine(input, type);
         }

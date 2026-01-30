@@ -91,14 +91,14 @@ public class AuthService {
         // 7. 세션 생성
         Session session = sessionService.createSession(fingerprint, userIgn, accountId, apiKey, myOcids, role);
 
-        // 7. JWT 발급
+        // 8. JWT 발급
         String accessToken = jwtTokenProvider.generateToken(
             session.sessionId(),
             session.fingerprint(),
             session.role()
         );
 
-        // 8. Refresh Token 발급 (Issue #279)
+        // 9. Refresh Token 발급 (Issue #279)
         RefreshToken refreshToken = refreshTokenService.createRefreshToken(
             session.sessionId(),
             session.fingerprint()
