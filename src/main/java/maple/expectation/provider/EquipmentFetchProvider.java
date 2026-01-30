@@ -8,6 +8,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Component;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 장비 데이터 Fetch Provider (캐시 적용)
@@ -48,6 +49,8 @@ import java.util.concurrent.CompletableFuture;
 @RequiredArgsConstructor
 public class EquipmentFetchProvider {
 
+    private static final long API_TIMEOUT_SECONDS = 10L;
+
     private final NexonApiClient nexonApiClient;
 
     /**
@@ -63,6 +66,8 @@ public class EquipmentFetchProvider {
     @NexonDataCache
     @Cacheable(value = "equipment", key = "#ocid")
     public EquipmentResponse fetchWithCache(String ocid) {
-        return nexonApiClient.getItemDataByOcid(ocid).join();
+        return nexonApiClient.getItemDataByOcid(ocid)
+                .orTimeout(API_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .join();
     }
 }
