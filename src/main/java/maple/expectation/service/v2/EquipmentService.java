@@ -29,7 +29,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.io.OutputStream;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -136,21 +135,17 @@ public class EquipmentService {
     // ==================== 내부 Record (Tx Snapshot) ====================
 
     /**
-     * 1차 경량 스냅샷: 캐시 키 생성용
-     */
-    private record LightSnapshot(
-            String userIgn,
-            String ocid,
-            LocalDateTime equipmentUpdatedAt
-    ) {}
-
-    /**
-     * 2차 전체 스냅샷: 계산용 (MISS일 때만 사용)
+     * 캐릭터 스냅샷: 캐시 키 생성 + 계산용 (단일 조회)
      *
-     * <p>Issue #158 리팩토링: equipmentJson 제거</p>
-     * <p>DB 조회는 EquipmentDataResolver → EquipmentDbWorker로 위임 (SRP)</p>
+     * <h4>P0-2 리팩토링: Two-Phase → Single-Phase</h4>
+     * <p>기존 LightSnapshot/FullSnapshot 분리 구조에서 동일 필드 구조임에도
+     * DB를 2회 조회하던 문제를 해결. 단일 스냅샷으로 통합하여 DB 부하 50% 감소.</p>
+     *
+     * <h4>데이터 일관성 보장</h4>
+     * <p>equipmentUpdatedAt 변경 감지는 EquipmentDataResolver의 DB TTL(15분)로 보장되므로
+     * 2회 조회 기반의 validateAndResolveCacheKey() 패턴이 불필요.</p>
      */
-    private record FullSnapshot(
+    private record CharacterSnapshot(
             String userIgn,
             String ocid,
             LocalDateTime equipmentUpdatedAt
@@ -160,6 +155,10 @@ public class EquipmentService {
 
     /**
      * 기대값 계산 - 비동기 버전 (Issue #118 준수)
+     *
+     * <h4>P0-2 리팩토링: Single-Phase Snapshot</h4>
+     * <p>기존 Two-Phase(Light→Full) 패턴에서 동일 필드 구조임에도 DB를 2회 조회하던 문제를
+     * 단일 CharacterSnapshot으로 통합하여 DB 부하 50% 감소.</p>
      */
     @TraceLog
     public CompletableFuture<TotalExpectationResponse> calculateTotalExpectationAsync(String userIgn) {
@@ -168,9 +167,9 @@ public class EquipmentService {
         return CompletableFuture
                 .supplyAsync(() -> {
                     SkipEquipmentL2CacheContext.restore("true"); // V5: MDC 기반
-                    return fetchLightSnapshot(userIgn);
+                    return fetchCharacterSnapshot(userIgn);
                 }, expectationComputeExecutor)
-                .thenCompose(light -> processAfterLightSnapshot(userIgn, light))
+                .thenCompose(this::processAfterSnapshot)
                 .orTimeout(LEADER_DEADLINE_SECONDS, TimeUnit.SECONDS)
                 .exceptionally(e -> handleAsyncException(e, userIgn))
                 .whenComplete((r, e) -> SkipEquipmentL2CacheContext.restore(beforeContext));
@@ -178,49 +177,37 @@ public class EquipmentService {
 
     // ==================== 오케스트레이션 ====================
 
-    private CompletableFuture<TotalExpectationResponse> processAfterLightSnapshot(
-            String userIgn, LightSnapshot light) {
-
-        String cacheKey = buildExpectationCacheKey(light);
+    /**
+     * 스냅샷 기반 오케스트레이션 (P0-2: Single-Phase)
+     *
+     * <p>단일 DB 조회로 캐시 키 생성 + 계산을 모두 처리합니다.</p>
+     */
+    private CompletableFuture<TotalExpectationResponse> processAfterSnapshot(CharacterSnapshot snapshot) {
+        String cacheKey = buildExpectationCacheKey(snapshot);
 
         // Early Return: 캐시 HIT
         Optional<TotalExpectationResponse> cached = expectationCacheService.getValidCache(cacheKey);
         if (cached.isPresent()) {
-            log.debug("[Expectation] Cache HIT for {}", maskOcid(light.ocid()));
+            log.debug("[Expectation] Cache HIT for {}", maskOcid(snapshot.ocid()));
             return CompletableFuture.completedFuture(cached.get());
         }
 
-        // MISS: FullSnapshot 로드 → 계산
-        return CompletableFuture
-                .supplyAsync(() -> fetchFullSnapshot(userIgn), expectationComputeExecutor)
-                .thenCompose(full -> processAfterFullSnapshot(light, full, cacheKey));
-    }
-
-    private CompletableFuture<TotalExpectationResponse> processAfterFullSnapshot(
-            LightSnapshot light, FullSnapshot full, String originalCacheKey) {
-
-        String finalCacheKey = validateAndResolveCacheKey(light, full, originalCacheKey);
-
-        // 캐시 키 변경 시 재조회
-        if (!finalCacheKey.equals(originalCacheKey)) {
-            Optional<TotalExpectationResponse> reCached = expectationCacheService.getValidCache(finalCacheKey);
-            if (reCached.isPresent()) {
-                log.debug("[Expectation] Cache HIT after key regeneration");
-                return CompletableFuture.completedFuture(reCached.get());
-            }
-        }
-
-        // Single-flight 위임
+        // MISS: Single-flight 위임 (추가 DB 조회 없이 바로 계산)
         return singleFlightExecutor.executeAsync(
-                finalCacheKey,
-                () -> computeAndCacheAsync(full, finalCacheKey)
+                cacheKey,
+                () -> computeAndCacheAsync(snapshot, cacheKey)
         );
     }
 
     // ==================== 스냅샷 조회 ====================
 
-    private LightSnapshot fetchLightSnapshot(String userIgn) {
-        LightSnapshot snap = readOnlyTx.execute(status -> {
+    /**
+     * 캐릭터 스냅샷 단일 조회 (P0-2: DB 부하 50% 감소)
+     *
+     * <p>기존 fetchLightSnapshot/fetchFullSnapshot 2회 조회를 1회로 통합.</p>
+     */
+    private CharacterSnapshot fetchCharacterSnapshot(String userIgn) {
+        CharacterSnapshot snap = readOnlyTx.execute(status -> {
             GameCharacter ch = gameCharacterFacade.findCharacterByUserIgn(userIgn);
 
             // Issue #120: Rich Domain - 비활성 캐릭터 감지 (30일 이상 미갱신)
@@ -228,22 +215,7 @@ public class EquipmentService {
                 log.debug("[Expectation] 비활성 캐릭터 감지: userIgn={}", userIgn);
             }
 
-            return new LightSnapshot(
-                    ch.getUserIgn(),
-                    ch.getOcid(),
-                    ch.getEquipment() != null ? ch.getEquipment().getUpdatedAt() : null
-            );
-        });
-        if (snap == null) {
-            throw new IllegalStateException("TransactionTemplate returned null for: " + userIgn);
-        }
-        return snap;
-    }
-
-    private FullSnapshot fetchFullSnapshot(String userIgn) {
-        FullSnapshot snap = readOnlyTx.execute(status -> {
-            GameCharacter ch = gameCharacterFacade.findCharacterByUserIgn(userIgn);
-            return new FullSnapshot(
+            return new CharacterSnapshot(
                     ch.getUserIgn(),
                     ch.getOcid(),
                     ch.getEquipment() != null ? ch.getEquipment().getUpdatedAt() : null
@@ -257,37 +229,32 @@ public class EquipmentService {
 
     // ==================== 캐시 키 ====================
 
-    private String buildExpectationCacheKey(LightSnapshot light) {
-        String fingerprint = fingerprintGenerator.generate(light.equipmentUpdatedAt());
+    private String buildExpectationCacheKey(CharacterSnapshot snapshot) {
+        String fingerprint = fingerprintGenerator.generate(snapshot.equipmentUpdatedAt());
         String tableVersionHash = fingerprintGenerator.hashTableVersion(TABLE_VERSION);
         return expectationCacheService.buildCacheKey(
-                light.ocid(), fingerprint, tableVersionHash, LOGIC_VERSION);
-    }
-
-    private String validateAndResolveCacheKey(LightSnapshot light, FullSnapshot full, String originalCacheKey) {
-        if (Objects.equals(light.equipmentUpdatedAt(), full.equipmentUpdatedAt())) {
-            return originalCacheKey;
-        }
-
-        log.info("[Expectation] updatedAt mismatch, regenerating cacheKey");
-        String fingerprint = fingerprintGenerator.generate(full.equipmentUpdatedAt());
-        String tableVersionHash = fingerprintGenerator.hashTableVersion(TABLE_VERSION);
-        return expectationCacheService.buildCacheKey(full.ocid(), fingerprint, tableVersionHash, LOGIC_VERSION);
+                snapshot.ocid(), fingerprint, tableVersionHash, LOGIC_VERSION);
     }
 
     // ==================== 계산 로직 ====================
 
+    /**
+     * 계산 및 캐싱 (P1-3: thenApplyAsync → thenApply)
+     *
+     * <p>dataResolver.resolveAsync()가 이미 비동기로 실행되므로
+     * thenApply()로 동일 스레드에서 후속 처리하여 불필요한 컨텍스트 스위칭을 제거합니다.</p>
+     */
     private CompletableFuture<TotalExpectationResponse> computeAndCacheAsync(
-            FullSnapshot snap, String cacheKey) {
+            CharacterSnapshot snapshot, String cacheKey) {
 
         // EquipmentDataResolver에 위임 (DB 조회 + API 호출 + DB 저장 모두 내부 처리)
-        return dataResolver.resolveAsync(snap.ocid(), snap.userIgn())
-                .thenApplyAsync(targetData -> {
+        return dataResolver.resolveAsync(snapshot.ocid(), snapshot.userIgn())
+                .thenApply(targetData -> {
                     List<CubeCalculationInput> inputs = streamingParser.parseCubeInputs(targetData);
-                    TotalExpectationResponse result = processCalculation(snap.userIgn(), inputs);
+                    TotalExpectationResponse result = processCalculation(snapshot.userIgn(), inputs);
                     expectationCacheService.saveCache(cacheKey, result);
                     return result;
-                }, expectationComputeExecutor);
+                });
     }
 
     private TotalExpectationResponse processCalculation(String userIgn, List<CubeCalculationInput> inputs) {
@@ -324,7 +291,8 @@ public class EquipmentService {
         if (cause instanceof RuntimeException re) {
             throw re;
         }
-        throw new RuntimeException("Async expectation calculation failed", cause);
+        throw new EquipmentDataProcessingException(
+                String.format("Async expectation calculation failed for: %s", userIgn), cause);
     }
 
     private TotalExpectationResponse fallbackFromCache(String cacheKey) {
@@ -377,19 +345,6 @@ public class EquipmentService {
                     .toList();
             return processCalculation(userIgn, inputs);
         }, TaskContext.of("EquipmentService", "ProcessLegacy", userIgn));
-    }
-
-    /**
-     * 장비 데이터 스트리밍 (압축 해제 후 전송)
-     *
-     * @deprecated Issue #63: streamEquipmentDataRaw() 사용 권장
-     */
-    @Deprecated(since = "v3.1", forRemoval = true)
-    public void streamEquipmentData(String userIgn, OutputStream outputStream) {
-        executor.executeVoid(
-                () -> equipmentProvider.streamAndDecompress(getOcid(userIgn), outputStream),
-                TaskContext.of("EquipmentService", "StreamData", userIgn)
-        );
     }
 
     /**

@@ -41,12 +41,6 @@ class EquipmentServiceTest extends IntegrationTestSupport {
         gameCharacterRepository.deleteAllInBatch();
     }
 
-    @Test
-    @DisplayName("Stream API: GZIP 데이터 압축 해제 검증")
-    void streamEquipmentData_Gzip_Success() throws Exception {
-        // Given/When/Then 로직 유지 (부모의 Mock 사용)
-    }
-
     // ==================== Issue #118: 비동기 파이프라인 테스트 ====================
 
     @Test
