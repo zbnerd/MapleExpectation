@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.external.NexonApiClient;
+import maple.expectation.global.error.exception.ApiTimeoutException;
 import maple.expectation.global.error.exception.CharacterNotFoundException;
 import maple.expectation.global.error.exception.InternalSystemException;
 import maple.expectation.global.error.exception.base.BaseException;
@@ -17,6 +18,8 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * 캐릭터 생성 공통 서비스 (OcidResolver + GameCharacterService 중복 제거)
@@ -41,6 +44,9 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class CharacterCreationService {
 
+    /** Issue #284 P0: 외부 API 호출 타임아웃 (초) */
+    private static final long API_TIMEOUT_SECONDS = 10L;
+
     private final GameCharacterRepository gameCharacterRepository;
     private final NexonApiClient nexonApiClient;
     private final CacheManager cacheManager;
@@ -64,7 +70,11 @@ public class CharacterCreationService {
                     log.info("✨ [Creation] 캐릭터 생성 시작: {}", userIgn);
 
                     // Step 1: OCID 조회 (트랜잭션 밖 - DB Connection 점유 없음)
-                    String ocid = nexonApiClient.getOcidByCharacterName(userIgn).join().getOcid();
+                    // Issue #284 P0: 10초 타임아웃으로 무기한 대기 방지
+                    String ocid = nexonApiClient.getOcidByCharacterName(userIgn)
+                            .orTimeout(API_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                            .join()
+                            .getOcid();
 
                     // Step 2: DB 저장 (트랜잭션 안 - 짧은 Connection 점유 ~100ms)
                     return saveCharacterWithCaching(userIgn, ocid);
@@ -99,6 +109,12 @@ public class CharacterCreationService {
      */
     private GameCharacter handleCreationFailure(String userIgn, Throwable e) {
         Throwable unwrapped = ExceptionUtils.unwrapAsyncException(e);
+
+        // Issue #284 P0: TimeoutException 감지 → 서킷브레이커 기록
+        if (unwrapped instanceof TimeoutException) {
+            throw new ApiTimeoutException("NexonOcidAPI", unwrapped);
+        }
+
         if (unwrapped instanceof CharacterNotFoundException) {
             log.warn("🚫 [Recovery] 캐릭터 미존재 → 네거티브 캐시 저장: {}", userIgn);
             Optional.ofNullable(cacheManager.getCache("ocidNegativeCache"))

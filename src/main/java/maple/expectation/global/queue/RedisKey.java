@@ -152,6 +152,14 @@ public enum RedisKey {
      */
     LIKE_EVENTS_TOPIC("{likes}:events"),
 
+    /**
+     * 좋아요 이벤트 Reliable Pub/Sub 토픽 (Issue #278 P0)
+     * <p>RReliableTopic: at-least-once 보장 (RTopic은 at-most-once)</p>
+     * <p>인스턴스 재시작 시 메시지 유실 방지</p>
+     * <p>Hash Tag {likes}로 같은 슬롯 배치</p>
+     */
+    LIKE_EVENTS_RELIABLE_TOPIC("{likes}:events:reliable"),
+
     // ============================================================
     // Cache Invalidation (Issue #278: L1 Cache Coherence)
     // ============================================================
