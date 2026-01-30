@@ -106,6 +106,37 @@ cors:
   allow-credentials: true
   max-age: 3600
 
+# Cache 설정 (테스트 환경)
+cache:
+  specs:
+    equipment:
+      l1-ttl-minutes: 5
+      l1-max-size: 5000
+      l2-ttl-minutes: 10
+      l2-serializer: json
+    cubeTrials:
+      l1-ttl-minutes: 10
+      l1-max-size: 5000
+      l2-ttl-minutes: 20
+      l2-serializer: jdk
+    ocidCache:
+      l1-ttl-minutes: 30
+      l1-max-size: 5000
+      l2-ttl-minutes: 60
+      l2-serializer: json
+    characterBasic:
+      l1-ttl-minutes: 15
+      l1-max-size: 5000
+      l2-ttl-minutes: 15
+      l2-serializer: json
+    expectationV4:
+      l1-ttl-minutes: 60
+      l1-max-size: 5000
+      l2-ttl-minutes: 60
+      l2-serializer: jdk
+  singleflight:
+    lock-wait-seconds: 5
+
 # Expectation Buffer 설정 (테스트 환경 - 작은 값으로 테스트 용이성 확보)
 expectation:
   buffer:

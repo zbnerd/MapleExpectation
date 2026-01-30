@@ -1,7 +1,6 @@
 package maple.expectation.global.cache.invalidation.impl;
 
 import io.micrometer.core.instrument.MeterRegistry;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.cache.invalidation.CacheInvalidationEvent;
 import maple.expectation.global.cache.invalidation.CacheInvalidationPublisher;
@@ -17,23 +16,28 @@ import org.redisson.api.RedissonClient;
  * <h3>Issue #278: Scale-out 환경 L1 Cache Coherence</h3>
  * <p>Redisson RTopic을 사용하여 인스턴스 간 캐시 무효화 이벤트 Fanout</p>
  *
- * <h3>5-Agent Council 합의</h3>
- * <ul>
- *   <li>Green (Performance): fire-and-forget, evict당 1-3ms 추가 (무시 가능)</li>
- *   <li>Red (SRE): Graceful Degradation (Redis 장애 시 TTL fallback)</li>
- *   <li>Purple (Data): Hash Tag {cache}로 좋아요 토픽과 분리</li>
- * </ul>
+ * <h3>P1-3: RTopic 필드 캐싱</h3>
+ * <p>매번 redissonClient.getTopic() 호출 대신 생성자에서 1회 캐싱</p>
  *
  * <h3>CLAUDE.md Section 12: LogicExecutor 패턴</h3>
  * <p>모든 Redis 작업은 executeOrDefault로 Graceful Degradation</p>
  */
 @Slf4j
-@RequiredArgsConstructor
 public class RedisCacheInvalidationPublisher implements CacheInvalidationPublisher {
 
-    private final RedissonClient redissonClient;
     private final LogicExecutor executor;
     private final MeterRegistry meterRegistry;
+    private final RTopic topic; // P1-3: 생성자에서 캐싱
+
+    public RedisCacheInvalidationPublisher(
+            RedissonClient redissonClient,
+            LogicExecutor executor,
+            MeterRegistry meterRegistry
+    ) {
+        this.executor = executor;
+        this.meterRegistry = meterRegistry;
+        this.topic = redissonClient.getTopic(RedisKey.CACHE_INVALIDATION_TOPIC.getKey());
+    }
 
     /**
      * 캐시 무효화 이벤트 발행
@@ -45,20 +49,12 @@ public class RedisCacheInvalidationPublisher implements CacheInvalidationPublish
         TaskContext context = TaskContext.of("CacheInvalidation", "Publish", event.cacheName());
 
         long clientsReceived = executor.executeOrDefault(
-                () -> doPublish(event),
+                () -> topic.publish(event),
                 0L,
                 context
         );
 
         recordPublishResult(clientsReceived, event);
-    }
-
-    /**
-     * RTopic 발행 (CLAUDE.md Section 15: 메서드 추출)
-     */
-    private long doPublish(CacheInvalidationEvent event) {
-        RTopic topic = redissonClient.getTopic(RedisKey.CACHE_INVALIDATION_TOPIC.getKey());
-        return topic.publish(event);
     }
 
     /**

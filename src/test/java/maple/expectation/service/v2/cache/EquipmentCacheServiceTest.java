@@ -19,6 +19,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
@@ -61,6 +62,7 @@ class EquipmentCacheServiceTest {
         tieredCache = mock(Cache.class);
         l1Cache = mock(Cache.class);
 
+        // P1-4: 생성자에서 Cache 필드 캐싱하므로 getCache() stub 선행 필수
         given(cacheManager.getCache(CACHE_NAME)).willReturn(tieredCache);
         given(l1CacheManager.getCache(CACHE_NAME)).willReturn(l1Cache);
 
@@ -114,17 +116,15 @@ class EquipmentCacheServiceTest {
         }
 
         @Test
-        @DisplayName("캐시 없음 시 empty 반환")
-        void shouldReturnEmptyWhenCacheNull() {
+        @DisplayName("P1-4: 캐시 없음 시 생성자에서 NPE (fail-fast)")
+        void shouldThrowNPEWhenCacheNull() {
             // given
             given(cacheManager.getCache(CACHE_NAME)).willReturn(null);
-            cacheService = new EquipmentCacheService(cacheManager, l1CacheManager, dbWorker, executor);
 
-            // when
-            Optional<EquipmentResponse> result = cacheService.getValidCache(OCID);
-
-            // then
-            assertThat(result).isEmpty();
+            // when & then: P1-4 Objects.requireNonNull fail-fast
+            assertThatThrownBy(() -> new EquipmentCacheService(cacheManager, l1CacheManager, dbWorker, executor))
+                    .isInstanceOf(NullPointerException.class)
+                    .hasMessageContaining("Tiered equipment cache must not be null");
         }
     }
 
@@ -254,17 +254,15 @@ class EquipmentCacheServiceTest {
         }
 
         @Test
-        @DisplayName("L1 캐시 없음 시 empty 반환")
-        void shouldReturnEmptyWhenL1CacheNull() {
+        @DisplayName("P1-4: L1 캐시 없음 시 생성자에서 NPE (fail-fast)")
+        void shouldThrowNPEWhenL1CacheNull() {
             // given
             given(l1CacheManager.getCache(CACHE_NAME)).willReturn(null);
-            cacheService = new EquipmentCacheService(cacheManager, l1CacheManager, dbWorker, executor);
 
-            // when
-            Optional<EquipmentResponse> result = cacheService.getValidCacheL1Only(OCID);
-
-            // then
-            assertThat(result).isEmpty();
+            // when & then: P1-4 Objects.requireNonNull fail-fast
+            assertThatThrownBy(() -> new EquipmentCacheService(cacheManager, l1CacheManager, dbWorker, executor))
+                    .isInstanceOf(NullPointerException.class)
+                    .hasMessageContaining("L1-only equipment cache must not be null");
         }
     }
 

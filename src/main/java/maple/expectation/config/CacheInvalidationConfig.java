@@ -2,7 +2,6 @@ package maple.expectation.config;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.annotation.PostConstruct;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.cache.TieredCacheManager;
 import maple.expectation.global.cache.invalidation.CacheInvalidationPublisher;
@@ -23,23 +22,15 @@ import org.springframework.context.annotation.Configuration;
  * <h3>Scale-out 환경에서 TieredCache L1 캐시 일관성 보장</h3>
  * <p>cache.invalidation.pubsub.enabled=true 시 활성화</p>
  *
+ * <h3>P1-6: @Setter → CAS 초기화 메서드 사용</h3>
+ * <p>TieredCacheManager.initializeInstanceId() / initializeInvalidationCallback()</p>
+ *
  * <h3>Callback 패턴 (순환참조 방지)</h3>
  * <pre>
- * TieredCacheManager → TieredCache (callback)
+ * TieredCacheManager → TieredCache (Supplier callback)
  *    ↑ @PostConstruct
  * CacheInvalidationConfig → RedisCacheInvalidationPublisher
  * </pre>
- *
- * <h3>5-Agent Council 합의</h3>
- * <ul>
- *   <li>Blue (Architect): 좋아요 Pub/Sub과 분리된 패키지 (SRP)</li>
- *   <li>Red (SRE): Feature Flag + NO-OP 기본값 (Graceful Degradation)</li>
- *   <li>Purple (Auditor): Callback으로 순환참조 완전 차단</li>
- *   <li>Green (Performance): fire-and-forget, 성능 영향 무시 가능</li>
- * </ul>
- *
- * @see RedisCacheInvalidationPublisher
- * @see RedisCacheInvalidationSubscriber
  */
 @Slf4j
 @Configuration
@@ -104,8 +95,9 @@ public class CacheInvalidationConfig {
     /**
      * TieredCacheManager에 Callback 연결 (P0-2, P0-4 해결)
      *
-     * <p>@PostConstruct로 Bean 초기화 후 callback 주입</p>
-     * <p>순환참조 방지: publisherInstance 필드로 CGLIB 프록시 우회</p>
+     * <h4>P1-6: CAS 초기화 메서드 사용</h4>
+     * <p>@Setter → initializeInstanceId() / initializeInvalidationCallback()</p>
+     * <p>중복 호출 시 CAS로 안전하게 무시</p>
      */
     @PostConstruct
     public void connectInvalidationCallback() {
@@ -114,11 +106,9 @@ public class CacheInvalidationConfig {
             return;
         }
 
-        // P0-2: instanceId 주입
-        tieredManager.setInstanceId(instanceId);
-
-        // P0-4: invalidation callback 연결 (CGLIB 우회: 필드 직접 참조)
-        tieredManager.setInvalidationCallback(publisherInstance::publish);
+        // P1-6: CAS 초기화 (중복 호출 방지)
+        tieredManager.initializeInstanceId(instanceId);
+        tieredManager.initializeInvalidationCallback(publisherInstance::publish);
 
         log.info("[CacheInvalidationConfig] Callback connected: instanceId={}", instanceId);
     }

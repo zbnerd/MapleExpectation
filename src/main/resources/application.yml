@@ -212,8 +212,37 @@ springdoc:
   default-consumes-media-type: application/json
   default-produces-media-type: application/json
 
-# Cache Invalidation 설정 (Issue #278: L1 Cache Coherence)
+# Cache 설정 (P1-2: TTL/Size 외부화, P0-4: lockWaitSeconds)
 cache:
+  specs:
+    equipment:
+      l1-ttl-minutes: 5
+      l1-max-size: 5000
+      l2-ttl-minutes: 10
+      l2-serializer: json
+    cubeTrials:
+      l1-ttl-minutes: 10
+      l1-max-size: 5000
+      l2-ttl-minutes: 20
+      l2-serializer: jdk
+    ocidCache:
+      l1-ttl-minutes: 30
+      l1-max-size: 5000
+      l2-ttl-minutes: 60
+      l2-serializer: json
+    characterBasic:
+      l1-ttl-minutes: 15
+      l1-max-size: 5000
+      l2-ttl-minutes: 15
+      l2-serializer: json
+    expectationV4:
+      l1-ttl-minutes: 60
+      l1-max-size: 5000
+      l2-ttl-minutes: 60
+      l2-serializer: jdk
+  singleflight:
+    lock-wait-seconds: 5  # P0-4 Fix: 30초 → 5초 (cold burst 스레드 고갈 방지)
+  # Cache Invalidation 설정 (Issue #278: L1 Cache Coherence)
   invalidation:
     pubsub:
       enabled: true  # Scale-out 환경 L1 캐시 무효화 Pub/Sub 활성화
