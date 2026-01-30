@@ -2,6 +2,7 @@ package maple.expectation.service.v2.shutdown;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import maple.expectation.config.ShutdownProperties;
 import maple.expectation.global.common.function.ThrowingSupplier;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
@@ -12,7 +13,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mockito;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -92,10 +92,12 @@ class ShutdownDataPersistenceServiceTest {
             catch (Throwable e) { return inv.getArgument(1); }
         }).when(executor).executeOrDefault(any(ThrowingSupplier.class), any(), any());
 
-        // 서비스 인스턴스 생성 및 디렉토리 주입
-        service = new ShutdownDataPersistenceService(objectMapper, executor);
-        ReflectionTestUtils.setField(service, "backupDirectory", tempDir.toString());
-        ReflectionTestUtils.setField(service, "archiveDirectory", tempDir.resolve("processed").toString());
+        // 서비스 인스턴스 생성 (P1-1 Fix: ShutdownProperties 생성자 주입)
+        ShutdownProperties shutdownProperties = new ShutdownProperties();
+        shutdownProperties.setBackupDirectory(tempDir.toString());
+        shutdownProperties.setArchiveDirectory(tempDir.resolve("processed").toString());
+        shutdownProperties.setInstanceId("test-instance");
+        service = new ShutdownDataPersistenceService(objectMapper, executor, shutdownProperties);
 
         service.init();
     }
