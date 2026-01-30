@@ -2,12 +2,15 @@ package maple.expectation.config;
 
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.binder.jvm.ExecutorServiceMetrics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.task.TaskDecorator;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
+import java.util.Collections;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 
@@ -57,21 +60,27 @@ public class PresetCalculationExecutorConfig {
      * <p>CallerRunsPolicy 사용 - 프리셋 계산은 I/O가 없는 CPU 바운드 작업이므로
      * 호출 스레드에서 직접 실행해도 안전함</p>
      *
-     * <h4>메트릭 노출</h4>
+     * <h4>메트릭 노출 (Issue #284: Micrometer 표준)</h4>
      * <ul>
-     *   <li>preset.calculation.queue.size: 큐 대기 작업 수</li>
-     *   <li>preset.calculation.active.count: 활성 스레드 수</li>
-     *   <li>preset.calculation.pool.size: 현재 풀 크기</li>
+     *   <li>executor.completed / executor.active / executor.queued: Micrometer ExecutorServiceMetrics</li>
+     *   <li>preset.calculation.queue.size: 큐 대기 작업 수 (레거시 호환)</li>
+     *   <li>preset.calculation.active.count: 활성 스레드 수 (레거시 호환)</li>
      * </ul>
+     *
+     * <h4>Issue #284 P1-NEW-1: TaskDecorator 주입</h4>
+     * <p>MDC/ThreadLocal 전파를 위해 contextPropagatingDecorator 적용</p>
      */
     @Bean("presetCalculationExecutor")
-    public Executor presetCalculationExecutor() {
+    public Executor presetCalculationExecutor(TaskDecorator contextPropagatingDecorator) {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         ExecutorProperties.PoolConfig config = executorProperties.preset();
         executor.setCorePoolSize(config.corePoolSize());
         executor.setMaxPoolSize(config.maxPoolSize());
         executor.setQueueCapacity(config.queueCapacity());
         executor.setThreadNamePrefix("preset-calc-");
+
+        // Issue #284 P1-NEW-1: MDC/ThreadLocal 전파
+        executor.setTaskDecorator(contextPropagatingDecorator);
 
         // CallerRunsPolicy: 큐 포화 시 호출 스레드에서 직접 실행 (Deadlock 방지)
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
@@ -82,7 +91,14 @@ public class PresetCalculationExecutorConfig {
 
         executor.initialize();
 
-        // 메트릭 등록
+        // Issue #284: Micrometer ExecutorServiceMetrics 등록 (표준 네이밍)
+        new ExecutorServiceMetrics(
+                executor.getThreadPoolExecutor(),
+                "preset.calculation",
+                Collections.emptyList()
+        ).bindTo(meterRegistry);
+
+        // 레거시 메트릭 호환 (기존 대시보드 유지)
         registerMetrics(executor);
 
         log.info("[PresetCalculationExecutor] Initialized: core={}, max={}, queue={}",

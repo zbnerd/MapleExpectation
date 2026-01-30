@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 캐릭터 도메인 서비스
@@ -33,6 +34,9 @@ import java.util.Optional;
 @Slf4j
 @Service
 public class GameCharacterService {
+
+    /** Issue #284 P0: 외부 API 호출 타임아웃 (초) */
+    private static final long API_TIMEOUT_SECONDS = 10L;
 
     private final GameCharacterRepository gameCharacterRepository;
     private final NexonApiClient nexonApiClient;
@@ -151,7 +155,9 @@ public class GameCharacterService {
         // TieredCache: L1 → L2 → API 호출 (Single-flight 패턴)
         CharacterBasicResponse basicInfo = cache.get(ocid, () -> {
             log.info("🔄 [Enrich] 캐릭터 기본 정보 API 호출: {} (캐시 MISS)", character.getUserIgn());
-            return nexonApiClient.getCharacterBasic(ocid).join();
+            return nexonApiClient.getCharacterBasic(ocid)
+                    .orTimeout(API_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                    .join();
         });
 
         // 엔티티 업데이트 (메모리)
