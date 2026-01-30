@@ -1,6 +1,5 @@
 package maple.expectation.service.v2;
 
-import io.github.resilience4j.retry.Retry;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -10,9 +9,9 @@ import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.global.executor.function.ThrowingRunnable;
 import maple.expectation.repository.v2.RedisBufferRepository;
-import maple.expectation.service.v2.cache.LikeBufferStorage;
 import maple.expectation.service.v2.cache.LikeBufferStrategy;
 import maple.expectation.service.v2.like.dto.FetchResult;
+import maple.expectation.service.v2.like.metrics.LikeSyncMetricsRecorder;
 import maple.expectation.service.v2.like.strategy.AtomicFetchStrategy;
 import maple.expectation.service.v2.shutdown.ShutdownDataPersistenceService;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,7 +45,6 @@ class LikeSyncServiceTest {
     private LikeSyncService likeSyncService;
 
     @Mock private LikeBufferStrategy likeBufferStrategy;
-    @Mock private LikeBufferStorage likeBufferStorage;
     @Mock private LikeSyncExecutor syncExecutor;
     @Mock private StringRedisTemplate redisTemplate;
     @Mock private RedisBufferRepository redisBufferRepository;
@@ -58,9 +56,9 @@ class LikeSyncServiceTest {
     @Mock private Counter mockCounter;
     @Mock private Timer mockTimer;
     @Mock private DistributionSummary mockSummary;
+    @Mock private LikeSyncMetricsRecorder metricsRecorder;
     @Mock private ApplicationEventPublisher eventPublisher;
 
-    private final Retry likeSyncRetry = Retry.ofDefaults("testRetry");
     private static final String SOURCE_KEY = "{buffer:likes}";
 
     @BeforeEach
@@ -126,15 +124,14 @@ class LikeSyncServiceTest {
 
         likeSyncService = new LikeSyncService(
                 likeBufferStrategy,
-                likeBufferStorage,
                 syncExecutor,
                 redisTemplate,
                 redisBufferRepository,
-                likeSyncRetry,
                 shutdownDataPersistenceService,
                 executor,
                 atomicFetchStrategy,
                 meterRegistry,
+                metricsRecorder,
                 eventPublisher
         );
 

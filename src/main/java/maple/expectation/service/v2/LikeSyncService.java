@@ -1,7 +1,6 @@
 package maple.expectation.service.v2;
 
 import com.google.common.collect.Lists;
-import io.github.resilience4j.retry.Retry;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.aop.annotation.ObservedTransaction;
@@ -9,11 +8,11 @@ import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.global.shutdown.dto.FlushResult;
 import maple.expectation.repository.v2.RedisBufferRepository;
-import maple.expectation.service.v2.cache.LikeBufferStorage;
 import maple.expectation.service.v2.cache.LikeBufferStrategy;
 import maple.expectation.service.v2.like.compensation.CompensationCommand;
 import maple.expectation.service.v2.like.compensation.RedisCompensationCommand;
 import maple.expectation.service.v2.like.dto.FetchResult;
+import maple.expectation.service.v2.like.metrics.LikeSyncMetricsRecorder;
 import maple.expectation.service.v2.like.strategy.AtomicFetchStrategy;
 import maple.expectation.service.v2.shutdown.ShutdownDataPersistenceService;
 import org.springframework.beans.factory.annotation.Value;
@@ -49,15 +48,14 @@ import java.util.concurrent.atomic.AtomicLong;
 public class LikeSyncService {
 
     private final LikeBufferStrategy likeBufferStrategy;
-    private final LikeBufferStorage likeBufferStorage;  // In-Memory 모드 호환용 (deprecated)
     private final LikeSyncExecutor syncExecutor;
     private final StringRedisTemplate redisTemplate;
     private final RedisBufferRepository redisBufferRepository;
-    private final Retry likeSyncRetry;
     private final ShutdownDataPersistenceService shutdownDataPersistenceService;
     private final LogicExecutor executor;
     private final AtomicFetchStrategy atomicFetchStrategy;
     private final MeterRegistry meterRegistry;
+    private final LikeSyncMetricsRecorder metricsRecorder;
     private final ApplicationEventPublisher eventPublisher;
 
     /**
@@ -78,26 +76,24 @@ public class LikeSyncService {
 
     public LikeSyncService(
             LikeBufferStrategy likeBufferStrategy,
-            LikeBufferStorage likeBufferStorage,
             LikeSyncExecutor syncExecutor,
             StringRedisTemplate redisTemplate,
             RedisBufferRepository redisBufferRepository,
-            Retry likeSyncRetry,
             ShutdownDataPersistenceService shutdownDataPersistenceService,
             LogicExecutor executor,
             AtomicFetchStrategy atomicFetchStrategy,
             MeterRegistry meterRegistry,
+            LikeSyncMetricsRecorder metricsRecorder,
             ApplicationEventPublisher eventPublisher) {
         this.likeBufferStrategy = likeBufferStrategy;
-        this.likeBufferStorage = likeBufferStorage;
         this.syncExecutor = syncExecutor;
         this.redisTemplate = redisTemplate;
         this.redisBufferRepository = redisBufferRepository;
-        this.likeSyncRetry = likeSyncRetry;
         this.shutdownDataPersistenceService = shutdownDataPersistenceService;
         this.executor = executor;
         this.atomicFetchStrategy = atomicFetchStrategy;
         this.meterRegistry = meterRegistry;
+        this.metricsRecorder = metricsRecorder;
         this.eventPublisher = eventPublisher;
 
         log.info("[LikeSyncService] Using {} buffer strategy",
@@ -118,8 +114,8 @@ public class LikeSyncService {
             return;
         }
 
-        // In-Memory 모드: 기존 로직 유지
-        Map<String, AtomicLong> snapshot = likeBufferStorage.getCache().asMap();
+        // In-Memory 모드: fetchAndClear로 원자적 스냅샷 획득
+        Map<String, Long> snapshot = likeBufferStrategy.fetchAndClear(Integer.MAX_VALUE);
         if (snapshot.isEmpty()) return;
         snapshot.forEach(this::processLocalBufferEntry);
     }
@@ -136,15 +132,15 @@ public class LikeSyncService {
             return FlushResult.empty();
         }
 
-        // In-Memory 모드: 기존 로직 유지
-        Map<String, AtomicLong> snapshot = likeBufferStorage.getCache().asMap();
+        // In-Memory 모드: fetchAndClear로 원자적 스냅샷 획득
+        Map<String, Long> snapshot = likeBufferStrategy.fetchAndClear(Integer.MAX_VALUE);
         if (snapshot.isEmpty()) return FlushResult.empty();
 
         AtomicInteger redisSuccessCount = new AtomicInteger(0);
         AtomicInteger fileBackupCount = new AtomicInteger(0);
 
-        snapshot.forEach((userIgn, atomicCount) ->
-                processShutdownFlushEntry(userIgn, atomicCount, redisSuccessCount, fileBackupCount)
+        snapshot.forEach((userIgn, count) ->
+                processShutdownFlushEntry(userIgn, count, redisSuccessCount, fileBackupCount)
         );
 
         return new FlushResult(redisSuccessCount.get(), fileBackupCount.get());
@@ -268,7 +264,7 @@ public class LikeSyncService {
                         successTotal.addAndGet(chunkTotal);
 
                         // 메트릭 기록 (Red 요구사항)
-                        meterRegistry.counter("like.sync.chunk.processed").increment();
+                        metricsRecorder.recordChunkProcessed();
                         log.debug("✅ [LikeSync] Chunk {}/{} processed ({} entries)",
                                 chunkIndex + 1, totalChunks, chunk.size());
                         return null;
@@ -292,7 +288,7 @@ public class LikeSyncService {
             int chunkIndex,
             Throwable e) {
         // 메트릭 기록 (Red 요구사항)
-        meterRegistry.counter("like.sync.chunk.failed").increment();
+        metricsRecorder.recordChunkFailed();
 
         log.error("❌ [LikeSync] Chunk {} failed ({} entries): {}",
                 chunkIndex, chunk.size(), e.getMessage());
@@ -344,8 +340,8 @@ public class LikeSyncService {
 
     // ========== L1 -> L2 Helper Methods ==========
 
-    private void processLocalBufferEntry(String userIgn, AtomicLong atomicCount) {
-        long count = atomicCount.getAndSet(0);
+    private void processLocalBufferEntry(String userIgn, Long countValue) {
+        long count = (countValue != null) ? countValue : 0L;
         if (count <= 0) return;
 
         executor.executeOrCatch(
@@ -362,9 +358,9 @@ public class LikeSyncService {
         );
     }
 
-    private void processShutdownFlushEntry(String userIgn, AtomicLong atomicCount,
+    private void processShutdownFlushEntry(String userIgn, Long countValue,
                                            AtomicInteger redisSuccessCount, AtomicInteger fileBackupCount) {
-        long count = atomicCount.getAndSet(0);
+        long count = (countValue != null) ? countValue : 0L;
         if (count <= 0) return;
 
         executor.executeOrCatch(
@@ -392,66 +388,21 @@ public class LikeSyncService {
                     return null;
                 },
                 dbEx -> {
-                    likeBufferStorage.getCounter(userIgn).addAndGet(count);
-                    log.error("‼️ [Critical] Redis/DB 동시 장애. 로컬 롤백 완료.");
+                    likeBufferStrategy.increment(userIgn, count);
+                    log.error("[Critical] Redis/DB 동시 장애. 로컬 롤백 완료: {}", userIgn);
                     return null;
                 },
                 TaskContext.of("LikeSync", "RedisFailureRecovery", userIgn)
         );
     }
 
-    private boolean syncWithRetry(String userIgn, long count) {
-        return executor.executeOrDefault(() -> {
-            Retry.decorateRunnable(likeSyncRetry, () ->
-                    syncExecutor.executeIncrement(userIgn, count)
-            ).run();
-            return true;
-        }, false, TaskContext.of("LikeSync", "DbSyncWithRetry", userIgn));
-    }
+    // ========== Metrics (위임: LikeSyncMetricsRecorder) ==========
 
-    // ========== Metrics (Micrometer) - P1 Enhancement ==========
-
-    /**
-     * LikeSync 메트릭 기록 (SRE 모니터링)
-     *
-     * <p>기록 항목:
-     * <ul>
-     *   <li><b>like.sync.duration</b>: 동기화 소요 시간 (Timer)</li>
-     *   <li><b>like.sync.entries</b>: 배치당 엔트리 수 (Distribution)</li>
-     *   <li><b>like.sync.total.count</b>: 배치당 총 좋아요 수</li>
-     *   <li><b>like.sync.failed.entries</b>: 실패 엔트리 수</li>
-     * </ul>
-     * </p>
-     */
     private void recordSyncMetrics(int entries, long totalCount, long failedEntries, long startNanos, String result) {
-        long durationNanos = System.nanoTime() - startNanos;
-
-        // Timer: 동기화 소요 시간
-        meterRegistry.timer("like.sync.duration", "result", result)
-                .record(durationNanos, java.util.concurrent.TimeUnit.NANOSECONDS);
-
-        // Distribution Summary: 배치당 엔트리 수
-        meterRegistry.summary("like.sync.entries").record(entries);
-
-        // Counter: 총 좋아요 수
-        if (totalCount > 0) {
-            meterRegistry.counter("like.sync.total.count", "result", result).increment(totalCount);
-        }
-
-        // Counter: 실패 엔트리 수
-        if (failedEntries > 0) {
-            meterRegistry.counter("like.sync.failed.entries").increment(failedEntries);
-        }
+        metricsRecorder.recordSyncMetrics(entries, totalCount, failedEntries, startNanos, result);
     }
 
-    /**
-     * 개별 복구 메트릭 기록
-     *
-     * @param result  success | failure
-     * @param count   복구된/실패한 좋아요 수
-     */
     private void recordRestoreMetrics(String result, long count) {
-        meterRegistry.counter("like.sync.restore.count", "result", result).increment();
-        meterRegistry.counter("like.sync.restore.likes", "result", result).increment(count);
+        metricsRecorder.recordRestoreMetrics(result, count);
     }
 }

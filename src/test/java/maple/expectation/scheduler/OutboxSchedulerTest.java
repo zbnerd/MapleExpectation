@@ -3,6 +3,7 @@ package maple.expectation.scheduler;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.global.executor.function.ThrowingRunnable;
+import maple.expectation.service.v2.donation.outbox.OutboxMetrics;
 import maple.expectation.service.v2.donation.outbox.OutboxProcessor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -20,24 +21,22 @@ import static org.mockito.Mockito.*;
  * <h4>경량 테스트 (CLAUDE.md Section 25)</h4>
  * <p>스케줄러 메서드를 직접 호출하여 OutboxProcessor 호출 여부를 검증합니다.</p>
  *
- * <h4>테스트 범위</h4>
- * <ul>
- *   <li>pollAndProcess: Outbox 폴링 및 처리</li>
- *   <li>recoverStalled: Stalled 상태 복구</li>
- * </ul>
+ * <h4>P1-7 반영: updatePendingCount() 스케줄러 레벨 호출 검증</h4>
  */
 @Tag("unit")
 class OutboxSchedulerTest {
 
     private OutboxProcessor outboxProcessor;
+    private OutboxMetrics outboxMetrics;
     private LogicExecutor executor;
     private OutboxScheduler scheduler;
 
     @BeforeEach
     void setUp() {
         outboxProcessor = mock(OutboxProcessor.class);
+        outboxMetrics = mock(OutboxMetrics.class);
         executor = createMockLogicExecutor();
-        scheduler = new OutboxScheduler(outboxProcessor, executor);
+        scheduler = new OutboxScheduler(outboxProcessor, outboxMetrics, executor);
     }
 
     @Nested
@@ -75,6 +74,16 @@ class OutboxSchedulerTest {
                     context.component().equals("Scheduler") &&
                     context.operation().equals("Outbox.Poll")
             ));
+        }
+
+        @Test
+        @DisplayName("P1-7: pollAndProcess 후 updatePendingCount 호출")
+        void shouldUpdatePendingCountAfterPoll() {
+            // when
+            scheduler.pollAndProcess();
+
+            // then
+            verify(outboxMetrics).updatePendingCount();
         }
     }
 

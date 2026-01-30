@@ -100,6 +100,13 @@ public enum RedisKey {
     LIKE_RELATIONS_PENDING("{likes}:relations:pending"),
 
     /**
+     * Unlike 추적 (SET)
+     * <p>Unlike 된 관계를 추적하여 cold start와 구분.
+     * DB DELETE 배치 동기화 및 hasLiked 판정에 사용.</p>
+     */
+    LIKE_RELATIONS_UNLIKED("{likes}:relations:unliked"),
+
+    /**
      * Partitioned Flush Lock 접두사
      * <p>각 파티션별 분산 락. 예: {likes}:flush:partition:0</p>
      */
@@ -143,7 +150,28 @@ public enum RedisKey {
      * <p>Scale-out 환경에서 인스턴스 간 L1 캐시 무효화 이벤트 전파</p>
      * <p>Hash Tag {likes}로 같은 슬롯 배치</p>
      */
-    LIKE_EVENTS_TOPIC("{likes}:events");
+    LIKE_EVENTS_TOPIC("{likes}:events"),
+
+    /**
+     * 좋아요 이벤트 Reliable Pub/Sub 토픽 (Issue #278 P0)
+     * <p>RReliableTopic: at-least-once 보장 (RTopic은 at-most-once)</p>
+     * <p>인스턴스 재시작 시 메시지 유실 방지</p>
+     * <p>Hash Tag {likes}로 같은 슬롯 배치</p>
+     */
+    LIKE_EVENTS_RELIABLE_TOPIC("{likes}:events:reliable"),
+
+    // ============================================================
+    // Cache Invalidation (Issue #278: L1 Cache Coherence)
+    // ============================================================
+
+    /**
+     * 캐시 무효화 Pub/Sub 토픽
+     * <p>Scale-out 환경에서 TieredCache L1(Caffeine) 캐시 무효화 이벤트 전파</p>
+     * <p>Hash Tag {cache}로 좋아요 이벤트와 분리</p>
+     *
+     * @see maple.expectation.global.cache.invalidation.CacheInvalidationEvent
+     */
+    CACHE_INVALIDATION_TOPIC("{cache}:invalidation");
 
     private final String key;
 

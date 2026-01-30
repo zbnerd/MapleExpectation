@@ -9,6 +9,8 @@ import java.util.Set;
  *
  * @param sessionId   세션 ID
  * @param fingerprint API Key의 HMAC-SHA256 해시
+ * @param userIgn     로그인 캐릭터명
+ * @param accountId   넥슨 계정 식별자 (SHA-256 of sorted myOcids) - 좋아요 중복 판별 키
  * @param apiKey      Nexon API Key (서비스 레이어에서만 사용)
  * @param myOcids     사용자가 소유한 캐릭터 OCID 목록
  * @param role        권한 (USER 또는 ADMIN)
@@ -16,6 +18,8 @@ import java.util.Set;
 public record AuthenticatedUser(
     String sessionId,
     String fingerprint,
+    String userIgn,
+    String accountId,
     String apiKey,
     Set<String> myOcids,
     String role
@@ -48,6 +52,8 @@ public record AuthenticatedUser(
         return "AuthenticatedUser[" +
                 "sessionId=" + sessionId +
                 ", fingerprint=" + fingerprint +
+                ", userIgn=" + userIgn +
+                ", accountId=" + accountId +
                 ", apiKey=" + maskApiKey(apiKey) +
                 ", myOcids=" + myOcids +
                 ", role=" + role + "]";

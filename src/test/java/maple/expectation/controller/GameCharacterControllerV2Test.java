@@ -1,15 +1,12 @@
 package maple.expectation.controller;
 
-import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.external.dto.v2.EquipmentResponse;
 import maple.expectation.external.dto.v2.TotalExpectationResponse;
 import maple.expectation.global.response.ApiResponse;
 import maple.expectation.global.security.AuthenticatedUser;
 import maple.expectation.service.v2.EquipmentService;
-import maple.expectation.service.v2.GameCharacterService;
 import maple.expectation.service.v2.auth.CharacterLikeService;
 import maple.expectation.service.v2.auth.CharacterLikeService.LikeToggleResult;
-import maple.expectation.service.v2.cache.LikeBufferStrategy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -18,7 +15,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
@@ -29,17 +25,15 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
 /**
- * GameCharacterControllerV2 단위 테스트 (Issue #194)
+ * GameCharacterControllerV2 단위 테스트 (Issue #194, #285)
  *
  * <h4>경량 테스트 (CLAUDE.md Section 25)</h4>
  * <p>순수 단위 테스트로 Controller 메서드만 직접 테스트합니다.</p>
  *
- * <h4>테스트 범위</h4>
+ * <h4>Issue #285 리팩토링 반영</h4>
  * <ul>
- *   <li>GET /{userIgn}/equipment - 장비 조회</li>
- *   <li>GET /{userIgn}/expectation - 기대값 계산</li>
- *   <li>POST /{userIgn}/like - 좋아요 토글</li>
- *   <li>GET /{userIgn}/like/status - 좋아요 상태 확인</li>
+ *   <li>P0-4: Service에서 likeCount 반환 (Controller 비즈니스 로직 제거)</li>
+ *   <li>P0-8: GameCharacterService, LikeBufferStrategy 의존성 제거</li>
  * </ul>
  */
 @Tag("unit")
@@ -47,21 +41,15 @@ class GameCharacterControllerV2Test {
 
     private EquipmentService equipmentService;
     private CharacterLikeService characterLikeService;
-    private GameCharacterService gameCharacterService;
-    private LikeBufferStrategy likeBufferStrategy;
     private GameCharacterControllerV2 controller;
 
     @BeforeEach
     void setUp() {
         equipmentService = mock(EquipmentService.class);
         characterLikeService = mock(CharacterLikeService.class);
-        gameCharacterService = mock(GameCharacterService.class);
-        likeBufferStrategy = mock(LikeBufferStrategy.class);
         controller = new GameCharacterControllerV2(
                 equipmentService,
-                characterLikeService,
-                gameCharacterService,
-                likeBufferStrategy
+                characterLikeService
         );
     }
 
@@ -148,17 +136,13 @@ class GameCharacterControllerV2Test {
             // given
             String userIgn = "TargetUser";
             AuthenticatedUser user = new AuthenticatedUser(
-                    "session-123", "fingerprint-abc", "api-key-test", Set.of(), "USER"
+                    "session-123", "fingerprint-abc", "TestLiker", "test-account-id", "api-key-test", Set.of(), "USER"
             );
 
-            LikeToggleResult toggleResult = new LikeToggleResult(true, 5L);
+            // P0-4: Service에서 likeCount(15) 직접 반환
+            LikeToggleResult toggleResult = new LikeToggleResult(true, 5L, 15L);
             given(characterLikeService.toggleLike(eq(userIgn), any(AuthenticatedUser.class)))
                     .willReturn(toggleResult);
-
-            GameCharacter mockCharacter = mock(GameCharacter.class);
-            given(mockCharacter.getLikeCount()).willReturn(10L);
-            given(gameCharacterService.getCharacterIfExist(userIgn))
-                    .willReturn(Optional.of(mockCharacter));
 
             // when
             ResponseEntity<ApiResponse<GameCharacterControllerV2.LikeToggleResponse>> response =
@@ -168,7 +152,7 @@ class GameCharacterControllerV2Test {
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
             assertThat(response.getBody()).isNotNull();
             assertThat(response.getBody().data().liked()).isTrue();
-            assertThat(response.getBody().data().likeCount()).isEqualTo(15L); // 10 + 5
+            assertThat(response.getBody().data().likeCount()).isEqualTo(15L);
             verify(characterLikeService).toggleLike(userIgn, user);
         }
 
@@ -178,17 +162,13 @@ class GameCharacterControllerV2Test {
             // given
             String userIgn = "TargetUser";
             AuthenticatedUser user = new AuthenticatedUser(
-                    "session-456", "fingerprint-def", "api-key-test", Set.of(), "USER"
+                    "session-456", "fingerprint-def", "TestLiker2", "test-account-id", "api-key-test", Set.of(), "USER"
             );
 
-            LikeToggleResult toggleResult = new LikeToggleResult(false, -1L);
+            // P0-4: Service에서 likeCount(4) 직접 반환
+            LikeToggleResult toggleResult = new LikeToggleResult(false, -1L, 4L);
             given(characterLikeService.toggleLike(eq(userIgn), any(AuthenticatedUser.class)))
                     .willReturn(toggleResult);
-
-            GameCharacter mockCharacter = mock(GameCharacter.class);
-            given(mockCharacter.getLikeCount()).willReturn(5L);
-            given(gameCharacterService.getCharacterIfExist(userIgn))
-                    .willReturn(Optional.of(mockCharacter));
 
             // when
             ResponseEntity<ApiResponse<GameCharacterControllerV2.LikeToggleResponse>> response =
@@ -198,30 +178,29 @@ class GameCharacterControllerV2Test {
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
             assertThat(response.getBody()).isNotNull();
             assertThat(response.getBody().data().liked()).isFalse();
-            assertThat(response.getBody().data().likeCount()).isEqualTo(4L); // 5 - 1
+            assertThat(response.getBody().data().likeCount()).isEqualTo(4L);
         }
 
         @Test
-        @DisplayName("캐릭터 미존재 시 likeCount 0으로 계산")
-        void whenCharacterNotExists_shouldReturnZeroBasedCount() {
+        @DisplayName("캐릭터 미존재 시에도 Service가 likeCount 계산")
+        void whenCharacterNotExists_shouldReturnServiceCalculatedCount() {
             // given
             String userIgn = "NonExistentUser";
             AuthenticatedUser user = new AuthenticatedUser(
-                    "session-789", "fingerprint-ghi", "api-key-test", Set.of(), "USER"
+                    "session-789", "fingerprint-ghi", "TestLiker3", "test-account-id", "api-key-test", Set.of(), "USER"
             );
 
-            LikeToggleResult toggleResult = new LikeToggleResult(true, 1L);
+            // P0-4: Service에서 likeCount(1) 직접 반환 (0 + delta 1)
+            LikeToggleResult toggleResult = new LikeToggleResult(true, 1L, 1L);
             given(characterLikeService.toggleLike(eq(userIgn), any(AuthenticatedUser.class)))
                     .willReturn(toggleResult);
-            given(gameCharacterService.getCharacterIfExist(userIgn))
-                    .willReturn(Optional.empty());
 
             // when
             ResponseEntity<ApiResponse<GameCharacterControllerV2.LikeToggleResponse>> response =
                     controller.toggleLike(userIgn, user);
 
             // then
-            assertThat(response.getBody().data().likeCount()).isEqualTo(1L); // 0 + 1
+            assertThat(response.getBody().data().likeCount()).isEqualTo(1L);
         }
     }
 
@@ -234,17 +213,13 @@ class GameCharacterControllerV2Test {
         void whenAlreadyLiked_shouldReturnTrue() {
             // given
             String userIgn = "LikedTarget";
-            String fingerprint = "fingerprint-123";
+            String accountId = "test-account-id";
             AuthenticatedUser user = new AuthenticatedUser(
-                    "session-789", fingerprint, "api-key-test", Set.of(), "USER"
+                    "session-789", "fingerprint-123", "LikerChar", accountId, "api-key-test", Set.of(), "USER"
             );
-            given(characterLikeService.hasLiked(userIgn, fingerprint)).willReturn(true);
-
-            GameCharacter mockCharacter = mock(GameCharacter.class);
-            given(mockCharacter.getLikeCount()).willReturn(10L);
-            given(gameCharacterService.getCharacterIfExist(userIgn))
-                    .willReturn(Optional.of(mockCharacter));
-            given(likeBufferStrategy.get(userIgn)).willReturn(2L);
+            given(characterLikeService.hasLiked(userIgn, accountId)).willReturn(true);
+            // P0-8: Service에서 effectiveLikeCount 반환
+            given(characterLikeService.getEffectiveLikeCount(userIgn)).willReturn(12L);
 
             // when
             ResponseEntity<ApiResponse<GameCharacterControllerV2.LikeStatusResponse>> response =
@@ -254,7 +229,7 @@ class GameCharacterControllerV2Test {
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
             assertThat(response.getBody()).isNotNull();
             assertThat(response.getBody().data().liked()).isTrue();
-            assertThat(response.getBody().data().likeCount()).isEqualTo(12L); // 10 + 2
+            assertThat(response.getBody().data().likeCount()).isEqualTo(12L);
         }
 
         @Test
@@ -262,14 +237,12 @@ class GameCharacterControllerV2Test {
         void whenNotLiked_shouldReturnFalse() {
             // given
             String userIgn = "NotLikedTarget";
-            String fingerprint = "fingerprint-456";
+            String accountId = "test-account-id-2";
             AuthenticatedUser user = new AuthenticatedUser(
-                    "session-abc", fingerprint, "api-key-test", Set.of(), "USER"
+                    "session-abc", "fingerprint-456", "LikerChar2", accountId, "api-key-test", Set.of(), "USER"
             );
-            given(characterLikeService.hasLiked(userIgn, fingerprint)).willReturn(false);
-            given(gameCharacterService.getCharacterIfExist(userIgn))
-                    .willReturn(Optional.empty());
-            given(likeBufferStrategy.get(userIgn)).willReturn(null);
+            given(characterLikeService.hasLiked(userIgn, accountId)).willReturn(false);
+            given(characterLikeService.getEffectiveLikeCount(userIgn)).willReturn(0L);
 
             // when
             ResponseEntity<ApiResponse<GameCharacterControllerV2.LikeStatusResponse>> response =

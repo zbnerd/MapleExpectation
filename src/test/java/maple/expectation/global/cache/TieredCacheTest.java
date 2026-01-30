@@ -3,6 +3,7 @@ package maple.expectation.global.cache;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import maple.expectation.global.cache.invalidation.CacheInvalidationEvent;
 import maple.expectation.global.common.function.ThrowingSupplier;
 import maple.expectation.global.executor.function.ThrowingRunnable;
 import maple.expectation.global.executor.LogicExecutor;
@@ -13,13 +14,16 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.cache.Cache;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
+import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
@@ -32,12 +36,13 @@ import static org.mockito.Mockito.*;
  * <h4>경량 테스트 (CLAUDE.md Section 25)</h4>
  * <p>Spring Context 없이 Mockito만으로 2층 캐시를 검증합니다.</p>
  *
- * <h4>테스트 범위</h4>
+ * <h4>P0/P1 리팩토링 반영</h4>
  * <ul>
- *   <li>L1 → L2 순차 조회 및 Backfill</li>
- *   <li>L2 → L1 순서 저장 (일관성)</li>
- *   <li>Single-flight 패턴 (분산 락)</li>
- *   <li>Graceful Degradation (L2 장애 시)</li>
+ *   <li>생성자 시그니처 변경 (lockWaitSeconds, Supplier)</li>
+ *   <li>P0-1: put() Pub/Sub 이벤트 발행 검증</li>
+ *   <li>P0-3: evict() L2→L1 순서 InOrder 검증</li>
+ *   <li>P1-1: cache.hit 메트릭에 cache 태그 포함 검증</li>
+ *   <li>P1-7: Counter pre-registration 검증</li>
  * </ul>
  */
 @Tag("unit")
@@ -46,12 +51,14 @@ class TieredCacheTest {
     private static final String CACHE_NAME = "testCache";
     private static final Object KEY = "testKey";
     private static final String VALUE = "testValue";
+    private static final int LOCK_WAIT_SECONDS = 5;
 
     private Cache l1;
     private Cache l2;
     private LogicExecutor executor;
     private RedissonClient redissonClient;
     private MeterRegistry meterRegistry;
+    private List<CacheInvalidationEvent> publishedEvents;
     private TieredCache tieredCache;
 
     @BeforeEach
@@ -61,10 +68,18 @@ class TieredCacheTest {
         executor = createMockLogicExecutor();
         redissonClient = mock(RedissonClient.class);
         meterRegistry = new SimpleMeterRegistry();
+        publishedEvents = new ArrayList<>();
 
         given(l2.getName()).willReturn(CACHE_NAME);
 
-        tieredCache = new TieredCache(l1, l2, executor, redissonClient, meterRegistry);
+        Consumer<CacheInvalidationEvent> callback = publishedEvents::add;
+
+        tieredCache = new TieredCache(
+                l1, l2, executor, redissonClient, meterRegistry,
+                LOCK_WAIT_SECONDS,
+                () -> "test-instance",
+                () -> callback
+        );
     }
 
     @Nested
@@ -157,13 +172,49 @@ class TieredCacheTest {
         void shouldSkipL1WhenL2Fails() {
             // given - L2 저장 실패 시뮬레이션
             executor = createFailingL2Executor();
-            tieredCache = new TieredCache(l1, l2, executor, redissonClient, meterRegistry);
+            Consumer<CacheInvalidationEvent> callback = publishedEvents::add;
+            tieredCache = new TieredCache(
+                    l1, l2, executor, redissonClient, meterRegistry,
+                    LOCK_WAIT_SECONDS, () -> "test-instance", () -> callback
+            );
 
             // when
             tieredCache.put(KEY, VALUE);
 
             // then
             verify(l1, never()).put(KEY, VALUE);
+        }
+
+        @Test
+        @DisplayName("P0-1: put() 성공 시 Pub/Sub 이벤트 발행")
+        void shouldPublishEvictEventAfterSuccessfulPut() {
+            // when
+            tieredCache.put(KEY, VALUE);
+
+            // then
+            assertThat(publishedEvents).hasSize(1);
+            CacheInvalidationEvent event = publishedEvents.getFirst();
+            assertThat(event.cacheName()).isEqualTo(CACHE_NAME);
+            assertThat(event.key()).isEqualTo(KEY.toString());
+            assertThat(event.sourceInstanceId()).isEqualTo("test-instance");
+        }
+
+        @Test
+        @DisplayName("P0-1: L2 실패 시 Pub/Sub 미발행")
+        void shouldNotPublishEventWhenL2Fails() {
+            // given
+            executor = createFailingL2Executor();
+            Consumer<CacheInvalidationEvent> callback = publishedEvents::add;
+            tieredCache = new TieredCache(
+                    l1, l2, executor, redissonClient, meterRegistry,
+                    LOCK_WAIT_SECONDS, () -> "test-instance", () -> callback
+            );
+
+            // when
+            tieredCache.put(KEY, VALUE);
+
+            // then
+            assertThat(publishedEvents).isEmpty();
         }
     }
 
@@ -180,6 +231,29 @@ class TieredCacheTest {
             // then
             verify(l1).evict(KEY);
             verify(l2).evict(KEY);
+        }
+
+        @Test
+        @DisplayName("P0-3: evict() L2→L1 순서 InOrder 검증")
+        void shouldEvictL2BeforeL1() {
+            // when
+            tieredCache.evict(KEY);
+
+            // then
+            InOrder inOrder = inOrder(l2, l1);
+            inOrder.verify(l2).evict(KEY);
+            inOrder.verify(l1).evict(KEY);
+        }
+
+        @Test
+        @DisplayName("evict 시 Pub/Sub 이벤트 발행")
+        void shouldPublishEvictEventOnEvict() {
+            // when
+            tieredCache.evict(KEY);
+
+            // then
+            assertThat(publishedEvents).hasSize(1);
+            assertThat(publishedEvents.getFirst().cacheName()).isEqualTo(CACHE_NAME);
         }
 
         @Test
@@ -303,9 +377,12 @@ class TieredCacheTest {
 
             // then
             assertThat(result).isEqualTo("fallbackValue");
-            // 락 실패 메트릭 확인
-            Counter lockFailure = meterRegistry.find("cache.lock.failure").counter();
+            // P1-7: pre-registered counter 검증
+            Counter lockFailure = meterRegistry.find("cache.lock.failure")
+                    .tag("cache", CACHE_NAME)
+                    .counter();
             assertThat(lockFailure).isNotNull();
+            assertThat(lockFailure.count()).isGreaterThan(0);
         }
 
         @Test
@@ -336,8 +413,8 @@ class TieredCacheTest {
     class MetricsTest {
 
         @Test
-        @DisplayName("L1 히트 시 메트릭 기록")
-        void shouldRecordL1HitMetric() {
+        @DisplayName("P1-1: L1 히트 시 cache 태그 포함 메트릭 기록")
+        void shouldRecordL1HitMetricWithCacheTag() {
             // given
             Cache.ValueWrapper wrapper = () -> VALUE;
             given(l1.get(KEY)).willReturn(wrapper);
@@ -348,14 +425,15 @@ class TieredCacheTest {
             // then
             Counter l1HitCounter = meterRegistry.find("cache.hit")
                     .tag("layer", "L1")
+                    .tag("cache", CACHE_NAME)
                     .counter();
             assertThat(l1HitCounter).isNotNull();
             assertThat(l1HitCounter.count()).isGreaterThan(0);
         }
 
         @Test
-        @DisplayName("L2 히트 시 메트릭 기록")
-        void shouldRecordL2HitMetric() {
+        @DisplayName("P1-1: L2 히트 시 cache 태그 포함 메트릭 기록")
+        void shouldRecordL2HitMetricWithCacheTag() {
             // given
             given(l1.get(KEY)).willReturn(null);
             given(l2.get(KEY)).willReturn(() -> VALUE);
@@ -366,9 +444,54 @@ class TieredCacheTest {
             // then
             Counter l2HitCounter = meterRegistry.find("cache.hit")
                     .tag("layer", "L2")
+                    .tag("cache", CACHE_NAME)
                     .counter();
             assertThat(l2HitCounter).isNotNull();
             assertThat(l2HitCounter.count()).isGreaterThan(0);
+        }
+
+        @Test
+        @DisplayName("P0-4: lockWaitSeconds=5 적용 확인")
+        void shouldUseLockWaitSecondsFromConfig() throws Exception {
+            // given
+            given(l1.get(KEY)).willReturn(null);
+            given(l2.get(KEY)).willReturn(null);
+
+            RLock lock = createMockLock(true);
+            given(redissonClient.getLock(anyString())).willReturn(lock);
+
+            // when
+            tieredCache.get(KEY, () -> "value");
+
+            // then: lockWaitSeconds=5 확인
+            verify(lock).tryLock(eq((long) LOCK_WAIT_SECONDS), eq(TimeUnit.SECONDS));
+        }
+    }
+
+    @Nested
+    @DisplayName("P1-6: TieredCacheManager CAS 초기화")
+    class CASInitializationTest {
+
+        @Test
+        @DisplayName("initializeInstanceId() 중복 호출 시 false 반환")
+        void shouldReturnFalseOnDuplicateInitialization() {
+            // given
+            TieredCacheManager manager = new TieredCacheManager(
+                    mock(org.springframework.cache.CacheManager.class),
+                    mock(org.springframework.cache.CacheManager.class),
+                    executor,
+                    redissonClient,
+                    meterRegistry,
+                    LOCK_WAIT_SECONDS
+            );
+
+            // when
+            boolean first = manager.initializeInstanceId("instance-1");
+            boolean second = manager.initializeInstanceId("instance-2");
+
+            // then
+            assertThat(first).isTrue();
+            assertThat(second).isFalse();
         }
     }
 

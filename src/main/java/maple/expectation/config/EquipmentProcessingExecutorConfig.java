@@ -1,12 +1,17 @@
 package maple.expectation.config;
 
+import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.binder.jvm.ExecutorServiceMetrics;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.task.TaskDecorator;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
+import java.util.Collections;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 
@@ -42,9 +47,11 @@ import java.util.concurrent.ThreadPoolExecutor;
  */
 @Configuration
 @RequiredArgsConstructor
+@EnableConfigurationProperties(ExecutorProperties.class)
 public class EquipmentProcessingExecutorConfig {
 
     private final MeterRegistry meterRegistry;
+    private final ExecutorProperties executorProperties;
 
     /**
      * Equipment Processing 전용 Executor (#264 확장)
@@ -55,32 +62,53 @@ public class EquipmentProcessingExecutorConfig {
      *   <li>CallerRunsPolicy 금지: 호출 스레드 블로킹 방지</li>
      * </ul>
      *
-     * <h4>메트릭 노출</h4>
+     * <h4>메트릭 노출 (Issue #284: Micrometer 표준 + rejected Counter)</h4>
      * <ul>
-     *   <li>equipment.executor.queue.size: 큐 대기 작업 수</li>
-     *   <li>equipment.executor.active.count: 활성 스레드 수</li>
-     *   <li>equipment.executor.pool.size: 현재 풀 크기</li>
-     *   <li>equipment.executor.completed.tasks: 완료된 작업 수</li>
+     *   <li>executor.completed / executor.active / executor.queued: Micrometer ExecutorServiceMetrics</li>
+     *   <li>executor.rejected{name=equipment.processing}: 거부된 작업 수</li>
+     *   <li>equipment.executor.queue.size: 큐 대기 작업 수 (레거시 호환)</li>
+     *   <li>equipment.executor.active.count: 활성 스레드 수 (레거시 호환)</li>
      * </ul>
+     *
+     * <h4>Issue #284 P1-NEW-1: TaskDecorator 주입</h4>
+     * <p>MDC/ThreadLocal 전파를 위해 contextPropagatingDecorator 적용</p>
      */
     @Bean("equipmentProcessingExecutor")
-    public Executor equipmentProcessingExecutor() {
+    public Executor equipmentProcessingExecutor(TaskDecorator contextPropagatingDecorator) {
+        // Issue #284 P1-NEW-2: rejected Counter 등록
+        Counter rejectedCounter = Counter.builder("executor.rejected")
+                .tag("name", "equipment.processing")
+                .description("Number of tasks rejected due to queue full")
+                .register(meterRegistry);
+
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        // #264: Thread Pool 확장 (병목 해결)
-        executor.setCorePoolSize(8);    // 2 → 8 (I/O 바운드 고려)
-        executor.setMaxPoolSize(16);    // 4 → 16 (피크 시 확장)
-        executor.setQueueCapacity(200); // 50 → 200 (스파이크 흡수)
+        ExecutorProperties.PoolConfig config = executorProperties.equipment();
+        executor.setCorePoolSize(config.corePoolSize());
+        executor.setMaxPoolSize(config.maxPoolSize());
+        executor.setQueueCapacity(config.queueCapacity());
         executor.setThreadNamePrefix("equip-proc-");
 
-        // AbortPolicy: 큐 포화 시 RejectedExecutionException 발생
-        // GlobalExceptionHandler에서 503 Service Unavailable 반환
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
+        // Issue #284 P1-NEW-1: MDC/ThreadLocal 전파
+        executor.setTaskDecorator(contextPropagatingDecorator);
+
+        // AbortPolicy + rejected 메트릭 기록 (Issue #284 P1-NEW-2)
+        executor.setRejectedExecutionHandler((r, e) -> {
+            rejectedCounter.increment();
+            new ThreadPoolExecutor.AbortPolicy().rejectedExecution(r, e);
+        });
 
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(30);
         executor.initialize();
 
-        // 메트릭 노출 (SRE Red Agent 요구사항)
+        // Issue #284: Micrometer ExecutorServiceMetrics 등록 (표준 네이밍)
+        new ExecutorServiceMetrics(
+                executor.getThreadPoolExecutor(),
+                "equipment.processing",
+                Collections.emptyList()
+        ).bindTo(meterRegistry);
+
+        // 레거시 메트릭 호환 (기존 대시보드 유지)
         registerMetrics(executor);
 
         return executor;

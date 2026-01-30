@@ -427,6 +427,18 @@ private List<Dto> processActiveUser(Long id) {
 - **06_Nightmare/Results**: 테스트 결과 리포트
 - **04_Reports/**: Load Test, E2E Validation 결과
 
+## Service Modules (-> [docs/02_Technical_Guides/service-modules.md](docs/02_Technical_Guides/service-modules.md))
+- **V2 핵심 비즈니스**: 15개 모듈 (root, alert, auth, cache, calculator, cube, donation, facade, impl, like, mapper, policy, shutdown, starforce, worker)
+- **V4 성능 강화**: 7개 모듈 (root, buffer, cache, fallback, persistence, warmup, calculator/v4)
+- **설계 패턴 요약**: Facade, Decorator, Strategy, Transactional Outbox, Write-Behind 등 12개 패턴
+- **모듈 의존성 그래프**: V2↔V4 Mermaid 다이어그램
+
+## Scale-out & Architecture (-> [docs/04_Reports/](docs/04_Reports/), [docs/adr/](docs/adr/))
+- **Scale-out 방해 요소 분석**: [docs/04_Reports/scale-out-blockers-analysis.md](docs/04_Reports/scale-out-blockers-analysis.md) - P0/P1 Stateful 컴포넌트 전수 분석 (22개)
+- **대규모 트래픽 성능 분석**: [docs/04_Reports/high-traffic-performance-analysis.md](docs/04_Reports/high-traffic-performance-analysis.md) - P0/P1 Thread Pool, Connection Pool, Lock 경합 (11개)
+- **ADR-014 멀티 모듈 전환**: [docs/adr/ADR-014-multi-module-cross-cutting-concerns.md](docs/adr/ADR-014-multi-module-cross-cutting-concerns.md) - 횡단 관심사 분리 설계
+- **로드맵 Phase 7**: [docs/00_Start_Here/ROADMAP.md](docs/00_Start_Here/ROADMAP.md) - #283 → #282 → #126 의존 관계
+
 ## Templates (-> [docs/98_Templates/](docs/98_Templates/))
 - **Chaos_Report_Template.md**: 카오스 리포트 양식
 - **ISSUE_TEMPLATE.md**: GitHub 이슈 양식

@@ -13,8 +13,8 @@ import java.time.LocalDateTime;
  *
  * <p>중복 방지 전략:
  * <ul>
- *   <li>UNIQUE 제약조건: (target_ocid, liker_fingerprint)</li>
- *   <li>동일 계정(fingerprint)이 같은 캐릭터(ocid)에 중복 좋아요 불가</li>
+ *   <li>UNIQUE 제약조건: (target_ocid, liker_account_id)</li>
+ *   <li>동일 넥슨 계정(accountId)이 같은 캐릭터(ocid)에 중복 좋아요 불가</li>
  * </ul>
  * </p>
  *
@@ -25,11 +25,11 @@ import java.time.LocalDateTime;
     name = "character_like",
     uniqueConstraints = @UniqueConstraint(
         name = "uk_target_liker",
-        columnNames = {"target_ocid", "liker_fingerprint"}
+        columnNames = {"target_ocid", "liker_account_id"}
     ),
     indexes = {
         @Index(name = "idx_target_ocid", columnList = "target_ocid"),
-        @Index(name = "idx_liker_fingerprint", columnList = "liker_fingerprint")
+        @Index(name = "idx_liker_account_id", columnList = "liker_account_id")
     }
 )
 @Getter
@@ -43,8 +43,8 @@ public class CharacterLike {
     @Column(name = "target_ocid", nullable = false, length = 64)
     private String targetOcid;
 
-    @Column(name = "liker_fingerprint", nullable = false, length = 64)
-    private String likerFingerprint;
+    @Column(name = "liker_account_id", nullable = false, length = 64)
+    private String likerAccountId;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -53,18 +53,18 @@ public class CharacterLike {
     /**
      * 좋아요 생성
      *
-     * @param targetOcid       좋아요 대상 캐릭터 OCID
-     * @param likerFingerprint 좋아요를 누른 계정의 fingerprint
+     * @param targetOcid    좋아요 대상 캐릭터 OCID
+     * @param likerAccountId 좋아요를 누른 넥슨 계정 식별자
      */
-    public CharacterLike(String targetOcid, String likerFingerprint) {
+    public CharacterLike(String targetOcid, String likerAccountId) {
         this.targetOcid = targetOcid;
-        this.likerFingerprint = likerFingerprint;
+        this.likerAccountId = likerAccountId;
     }
 
     /**
      * 팩토리 메서드
      */
-    public static CharacterLike of(String targetOcid, String likerFingerprint) {
-        return new CharacterLike(targetOcid, likerFingerprint);
+    public static CharacterLike of(String targetOcid, String likerAccountId) {
+        return new CharacterLike(targetOcid, likerAccountId);
     }
 }

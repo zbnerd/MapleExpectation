@@ -1,6 +1,5 @@
 package maple.expectation.service.v2;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.aop.annotation.ObservedTransaction;
 import maple.expectation.domain.v2.GameCharacter;
@@ -9,15 +8,15 @@ import maple.expectation.external.dto.v2.CharacterBasicResponse;
 import maple.expectation.global.error.exception.CharacterNotFoundException;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
-import maple.expectation.global.util.ExceptionUtils;
 import maple.expectation.repository.v2.GameCharacterRepository;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 캐릭터 도메인 서비스
@@ -34,13 +33,32 @@ import java.util.Optional;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class GameCharacterService {
+
+    /** Issue #284 P0: 외부 API 호출 타임아웃 (초) */
+    private static final long API_TIMEOUT_SECONDS = 10L;
 
     private final GameCharacterRepository gameCharacterRepository;
     private final NexonApiClient nexonApiClient;
     private final CacheManager cacheManager;
     private final LogicExecutor executor;
+    private final CharacterCreationService characterCreationService;
+    private final ObjectProvider<GameCharacterService> selfProvider;
+
+    public GameCharacterService(
+            GameCharacterRepository gameCharacterRepository,
+            NexonApiClient nexonApiClient,
+            CacheManager cacheManager,
+            LogicExecutor executor,
+            CharacterCreationService characterCreationService,
+            ObjectProvider<GameCharacterService> selfProvider) {
+        this.gameCharacterRepository = gameCharacterRepository;
+        this.nexonApiClient = nexonApiClient;
+        this.cacheManager = cacheManager;
+        this.executor = executor;
+        this.characterCreationService = characterCreationService;
+        this.selfProvider = selfProvider;
+    }
 
     /**
      * ⚡ [Negative Cache 확인]
@@ -66,96 +84,17 @@ public class GameCharacterService {
     }
 
     /**
-     * ⚙️ [캐릭터 생성 로직] - Issue #226: 트랜잭션 경계 분리
+     * 캐릭터 생성 (CharacterCreationService 위임 + 기본 정보 보강)
      *
-     * <h4>Connection Pool 고갈 방지 (P1)</h4>
-     * <p>기존 문제: @Transactional 범위 내 .join() 호출 → 최대 28초 DB Connection 점유</p>
-     * <p>해결: API 호출은 트랜잭션 밖, DB 작업만 트랜잭션 안</p>
+     * <h4>Issue #226: Connection Pool 고갈 방지</h4>
+     * <p>CharacterCreationService에서 트랜잭션 경계 분리 적용</p>
      *
-     * <h4>Connection 점유 시간</h4>
-     * <ul>
-     *   <li>Before: 최대 28초 (TimeLimiter 상한)</li>
-     *   <li>After: ~100ms (saveAndFlush만)</li>
-     * </ul>
-     *
-     * @see <a href="https://github.com/issue/226">Issue #226: Connection Vampire 방지</a>
+     * @see CharacterCreationService#createNewCharacter(String)
      */
     @ObservedTransaction("service.v2.GameCharacterService.createNewCharacter")
     public GameCharacter createNewCharacter(String userIgn) {
-        String cleanUserIgn = userIgn.trim();
-        TaskContext context = TaskContext.of("Character", "Create", cleanUserIgn);
-
-        return executor.executeOrCatch(
-                () -> {
-                    log.info("✨ [Creation] 캐릭터 생성 시작: {}", cleanUserIgn);
-
-                    // Step 1: OCID 조회 (트랜잭션 밖 - DB Connection 점유 없음)
-                    String ocid = nexonApiClient.getOcidByCharacterName(cleanUserIgn).join().getOcid();
-
-                    // Step 2: 캐릭터 기본 정보 조회 (트랜잭션 밖 - DB Connection 점유 없음)
-                    CharacterBasicResponse basicInfo = nexonApiClient.getCharacterBasic(ocid).join();
-
-                    // Step 3: DB 저장 (트랜잭션 안 - 짧은 Connection 점유 ~100ms)
-                    return saveCharacterWithCaching(cleanUserIgn, ocid, basicInfo);
-                },
-                (e) -> {
-                    // PR #199, #241 Fix: CompletionException unwrap 후 CharacterNotFoundException 감지
-                    Throwable unwrapped = ExceptionUtils.unwrapAsyncException(e);
-                    if (unwrapped instanceof CharacterNotFoundException) {
-                        log.warn("🚫 [Recovery] 캐릭터 미존재 확인 -> 네거티브 캐시 저장: {}", cleanUserIgn);
-                        Optional.ofNullable(cacheManager.getCache("ocidNegativeCache"))
-                                .ifPresent(c -> c.put(cleanUserIgn, "NOT_FOUND"));
-                    }
-                    // 발생한 예외를 그대로 던져 상위 트랜잭션/핸들러로 전달
-                    throw (RuntimeException) e;
-                },
-                context
-        );
-    }
-
-    /**
-     * DB 저장 + 캐싱 (트랜잭션 범위 최소화) - Issue #226
-     *
-     * <p>Connection 점유 시간: ~100ms (28초 → 100ms)</p>
-     *
-     * <h4>원자성 보장</h4>
-     * <ul>
-     *   <li>saveAndFlush()로 즉시 커밋</li>
-     *   <li>API 호출 결과(OCID)는 상태를 변경하지 않음 (조회 전용)</li>
-     *   <li>재시도 시 동일한 OCID가 반환되므로 멱등성 보장</li>
-     * </ul>
-     *
-     * <h4>Race Condition 대응</h4>
-     * <ul>
-     *   <li>DB Unique Constraint (userIgn)로 중복 방지</li>
-     *   <li>동시 요청 시 DataIntegrityViolationException → 기존 엔티티 조회</li>
-     * </ul>
-     *
-     * @param userIgn 캐릭터 닉네임
-     * @param ocid 캐릭터 고유 ID
-     * @param basicInfo Nexon API character/basic 응답 (worldName, characterClass, characterImage)
-     */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public GameCharacter saveCharacterWithCaching(String userIgn, String ocid, CharacterBasicResponse basicInfo) {
-        GameCharacter character = new GameCharacter(userIgn, ocid);
-
-        // Nexon API character/basic 정보 설정
-        character.setWorldName(basicInfo.getWorldName());
-        character.setCharacterClass(basicInfo.getCharacterClass());
-        character.setCharacterImage(basicInfo.getCharacterImage());
-        character.setBasicInfoUpdatedAt(java.time.LocalDateTime.now());
-
-        GameCharacter saved = gameCharacterRepository.saveAndFlush(character);
-
-        // Positive caching: OCID 캐시
-        Optional.ofNullable(cacheManager.getCache("ocidCache"))
-                .ifPresent(c -> c.put(userIgn, ocid));
-
-        // TieredCache: characterBasic 캐시 (L1 + L2)
-        Optional.ofNullable(cacheManager.getCache("characterBasic"))
-                .ifPresent(c -> c.put(ocid, basicInfo));
-
-        return saved;
+        GameCharacter created = characterCreationService.createNewCharacter(userIgn.trim());
+        return enrichCharacterBasicInfo(created);
     }
 
     @Transactional
@@ -216,14 +155,16 @@ public class GameCharacterService {
         // TieredCache: L1 → L2 → API 호출 (Single-flight 패턴)
         CharacterBasicResponse basicInfo = cache.get(ocid, () -> {
             log.info("🔄 [Enrich] 캐릭터 기본 정보 API 호출: {} (캐시 MISS)", character.getUserIgn());
-            return nexonApiClient.getCharacterBasic(ocid).join();
+            return nexonApiClient.getCharacterBasic(ocid)
+                    .orTimeout(API_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                    .join();
         });
 
         // 엔티티 업데이트 (메모리)
         updateCharacterWithBasicInfo(character, basicInfo);
 
-        // 비동기 DB 저장 (Background)
-        saveCharacterBasicInfoAsync(character);
+        // 비동기 DB 저장 (Background) — selfProvider로 프록시 경유하여 @Async 활성화
+        selfProvider.getObject().saveCharacterBasicInfoAsync(character);
 
         return character;
     }

@@ -1,12 +1,10 @@
 package maple.expectation.service.v2.alert;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.monitoring.ai.AiSreService;
 import maple.expectation.monitoring.ai.AiSreService.AiAnalysisResult;
 import maple.expectation.monitoring.context.SystemContextProvider;
 import maple.expectation.service.v2.alert.dto.DiscordMessage;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -25,15 +23,17 @@ import java.util.Optional;
  *   <li>AI 분석 실패 시 기본 알림 전송 (Fallback)</li>
  * </ul>
  *
+ * <h3>P1-3 Fix: 생성자 주입 (CLAUDE.md Section 6)</h3>
+ * <p>@Autowired(required=false) 필드 주입 -> Optional 생성자 주입</p>
+ *
  * <h4>CLAUDE.md 준수사항</h4>
  * <ul>
- *   <li>Section 6 (Design Patterns): Factory 패턴 활용</li>
+ *   <li>Section 6 (Design Patterns): Factory 패턴 + 생성자 주입</li>
  *   <li>Section 12-1 (Circuit Breaker): AI 서비스 장애 격리</li>
  * </ul>
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class DiscordAlertService {
 
     /**
@@ -45,13 +45,8 @@ public class DiscordAlertService {
 
     private final WebClient webClient;
     private final DiscordMessageFactory messageFactory;
-
-    // AI SRE 컴포넌트 (Optional - 비활성화 시 null)
-    @Autowired(required = false)
-    private AiSreService aiSreService;
-
-    @Autowired(required = false)
-    private SystemContextProvider contextProvider;
+    private final Optional<AiSreService> aiSreService;
+    private final Optional<SystemContextProvider> contextProvider;
 
     @Value("${discord.webhook-url}")
     private String webhookUrl;
@@ -59,17 +54,25 @@ public class DiscordAlertService {
     @Value("${ai.sre.enabled:false}")
     private boolean aiSreEnabled;
 
+    public DiscordAlertService(WebClient webClient,
+                               DiscordMessageFactory messageFactory,
+                               Optional<AiSreService> aiSreService,
+                               Optional<SystemContextProvider> contextProvider) {
+        this.webClient = webClient;
+        this.messageFactory = messageFactory;
+        this.aiSreService = aiSreService;
+        this.contextProvider = contextProvider;
+    }
+
     /**
      * Critical Alert 전송 (기존 호환)
      */
     public void sendCriticalAlert(String title, String description, Throwable e) {
-        // AI SRE 활성화 시 AI 분석 포함
-        if (aiSreEnabled && aiSreService != null) {
+        if (aiSreEnabled && aiSreService.isPresent()) {
             sendCriticalAlertWithAi(title, description, e);
             return;
         }
 
-        // 기본 알림 (AI 비활성화)
         DiscordMessage payload = messageFactory.createCriticalEmbed(title, description, e);
         send(payload);
     }
@@ -78,18 +81,13 @@ public class DiscordAlertService {
      * AI 분석이 포함된 Critical Alert 전송 (Issue #251)
      */
     public void sendCriticalAlertWithAi(String title, String description, Throwable e) {
-        // 1. 시스템 컨텍스트 수집
         String systemSummary = getSystemSummary();
-
-        // 2. AI 분석 수행 (비동기, 타임아웃 10초)
         Optional<AiAnalysisResult> aiAnalysis = getAiAnalysis(e);
 
-        // 3. 메시지 생성 및 전송
         DiscordMessage payload = messageFactory.createCriticalEmbedWithAi(
                 title, description, e, aiAnalysis, systemSummary);
         send(payload);
 
-        // 4. AI 분석 결과 로깅
         logAiAnalysisResult(e, aiAnalysis);
     }
 
@@ -97,23 +95,14 @@ public class DiscordAlertService {
      * AI 분석 수행 (타임아웃 처리 포함)
      */
     private Optional<AiAnalysisResult> getAiAnalysis(Throwable e) {
-        if (aiSreService == null) {
-            return Optional.empty();
-        }
-
-        // 동기 호출로 간단하게 처리 (Virtual Thread 환경)
-        return aiSreService.analyzeError(e);
+        return aiSreService.flatMap(service -> service.analyzeError(e));
     }
 
     /**
      * 시스템 컨텍스트 요약 수집
      */
     private String getSystemSummary() {
-        if (contextProvider == null) {
-            return "";
-        }
-
-        return contextProvider.buildSummary();
+        return contextProvider.map(SystemContextProvider::buildSummary).orElse("");
     }
 
     /**
@@ -130,7 +119,6 @@ public class DiscordAlertService {
     }
 
     private void send(DiscordMessage payload) {
-        // 보안을 위한 URL 마스킹 로직
         String maskedUrl = webhookUrl.substring(0, Math.min(webhookUrl.length(), 20)) + "...";
 
         webClient.post()

@@ -79,7 +79,7 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
         void shouldRefreshTokensSuccessfully() {
             // [Given] 세션 생성 + Refresh Token 발급 (로그인 시뮬레이션)
             Session session = sessionService.createSession(
-                FINGERPRINT, API_KEY, Set.of("ocid-1", "ocid-2"), Session.ROLE_USER
+                FINGERPRINT, "TestUser", "test-account-id", API_KEY, Set.of("ocid-1", "ocid-2"), Session.ROLE_USER
             );
             RefreshToken originalToken = refreshTokenService.createRefreshToken(
                 session.sessionId(), FINGERPRINT
@@ -122,7 +122,7 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
         void shouldRotateTokensMultipleTimes() {
             // [Given]
             Session session = sessionService.createSession(
-                FINGERPRINT, API_KEY, Set.of("ocid-1"), Session.ROLE_USER
+                FINGERPRINT, "TestUser", "test-account-id", API_KEY, Set.of("ocid-1"), Session.ROLE_USER
             );
             RefreshToken token1 = refreshTokenService.createRefreshToken(
                 session.sessionId(), FINGERPRINT
@@ -155,7 +155,7 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
         void shouldInvalidateFamilyOnTokenReuse() {
             // [Given] 세션 + Refresh Token 생성
             Session session = sessionService.createSession(
-                FINGERPRINT, API_KEY, Set.of("ocid-1"), Session.ROLE_USER
+                FINGERPRINT, "TestUser", "test-account-id", API_KEY, Set.of("ocid-1"), Session.ROLE_USER
             );
             RefreshToken token1 = refreshTokenService.createRefreshToken(
                 session.sessionId(), FINGERPRINT
@@ -182,7 +182,7 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
         void shouldForceReloginAfterTheftDetection() {
             // [Given] 사용자 A가 로그인
             Session session = sessionService.createSession(
-                FINGERPRINT, API_KEY, Set.of("ocid-1"), Session.ROLE_USER
+                FINGERPRINT, "TestUser", "test-account-id", API_KEY, Set.of("ocid-1"), Session.ROLE_USER
             );
             RefreshToken originalToken = refreshTokenService.createRefreshToken(
                 session.sessionId(), FINGERPRINT
@@ -214,7 +214,7 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
         void shouldThrowWhenSessionExpired() {
             // [Given] 세션 + Refresh Token 생성 후 세션 삭제
             Session session = sessionService.createSession(
-                FINGERPRINT, API_KEY, Set.of("ocid-1"), Session.ROLE_USER
+                FINGERPRINT, "TestUser", "test-account-id", API_KEY, Set.of("ocid-1"), Session.ROLE_USER
             );
             RefreshToken token = refreshTokenService.createRefreshToken(
                 session.sessionId(), FINGERPRINT
@@ -244,7 +244,7 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
         void shouldThrowWhenTokenExpired() {
             // [Given] 세션 생성
             Session session = sessionService.createSession(
-                FINGERPRINT, API_KEY, Set.of("ocid-1"), Session.ROLE_USER
+                FINGERPRINT, "TestUser", "test-account-id", API_KEY, Set.of("ocid-1"), Session.ROLE_USER
             );
 
             // 만료된 토큰 직접 생성 (Repository에 직접 저장)
@@ -278,7 +278,7 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
         void shouldHandleConcurrentRefreshRequests() throws Exception {
             // [Given] 세션 + Refresh Token 생성
             Session session = sessionService.createSession(
-                FINGERPRINT, API_KEY, Set.of("ocid-1"), Session.ROLE_USER
+                FINGERPRINT, "TestUser", "test-account-id", API_KEY, Set.of("ocid-1"), Session.ROLE_USER
             );
             RefreshToken token = refreshTokenService.createRefreshToken(
                 session.sessionId(), FINGERPRINT
@@ -350,7 +350,7 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
         void shouldDeleteAllTokensOnLogout() {
             // [Given] 세션 생성 + 여러 Refresh Token 발급 (연속 Rotation)
             Session session = sessionService.createSession(
-                FINGERPRINT, API_KEY, Set.of("ocid-1"), Session.ROLE_USER
+                FINGERPRINT, "TestUser", "test-account-id", API_KEY, Set.of("ocid-1"), Session.ROLE_USER
             );
             RefreshToken token1 = refreshTokenService.createRefreshToken(
                 session.sessionId(), FINGERPRINT

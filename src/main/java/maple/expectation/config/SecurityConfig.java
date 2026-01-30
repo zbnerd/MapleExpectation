@@ -171,10 +171,10 @@ public class SecurityConfig {
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers("/admin/**").hasRole("ADMIN")
 
-                // ★ 좋아요 API는 인증 필요 (더 구체적인 규칙이 먼저!)
-                // POST /api/v2/characters/{userIgn}/like - 좋아요
-                // GET  /api/v2/characters/{userIgn}/like/status - 좋아요 여부
-                .requestMatchers("/api/v2/characters/*/like/**").authenticated()
+                // ★ 좋아요 API
+                // GET  /api/v2/characters/{userIgn}/like/status - 비인증 허용 (likeCount 공개)
+                .requestMatchers(HttpMethod.GET, "/api/v2/characters/*/like/status").permitAll()
+                // POST /api/v2/characters/{userIgn}/like - 좋아요 토글 (인증 필요)
                 .requestMatchers("/api/v2/characters/*/like").authenticated()
 
                 // ★ v3 API (인증 없이 접근 가능)

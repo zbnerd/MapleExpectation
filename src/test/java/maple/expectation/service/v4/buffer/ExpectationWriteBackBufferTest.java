@@ -7,7 +7,7 @@ import maple.expectation.dto.v4.EquipmentExpectationResponseV4.PresetExpectation
 import maple.expectation.global.common.function.ThrowingSupplier;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
-import maple.expectation.global.executor.function.ThrowingFunction;
+
 import maple.expectation.global.executor.function.ThrowingRunnable;
 import maple.expectation.global.executor.strategy.ExceptionTranslator;
 import org.junit.jupiter.api.BeforeEach;
@@ -128,15 +128,6 @@ class ExpectationWriteBackBufferTest {
                 return task.get();
             } catch (Throwable e) {
                 throw translator.translate(e, context);
-            }
-        }
-
-        @Override
-        public <T> T executeCheckedWithHandler(ThrowingSupplier<T> task, ThrowingFunction<Throwable, T> recovery, TaskContext context) throws Throwable {
-            try {
-                return task.get();
-            } catch (Throwable t) {
-                return recovery.apply(t);
             }
         }
 

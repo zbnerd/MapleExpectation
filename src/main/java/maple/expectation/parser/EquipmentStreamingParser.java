@@ -334,6 +334,33 @@ public class EquipmentStreamingParser {
         }
     }
 
+    /**
+     * GZIP 압축 여부를 확인하고 필요 시 해제 (P1-6: 3중 해제 방지)
+     *
+     * <p>GZIP 매직 넘버(0x1F 0x8B)를 확인하여 압축된 경우 해제합니다.
+     * 이미 해제된 데이터는 그대로 반환합니다.</p>
+     *
+     * @param data 원본 바이트 배열 (GZIP 또는 plain)
+     * @return 해제된 바이트 배열
+     */
+    public byte[] decompressIfNeeded(byte[] data) {
+        if (data == null || data.length < 2) {
+            return data;
+        }
+        if (data[0] != (byte) 0x1F || data[1] != (byte) 0x8B) {
+            return data; // plain data
+        }
+        TaskContext context = TaskContext.of("Parser", "DecompressIfNeeded");
+        return executor.executeWithTranslation(
+                () -> {
+                    InputStream is = new GZIPInputStream(new ByteArrayInputStream(data));
+                    return is.readAllBytes();
+                },
+                ExceptionTranslator.forMaple(),
+                context
+        );
+    }
+
     private InputStream createInputStream(byte[] data) throws IOException {
         InputStream is = new ByteArrayInputStream(data);
         if (data.length > 2 && data[0] == (byte) 0x1F && data[1] == (byte) 0x8B) {

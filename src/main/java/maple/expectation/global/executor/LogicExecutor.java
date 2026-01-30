@@ -1,7 +1,6 @@
 package maple.expectation.global.executor;
 
 import maple.expectation.global.common.function.ThrowingSupplier;
-import maple.expectation.global.executor.function.ThrowingFunction;
 import maple.expectation.global.executor.function.ThrowingRunnable;
 import maple.expectation.global.executor.strategy.ExceptionTranslator;
 import java.util.function.Function;
@@ -34,11 +33,17 @@ public interface LogicExecutor {
     <T> T executeOrDefault(ThrowingSupplier<T> task, T defaultValue, TaskContext context);
 
     /**
-     * [패턴 5] 예외 발생 시 복구 로직 실행
+     * [패턴 5] 예외 발생 시 <b>번역된 예외</b>로 복구 로직 실행
+     *
+     * <p>{@link #executeWithFallback}과의 차이:
+     * <ul>
+     *   <li>{@code executeOrCatch}: 기본 {@link ExceptionTranslator}로 <b>번역된</b> 예외가 recovery에 전달됨</li>
+     *   <li>{@code executeWithFallback}: <b>원본</b> 예외가 그대로 fallback에 전달됨</li>
+     * </ul>
      *
      * @param <T> 작업 결과 타입
      * @param task 실행할 작업
-     * @param recovery 예외 발생 시 실행할 복구 함수
+     * @param recovery 번역된 예외를 받아 복구값을 반환하는 함수
      * @param context 작업 컨텍스트
      * @return 작업 결과 또는 복구값
      */
@@ -87,24 +92,17 @@ public interface LogicExecutor {
     );
 
     /**
-     * [패턴 7] Checked 예외를 전파하면서 복구 로직 수행
-     * * @param <T> 작업 결과 타입
-     * @param task 실행할 작업 (Throwable 발생 가능)
-     * @param recovery 복구 로직 (Throwable 발생 가능)
-     * @param context 작업 컨텍스트
-     * @return 작업 결과
-     * @throws Throwable 원본 체크 예외 전파
-     */
-    <T> T executeCheckedWithHandler(
-            ThrowingSupplier<T> task,
-            ThrowingFunction<Throwable, T> recovery,
-            TaskContext context
-    ) throws Throwable;
-
-    /**
-     * [패턴 8] Checked 예외 대응 Fallback 실행
-     * * @param task 실행할 작업 (Throwable 발생 가능)
-     * @param fallback 예외 발생 시 실행할 복구 로직
+     * [패턴 8] 예외 발생 시 <b>원본 예외</b>로 Fallback 실행
+     *
+     * <p>{@link #executeOrCatch}과의 차이:
+     * <ul>
+     *   <li>{@code executeWithFallback}: <b>원본</b> 예외가 그대로 fallback에 전달됨 (번역 없음)</li>
+     *   <li>{@code executeOrCatch}: 기본 {@link ExceptionTranslator}로 <b>번역된</b> 예외가 recovery에 전달됨</li>
+     * </ul>
+     *
+     * @param <T> 작업 결과 타입
+     * @param task 실행할 작업
+     * @param fallback 원본 예외를 받아 복구값을 반환하는 함수
      * @param context 작업 컨텍스트
      * @return 작업 결과 또는 Fallback 결과
      */

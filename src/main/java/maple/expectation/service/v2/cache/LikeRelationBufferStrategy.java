@@ -44,50 +44,64 @@ public interface LikeRelationBufferStrategy {
     /**
      * 좋아요 관계 추가
      *
-     * @param fingerprint 좋아요를 누른 계정의 fingerprint
-     * @param targetOcid  대상 캐릭터의 OCID
+     * @param accountId 좋아요를 누른 계정의 캐릭터명
+     * @param targetOcid   대상 캐릭터의 OCID
      * @return true: 신규 추가, false: 중복, null: Redis 장애
      */
-    Boolean addRelation(String fingerprint, String targetOcid);
+    Boolean addRelation(String accountId, String targetOcid);
 
     /**
      * 좋아요 관계 존재 여부 확인
      *
-     * @param fingerprint 좋아요를 누른 계정의 fingerprint
-     * @param targetOcid  대상 캐릭터의 OCID
+     * @param accountId 좋아요를 누른 계정의 캐릭터명
+     * @param targetOcid   대상 캐릭터의 OCID
      * @return true: 존재, false: 미존재, null: Redis 장애
      */
-    Boolean exists(String fingerprint, String targetOcid);
+    Boolean exists(String accountId, String targetOcid);
 
     /**
      * 좋아요 관계 삭제
      *
-     * @param fingerprint 좋아요를 누른 계정의 fingerprint
-     * @param targetOcid  대상 캐릭터의 OCID
+     * @param accountId 좋아요를 누른 계정의 캐릭터명
+     * @param targetOcid   대상 캐릭터의 OCID
      * @return true: 삭제 성공, false: 미존재
      */
-    Boolean removeRelation(String fingerprint, String targetOcid);
+    Boolean removeRelation(String accountId, String targetOcid);
 
     /**
      * DB 동기화 대기 중인 관계 조회 + 제거 (원자적)
      *
      * @param limit 최대 조회 건수
-     * @return 대기 중인 관계 Set (fingerprint:targetOcid 형식)
+     * @return 대기 중인 관계 Set (accountId:targetOcid 형식)
      */
     Set<String> fetchAndRemovePending(int limit);
 
     /**
      * 관계 키 생성
-     * Format: {fingerprint}:{targetOcid}
+     * Format: {accountId}:{targetOcid}
      */
-    String buildRelationKey(String fingerprint, String targetOcid);
+    String buildRelationKey(String accountId, String targetOcid);
 
     /**
      * 관계 키 파싱
      *
-     * @return [fingerprint, targetOcid]
+     * @return [accountId, targetOcid]
      */
     String[] parseRelationKey(String relationKey);
+
+    /**
+     * Unlike 관계 존재 여부 확인 (명시적 unlike 추적)
+     *
+     * <p>Unlike 된 관계를 추적하여 cold start(Redis 비어있음)와
+     * 실제 unlike를 구분합니다.</p>
+     *
+     * @param accountId 좋아요를 누른 계정의 캐릭터명
+     * @param targetOcid   대상 캐릭터의 OCID
+     * @return true: 명시적 unlike됨, false: unlike 기록 없음, null: Redis 장애
+     */
+    default Boolean existsInUnliked(String accountId, String targetOcid) {
+        return null;
+    }
 
     /**
      * 전체 관계 수 조회

@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import maple.expectation.external.dto.v2.TotalExpectationResponse;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
+import maple.expectation.global.util.StringMaskingUtils;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
@@ -111,20 +112,23 @@ public class TotalExpectationCacheService {
                 log.warn("[Cache] L2 unavailable | cache={}", CACHE_NAME);
             }
 
-            log.info("[Cache] MISS | dto=TotalExpectationResponse | maskedKey={}", maskKey(cacheKey));
+            log.info("[Cache] MISS | dto=TotalExpectationResponse | maskedKey={}", StringMaskingUtils.maskCacheKey(cacheKey));
             return Optional.empty();
-        }, TaskContext.of("ExpectationCache", "GetValid", maskKey(cacheKey)));
+        }, TaskContext.of("ExpectationCache", "GetValid", StringMaskingUtils.maskCacheKey(cacheKey)));
     }
 
     /**
-     * 캐시 저장 (P0-2 정책 적용)
+     * 캐시 저장 (P0-2 순서 수정: L2 → L1)
+     *
+     * <h4>P0-2 Fix: TieredCache 핵심 불변식 "L2 → L1" 준수</h4>
+     * <p>기존 L1→L2 순서 위반 수정. L2 저장을 먼저 수행하여
+     * L1만 stale data가 존재하는 상황을 방지.</p>
      *
      * <h4>저장 순서</h4>
      * <ol>
-     *   <li>L1 put (null-safe)</li>
      *   <li>Serialize + size guard</li>
-     *   <li>5KB 초과 시 L2 저장 스킵</li>
-     *   <li>L2 put (null-safe)</li>
+     *   <li>L2 put (5KB 이하일 때)</li>
+     *   <li>L1 put (L2 성공 여부와 무관 — 로컬 성능 보장)</li>
      * </ol>
      *
      * @param cacheKey 캐시 키
@@ -132,24 +136,25 @@ public class TotalExpectationCacheService {
      */
     public void saveCache(String cacheKey, TotalExpectationResponse response) {
         executor.executeVoid(() -> {
-            // 1) L1 put (null-safe)
-            saveToL1(cacheKey, response);
-
-            // 2) Serialize + size guard
+            // 1) Serialize + size guard
             int size = serializeAndGetSize(cacheKey, response);
             if (size < 0) {
-                return; // serialize 실패 시 L2 스킵
-            }
-
-            if (size > MAX_CACHE_BYTES) {
-                log.info("[5KB Guard] L2 skip: {} bytes > {}", size, MAX_CACHE_BYTES);
-                oversizeSkipCounter.increment();
+                // serialize 실패 시에도 L1은 저장 (로컬 성능 보장)
+                saveToL1(cacheKey, response);
                 return;
             }
 
-            // 3) L2 put
-            saveToL2(cacheKey, response, size);
-        }, TaskContext.of("ExpectationCache", "Save", maskKey(cacheKey)));
+            // 2) L2 put FIRST (5KB 이하일 때)
+            if (size <= MAX_CACHE_BYTES) {
+                saveToL2(cacheKey, response, size);
+            } else {
+                log.info("[5KB Guard] L2 skip: {} bytes > {}", size, MAX_CACHE_BYTES);
+                oversizeSkipCounter.increment();
+            }
+
+            // 3) L1 put (L2 성공 여부와 무관 — 로컬 성능 보장)
+            saveToL1(cacheKey, response);
+        }, TaskContext.of("ExpectationCache", "Save", StringMaskingUtils.maskCacheKey(cacheKey)));
     }
 
     /**
@@ -180,11 +185,11 @@ public class TotalExpectationCacheService {
                 e -> {
                     // serialize 실패는 L2 스킵(정책) + 로그
                     log.warn("[Serialize Fail] err={}", e.toString());
-                    log.debug("[Serialize Fail] maskedKey={}", maskKey(cacheKey));
+                    log.debug("[Serialize Fail] maskedKey={}", StringMaskingUtils.maskCacheKey(cacheKey));
                     serializeFailCounter.increment();
                     return -1; // L2 스킵 시그널
                 },
-                TaskContext.of("ExpectationCache", "Serialize", maskKey(cacheKey))
+                TaskContext.of("ExpectationCache", "Serialize", StringMaskingUtils.maskCacheKey(cacheKey))
         );
     }
 
@@ -214,7 +219,7 @@ public class TotalExpectationCacheService {
                             response.getUserIgn(), e.toString());
                     return null;
                 },
-                TaskContext.of("ExpectationCache", "SaveL2", maskKey(cacheKey))
+                TaskContext.of("ExpectationCache", "SaveL2", StringMaskingUtils.maskCacheKey(cacheKey))
         );
     }
 
@@ -234,17 +239,4 @@ public class TotalExpectationCacheService {
                 KEY_VERSION, ocid, fingerprint, tableVersionHash, logicVersion);
     }
 
-    /**
-     * 캐시 키 마스킹 (로그용)
-     *
-     * <p>P0-2 로그 정책: cacheKey 원문 로그 금지 → ocid 부분만 마스킹</p>
-     *
-     * @param key 원본 캐시 키
-     * @return 마스킹된 키 (ocid 부분이 ***로 대체)
-     */
-    private String maskKey(String key) {
-        if (key == null) return "null";
-        // expectation:v3:ocid123:... → expectation:v3:oc***:...
-        return key.replaceAll("(expectation:v\\d+:)[^:]+", "$1***");
-    }
 }

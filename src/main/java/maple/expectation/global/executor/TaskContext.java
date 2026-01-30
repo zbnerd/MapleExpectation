@@ -1,5 +1,7 @@
 package maple.expectation.global.executor;
 
+import java.util.Objects;
+
 /**
 * 메트릭 카디널리티 통제를 위한 작업 컨텍스트
 *
@@ -33,6 +35,17 @@ String operation,
 String dynamicValue
 ) {
 /**
+ * Compact constructor: null 파라미터 검증 (P1-4)
+ */
+public TaskContext {
+    Objects.requireNonNull(component, "component");
+    Objects.requireNonNull(operation, "operation");
+    if (dynamicValue == null) {
+        dynamicValue = "";
+    }
+}
+
+/**
 * TaskContext 생성 (동적 값 포함)
 *
 * @param component 컴포넌트 이름
@@ -63,7 +76,7 @@ return new TaskContext(component, operation, "");
 * @return "component:operation:dynamicValue" 형식의 문자열
 */
 public String toTaskName() {
-    if (dynamicValue == null || dynamicValue.isEmpty()) {
+    if (dynamicValue.isEmpty()) {
         return component + ":" + operation;
     }
     return component + ":" + operation + ":" + dynamicValue;

@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import maple.expectation.domain.v2.CharacterEquipment;
 import maple.expectation.external.dto.v2.EquipmentResponse;
 import maple.expectation.global.executor.LogicExecutor;
+import maple.expectation.global.util.StringMaskingUtils;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.global.executor.strategy.ExceptionTranslator;
 import maple.expectation.repository.v2.CharacterEquipmentRepository;
@@ -109,9 +110,9 @@ public class EquipmentDbWorker {
                     .filter(equipment -> equipment.isFresh(DB_TTL));  // Rich Domain
 
             if (result.isPresent()) {
-                log.debug("[EquipmentDb] DB HIT (TTL valid): ocid={}", maskOcid(ocid));
+                log.debug("[EquipmentDb] DB HIT (TTL valid): ocid={}", StringMaskingUtils.maskOcid(ocid));
             } else {
-                log.debug("[EquipmentDb] DB MISS or TTL expired: ocid={}", maskOcid(ocid));
+                log.debug("[EquipmentDb] DB MISS or TTL expired: ocid={}", StringMaskingUtils.maskOcid(ocid));
             }
 
             return result
@@ -143,12 +144,12 @@ public class EquipmentDbWorker {
         return executor.executeOrCatch(
                 () -> {
                     performRawSave(ocid, json);
-                    log.debug("💾 [DB Save] Raw JSON saved: ocid={}", maskOcid(ocid));
+                    log.debug("💾 [DB Save] Raw JSON saved: ocid={}", StringMaskingUtils.maskOcid(ocid));
                     future.complete(null);
                     return future;
                 },
                 (e) -> {
-                    log.error("❌ [DB Save Error] ocid={} | err={}", maskOcid(ocid), e.getMessage());
+                    log.error("❌ [DB Save Error] ocid={} | err={}", StringMaskingUtils.maskOcid(ocid), e.getMessage());
                     future.completeExceptionally(e);
                     return future;
                 },
@@ -167,11 +168,4 @@ public class EquipmentDbWorker {
         repository.saveAndFlush(entity);
     }
 
-    /**
-     * OCID 마스킹 (로깅용)
-     */
-    private String maskOcid(String value) {
-        if (value == null || value.length() < 8) return "***";
-        return value.substring(0, 4) + "***";
-    }
 }

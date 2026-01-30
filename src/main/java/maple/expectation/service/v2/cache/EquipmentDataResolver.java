@@ -5,6 +5,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.error.exception.ApiTimeoutException;
 import maple.expectation.global.executor.LogicExecutor;
+import maple.expectation.global.util.StringMaskingUtils;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.provider.EquipmentDataProvider;
 import maple.expectation.service.v2.worker.EquipmentDbWorker;
@@ -99,9 +100,9 @@ public class EquipmentDataResolver {
         return executor.executeOrDefault(
                 () -> resolveAsyncInternal(ocid, userIgn),
                 CompletableFuture.failedFuture(
-                        new IllegalStateException("[DataResolver] Resolve failed for ocid=" + maskOcid(ocid))
+                        new IllegalStateException("[DataResolver] Resolve failed for ocid=" + StringMaskingUtils.maskOcid(ocid))
                 ),
-                TaskContext.of("DataResolver", "ResolveAsync", maskOcid(ocid))
+                TaskContext.of("DataResolver", "ResolveAsync", StringMaskingUtils.maskOcid(ocid))
         );
     }
 
@@ -180,11 +181,4 @@ public class EquipmentDataResolver {
                 }, expectationExecutor);
     }
 
-    /**
-     * OCID 마스킹 (로깅용)
-     */
-    private String maskOcid(String value) {
-        if (value == null || value.length() < 8) return "***";
-        return value.substring(0, 4) + "***";
-    }
 }

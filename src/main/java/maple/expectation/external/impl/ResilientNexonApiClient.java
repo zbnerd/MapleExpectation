@@ -1,6 +1,7 @@
 package maple.expectation.external.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.resilience4j.bulkhead.annotation.Bulkhead;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
 import io.github.resilience4j.timelimiter.annotation.TimeLimiter;
@@ -11,16 +12,20 @@ import maple.expectation.external.NexonApiClient;
 import maple.expectation.external.dto.v2.CharacterBasicResponse;
 import maple.expectation.external.dto.v2.CharacterOcidResponse;
 import maple.expectation.external.dto.v2.EquipmentResponse;
+import maple.expectation.global.error.exception.CharacterNotFoundException;
 import maple.expectation.global.error.exception.EquipmentDataProcessingException;
 import maple.expectation.global.error.exception.ExternalServiceException;
 import maple.expectation.global.error.exception.marker.CircuitBreakerIgnoreMarker;
 import maple.expectation.global.executor.CheckedLogicExecutor;
 import maple.expectation.global.executor.TaskContext;
+import maple.expectation.global.util.ExceptionUtils;
 import maple.expectation.repository.v2.CharacterEquipmentRepository;
 import maple.expectation.service.v2.alert.DiscordAlertService;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
+
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -67,6 +72,7 @@ public class ResilientNexonApiClient implements NexonApiClient {
      */
     @Override
     @ObservedTransaction("external.api.nexon.ocid")
+    @Bulkhead(name = NEXON_API)
     @TimeLimiter(name = NEXON_API)
     @CircuitBreaker(name = NEXON_API)
     @Retry(name = NEXON_API, fallbackMethod = "getOcidFallback")
@@ -81,6 +87,7 @@ public class ResilientNexonApiClient implements NexonApiClient {
      */
     @Override
     @ObservedTransaction("external.api.nexon.basic")
+    @Bulkhead(name = NEXON_API)
     @TimeLimiter(name = NEXON_API)
     @CircuitBreaker(name = NEXON_API)
     @Retry(name = NEXON_API, fallbackMethod = "getCharacterBasicFallback")
@@ -90,6 +97,7 @@ public class ResilientNexonApiClient implements NexonApiClient {
 
     @Override
     @ObservedTransaction("external.api.nexon.itemdata")
+    @Bulkhead(name = NEXON_API)
     @TimeLimiter(name = NEXON_API)
     @CircuitBreaker(name = NEXON_API)
     @Retry(name = NEXON_API, fallbackMethod = "getItemDataFallback")
@@ -112,10 +120,18 @@ public class ResilientNexonApiClient implements NexonApiClient {
     /**
      * 캐릭터 기본 정보 조회 fallback (비동기)
      *
-     * <p>캐릭터 기본 정보는 DB에 캐싱되지 않으므로 단순 실패 처리</p>
+     * <p>Nexon API 4xx 응답(유효하지 않은 OCID 등)은 캐릭터 미존재로 처리</p>
      */
     public CompletableFuture<CharacterBasicResponse> getCharacterBasicFallback(String ocid, Throwable t) {
         handleIgnoreMarker(t);
+
+        Throwable root = ExceptionUtils.unwrapAsyncException(t);
+        if (root instanceof WebClientResponseException wce && wce.getStatusCode().is4xxClientError()) {
+            log.warn("[Resilience] Character basic 조회 4xx - 캐릭터 미존재 처리. ocid={}, status={}",
+                    ocid, wce.getStatusCode());
+            return CompletableFuture.failedFuture(new CharacterNotFoundException(ocid));
+        }
+
         log.error("[Resilience] Character basic 최종 조회 실패. ocid={}", ocid, t);
         return CompletableFuture.failedFuture(new ExternalServiceException(SERVICE_NEXON, t));
     }
@@ -137,7 +153,7 @@ public class ResilientNexonApiClient implements NexonApiClient {
         handleIgnoreMarker(t);
 
         // ★ P0-3: 일관된 root cause 사용 (CompletionException/ExecutionException unwrap)
-        Throwable rootCause = unwrapAsyncException(t);
+        Throwable rootCause = ExceptionUtils.unwrapAsyncException(t);
         log.warn("[Resilience] 장애 대응 시나리오 가동. ocid={}", ocid, rootCause);
 
         // 알림용 cause 준비: Error는 이미 handleIgnoreMarker에서 throw됨
@@ -162,7 +178,7 @@ public class ResilientNexonApiClient implements NexonApiClient {
         // ★ P0-3 : 도메인 예외 cause는 원본 t 유지 (래퍼 컨텍스트 보존)
         // - 관측(로그/알림): rootCause 사용 (위에서 처리)
         // - 트러블슈팅: wrapper(CompletionException 등)도 의미 있으므로 원본 유지
-        return failedFuture(new ExternalServiceException(SERVICE_NEXON, t));
+        return CompletableFuture.failedFuture(new ExternalServiceException(SERVICE_NEXON, t));
     }
 
     /**
@@ -185,26 +201,24 @@ public class ResilientNexonApiClient implements NexonApiClient {
                         e -> new ExternalServiceException(SERVICE_DISCORD, e)
                 ),
                 alertTaskExecutor  // commonPool 대신 전용 Executor 사용
-        ).exceptionally(ex -> {
-            // RejectedExecutionException은 정책적 드롭 (정상 시나리오) → 로그 레벨 낮춤
-            Throwable root = unwrapAsyncException(ex);
-            if (root instanceof RejectedExecutionException) {
-                log.debug("[Alert] 알림 드롭 (큐 포화, best-effort). ocid={}", ocid);
-            } else {
-                log.warn("[Alert] 디스코드 알림 실패 (best-effort). ocid={}", ocid, root);
-            }
-            return null;
-        });
+        ).exceptionally(ex -> handleAlertFailure(ex, ocid));
     }
 
     /**
-     * Java 8 호환 failedFuture 헬퍼
-     * (Java 9+에서는 CompletableFuture.failedFuture 사용 가능)
+     * 알림 실패 처리 (Section 15: 3-Line Rule 준수)
+     *
+     * @param ex 알림 실패 예외
+     * @param ocid 대상 캐릭터 OCID
+     * @return null (exceptionally 반환값)
      */
-    private static <T> CompletableFuture<T> failedFuture(Throwable t) {
-        CompletableFuture<T> cf = new CompletableFuture<>();
-        cf.completeExceptionally(t);
-        return cf;
+    private Void handleAlertFailure(Throwable ex, String ocid) {
+        Throwable root = ExceptionUtils.unwrapAsyncException(ex);
+        if (root instanceof RejectedExecutionException) {
+            log.debug("[Alert] 알림 드롭 (큐 포화, best-effort). ocid={}", ocid);
+        } else {
+            log.warn("[Alert] 디스코드 알림 실패 (best-effort). ocid={}", ocid, root);
+        }
+        return null;
     }
 
     /**
@@ -217,7 +231,7 @@ public class ResilientNexonApiClient implements NexonApiClient {
      */
     private void handleIgnoreMarker(Throwable t) {
         // Resilience4j/CompletableFuture wrapper unwrap
-        Throwable root = unwrapAsyncException(t);
+        Throwable root = ExceptionUtils.unwrapAsyncException(t);
 
         // ADR: Error는 어떤 상황에서든 즉시 전파
         if (root instanceof Error e) throw e;
@@ -227,29 +241,6 @@ public class ResilientNexonApiClient implements NexonApiClient {
             if (root instanceof RuntimeException re) throw re;
             throw new IllegalStateException("CircuitBreakerIgnoreMarker must be RuntimeException", root);
         }
-    }
-
-    /**
-     * CompletionException/ExecutionException wrapper를 벗겨 root cause를 반환
-     *
-     * <p>Resilience4j @TimeLimiter, CompletableFuture 체인에서 예외가 감싸지는 경우가 흔합니다.
-     * wrapper 안에 CircuitBreakerIgnoreMarker가 있어도 탐지할 수 있도록 unwrap합니다.</p>
-     */
-    private static Throwable unwrapAsyncException(Throwable t) {
-        Throwable current = t;
-        // 무한 루프 방어: 최대 10단계까지만 unwrap
-        for (int i = 0; i < 10 && current != null; i++) {
-            if (current instanceof java.util.concurrent.CompletionException ||
-                current instanceof java.util.concurrent.ExecutionException) {
-                Throwable cause = current.getCause();
-                if (cause != null) {
-                    current = cause;
-                    continue;
-                }
-            }
-            break;
-        }
-        return current != null ? current : t;
     }
 
     /**

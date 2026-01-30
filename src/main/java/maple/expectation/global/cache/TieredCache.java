@@ -1,8 +1,9 @@
 package maple.expectation.global.cache;
 
+import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.global.cache.invalidation.CacheInvalidationEvent;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.global.executor.strategy.ExceptionTranslator;
@@ -13,6 +14,8 @@ import org.springframework.cache.Cache;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * 2층 구조 캐시 (L1: Caffeine, L2: Redis)
@@ -24,19 +27,71 @@ import java.util.concurrent.TimeUnit;
  *   <li>Watchdog 모드: leaseTime 생략으로 자동 연장</li>
  * </ul>
  *
+ * <h4>P0/P1 리팩토링</h4>
+ * <ul>
+ *   <li>P0-1: put() 시 Pub/Sub 이벤트 발행 (원격 인스턴스 L1 무효화)</li>
+ *   <li>P0-3: evict() 순서 L2→L1→Pub/Sub (stale backfill 방지)</li>
+ *   <li>P0-4: lockWaitSeconds 외부화 (30초→5초, cold burst 방지)</li>
+ *   <li>P1-1: 메트릭에 cacheName 태그 추가</li>
+ *   <li>P1-6: Supplier 기반 lazy resolution (instanceId, callback)</li>
+ *   <li>P1-7: Counter pre-registration (hot-path 할당 제거)</li>
+ * </ul>
+ *
  * @see <a href="https://github.com/issue/148">Issue #148</a>
  */
 @Slf4j
-@RequiredArgsConstructor
 public class TieredCache implements Cache {
     private final Cache l1; // Caffeine (Local)
     private final Cache l2; // Redis (Distributed)
     private final LogicExecutor executor;
     private final RedissonClient redissonClient; // 분산 락용
-    private final MeterRegistry meterRegistry;   // 메트릭 수집용
+    private final int lockWaitSeconds;           // P0-4: 외부 설정 (기본 5초)
+    private final Supplier<String> instanceIdSupplier;                        // P1-6: Lazy Resolution
+    private final Supplier<Consumer<CacheInvalidationEvent>> callbackSupplier; // P1-6: Lazy Resolution
 
-    /** 락 획득 대기 타임아웃 (초) */
-    private static final int LOCK_WAIT_SECONDS = 30;
+    // P1-7: Counter pre-registration (hot-path 할당 제거)
+    private final Counter l1HitCounter;
+    private final Counter l2HitCounter;
+    private final Counter missCounter;
+    private final Counter lockFailureCounter;
+    private final Counter l2FailureCounter;
+
+    public TieredCache(
+            Cache l1,
+            Cache l2,
+            LogicExecutor executor,
+            RedissonClient redissonClient,
+            MeterRegistry meterRegistry,
+            int lockWaitSeconds,
+            Supplier<String> instanceIdSupplier,
+            Supplier<Consumer<CacheInvalidationEvent>> callbackSupplier
+    ) {
+        this.l1 = l1;
+        this.l2 = l2;
+        this.executor = executor;
+        this.redissonClient = redissonClient;
+        this.lockWaitSeconds = lockWaitSeconds;
+        this.instanceIdSupplier = instanceIdSupplier;
+        this.callbackSupplier = callbackSupplier;
+
+        // P1-7 + P1-1: 생성자에서 Counter pre-register (cacheName 태그 포함)
+        String cacheName = l2.getName();
+        this.l1HitCounter = Counter.builder("cache.hit")
+                .tag("layer", "L1").tag("cache", cacheName)
+                .register(meterRegistry);
+        this.l2HitCounter = Counter.builder("cache.hit")
+                .tag("layer", "L2").tag("cache", cacheName)
+                .register(meterRegistry);
+        this.missCounter = Counter.builder("cache.miss")
+                .tag("cache", cacheName)
+                .register(meterRegistry);
+        this.lockFailureCounter = Counter.builder("cache.lock.failure")
+                .tag("cache", cacheName)
+                .register(meterRegistry);
+        this.l2FailureCounter = Counter.builder("cache.l2.failure")
+                .tag("cache", cacheName)
+                .register(meterRegistry);
+    }
 
     @Override
     public String getName() { return l2.getName(); }
@@ -79,7 +134,8 @@ public class TieredCache implements Cache {
     /**
      * 캐시 저장 (L2 → L1 순서 - 일관성 보장)
      *
-     * <p><b>Issue #148:</b> L2 저장 성공 시에만 L1 저장</p>
+     * <h4>Issue #148: L2 저장 성공 시에만 L1 저장</h4>
+     * <h4>P0-1: put() 성공 시 Pub/Sub 이벤트 발행 (원격 인스턴스 L1 무효화)</h4>
      */
     @Override
     public void put(Object key, Object value) {
@@ -93,26 +149,63 @@ public class TieredCache implements Cache {
 
         if (l2Success) {
             executor.executeVoid(() -> l1.put(key, value), context);
+            publishEvictEvent(key); // P0-1: 원격 인스턴스 L1 evict
         } else {
             log.warn("[TieredCache] L2 put failed, skipping L1 for consistency: key={}", key);
-            recordL2Failure();
+            l2FailureCounter.increment();
         }
     }
 
+    /**
+     * 캐시 키 무효화 (L2 → L1 → Pub/Sub 전파)
+     *
+     * <h4>P0-3 Fix: evict() 순서 L2→L1→Pub/Sub</h4>
+     * <p>L2가 source of truth. L2 먼저 제거해야 backfill 시 stale data 불가.</p>
+     *
+     * <h4>Issue #278: L1 Cache Coherence (P0-1)</h4>
+     * <p>evict 후 다른 인스턴스의 L1 캐시도 무효화하도록 이벤트 발행</p>
+     */
     @Override
     public void evict(Object key) {
         executor.executeVoid(() -> {
-            l1.evict(key);
-            l2.evict(key);
+            l2.evict(key);    // P0-3: L2 먼저 (원본 제거)
+            l1.evict(key);    // L1 다음 (로컬 제거)
+            publishEvictEvent(key);  // Pub/Sub 마지막
         }, TaskContext.of("Cache", "Evict", key.toString()));
     }
 
+    /**
+     * 캐시 전체 무효화 (L2 → L1 → Pub/Sub 전파)
+     *
+     * <h4>P0-3 일관성: L2 → L1 순서</h4>
+     * <h4>Issue #278: L1 Cache Coherence (P0-1)</h4>
+     * <p>clear 후 다른 인스턴스의 L1 캐시도 전체 무효화하도록 이벤트 발행</p>
+     */
     @Override
     public void clear() {
         executor.executeVoid(() -> {
-            l1.clear();
             l2.clear();
+            l1.clear();
+            publishClearAllEvent();
         }, TaskContext.of("Cache", "Clear"));
+    }
+
+    /**
+     * EVICT 이벤트 발행 (Section 15: 메서드 추출)
+     */
+    private void publishEvictEvent(Object key) {
+        callbackSupplier.get().accept(
+                CacheInvalidationEvent.evict(getName(), key.toString(), instanceIdSupplier.get())
+        );
+    }
+
+    /**
+     * CLEAR_ALL 이벤트 발행 (Section 15: 메서드 추출)
+     */
+    private void publishClearAllEvent() {
+        callbackSupplier.get().accept(
+                CacheInvalidationEvent.clearAll(getName(), instanceIdSupplier.get())
+        );
     }
 
     @Override
@@ -179,7 +272,7 @@ public class TieredCache implements Cache {
         // L1 조회 (로컬 캐시 - 장애 없음)
         ValueWrapper l1Result = l1.get(key);
         if (l1Result != null) {
-            recordCacheHit("L1");
+            l1HitCounter.increment();
             return (T) l1Result.get();
         }
 
@@ -192,7 +285,7 @@ public class TieredCache implements Cache {
 
         if (l2Result != null) {
             l1.put(key, l2Result.get());
-            recordCacheHit("L2");
+            l2HitCounter.increment();
             return (T) l2Result.get();
         }
 
@@ -212,7 +305,7 @@ public class TieredCache implements Cache {
 
         // Graceful Degradation: 락 획득 시도도 Redis 장애 허용 (CLAUDE.md 섹션 12 패턴 3)
         boolean acquired = executor.executeOrDefault(
-                () -> lock.tryLock(LOCK_WAIT_SECONDS, TimeUnit.SECONDS),
+                () -> lock.tryLock(lockWaitSeconds, TimeUnit.SECONDS),
                 false,  // Redis 장애 시 락 획득 실패로 처리
                 TaskContext.of("Cache", "AcquireLock", keyStr)
         );
@@ -220,7 +313,7 @@ public class TieredCache implements Cache {
         // 락 획득 실패 또는 Redis 장애 → Fallback
         if (!acquired) {
             log.warn("[TieredCache] Lock acquisition failed, executing directly: {}", lockKey);
-            recordLockFailure();
+            lockFailureCounter.increment();
             return executeAndCache(key, valueLoader);
         }
 
@@ -264,7 +357,7 @@ public class TieredCache implements Cache {
         }
 
         // 캐시 미스 → valueLoader 실행 (직접 호출 - 예외 자연 전파)
-        recordCacheMiss();
+        missCounter.increment();
         return executeAndCache(key, valueLoader);
     }
 
@@ -284,7 +377,7 @@ public class TieredCache implements Cache {
             l1.put(key, value);
         } else {
             log.warn("[TieredCache] L2 put failed, skipping L1: key={}", key);
-            recordL2Failure();
+            l2FailureCounter.increment();
         }
 
         return value;
@@ -293,32 +386,18 @@ public class TieredCache implements Cache {
     // ==================== Helper Methods ====================
 
     private String buildLockKey(String keyStr) {
-        return "cache:sf:" + l2.getName() + ":" + keyStr.hashCode();
+        return "cache:sf:" + l2.getName() + ":" + keyStr;
     }
 
     /**
      * Tap 패턴: 값 반환하며 캐시 히트 메트릭 기록
      */
     private ValueWrapper tapCacheHit(ValueWrapper wrapper, String layer) {
-        recordCacheHit(layer);
+        if ("L1".equals(layer)) {
+            l1HitCounter.increment();
+        } else {
+            l2HitCounter.increment();
+        }
         return wrapper;
-    }
-
-    // ==================== Metrics (Micrometer 소문자 점 표기법) ====================
-
-    private void recordCacheHit(String layer) {
-        meterRegistry.counter("cache.hit", "layer", layer).increment();
-    }
-
-    private void recordCacheMiss() {
-        meterRegistry.counter("cache.miss").increment();
-    }
-
-    private void recordLockFailure() {
-        meterRegistry.counter("cache.lock.failure").increment();
-    }
-
-    private void recordL2Failure() {
-        meterRegistry.counter("cache.l2.failure").increment();
     }
 }

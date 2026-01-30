@@ -10,6 +10,8 @@ import java.util.Set;
  *
  * @param sessionId      세션 식별자 (UUID)
  * @param fingerprint    API Key의 HMAC-SHA256 해시
+ * @param userIgn        로그인 캐릭터명
+ * @param accountId      넥슨 계정 식별자 (SHA-256 of sorted myOcids) - 좋아요 중복 판별 키
  * @param apiKey         Nexon API Key (Redis에만 저장, JWT에는 절대 포함 금지!)
  * @param myOcids        이 계정이 소유한 캐릭터 OCID 목록 (Self-Like 방지용)
  * @param role           사용자 권한 (USER 또는 ADMIN)
@@ -19,6 +21,8 @@ import java.util.Set;
 public record Session(
     String sessionId,
     String fingerprint,
+    String userIgn,
+    String accountId,
     String apiKey,
     Set<String> myOcids,
     String role,
@@ -34,11 +38,13 @@ public record Session(
     public static Session create(
             String sessionId,
             String fingerprint,
+            String userIgn,
+            String accountId,
             String apiKey,
             Set<String> myOcids,
             String role) {
         Instant now = Instant.now();
-        return new Session(sessionId, fingerprint, apiKey, myOcids, role, now, now);
+        return new Session(sessionId, fingerprint, userIgn, accountId, apiKey, myOcids, role, now, now);
     }
 
     /**
@@ -46,7 +52,7 @@ public record Session(
      */
     public Session withUpdatedAccessTime() {
         return new Session(
-            sessionId, fingerprint, apiKey, myOcids, role, createdAt, Instant.now()
+            sessionId, fingerprint, userIgn, accountId, apiKey, myOcids, role, createdAt, Instant.now()
         );
     }
 
@@ -78,6 +84,8 @@ public record Session(
         return "Session[" +
                 "sessionId=" + sessionId +
                 ", fingerprint=" + fingerprint +
+                ", userIgn=" + userIgn +
+                ", accountId=" + accountId +
                 ", apiKey=" + maskApiKey(apiKey) +
                 ", myOcids=" + myOcids +
                 ", role=" + role +

@@ -3,6 +3,7 @@ package maple.expectation.service.v2;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.global.error.exception.LikeSyncCircuitOpenException;
 import maple.expectation.repository.v2.GameCharacterRepository;
 import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -104,9 +105,9 @@ public class LikeSyncExecutor {
      * <p>서킷이 열리면 예외를 던져 상위 레이어에서 보상 트랜잭션이 실행되도록 합니다.</p>
      */
     @SuppressWarnings("unused")  // CircuitBreaker fallback으로 사용됨
-    private void batchFallback(List<Map.Entry<String, Long>> entries, Throwable t) {
-        log.warn("⚠️ [LikeSync] Circuit OPEN, batch skipped ({} entries): {}",
+    void batchFallback(List<Map.Entry<String, Long>> entries, Throwable t) {
+        log.warn("[LikeSync] Circuit OPEN, batch skipped ({} entries): {}",
                 entries.size(), t.getMessage());
-        throw new RuntimeException("LikeSync circuit is open: " + t.getMessage(), t);
+        throw new LikeSyncCircuitOpenException(t);
     }
 }

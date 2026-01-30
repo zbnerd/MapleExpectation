@@ -12,6 +12,7 @@ import maple.expectation.external.dto.v2.CharacterListResponse;
 import maple.expectation.global.error.exception.auth.InvalidApiKeyException;
 import maple.expectation.global.error.exception.auth.CharacterNotOwnedException;
 import maple.expectation.global.error.exception.auth.SessionNotFoundException;
+import maple.expectation.global.security.AccountIdGenerator;
 import maple.expectation.global.security.FingerprintGenerator;
 import maple.expectation.global.security.jwt.JwtTokenProvider;
 import org.springframework.stereotype.Service;
@@ -42,6 +43,7 @@ public class AuthService {
 
     private final NexonAuthClient nexonAuthClient;
     private final FingerprintGenerator fingerprintGenerator;
+    private final AccountIdGenerator accountIdGenerator;
     private final SessionService sessionService;
     private final JwtTokenProvider jwtTokenProvider;
     private final AdminService adminService;
@@ -80,20 +82,23 @@ public class AuthService {
         // 4. Fingerprint 생성
         String fingerprint = fingerprintGenerator.generate(apiKey);
 
-        // 5. ADMIN 여부 판별 (AdminService에서 Bootstrap + Redis 확인)
+        // 5. Account ID 생성 (넥슨 계정 식별자 - 좋아요 중복 방지용)
+        String accountId = accountIdGenerator.generate(myOcids);
+
+        // 6. ADMIN 여부 판별 (AdminService에서 Bootstrap + Redis 확인)
         String role = adminService.isAdmin(fingerprint) ? Session.ROLE_ADMIN : Session.ROLE_USER;
 
-        // 6. 세션 생성
-        Session session = sessionService.createSession(fingerprint, apiKey, myOcids, role);
+        // 7. 세션 생성
+        Session session = sessionService.createSession(fingerprint, userIgn, accountId, apiKey, myOcids, role);
 
-        // 7. JWT 발급
+        // 8. JWT 발급
         String accessToken = jwtTokenProvider.generateToken(
             session.sessionId(),
             session.fingerprint(),
             session.role()
         );
 
-        // 8. Refresh Token 발급 (Issue #279)
+        // 9. Refresh Token 발급 (Issue #279)
         RefreshToken refreshToken = refreshTokenService.createRefreshToken(
             session.sessionId(),
             session.fingerprint()

@@ -46,6 +46,27 @@ app:
     redis:
       enabled: true  # Scale-out 모드 활성화
 
+# Issue #284 DoD: Redis 장애 시 1000 RPS fallback 용량
+lock:
+  datasource:
+    pool-size: 150
+
+# Thread Pool 최적화 (P1-7: t3.small 2vCPU 기준)
+executor:
+  equipment:
+    core-pool-size: 16
+    max-pool-size: 32
+    queue-capacity: 500
+  preset:
+    core-pool-size: 6     # CPU-bound: 2vCPU × 3
+    max-pool-size: 12
+    queue-capacity: 200
+
+# Issue #278: Scale-out 환경 실시간 좋아요 동기화 (prod)
+like:
+  realtime:
+    transport: rtopic  # 배포 후 reliable-topic으로 전환 (Blue-Green 배포 필수)
+
 # #275 Auto Warmup: 프로덕션에서 활성화
 scheduler:
   warmup:

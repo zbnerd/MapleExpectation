@@ -21,10 +21,10 @@ import org.springframework.stereotype.Service;
  *   <li><b>3차</b>: Discord Critical Alert + Metric</li>
  * </ol>
  *
- * <h3>SOLID 준수 (Blue 리팩토링)</h3>
+ * <h3>P0/P1 리팩토링</h3>
  * <ul>
- *   <li>SRP: 메트릭 로직을 OutboxMetrics로 위임</li>
- *   <li>DIP: 인터페이스 의존</li>
+ *   <li>P0-3: ClassCastException 수정 — Throwable 다운캐스트 제거</li>
+ *   <li>P1-6: 3-Line Rule 준수 — 람다 -> 메서드 추출</li>
  * </ul>
  *
  * @see DonationDlqRepository
@@ -52,34 +52,32 @@ public class DlqHandler {
     public void handleDeadLetter(DonationOutbox entry, String reason) {
         TaskContext context = TaskContext.of("DLQ", "Handle", entry.getRequestId());
 
-        // 1차 시도: DB DLQ
         executor.executeOrCatch(
-                () -> {
-                    DonationDlq dlq = DonationDlq.from(entry, reason);
-                    dlqRepository.save(dlq);
-                    metrics.incrementDlq();
-                    log.warn("⚠️ [DLQ] Entry moved to DLQ: {}", entry.getRequestId());
-                    return null;
-                },
+                () -> saveToDbDlq(entry, reason),
                 dbEx -> handleDbDlqFailure(entry, reason, context),
                 context
         );
     }
 
     /**
-     * 2차 시도: File Backup (DB DLQ 실패 시)
+     * 1차 안전망: DB DLQ INSERT (P1-6: 메서드 추출)
+     */
+    private Void saveToDbDlq(DonationOutbox entry, String reason) {
+        DonationDlq dlq = DonationDlq.from(entry, reason);
+        dlqRepository.save(dlq);
+        metrics.incrementDlq();
+        log.warn("[DLQ] Entry moved to DLQ: {}", entry.getRequestId());
+        return null;
+    }
+
+    /**
+     * 2차 안전망: File Backup (DB DLQ 실패 시)
      */
     private Void handleDbDlqFailure(DonationOutbox entry, String reason, TaskContext context) {
-        log.error("❌ [DLQ] DB DLQ 저장 실패, File Backup 시도: {}", entry.getRequestId());
+        log.error("[DLQ] DB DLQ 저장 실패, File Backup 시도: {}", entry.getRequestId());
 
         executor.executeOrCatch(
-                () -> {
-                    // Outbox payload를 파일로 백업
-                    fileBackupService.appendOutboxEntry(entry.getRequestId(), entry.getPayload());
-                    metrics.incrementFileBackup();
-                    log.warn("📁 [DLQ] File Backup 성공: {}", entry.getRequestId());
-                    return null;
-                },
+                () -> saveToFileBackup(entry),
                 fileEx -> handleCriticalFailure(entry, reason, fileEx),
                 context
         );
@@ -87,19 +85,34 @@ public class DlqHandler {
     }
 
     /**
-     * 3차: Critical Alert (최후의 안전망)
+     * File Backup 실행 (P1-6: 메서드 추출)
+     */
+    private Void saveToFileBackup(DonationOutbox entry) {
+        fileBackupService.appendOutboxEntry(entry.getRequestId(), entry.getPayload());
+        metrics.incrementFileBackup();
+        log.warn("[DLQ] File Backup 성공: {}", entry.getRequestId());
+        return null;
+    }
+
+    /**
+     * 3차 안전망: Critical Alert (최후의 안전망)
+     *
+     * <h4>P0-3 Fix: ClassCastException 제거</h4>
+     * <p>기존: {@code (Exception) fileEx} — Throwable -> Exception 다운캐스트 시
+     * Error(OOM 등)에서 ClassCastException 발생 -> Triple Safety Net 완전 실패</p>
+     * <p>수정: Throwable 그대로 전달</p>
      */
     private Void handleCriticalFailure(DonationOutbox entry, String reason, Throwable fileEx) {
         metrics.incrementCriticalFailure();
 
-        String title = "🚨 OUTBOX CRITICAL FAILURE";
+        String title = "OUTBOX CRITICAL FAILURE";
         String description = String.format(
                 "RequestId: %s%nReason: %s%nManual intervention required!",
                 entry.getRequestId(), reason
         );
 
-        discordAlertService.sendCriticalAlert(title, description, (Exception) fileEx);
-        log.error("🚨 [CRITICAL] All safety nets failed for: {} - Manual intervention required!",
+        discordAlertService.sendCriticalAlert(title, description, fileEx);
+        log.error("[CRITICAL] All safety nets failed for: {} - Manual intervention required!",
                 entry.getRequestId());
 
         return null;

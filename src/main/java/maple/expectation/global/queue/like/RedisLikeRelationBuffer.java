@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * Redis 기반 좋아요 관계 버퍼 (#271 V5 Stateless Architecture)
  *
  * <h3>역할</h3>
- * <p>Redis SET을 사용하여 좋아요 관계(fingerprint:targetOcid)를 저장합니다.
+ * <p>Redis SET을 사용하여 좋아요 관계(accountId:targetOcid)를 저장합니다.
  * Scale-out 환경에서 중복 검사와 배치 동기화를 지원합니다.</p>
  *
  * <h3>기존 LikeRelationBuffer 대비 개선</h3>
@@ -33,7 +33,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * <h3>Redis 구조</h3>
  * <pre>
  * {likes}:relations (SET)
- * └── fingerprint:targetOcid (members)
+ * └── accountId:targetOcid (members)
  *
  * {likes}:relations:pending (SET)
  * └── DB 동기화 대기 중인 관계
@@ -79,6 +79,7 @@ public class RedisLikeRelationBuffer implements LikeRelationBufferStrategy {
     private final MeterRegistry meterRegistry;
     private final String relationsKey;
     private final String pendingKey;
+    private final String unlikedKey;
 
     /** Lua Script SHA 캐싱 */
     private final AtomicReference<String> fetchPendingSha = new AtomicReference<>();
@@ -92,9 +93,10 @@ public class RedisLikeRelationBuffer implements LikeRelationBufferStrategy {
         this.meterRegistry = meterRegistry;
         this.relationsKey = RedisKey.LIKE_RELATIONS.getKey();
         this.pendingKey = RedisKey.LIKE_RELATIONS_PENDING.getKey();
+        this.unlikedKey = RedisKey.LIKE_RELATIONS_UNLIKED.getKey();
 
         registerMetrics();
-        log.info("[RedisLikeRelationBuffer] Initialized with keys: {}, {}", relationsKey, pendingKey);
+        log.info("[RedisLikeRelationBuffer] Initialized with keys: {}, {}, {}", relationsKey, pendingKey, unlikedKey);
     }
 
     @Override
@@ -120,13 +122,13 @@ public class RedisLikeRelationBuffer implements LikeRelationBufferStrategy {
      * <p>Redis SADD는 원자적으로 중복 검사 + 추가를 수행합니다.
      * 신규 추가 시 Pending Set에도 자동 등록됩니다.</p>
      *
-     * @param fingerprint 좋아요를 누른 계정의 fingerprint
-     * @param targetOcid  대상 캐릭터의 OCID
+     * @param accountId 좋아요를 누른 계정의 캐릭터명
+     * @param targetOcid   대상 캐릭터의 OCID
      * @return true: 신규 추가, false: 중복, null: Redis 장애
      */
     @Override
-    public Boolean addRelation(String fingerprint, String targetOcid) {
-        String relationKey = buildRelationKey(fingerprint, targetOcid);
+    public Boolean addRelation(String accountId, String targetOcid) {
+        String relationKey = buildRelationKey(accountId, targetOcid);
 
         return executor.executeOrDefault(
                 () -> {
@@ -154,13 +156,13 @@ public class RedisLikeRelationBuffer implements LikeRelationBufferStrategy {
     /**
      * 좋아요 관계 존재 확인
      *
-     * @param fingerprint 좋아요를 누른 계정의 fingerprint
-     * @param targetOcid  대상 캐릭터의 OCID
+     * @param accountId 좋아요를 누른 계정의 캐릭터명
+     * @param targetOcid   대상 캐릭터의 OCID
      * @return true: 존재, false: 없음, null: Redis 장애
      */
     @Override
-    public Boolean exists(String fingerprint, String targetOcid) {
-        String relationKey = buildRelationKey(fingerprint, targetOcid);
+    public Boolean exists(String accountId, String targetOcid) {
+        String relationKey = buildRelationKey(accountId, targetOcid);
 
         return executor.executeOrDefault(
                 () -> getRelationSet().contains(relationKey),
@@ -239,13 +241,13 @@ public class RedisLikeRelationBuffer implements LikeRelationBufferStrategy {
     /**
      * 관계 삭제 (좋아요 취소)
      *
-     * @param fingerprint 좋아요를 누른 계정의 fingerprint
-     * @param targetOcid  대상 캐릭터의 OCID
+     * @param accountId 좋아요를 누른 계정의 캐릭터명
+     * @param targetOcid   대상 캐릭터의 OCID
      * @return true: 삭제됨, false: 없었음, null: Redis 장애
      */
     @Override
-    public Boolean removeRelation(String fingerprint, String targetOcid) {
-        String relationKey = buildRelationKey(fingerprint, targetOcid);
+    public Boolean removeRelation(String accountId, String targetOcid) {
+        String relationKey = buildRelationKey(accountId, targetOcid);
 
         return executor.executeOrDefault(
                 () -> {
@@ -263,6 +265,17 @@ public class RedisLikeRelationBuffer implements LikeRelationBufferStrategy {
         );
     }
 
+    @Override
+    public Boolean existsInUnliked(String accountId, String targetOcid) {
+        String relationKey = buildRelationKey(accountId, targetOcid);
+
+        return executor.executeOrDefault(
+                () -> getUnlikedSet().contains(relationKey),
+                null,
+                TaskContext.of("LikeRelation", "ExistsUnliked", relationKey)
+        );
+    }
+
     /**
      * 전체 관계 SET 접근
      */
@@ -275,6 +288,13 @@ public class RedisLikeRelationBuffer implements LikeRelationBufferStrategy {
      */
     public RSet<String> getPendingSet() {
         return redissonClient.getSet(pendingKey);
+    }
+
+    /**
+     * Unliked SET 접근
+     */
+    public RSet<String> getUnlikedSet() {
+        return redissonClient.getSet(unlikedKey);
     }
 
     /**
@@ -304,20 +324,20 @@ public class RedisLikeRelationBuffer implements LikeRelationBufferStrategy {
     /**
      * 관계 키 생성
      *
-     * @param fingerprint 좋아요 누른 계정 fingerprint
-     * @param targetOcid  대상 캐릭터 OCID
-     * @return fingerprint:targetOcid 형식
+     * @param accountId 좋아요 누른 계정의 캐릭터명
+     * @param targetOcid   대상 캐릭터 OCID
+     * @return accountId:targetOcid 형식
      */
     @Override
-    public String buildRelationKey(String fingerprint, String targetOcid) {
-        return fingerprint + ":" + targetOcid;
+    public String buildRelationKey(String accountId, String targetOcid) {
+        return accountId + ":" + targetOcid;
     }
 
     /**
      * 관계 키 파싱
      *
-     * @param relationKey fingerprint:targetOcid 형식
-     * @return [fingerprint, targetOcid]
+     * @param relationKey accountId:targetOcid 형식
+     * @return [accountId, targetOcid]
      */
     @Override
     public String[] parseRelationKey(String relationKey) {

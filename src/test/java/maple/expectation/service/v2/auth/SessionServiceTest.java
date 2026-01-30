@@ -59,7 +59,7 @@ class SessionServiceTest {
         @DisplayName("USER 세션 생성 성공")
         void shouldCreateUserSession() {
             // when
-            Session session = sessionService.createSession(FINGERPRINT, API_KEY, MY_OCIDS, ROLE_USER);
+            Session session = sessionService.createSession(FINGERPRINT, "TestUser", "test-account-id", API_KEY, MY_OCIDS, ROLE_USER);
 
             // then
             assertThat(session.sessionId()).isNotBlank();
@@ -77,7 +77,7 @@ class SessionServiceTest {
         @DisplayName("ADMIN 세션 생성 성공")
         void shouldCreateAdminSession() {
             // when
-            Session session = sessionService.createSession(FINGERPRINT, API_KEY, MY_OCIDS, ROLE_ADMIN);
+            Session session = sessionService.createSession(FINGERPRINT, "TestUser", "test-account-id", API_KEY, MY_OCIDS, ROLE_ADMIN);
 
             // then
             assertThat(session.role()).isEqualTo(ROLE_ADMIN);
@@ -88,7 +88,7 @@ class SessionServiceTest {
         @DisplayName("세션 ID는 UUID 형식")
         void shouldGenerateUuidSessionId() {
             // when
-            Session session = sessionService.createSession(FINGERPRINT, API_KEY, MY_OCIDS, ROLE_USER);
+            Session session = sessionService.createSession(FINGERPRINT, "TestUser", "test-account-id", API_KEY, MY_OCIDS, ROLE_USER);
 
             // then
             assertThat(session.sessionId()).matches(
@@ -99,8 +99,8 @@ class SessionServiceTest {
         @DisplayName("매 호출마다 다른 세션 ID 생성")
         void shouldGenerateUniqueSessionId() {
             // when
-            Session session1 = sessionService.createSession(FINGERPRINT, API_KEY, MY_OCIDS, ROLE_USER);
-            Session session2 = sessionService.createSession(FINGERPRINT, API_KEY, MY_OCIDS, ROLE_USER);
+            Session session1 = sessionService.createSession(FINGERPRINT, "TestUser", "test-account-id", API_KEY, MY_OCIDS, ROLE_USER);
+            Session session2 = sessionService.createSession(FINGERPRINT, "TestUser", "test-account-id", API_KEY, MY_OCIDS, ROLE_USER);
 
             // then
             assertThat(session1.sessionId()).isNotEqualTo(session2.sessionId());
@@ -115,7 +115,7 @@ class SessionServiceTest {
         @DisplayName("세션 존재 시 TTL 갱신")
         void shouldRefreshTtlWhenSessionExists() {
             // given
-            Session existingSession = Session.create(SESSION_ID, FINGERPRINT, API_KEY, MY_OCIDS, ROLE_USER);
+            Session existingSession = Session.create(SESSION_ID, FINGERPRINT, "TestUser", "test-account-id", API_KEY, MY_OCIDS, ROLE_USER);
             given(sessionRepository.findById(SESSION_ID)).willReturn(Optional.of(existingSession));
 
             // when
@@ -150,7 +150,7 @@ class SessionServiceTest {
         @DisplayName("세션 존재 시 반환 (TTL 갱신 없음)")
         void shouldReturnSessionWithoutRefresh() {
             // given
-            Session existingSession = Session.create(SESSION_ID, FINGERPRINT, API_KEY, MY_OCIDS, ROLE_USER);
+            Session existingSession = Session.create(SESSION_ID, FINGERPRINT, "TestUser", "test-account-id", API_KEY, MY_OCIDS, ROLE_USER);
             given(sessionRepository.findById(SESSION_ID)).willReturn(Optional.of(existingSession));
 
             // when

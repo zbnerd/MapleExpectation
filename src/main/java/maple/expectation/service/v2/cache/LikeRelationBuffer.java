@@ -49,7 +49,7 @@ public class LikeRelationBuffer implements LikeRelationBufferStrategy {
 
     /**
      * L1 캐시: 로컬 중복 체크용
-     * Key: relationKey (fingerprint:targetOcid)
+     * Key: relationKey (accountId:targetOcid)
      * Value: Boolean.TRUE (존재 여부만 확인)
      */
     @Getter
@@ -102,13 +102,13 @@ public class LikeRelationBuffer implements LikeRelationBufferStrategy {
      * </ol>
      * </p>
      *
-     * @param fingerprint 좋아요를 누른 계정의 fingerprint
-     * @param targetOcid  대상 캐릭터의 OCID
+     * @param accountId 좋아요를 누른 계정의 캐릭터명
+     * @param targetOcid   대상 캐릭터의 OCID
      * @return true if 신규 좋아요, false if 중복, null if Redis 장애
      */
     @Override
-    public Boolean addRelation(String fingerprint, String targetOcid) {
-        String relationKey = buildRelationKey(fingerprint, targetOcid);
+    public Boolean addRelation(String accountId, String targetOcid) {
+        String relationKey = buildRelationKey(accountId, targetOcid);
 
         // 1. L1 빠른 체크 (로컬)
         if (localCache.getIfPresent(relationKey) != null) {
@@ -155,8 +155,8 @@ public class LikeRelationBuffer implements LikeRelationBufferStrategy {
      * @return true if 이미 좋아요함, null if Redis 장애
      */
     @Override
-    public Boolean exists(String fingerprint, String targetOcid) {
-        String relationKey = buildRelationKey(fingerprint, targetOcid);
+    public Boolean exists(String accountId, String targetOcid) {
+        String relationKey = buildRelationKey(accountId, targetOcid);
 
         // L1 체크
         if (localCache.getIfPresent(relationKey) != null) {
@@ -220,17 +220,17 @@ public class LikeRelationBuffer implements LikeRelationBufferStrategy {
 
     /**
      * 관계 키 생성
-     * Format: {fingerprint}:{targetOcid}
+     * Format: {accountId}:{targetOcid}
      */
     @Override
-    public String buildRelationKey(String fingerprint, String targetOcid) {
-        return fingerprint + ":" + targetOcid;
+    public String buildRelationKey(String accountId, String targetOcid) {
+        return accountId + ":" + targetOcid;
     }
 
     /**
      * 관계 키 파싱
      *
-     * @return [fingerprint, targetOcid]
+     * @return [accountId, targetOcid]
      */
     @Override
     public String[] parseRelationKey(String relationKey) {
@@ -241,8 +241,8 @@ public class LikeRelationBuffer implements LikeRelationBufferStrategy {
      * 좋아요 관계 삭제
      */
     @Override
-    public Boolean removeRelation(String fingerprint, String targetOcid) {
-        String relationKey = buildRelationKey(fingerprint, targetOcid);
+    public Boolean removeRelation(String accountId, String targetOcid) {
+        String relationKey = buildRelationKey(accountId, targetOcid);
 
         // L1 제거
         localCache.invalidate(relationKey);

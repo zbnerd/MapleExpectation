@@ -198,19 +198,15 @@ class TieredCacheRaceConditionTest extends AbstractContainerBaseTest {
                 };
 
                 // when: 락 획득 불가능한 상황에서 요청
+                // 락이 선점된 상태이므로, SingleFlight는 락 대기 타임아웃 후 Fallback 직접 실행
                 ExecutorService executor = Executors.newSingleThreadExecutor();
                 Future<String> future = executor.submit(() -> cache.get(testKey, valueLoader));
 
-                // CLAUDE.md Section 24: Thread.sleep() 제거 → Awaitility로 명시적 대기
-                // 요청이 락 대기 상태에 진입할 시간을 준 후 락 해제
-                org.awaitility.Awaitility.await()
-                        .atMost(3, TimeUnit.SECONDS)
-                        .pollInterval(100, TimeUnit.MILLISECONDS)
-                        .until(() -> !future.isDone()); // Future가 대기 상태임을 확인
-
-                lock.unlock();
-
+                // Fallback 실행 완료 대기 (락 대기 타임아웃 + 실행 시간)
                 String result = future.get(35, TimeUnit.SECONDS);
+
+                // 락은 Fallback 검증 후 해제
+                lock.unlock();
 
                 // then: 값이 반환됨
                 assertThat(result).isEqualTo("fallback-value");
@@ -298,14 +294,14 @@ class TieredCacheRaceConditionTest extends AbstractContainerBaseTest {
             String testKey = "metrics-hit-test-" + UUID.randomUUID();
             cache.put(testKey, "cached-value");
 
-            // 메트릭 초기값 기록
-            double initialL1Hits = getCounterValue("cache.hit", "layer", "L1");
+            // P1-1: cache 태그 포함 조회
+            double initialL1Hits = getCounterValue("cache.hit", "layer", "L1", "cache", "equipment");
 
             // when: L1 히트 발생
             cache.get(testKey, String.class);
 
             // then
-            double finalL1Hits = getCounterValue("cache.hit", "layer", "L1");
+            double finalL1Hits = getCounterValue("cache.hit", "layer", "L1", "cache", "equipment");
             assertThat(finalL1Hits).isGreaterThan(initialL1Hits);
         }
 
@@ -314,13 +310,14 @@ class TieredCacheRaceConditionTest extends AbstractContainerBaseTest {
         void shouldRecordMissMetrics() {
             // given
             String testKey = "metrics-miss-test-" + UUID.randomUUID();
-            double initialMisses = getCounterValue("cache.miss");
+            // P1-1: cache 태그 포함 조회
+            double initialMisses = getCounterValue("cache.miss", "cache", "equipment");
 
             // when: 캐시 미스 발생 (valueLoader 호출)
             cache.get(testKey, () -> "new-value");
 
             // then
-            double finalMisses = getCounterValue("cache.miss");
+            double finalMisses = getCounterValue("cache.miss", "cache", "equipment");
             assertThat(finalMisses).isGreaterThan(initialMisses);
         }
 
