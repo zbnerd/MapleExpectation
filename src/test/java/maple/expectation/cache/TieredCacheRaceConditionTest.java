@@ -294,14 +294,14 @@ class TieredCacheRaceConditionTest extends AbstractContainerBaseTest {
             String testKey = "metrics-hit-test-" + UUID.randomUUID();
             cache.put(testKey, "cached-value");
 
-            // 메트릭 초기값 기록
-            double initialL1Hits = getCounterValue("cache.hit", "layer", "L1");
+            // P1-1: cache 태그 포함 조회
+            double initialL1Hits = getCounterValue("cache.hit", "layer", "L1", "cache", "equipment");
 
             // when: L1 히트 발생
             cache.get(testKey, String.class);
 
             // then
-            double finalL1Hits = getCounterValue("cache.hit", "layer", "L1");
+            double finalL1Hits = getCounterValue("cache.hit", "layer", "L1", "cache", "equipment");
             assertThat(finalL1Hits).isGreaterThan(initialL1Hits);
         }
 
@@ -310,13 +310,14 @@ class TieredCacheRaceConditionTest extends AbstractContainerBaseTest {
         void shouldRecordMissMetrics() {
             // given
             String testKey = "metrics-miss-test-" + UUID.randomUUID();
-            double initialMisses = getCounterValue("cache.miss");
+            // P1-1: cache 태그 포함 조회
+            double initialMisses = getCounterValue("cache.miss", "cache", "equipment");
 
             // when: 캐시 미스 발생 (valueLoader 호출)
             cache.get(testKey, () -> "new-value");
 
             // then
-            double finalMisses = getCounterValue("cache.miss");
+            double finalMisses = getCounterValue("cache.miss", "cache", "equipment");
             assertThat(finalMisses).isGreaterThan(initialMisses);
         }
 

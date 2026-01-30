@@ -9,6 +9,7 @@ import maple.expectation.global.cache.TieredCacheManager;
 import maple.expectation.global.executor.LogicExecutor;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.caffeine.CaffeineCacheManager;
@@ -30,18 +31,22 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * 캐시 설정 (P1-2: 외부화, P1-9: 중복 제거)
+ *
+ * <h4>P1-2: TTL/Size 하드코딩 → CacheProperties 외부화</h4>
+ * <p>specs.forEach()로 동적 등록하여 신규 캐시 추가 시 YAML만 변경</p>
+ */
 @Configuration
 @EnableCaching
+@EnableConfigurationProperties(CacheProperties.class)
 public class CacheConfig {
 
     /**
      * TieredCacheManager 생성 및 의존성 주입
      *
      * <h4>Issue #148: 분산 락 및 메트릭 지원</h4>
-     * <ul>
-     *   <li>RedissonClient: 분산 락 기반 Single-flight 패턴</li>
-     *   <li>MeterRegistry: 캐시 히트/미스 메트릭 수집</li>
-     * </ul>
+     * <h4>P0-4: lockWaitSeconds 외부 설정 (CacheProperties)</h4>
      *
      * @Primary 기존 @Cacheable 인프라 영향 최소화
      */
@@ -50,117 +55,85 @@ public class CacheConfig {
     public CacheManager cacheManager(
             RedisConnectionFactory connectionFactory,
             LogicExecutor executor,
-            RedissonClient redissonClient,  // Issue #148: 분산 락용
-            MeterRegistry meterRegistry) {  // Issue #148: 메트릭 수집용
+            RedissonClient redissonClient,
+            MeterRegistry meterRegistry,
+            CacheProperties cacheProperties) {
 
         return new TieredCacheManager(
-                createL1Manager(),
-                createL2Manager(connectionFactory),
+                createL1Manager(cacheProperties),
+                createL2Manager(connectionFactory, cacheProperties),
                 executor,
                 redissonClient,
-                meterRegistry
+                meterRegistry,
+                cacheProperties.getSingleflight().getLockWaitSeconds()
         );
     }
 
     /**
-     * 🧊 L1 (Caffeine): 로컬 메모리 - Near Cache 전략
+     * L1 (Caffeine): 로컬 메모리 - Near Cache 전략
+     *
+     * <h4>P1-2: CacheProperties에서 동적 등록</h4>
      */
-    private CacheManager createL1Manager() {
+    private CacheManager createL1Manager(CacheProperties cacheProperties) {
         CaffeineCacheManager l1Manager = new CaffeineCacheManager();
 
-        l1Manager.registerCustomCache("equipment",
-                Caffeine.newBuilder()
-                        .expireAfterWrite(5, TimeUnit.MINUTES)
-                        .maximumSize(5000)
-                        .recordStats()
-                        .build());
-
-        l1Manager.registerCustomCache("cubeTrials",
-                Caffeine.newBuilder()
-                        .expireAfterWrite(10, TimeUnit.MINUTES)
-                        .maximumSize(5000)
-                        .recordStats()
-                        .build());
-
-        l1Manager.registerCustomCache("ocidCache",
-                Caffeine.newBuilder()
-                        .expireAfterWrite(30, TimeUnit.MINUTES)
-                        .maximumSize(5000)
-                        .recordStats()
-                        .build());
-
-        // characterBasic: 캐릭터 기본 정보 캐시 (character_image 15분 갱신)
-        l1Manager.registerCustomCache("characterBasic",
-                Caffeine.newBuilder()
-                        .expireAfterWrite(15, TimeUnit.MINUTES)
-                        .maximumSize(5000)
-                        .recordStats()
-                        .build());
-
-        // #240 V4: GZIP 압축 전체 응답 캐시
-        // #264: L1 캐시 튜닝 (5-Agent Council 합의)
-        // - TTL 30min → 60min: L1 히트율 향상
-        // - max 1000 → 5000: 메모리 5x 확장 (≈25MB, t3.small 허용 범위)
-        l1Manager.registerCustomCache("expectationV4",
-                Caffeine.newBuilder()
-                        .expireAfterWrite(60, TimeUnit.MINUTES)
-                        .maximumSize(5000)
-                        .recordStats()
-                        .build());
+        cacheProperties.getSpecs().forEach((name, spec) ->
+                l1Manager.registerCustomCache(name,
+                        Caffeine.newBuilder()
+                                .expireAfterWrite(spec.getL1TtlMinutes(), TimeUnit.MINUTES)
+                                .maximumSize(spec.getL1MaxSize())
+                                .recordStats()
+                                .build())
+        );
 
         return l1Manager;
     }
 
     /**
-     * 🚩 L2 (Redis): 분산 저장소 - 중앙 캐시 전략
+     * L2 (Redis): 분산 저장소 - 중앙 캐시 전략
      *
+     * <h4>P1-2: CacheProperties에서 동적 등록</h4>
      * <h4>Issue #240: cubeTrials 캐시 ClassCastException 수정</h4>
      * <ul>
      *   <li>GenericJackson2JsonRedisSerializer는 Double 타입 보존 실패</li>
      *   <li>JdkSerializationRedisSerializer 사용으로 타입 안전성 확보</li>
      * </ul>
      */
-    private CacheManager createL2Manager(RedisConnectionFactory factory) {
+    private CacheManager createL2Manager(RedisConnectionFactory factory, CacheProperties cacheProperties) {
         RedisCacheConfiguration defaultConfig = RedisCacheConfiguration.defaultCacheConfig()
                 .entryTtl(Duration.ofMinutes(15))
                 .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()))
                 .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(new GenericJackson2JsonRedisSerializer()));
 
-        // [Issue #240] cubeTrials 전용 설정: JdkSerializer로 Double 타입 보존
-        // GenericJackson2JsonRedisSerializer는 primitive wrapper(Double)를 String으로 역직렬화하는 버그 존재
-        RedisCacheConfiguration cubeTrialsConfig = RedisCacheConfiguration.defaultCacheConfig()
-                .entryTtl(Duration.ofMinutes(20))
-                .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()))
-                .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(RedisSerializer.java()));
-
-        // #240 V4: GZIP 압축 byte[] 전용 설정 (JdkSerializer로 바이트 배열 보존)
-        // #264: L2 TTL 동기화 (L1 60min과 일치)
-        RedisCacheConfiguration expectationV4Config = RedisCacheConfiguration.defaultCacheConfig()
-                .entryTtl(Duration.ofMinutes(60))
-                .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()))
-                .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(RedisSerializer.java()));
-
         Map<String, RedisCacheConfiguration> configurations = new HashMap<>();
 
-        // [이슈 #11] DB(15분)보다 짧게 -> 10분
-        configurations.put("equipment", defaultConfig.entryTtl(Duration.ofMinutes(10)));
-
-        // [이슈 #12, #240] cubeTrials: JdkSerializer 사용 (Double 타입 보존)
-        configurations.put("cubeTrials", cubeTrialsConfig);
-
-        // OCID: 충분히 길게 -> 60분
-        configurations.put("ocidCache", defaultConfig.entryTtl(Duration.ofMinutes(60)));
-
-        // characterBasic: 캐릭터 기본 정보 캐시 (character_image 15분 갱신)
-        configurations.put("characterBasic", defaultConfig.entryTtl(Duration.ofMinutes(15)));
-
-        // #240 V4: GZIP 압축 전체 응답 캐시 (byte[] 타입 보존)
-        configurations.put("expectationV4", expectationV4Config);
+        cacheProperties.getSpecs().forEach((name, spec) -> {
+            RedisSerializer<?> serializer = resolveSerializer(spec.getL2Serializer());
+            RedisCacheConfiguration config = RedisCacheConfiguration.defaultCacheConfig()
+                    .entryTtl(Duration.ofMinutes(spec.getL2TtlMinutes()))
+                    .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()))
+                    .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(serializer));
+            configurations.put(name, config);
+        });
 
         return RedisCacheManager.builder(factory)
                 .cacheDefaults(defaultConfig)
                 .withInitialCacheConfigurations(configurations)
                 .build();
+    }
+
+    /**
+     * L2 직렬화 방식 결정 (P1-2)
+     *
+     * <ul>
+     *   <li>json: GenericJackson2JsonRedisSerializer (기본)</li>
+     *   <li>jdk: JdkSerializationRedisSerializer (Double 타입 보존 등)</li>
+     * </ul>
+     */
+    private RedisSerializer<?> resolveSerializer(String type) {
+        return "jdk".equalsIgnoreCase(type)
+                ? RedisSerializer.java()
+                : new GenericJackson2JsonRedisSerializer();
     }
 
     // ==================== Issue #158: Expectation 전용 캐시 인프라 ====================
@@ -189,11 +162,11 @@ public class CacheConfig {
     /**
      * Expectation 전용 L1 CacheManager (Caffeine)
      *
+     * <p>P1-9: equipment L1은 cacheManager의 L1에서 동일 TTL/MaxSize 사용</p>
      * <p>Blocker C 해결: Expectation 경로에서 equipment L1-only가 실제로 동작하도록 equipment 캐시도 등록</p>
-     * <p>EquipmentService.resolveEquipmentData()가 getValidCacheL1Only()/saveCacheL1Only() 사용</p>
      */
     @Bean(name = "expectationL1CacheManager")
-    public CacheManager expectationL1CacheManager() {
+    public CacheManager expectationL1CacheManager(CacheProperties cacheProperties) {
         CaffeineCacheManager l1Manager = new CaffeineCacheManager();
 
         // Expectation 결과 캐시
@@ -204,13 +177,16 @@ public class CacheConfig {
                         .recordStats()
                         .build());
 
-        // Expectation 경로 equipment L1-only 캐시 (L2 우회용)
-        l1Manager.registerCustomCache("equipment",
-                Caffeine.newBuilder()
-                        .expireAfterWrite(5, TimeUnit.MINUTES)
-                        .maximumSize(5000)
-                        .recordStats()
-                        .build());
+        // P1-9: equipment L1-only 캐시 (CacheProperties에서 TTL/Size 참조)
+        CacheProperties.CacheSpec equipmentSpec = cacheProperties.getSpecs().get("equipment");
+        if (equipmentSpec != null) {
+            l1Manager.registerCustomCache("equipment",
+                    Caffeine.newBuilder()
+                            .expireAfterWrite(equipmentSpec.getL1TtlMinutes(), TimeUnit.MINUTES)
+                            .maximumSize(equipmentSpec.getL1MaxSize())
+                            .recordStats()
+                            .build());
+        }
 
         return l1Manager;
     }

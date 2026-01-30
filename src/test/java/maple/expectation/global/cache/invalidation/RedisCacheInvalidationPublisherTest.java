@@ -58,6 +58,9 @@ class RedisCacheInvalidationPublisherTest {
     void setUp() {
         meterRegistry = new SimpleMeterRegistry();
 
+        // P1-3: RTopic 필드 캐싱을 위해 생성자 호출 전에 mock 설정
+        when(redissonClient.getTopic(RedisKey.CACHE_INVALIDATION_TOPIC.getKey())).thenReturn(topic);
+
         // LogicExecutor.executeOrDefault: task 직접 실행 stub
         when(executor.executeOrDefault(any(), any(), any())).thenAnswer(invocation -> {
             maple.expectation.global.common.function.ThrowingSupplier<?> task = invocation.getArgument(0);
@@ -69,7 +72,6 @@ class RedisCacheInvalidationPublisherTest {
         });
 
         publisher = new RedisCacheInvalidationPublisher(redissonClient, executor, meterRegistry);
-        when(redissonClient.getTopic(RedisKey.CACHE_INVALIDATION_TOPIC.getKey())).thenReturn(topic);
     }
 
     @Nested

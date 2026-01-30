@@ -112,9 +112,12 @@ class CacheInvalidationIntegrationTest extends IntegrationTestSupport {
             AtomicReference<CacheInvalidationEvent> receivedEvent = new AtomicReference<>();
 
             RTopic topic = redissonClient.getTopic(RedisKey.CACHE_INVALIDATION_TOPIC.getKey());
+            // EVICT 타입만 필터링 (setUp의 cache.clear()가 CLEAR_ALL 이벤트를 발행하므로)
             int listenerId = topic.addListener(CacheInvalidationEvent.class, (channel, event) -> {
-                receivedEvent.set(event);
-                latch.countDown();
+                if (event.type() == InvalidationType.EVICT) {
+                    receivedEvent.set(event);
+                    latch.countDown();
+                }
             });
 
             // When
@@ -141,9 +144,12 @@ class CacheInvalidationIntegrationTest extends IntegrationTestSupport {
             AtomicReference<CacheInvalidationEvent> receivedEvent = new AtomicReference<>();
 
             RTopic topic = redissonClient.getTopic(RedisKey.CACHE_INVALIDATION_TOPIC.getKey());
+            // sourceInstanceId로 테스트 발행 이벤트만 필터링 (setUp의 clear()가 CLEAR_ALL을 발행하므로)
             int listenerId = topic.addListener(CacheInvalidationEvent.class, (channel, event) -> {
-                receivedEvent.set(event);
-                latch.countDown();
+                if ("test-publisher".equals(event.sourceInstanceId())) {
+                    receivedEvent.set(event);
+                    latch.countDown();
+                }
             });
 
             // When

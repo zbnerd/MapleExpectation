@@ -177,7 +177,8 @@ class TieredCacheWriteOrderP0Test extends AbstractContainerBaseTest {
         void shouldRecordL2FailureMetric_whenL2Fails() {
             // given
             String testKey = "l2-metric-test-" + UUID.randomUUID();
-            double initialL2Failures = getCounterValue("cache.l2.failure");
+            // P1-1: cache 태그 포함 조회
+            double initialL2Failures = getCounterValue("cache.l2.failure", "cache", "equipment");
 
             // when: Redis 연결 끊기
             redisProxy.setConnectionCut(true);
@@ -190,7 +191,7 @@ class TieredCacheWriteOrderP0Test extends AbstractContainerBaseTest {
                         .atMost(java.time.Duration.ofSeconds(5))
                         .pollInterval(java.time.Duration.ofMillis(200))
                         .untilAsserted(() -> {
-                            double finalL2Failures = getCounterValue("cache.l2.failure");
+                            double finalL2Failures = getCounterValue("cache.l2.failure", "cache", "equipment");
                             assertThat(finalL2Failures)
                                     .as("L2 실패 시 cache.l2.failure 메트릭이 증가해야 함")
                                     .isGreaterThan(initialL2Failures);
