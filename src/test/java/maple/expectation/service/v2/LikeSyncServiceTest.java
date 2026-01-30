@@ -11,6 +11,7 @@ import maple.expectation.global.executor.function.ThrowingRunnable;
 import maple.expectation.repository.v2.RedisBufferRepository;
 import maple.expectation.service.v2.cache.LikeBufferStrategy;
 import maple.expectation.service.v2.like.dto.FetchResult;
+import maple.expectation.service.v2.like.metrics.LikeSyncMetricsRecorder;
 import maple.expectation.service.v2.like.strategy.AtomicFetchStrategy;
 import maple.expectation.service.v2.shutdown.ShutdownDataPersistenceService;
 import org.junit.jupiter.api.BeforeEach;
@@ -55,6 +56,7 @@ class LikeSyncServiceTest {
     @Mock private Counter mockCounter;
     @Mock private Timer mockTimer;
     @Mock private DistributionSummary mockSummary;
+    @Mock private LikeSyncMetricsRecorder metricsRecorder;
     @Mock private ApplicationEventPublisher eventPublisher;
 
     private static final String SOURCE_KEY = "{buffer:likes}";
@@ -129,6 +131,7 @@ class LikeSyncServiceTest {
                 executor,
                 atomicFetchStrategy,
                 meterRegistry,
+                metricsRecorder,
                 eventPublisher
         );
 

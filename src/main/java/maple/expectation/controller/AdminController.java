@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import maple.expectation.controller.dto.admin.AddAdminRequest;
 import maple.expectation.global.response.ApiResponse;
+import maple.expectation.global.util.StringMaskingUtils;
 import maple.expectation.global.security.AuthenticatedUser;
 import maple.expectation.service.v2.auth.AdminService;
 import org.springframework.http.ResponseEntity;
@@ -94,19 +95,8 @@ public class AdminController {
         }
 
         return ResponseEntity.ok(ApiResponse.success(
-            "Admin removed successfully: " + maskFingerprint(fingerprint)
+            "Admin removed successfully: " + StringMaskingUtils.maskFingerprintWithSuffix(fingerprint)
         ));
     }
 
-    /**
-     * Fingerprint 마스킹 유틸리티
-     *
-     * <p>AddAdminRequest 외부에서 사용되는 경우를 위한 내부 메서드</p>
-     */
-    private String maskFingerprint(String fingerprint) {
-        if (fingerprint == null || fingerprint.length() < 8) {
-            return "****";
-        }
-        return fingerprint.substring(0, 4) + "****" + fingerprint.substring(fingerprint.length() - 4);
-    }
 }

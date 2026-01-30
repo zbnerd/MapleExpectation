@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import maple.expectation.external.dto.v2.TotalExpectationResponse;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
+import maple.expectation.global.util.StringMaskingUtils;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
@@ -111,9 +112,9 @@ public class TotalExpectationCacheService {
                 log.warn("[Cache] L2 unavailable | cache={}", CACHE_NAME);
             }
 
-            log.info("[Cache] MISS | dto=TotalExpectationResponse | maskedKey={}", maskKey(cacheKey));
+            log.info("[Cache] MISS | dto=TotalExpectationResponse | maskedKey={}", StringMaskingUtils.maskCacheKey(cacheKey));
             return Optional.empty();
-        }, TaskContext.of("ExpectationCache", "GetValid", maskKey(cacheKey)));
+        }, TaskContext.of("ExpectationCache", "GetValid", StringMaskingUtils.maskCacheKey(cacheKey)));
     }
 
     /**
@@ -153,7 +154,7 @@ public class TotalExpectationCacheService {
 
             // 3) L1 put (L2 성공 여부와 무관 — 로컬 성능 보장)
             saveToL1(cacheKey, response);
-        }, TaskContext.of("ExpectationCache", "Save", maskKey(cacheKey)));
+        }, TaskContext.of("ExpectationCache", "Save", StringMaskingUtils.maskCacheKey(cacheKey)));
     }
 
     /**
@@ -184,11 +185,11 @@ public class TotalExpectationCacheService {
                 e -> {
                     // serialize 실패는 L2 스킵(정책) + 로그
                     log.warn("[Serialize Fail] err={}", e.toString());
-                    log.debug("[Serialize Fail] maskedKey={}", maskKey(cacheKey));
+                    log.debug("[Serialize Fail] maskedKey={}", StringMaskingUtils.maskCacheKey(cacheKey));
                     serializeFailCounter.increment();
                     return -1; // L2 스킵 시그널
                 },
-                TaskContext.of("ExpectationCache", "Serialize", maskKey(cacheKey))
+                TaskContext.of("ExpectationCache", "Serialize", StringMaskingUtils.maskCacheKey(cacheKey))
         );
     }
 
@@ -218,7 +219,7 @@ public class TotalExpectationCacheService {
                             response.getUserIgn(), e.toString());
                     return null;
                 },
-                TaskContext.of("ExpectationCache", "SaveL2", maskKey(cacheKey))
+                TaskContext.of("ExpectationCache", "SaveL2", StringMaskingUtils.maskCacheKey(cacheKey))
         );
     }
 
@@ -238,17 +239,4 @@ public class TotalExpectationCacheService {
                 KEY_VERSION, ocid, fingerprint, tableVersionHash, logicVersion);
     }
 
-    /**
-     * 캐시 키 마스킹 (로그용)
-     *
-     * <p>P0-2 로그 정책: cacheKey 원문 로그 금지 → ocid 부분만 마스킹</p>
-     *
-     * @param key 원본 캐시 키
-     * @return 마스킹된 키 (ocid 부분이 ***로 대체)
-     */
-    private String maskKey(String key) {
-        if (key == null) return "null";
-        // expectation:v3:ocid123:... → expectation:v3:oc***:...
-        return key.replaceAll("(expectation:v\\d+:)[^:]+", "$1***");
-    }
 }

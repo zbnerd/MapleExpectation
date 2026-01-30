@@ -2,6 +2,8 @@ package maple.expectation.service.v2.cache;
 
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.external.dto.v2.EquipmentResponse;
+import maple.expectation.global.error.exception.CachePersistenceException;
+import maple.expectation.global.error.exception.base.BaseException;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.service.v2.worker.EquipmentDbWorker;
@@ -106,7 +108,7 @@ public class EquipmentCacheService {
      */
     private Void observeAsyncError(String ocid, Throwable ex) {
         executor.executeVoid(
-                () -> { throw new RuntimeException(ex); },
+                () -> { throw new CachePersistenceException(ocid, ex); },
                 TaskContext.of("EquipmentDbWorker", "AsyncPersistFailed", ocid)
         );
         return null;
@@ -120,7 +122,13 @@ public class EquipmentCacheService {
             log.warn("[Equipment Cache] Shutdown 진행 중 - DB 저장 스킵(캐시만 유지): {}", ocid);
             return null;
         }
-        throw (RuntimeException) e;
+        if (e instanceof BaseException be) {
+            throw be;
+        }
+        if (e instanceof RuntimeException re) {
+            throw re;
+        }
+        throw new CachePersistenceException(ocid, e);
     }
 
     // ==================== L1-only API (Expectation 경로 전용) ====================

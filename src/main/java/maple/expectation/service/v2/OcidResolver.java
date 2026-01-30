@@ -3,17 +3,13 @@ package maple.expectation.service.v2;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.domain.v2.GameCharacter;
-import maple.expectation.external.NexonApiClient;
 import maple.expectation.global.error.exception.CharacterNotFoundException;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
-import maple.expectation.global.util.ExceptionUtils;
 import maple.expectation.repository.v2.GameCharacterRepository;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 
@@ -36,7 +32,7 @@ import java.util.Optional;
 public class OcidResolver {
 
     private final GameCharacterRepository gameCharacterRepository;
-    private final NexonApiClient nexonApiClient;
+    private final CharacterCreationService characterCreationService;
     private final CacheManager cacheManager;
     private final LogicExecutor executor;
 
@@ -106,57 +102,12 @@ public class OcidResolver {
     }
 
     /**
-     * 캐릭터 생성 - Issue #226: 트랜잭션 경계 분리
+     * 캐릭터 생성 (CharacterCreationService 위임)
      *
-     * <h4>Connection Pool 고갈 방지 (P1)</h4>
-     * <p>기존 문제: @Transactional 범위 내 .join() 호출 → 최대 28초 DB Connection 점유</p>
-     * <p>해결: API 호출은 트랜잭션 밖, DB 작업만 트랜잭션 안</p>
-     *
-     * @see <a href="https://github.com/issue/226">Issue #226: Connection Vampire 방지</a>
+     * @see CharacterCreationService#createNewCharacter(String)
      */
     public GameCharacter createNewCharacter(String userIgn) {
-        TaskContext context = TaskContext.of("Character", "Create", userIgn);
-
-        return executor.executeOrCatch(
-                () -> {
-                    log.info("✨ [Creation] 캐릭터 생성 시작: {}", userIgn);
-
-                    // Step 1: API 호출 (트랜잭션 밖 - DB Connection 점유 없음)
-                    String ocid = nexonApiClient.getOcidByCharacterName(userIgn).join().getOcid();
-
-                    // Step 2: DB 저장 (트랜잭션 안 - 짧은 Connection 점유 ~100ms)
-                    return saveCharacterWithCaching(userIgn, ocid);
-                },
-                e -> {
-                    // PR #199, #241 Fix: CompletionException unwrap 후 CharacterNotFoundException 감지
-                    Throwable unwrapped = ExceptionUtils.unwrapAsyncException(e);
-                    if (unwrapped instanceof CharacterNotFoundException) {
-                        log.warn("🚫 [Recovery] 캐릭터 미존재 → 네거티브 캐시 저장: {}", userIgn);
-                        Optional.ofNullable(cacheManager.getCache("ocidNegativeCache"))
-                                .ifPresent(c -> c.put(userIgn, "NOT_FOUND"));
-                    }
-                    throw (RuntimeException) e;
-                },
-                context
-        );
-    }
-
-    /**
-     * DB 저장 + 캐싱 (트랜잭션 범위 최소화) - Issue #226
-     *
-     * <p>Connection 점유 시간: ~100ms (28초 → 100ms)</p>
-     */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public GameCharacter saveCharacterWithCaching(String userIgn, String ocid) {
-        GameCharacter saved = gameCharacterRepository.saveAndFlush(
-                new GameCharacter(userIgn, ocid)
-        );
-
-        // Positive Cache
-        Optional.ofNullable(cacheManager.getCache("ocidCache"))
-                .ifPresent(c -> c.put(userIgn, ocid));
-
-        return saved;
+        return characterCreationService.createNewCharacter(userIgn);
     }
 
     /**

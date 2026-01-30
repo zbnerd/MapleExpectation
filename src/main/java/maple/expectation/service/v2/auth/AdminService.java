@@ -2,6 +2,8 @@ package maple.expectation.service.v2.auth;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.global.error.exception.InvalidAdminFingerprintException;
+import maple.expectation.global.util.StringMaskingUtils;
 import org.redisson.api.RSet;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Value;
@@ -71,11 +73,11 @@ public class AdminService {
      */
     public void addAdmin(String fingerprint) {
         if (fingerprint == null || fingerprint.isBlank()) {
-            throw new IllegalArgumentException("fingerprint must not be blank");
+            throw new InvalidAdminFingerprintException();
         }
 
         getAdminSet().add(fingerprint);
-        log.info("Admin added: fingerprint={}", maskFingerprint(fingerprint));
+        log.info("Admin added: fingerprint={}", StringMaskingUtils.maskFingerprintWithSuffix(fingerprint));
     }
 
     /**
@@ -83,13 +85,13 @@ public class AdminService {
      */
     public boolean removeAdmin(String fingerprint) {
         if (bootstrapAdmins.contains(fingerprint)) {
-            log.warn("Cannot remove bootstrap admin: fingerprint={}", maskFingerprint(fingerprint));
+            log.warn("Cannot remove bootstrap admin: fingerprint={}", StringMaskingUtils.maskFingerprintWithSuffix(fingerprint));
             return false;
         }
 
         boolean removed = getAdminSet().remove(fingerprint);
         if (removed) {
-            log.info("Admin removed: fingerprint={}", maskFingerprint(fingerprint));
+            log.info("Admin removed: fingerprint={}", StringMaskingUtils.maskFingerprintWithSuffix(fingerprint));
         }
         return removed;
     }
@@ -133,10 +135,4 @@ public class AdminService {
         );
     }
 
-    private String maskFingerprint(String fingerprint) {
-        if (fingerprint == null || fingerprint.length() < 8) {
-            return "****";
-        }
-        return fingerprint.substring(0, 4) + "****" + fingerprint.substring(fingerprint.length() - 4);
-    }
 }

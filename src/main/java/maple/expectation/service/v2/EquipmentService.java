@@ -10,7 +10,9 @@ import maple.expectation.external.dto.v2.TotalExpectationResponse;
 import maple.expectation.global.concurrency.SingleFlightExecutor;
 import maple.expectation.global.error.exception.EquipmentDataProcessingException;
 import maple.expectation.global.error.exception.ExpectationCalculationUnavailableException;
+import maple.expectation.global.error.exception.TransactionSnapshotException;
 import maple.expectation.global.executor.LogicExecutor;
+import maple.expectation.global.util.StringMaskingUtils;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.provider.EquipmentDataProvider;
 import maple.expectation.parser.EquipmentStreamingParser;
@@ -188,7 +190,7 @@ public class EquipmentService {
         // Early Return: 캐시 HIT
         Optional<TotalExpectationResponse> cached = expectationCacheService.getValidCache(cacheKey);
         if (cached.isPresent()) {
-            log.debug("[Expectation] Cache HIT for {}", maskOcid(snapshot.ocid()));
+            log.debug("[Expectation] Cache HIT for {}", StringMaskingUtils.maskOcid(snapshot.ocid()));
             return CompletableFuture.completedFuture(cached.get());
         }
 
@@ -222,7 +224,7 @@ public class EquipmentService {
             );
         });
         if (snap == null) {
-            throw new IllegalStateException("TransactionTemplate returned null for: " + userIgn);
+            throw new TransactionSnapshotException(userIgn);
         }
         return snap;
     }
@@ -298,19 +300,7 @@ public class EquipmentService {
     private TotalExpectationResponse fallbackFromCache(String cacheKey) {
         log.warn("[Expectation] Follower timeout, fallback to cache lookup");
         return expectationCacheService.getValidCache(cacheKey)
-                .orElseThrow(() -> new ExpectationCalculationUnavailableException(maskKey(cacheKey)));
-    }
-
-    // ==================== 유틸리티 ====================
-
-    private String maskOcid(String value) {
-        if (value == null || value.length() < 8) return "***";
-        return value.substring(0, 4) + "***";
-    }
-
-    private String maskKey(String key) {
-        if (key == null) return "null";
-        return key.replaceAll("(expectation:v\\d+:)[^:]+", "$1***");
+                .orElseThrow(() -> new ExpectationCalculationUnavailableException(StringMaskingUtils.maskCacheKey(cacheKey)));
     }
 
     // ==================== 레거시 API (Issue #118: 비동기 전환) ====================

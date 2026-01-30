@@ -10,7 +10,9 @@ import maple.expectation.global.error.exception.AdminMemberNotFoundException;
 import maple.expectation.global.error.exception.AdminNotFoundException;
 import maple.expectation.global.error.exception.CriticalTransactionFailureException;
 import maple.expectation.global.error.exception.InsufficientPointException;
+import maple.expectation.global.error.exception.base.BaseException;
 import maple.expectation.global.executor.LogicExecutor;
+import maple.expectation.global.util.StringMaskingUtils;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.repository.v2.DonationHistoryRepository;
 import maple.expectation.repository.v2.DonationOutboxRepository;
@@ -85,8 +87,8 @@ public class DonationService {
             return null;
         }, (e) -> {
             // 비즈니스 예외는 그대로 전파
-            if (e instanceof InsufficientPointException || e instanceof AdminMemberNotFoundException) {
-                throw (RuntimeException) e;
+            if (e instanceof BaseException be) {
+                throw be;
             }
 
             // 기술적 장애 발생 시에만 이벤트 발행
@@ -129,17 +131,11 @@ public class DonationService {
 
     private String createPayload(String sender, String receiverFingerprint, Long amount) {
         // 보안: fingerprint 마스킹하여 저장
-        String maskedFingerprint = maskFingerprint(receiverFingerprint);
+        String maskedFingerprint = StringMaskingUtils.maskFingerprint(receiverFingerprint);
         return String.format(
                 "{\"senderUuid\":\"%s\",\"receiverFingerprint\":\"%s\",\"amount\":%d}",
                 sender, maskedFingerprint, amount
         );
     }
 
-    private String maskFingerprint(String fingerprint) {
-        if (fingerprint == null || fingerprint.length() < 8) {
-            return "****";
-        }
-        return fingerprint.substring(0, 4) + "****";
-    }
 }
