@@ -107,9 +107,7 @@ public class OutboxMetrics {
     }
 
     public void incrementStalledRecovered(int count) {
-        for (int i = 0; i < count; i++) {
-            stalledRecoveredCounter.increment();
-        }
+        stalledRecoveredCounter.increment(count);
     }
 
     public void incrementPollFailure() {

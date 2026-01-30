@@ -18,7 +18,7 @@ import java.time.LocalDateTime;
  *   <li>3차: Discord Critical Alert</li>
  * </ul>
  *
- * @see maple.expectation.service.v2.donation.outbox.application.DlqHandler
+ * @see maple.expectation.service.v2.donation.outbox.DlqHandler
  */
 @Entity
 @Table(name = "donation_dlq",
