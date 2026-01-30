@@ -17,7 +17,7 @@ import java.util.Optional;
  * <p>Outbox 처리 실패 시 데이터를 저장하여 영구 손실 방지.</p>
  *
  * @see maple.expectation.domain.v2.DonationDlq
- * @see maple.expectation.service.v2.donation.outbox.application.DlqHandler
+ * @see maple.expectation.service.v2.donation.outbox.DlqHandler
  */
 public interface DonationDlqRepository extends JpaRepository<DonationDlq, Long> {
 

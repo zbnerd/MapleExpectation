@@ -379,3 +379,10 @@ executor:
     core-pool-size: 12
     max-pool-size: 24
     queue-capacity: 100
+
+# Outbox 설정 (P1-8: 하드코딩 제거 → YAML 외부화)
+outbox:
+  batch-size: 100                   # SKIP LOCKED 배치 크기
+  stale-threshold: 5m               # Stalled 판정 기준 (5분)
+  max-backoff: 1h                   # Exponential Backoff 최대 대기 (1시간)
+  instance-id: ${app.instance-id}   # Scale-out 인스턴스 식별자

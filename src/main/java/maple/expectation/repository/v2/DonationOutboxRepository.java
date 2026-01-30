@@ -72,9 +72,15 @@ public interface DonationOutboxRepository extends JpaRepository<DonationOutbox, 
      *
      * <p>무결성 검증을 위해 개별 항목 조회 필요. LIMIT 100으로 배치 크기 제한.</p>
      *
+     * <h4>P1-4 Fix: SKIP LOCKED 추가</h4>
+     * <p>Scale-out 시 복수 인스턴스가 동시 복구 실행 -> SKIP LOCKED으로 중복 방지.
+     * 기존에는 @Lock 없이 조회하여 OptimisticLockException 발생 가능.</p>
+     *
      * @param staleTime Stale 판정 기준 시간
      * @return Stalled 상태의 Outbox 항목 목록 (최대 100건)
      */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "-2"))
     @Query("SELECT o FROM DonationOutbox o WHERE o.status = 'PROCESSING' AND o.lockedAt < :staleTime ORDER BY o.id")
     List<DonationOutbox> findStalledProcessing(@Param("staleTime") LocalDateTime staleTime, Pageable pageable);
 

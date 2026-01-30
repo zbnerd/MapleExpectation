@@ -9,7 +9,9 @@ import maple.expectation.global.error.exception.InternalSystemException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.HexFormat;
 
 /**
  * Transactional Outbox 엔티티 (Issue #80)
@@ -137,12 +139,13 @@ public class DonationOutbox {
         }
     }
 
+    /**
+     * P1-9 Fix: HexFormat (Java 17+) 사용으로 GC 최적화
+     *
+     * <p>기존 String.format("%02x") 루프 대비 할당 감소</p>
+     */
     private static String bytesToHex(byte[] bytes) {
-        StringBuilder sb = new StringBuilder(bytes.length * 2);
-        for (byte b : bytes) {
-            sb.append(String.format("%02x", b));
-        }
-        return sb.toString();
+        return HexFormat.of().formatHex(bytes);
     }
 
     /**
@@ -172,14 +175,24 @@ public class DonationOutbox {
     }
 
     /**
-     * 처리 실패 마킹 (Exponential Backoff)
+     * Exponential Backoff 최대 대기 시간 (P1-5 Fix: 오버플로 방지)
+     */
+    private static final Duration MAX_BACKOFF = Duration.ofHours(1);
+
+    /**
+     * 처리 실패 마킹 (Exponential Backoff + P1-5 Cap)
+     *
+     * <p>P1-5 Fix: retryCount가 커져도 MAX_BACKOFF(1시간)을 초과하지 않음</p>
      */
     public void markFailed(String error) {
         this.retryCount++;
         this.lastError = truncate(error, 500);
         this.status = shouldMoveToDlq() ? OutboxStatus.DEAD_LETTER : OutboxStatus.FAILED;
-        this.nextRetryAt = LocalDateTime.now()
-                .plusSeconds((long) Math.pow(2, retryCount) * 30);
+        long backoffSeconds = Math.min(
+                (long) Math.pow(2, retryCount) * 30,
+                MAX_BACKOFF.toSeconds()
+        );
+        this.nextRetryAt = LocalDateTime.now().plusSeconds(backoffSeconds);
         clearLock();
     }
 
