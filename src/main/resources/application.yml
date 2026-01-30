@@ -258,6 +258,7 @@ like:
   # Issue #278: Scale-out 환경 실시간 좋아요 동기화
   realtime:
     enabled: true  # Pub/Sub 활성화 (인스턴스 간 L1 캐시 무효화)
+    transport: rtopic  # rtopic(기본, at-most-once) | reliable-topic(at-least-once)
 
 # BYOK 인증 설정 (Issue #146)
 auth:
@@ -370,6 +371,11 @@ app:
 
 
 # Thread Pool 설정 외부화 (P1-1)
+# Lock DataSource Pool Size 외부화 (Issue #284 DoD)
+lock:
+  datasource:
+    pool-size: 30  # 기본값 (prod에서 150으로 오버라이드)
+
 executor:
   equipment:
     core-pool-size: 8

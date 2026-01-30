@@ -2,7 +2,9 @@ package maple.expectation.config;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -38,8 +40,12 @@ public class LockHikariConfig {
     @Value("${spring.datasource.password}")
     private String password;
 
-    // [Audit 반영] RPS 235를 감당하기 위한 최소 안전 계수 (Golden Number)
-    private static final int POOL_SIZE = 30;
+    @Autowired
+    private MeterRegistry meterRegistry;
+
+    // Issue #284 DoD: Pool Size 외부화 (기본 30, prod에서 150으로 오버라이드)
+    @Value("${lock.datasource.pool-size:30}")
+    private int poolSize;
 
     @Bean(name = "lockDataSource")
     public DataSource lockDataSource() {
@@ -54,8 +60,8 @@ public class LockHikariConfig {
         // [핵심 수정 1] Pool Size 증설 (10 -> 30) 및 고정 (Fixed Pool)
         // Redis가 죽으면 트래픽이 몰리므로 10개로는 부족함.
         // MinIdle = MaxPoolSize로 설정하여 불필요한 연결/해제 비용 제거.
-        config.setMaximumPoolSize(POOL_SIZE);
-        config.setMinimumIdle(POOL_SIZE);
+        config.setMaximumPoolSize(poolSize);
+        config.setMinimumIdle(poolSize);
 
         // [핵심 수정 2] Fail-fast 전략 유지
         config.setConnectionTimeout(5000); // 5초 안에 연결 못 얻으면 에러 (스레드 보호)
@@ -66,7 +72,10 @@ public class LockHikariConfig {
         // 검증 설정 (JDBC4 isValid 사용으로 쿼리 비용 절감)
         config.setValidationTimeout(3000);
 
-        log.info("[Lock Pool] Initialized dedicated MySQL lock connection pool (Fixed Size: {})", POOL_SIZE);
+        // Issue #284: Micrometer 메트릭 등록 (hikaricp.connections.active{pool=MySQLLockPool})
+        config.setMetricRegistry(meterRegistry);
+
+        log.info("[Lock Pool] Initialized dedicated MySQL lock connection pool (Fixed Size: {})", poolSize);
 
         return new HikariDataSource(config);
     }
