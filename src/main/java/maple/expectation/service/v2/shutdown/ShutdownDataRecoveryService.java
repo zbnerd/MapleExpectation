@@ -145,7 +145,8 @@ public class ShutdownDataRecoveryService {
         Map<String, Long> likeBuffer = data.likeBuffer();
         if (likeBuffer == null || likeBuffer.isEmpty()) return Map.of();
 
-        Map<String, Long> failedEntries = new java.util.concurrent.ConcurrentHashMap<>();
+        // P1-9 Fix: forEach는 순차 실행, executeOrCatch도 동기 → HashMap 충분
+        Map<String, Long> failedEntries = new java.util.HashMap<>();
 
         likeBuffer.forEach((userIgn, count) -> {
             // PR #187 Fix: 파일명 기반 결정론적 ID (UUID.randomUUID() 제거)

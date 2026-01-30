@@ -386,3 +386,15 @@ outbox:
   stale-threshold: 5m               # Stalled 판정 기준 (5분)
   max-backoff: 1h                   # Exponential Backoff 최대 대기 (1시간)
   instance-id: ${app.instance-id}   # Scale-out 인스턴스 식별자
+
+# Graceful Shutdown 설정 (P1-1, P1-2, P1-3, P1-5: 하드코딩 제거 → YAML 외부화)
+shutdown:
+  equipment-await-timeout: 20s      # Equipment 비동기 저장 대기 타임아웃
+  lock-wait-seconds: 3              # DB 동기화 분산 락 대기 시간
+  lock-lease-seconds: 10            # DB 동기화 분산 락 점유 시간
+  batch-size: 200                   # Shutdown 시 배치 크기
+  empty-batch-retry-count: 3        # 빈 배치 재시도 횟수
+  empty-batch-wait-ms: 100          # 빈 배치 간 대기 시간 (ms)
+  backup-directory: /tmp/maple-shutdown
+  archive-directory: /tmp/maple-shutdown/processed
+  instance-id: ${app.instance-id}   # Scale-out 인스턴스 식별자

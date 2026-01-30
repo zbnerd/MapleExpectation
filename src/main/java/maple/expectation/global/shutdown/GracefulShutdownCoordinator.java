@@ -1,51 +1,107 @@
 package maple.expectation.global.shutdown;
 
-import lombok.RequiredArgsConstructor;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.global.executor.LogicExecutor; // ✅ 주입
-import maple.expectation.global.executor.TaskContext; // ✅ 관측성 확보
+import maple.expectation.config.ShutdownProperties;
+import maple.expectation.global.executor.LogicExecutor;
+import maple.expectation.global.executor.TaskContext;
 import maple.expectation.global.lock.LockStrategy;
 import maple.expectation.global.shutdown.dto.FlushResult;
 import maple.expectation.global.shutdown.dto.ShutdownData;
 import maple.expectation.service.v2.LikeSyncService;
 import maple.expectation.service.v2.shutdown.PersistenceTrackerStrategy;
 import maple.expectation.service.v2.shutdown.ShutdownDataPersistenceService;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Component;
 
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
- * Spring Boot Graceful Shutdown 조정자 (LogicExecutor 평탄화 완료)
+ * Spring Boot Graceful Shutdown 조정자 (P0/P1 리팩토링 완료)
+ *
+ * <h3>4단계 순차 종료</h3>
+ * <ol>
+ *   <li>Equipment 비동기 저장 완료 대기</li>
+ *   <li>로컬 좋아요 버퍼 Flush</li>
+ *   <li>DB 최종 동기화 (분산 락)</li>
+ *   <li>백업 데이터 최종 저장</li>
+ * </ol>
+ *
+ * <h3>P1-2 Fix: 하드코딩 제거 -> ShutdownProperties 외부화</h3>
+ * <h3>P1-6 Fix: Shutdown 메트릭 추가 (Micrometer)</h3>
+ *
+ * @see ShutdownProperties 외부 설정
+ * @see maple.expectation.service.v4.buffer.ExpectationBatchShutdownHandler 버퍼 Drain 핸들러
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
+@EnableConfigurationProperties(ShutdownProperties.class)
 public class GracefulShutdownCoordinator implements SmartLifecycle {
 
     private final LikeSyncService likeSyncService;
     private final LockStrategy lockStrategy;
-    private final PersistenceTrackerStrategy persistenceTracker;  // #271 V5: Strategy 인터페이스 사용
+    private final PersistenceTrackerStrategy persistenceTracker;
     private final ShutdownDataPersistenceService shutdownDataPersistenceService;
-    private final LogicExecutor executor; // ✅ 지능형 실행기 주입
+    private final LogicExecutor executor;
+    private final ShutdownProperties properties;
+
+    // P1-6 Fix: Shutdown 메트릭
+    private final Timer shutdownTimer;
+    private final Counter shutdownSuccessCounter;
+    private final Counter shutdownFailureCounter;
 
     private volatile boolean running = false;
+
+    public GracefulShutdownCoordinator(
+            LikeSyncService likeSyncService,
+            LockStrategy lockStrategy,
+            PersistenceTrackerStrategy persistenceTracker,
+            ShutdownDataPersistenceService shutdownDataPersistenceService,
+            LogicExecutor executor,
+            ShutdownProperties properties,
+            MeterRegistry meterRegistry) {
+        this.likeSyncService = likeSyncService;
+        this.lockStrategy = lockStrategy;
+        this.persistenceTracker = persistenceTracker;
+        this.shutdownDataPersistenceService = shutdownDataPersistenceService;
+        this.executor = executor;
+        this.properties = properties;
+        this.shutdownTimer = Timer.builder("shutdown.coordinator.duration")
+                .description("Graceful Shutdown 총 소요 시간")
+                .register(meterRegistry);
+        this.shutdownSuccessCounter = Counter.builder("shutdown.coordinator.result")
+                .tag("status", "success")
+                .description("Shutdown 성공 횟수")
+                .register(meterRegistry);
+        this.shutdownFailureCounter = Counter.builder("shutdown.coordinator.result")
+                .tag("status", "failure")
+                .description("Shutdown 실패 횟수")
+                .register(meterRegistry);
+    }
 
     @Override
     public void start() {
         this.running = true;
-        log.debug("✅ [Graceful Shutdown Coordinator] Started");
+        log.debug("[Graceful Shutdown Coordinator] Started");
     }
 
     /**
-     * ✅  stop() 메서드의 try-finally를 executeWithFinally로 대체
+     * 4단계 순차 종료 프로세스
+     *
+     * <h4>CLAUDE.md Section 12 준수</h4>
+     * <p>try-catch 금지 -> LogicExecutor.executeWithFinally() 사용</p>
      */
     @Override
     public void stop() {
-        TaskContext context = TaskContext.of("Shutdown", "MainProcess"); //
+        TaskContext context = TaskContext.of("Shutdown", "MainProcess");
+
+        long startNanos = System.nanoTime();
 
         executor.executeWithFinally(
                 () -> {
@@ -64,10 +120,13 @@ public class GracefulShutdownCoordinator implements SmartLifecycle {
                     if (backupData != null && !backupData.isEmpty()) {
                         shutdownDataPersistenceService.saveShutdownData(backupData);
                     }
+
+                    shutdownSuccessCounter.increment();
                     return null;
                 },
                 () -> {
-                    this.running = false; //
+                    this.running = false;
+                    shutdownTimer.record(System.nanoTime() - startNanos, TimeUnit.NANOSECONDS);
                     log.warn("========= [System Shutdown] 종료 완료 =========");
                 },
                 context
@@ -75,66 +134,69 @@ public class GracefulShutdownCoordinator implements SmartLifecycle {
     }
 
     /**
-     * Equipment 저장 대기 (관측성 추가)
+     * Equipment 저장 대기 (P1-2 Fix: 타임아웃 외부화)
      */
     private ShutdownData waitForEquipmentPersistence() {
         return executor.execute(() -> {
-            log.info("▶️ [1/4] Equipment 비동기 저장 작업 완료 대기 중...");
-            boolean allCompleted = persistenceTracker.awaitAllCompletion(Duration.ofSeconds(20));
+            log.info("[1/4] Equipment 비동기 저장 작업 완료 대기 중...");
+            boolean allCompleted = persistenceTracker.awaitAllCompletion(properties.getEquipmentAwaitTimeout());
 
             if (!allCompleted) {
                 List<String> pendingOcids = persistenceTracker.getPendingOcids();
-                log.warn("⚠️ Equipment 저장 미완료 항목: {}건", pendingOcids.size());
-                return new ShutdownData(LocalDateTime.now(), shutdownDataPersistenceService.getInstanceId(), Map.of(), pendingOcids);
+                log.warn("[1/4] Equipment 저장 미완료 항목: {}건", pendingOcids.size());
+                return new ShutdownData(LocalDateTime.now(), properties.getInstanceId(), Map.of(), pendingOcids);
             }
 
-            log.info("✅ 모든 Equipment 저장 작업 완료.");
-            return ShutdownData.empty(shutdownDataPersistenceService.getInstanceId());
+            log.info("[1/4] 모든 Equipment 저장 작업 완료.");
+            return ShutdownData.empty(properties.getInstanceId());
         }, TaskContext.of("Shutdown", "WaitEquipment"));
     }
 
     /**
-     * ✅  try-catch를 executeWithRecovery로 대체
+     * 로컬 좋아요 버퍼 Flush
      */
     private ShutdownData flushLikeBuffer(ShutdownData backupData) {
         return executor.executeOrCatch(
                 () -> {
-                    log.info("▶️ [2/4] 로컬 좋아요 버퍼 Flush 중...");
+                    log.info("[2/4] 로컬 좋아요 버퍼 Flush 중...");
                     FlushResult result = likeSyncService.flushLocalToRedisWithFallback();
-                    log.info("✅ 로컬 좋아요 버퍼 Flush 완료: Redis {}건, 파일 백업 {}건",
+                    log.info("[2/4] 로컬 좋아요 버퍼 Flush 완료: Redis {}건, 파일 백업 {}건",
                             result.redisSuccessCount(), result.fileBackupCount());
                     return backupData;
                 },
                 (e) -> {
-                    log.error("❌ 로컬 Flush 중 예상치 못한 오류 발생", e);
-                    return backupData; // 실패해도 기존 데이터 반환하여 프로세스 유지
+                    log.error("[2/4] 로컬 Flush 중 예상치 못한 오류 발생", e);
+                    shutdownFailureCounter.increment();
+                    return backupData;
                 },
                 TaskContext.of("Shutdown", "FlushLikes")
         );
     }
 
     /**
-     * ✅  복잡한 다중 catch 로직을 executeWithRecovery 내 분기 처리로 평탄화
+     * DB 최종 동기화 (P1-2 Fix: 락 설정 외부화)
      */
     private void syncRedisToDatabase() {
         executor.executeOrCatch(
                 () -> {
-                    log.info("▶️ [3/4] DB 최종 동기화 시도 중...");
-                    lockStrategy.executeWithLock("like-db-sync-lock", 3, 10, () -> {
-                        likeSyncService.syncRedisToDatabase();
-                        return null;
-                    });
-                    log.info("✅ DB 최종 동기화 완료.");
+                    log.info("[3/4] DB 최종 동기화 시도 중...");
+                    lockStrategy.executeWithLock(
+                            "like-db-sync-lock",
+                            properties.getLockWaitSeconds(),
+                            properties.getLockLeaseSeconds(),
+                            () -> {
+                                likeSyncService.syncRedisToDatabase();
+                                return null;
+                            });
+                    log.info("[3/4] DB 최종 동기화 완료.");
                     return null;
                 },
                 (e) -> {
-                    // [분기 1] 락 획득 실패 시 (정상 시나리오)
                     if (e instanceof maple.expectation.global.error.exception.DistributedLockException) {
-                        log.info("ℹ️ [Shutdown Sync] DB 동기화 스킵: 다른 서버가 처리 중입니다.");
-                    }
-                    // [분기 2] 기타 장애 (로그 남기고 진행)
-                    else {
-                        log.warn("⚠️ [Shutdown Sync] DB 동기화 실패: {}", e.getMessage());
+                        log.info("[Shutdown Sync] DB 동기화 스킵: 다른 서버가 처리 중입니다.");
+                    } else {
+                        log.warn("[Shutdown Sync] DB 동기화 실패: {}", e.getMessage());
+                        shutdownFailureCounter.increment();
                     }
                     return null;
                 },
