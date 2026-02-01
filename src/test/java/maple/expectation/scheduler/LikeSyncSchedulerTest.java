@@ -62,7 +62,8 @@ class LikeSyncSchedulerTest {
                 likeRelationSyncService,
                 lockStrategy,
                 executor,
-                likeBufferStrategy
+                likeBufferStrategy,
+                partitionedFlushStrategy
         );
     }
 
@@ -133,15 +134,12 @@ class LikeSyncSchedulerTest {
             given(likeBufferStrategy.getType())
                     .willReturn(LikeBufferStrategy.StrategyType.REDIS);
 
-            // PartitionedFlushStrategy 주입을 위한 reflection 또는 setter 필요
-            // 현재 구조상 @Autowired(required=false) 필드라 직접 테스트 어려움
-            // 대신 In-Memory 모드 테스트로 대체
-
             // when
             scheduler.globalSyncCount();
 
-            // then - Redis 모드지만 partitionedFlushStrategy가 null이면 락 기반으로 폴백
-            verify(lockStrategy).executeWithLock(
+            // then - Redis 모드 + partitionedFlushStrategy 주입됨 → 파티션 기반 Flush 실행
+            verify(partitionedFlushStrategy).flushAssignedPartitions();
+            verify(lockStrategy, never()).executeWithLock(
                     anyString(), anyLong(), anyLong(), any(ThrowingSupplier.class)
             );
         }

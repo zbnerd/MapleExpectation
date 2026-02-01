@@ -96,6 +96,13 @@ public abstract class AbstractContainerBaseTest {
             // Best-effort: 정리 실패 시 로그만 남기고 계속 진행
             System.err.println("[globalProxyReset] Cleanup failed (best-effort): " + e.getMessage());
         }
+
+        // 3. Redis 데이터 초기화 (Proxy 복구 후 실행하여 연결 확보)
+        try {
+            REDIS.execInContainer("redis-cli", "FLUSHDB");
+        } catch (Exception e) {
+            System.err.println("[globalProxyReset] Redis FLUSHDB failed (best-effort): " + e.getMessage());
+        }
     }
 
     /**

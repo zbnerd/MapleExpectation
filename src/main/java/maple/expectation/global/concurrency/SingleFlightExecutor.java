@@ -34,6 +34,7 @@ import java.util.function.Supplier;
  * }</pre>
  *
  * @param <T> 계산 결과 타입
+ * @see DistributedSingleFlightService 분산 환경에서의 Single-Flight (Issue #283 P0-4)
  * @see <a href="https://github.com/issue/158">Issue #158: Single-flight 패턴</a>
  */
 @Slf4j

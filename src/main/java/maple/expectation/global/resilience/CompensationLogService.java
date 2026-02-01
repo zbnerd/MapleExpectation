@@ -19,6 +19,8 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Compensation Log Service (Issue #218)
@@ -57,11 +59,22 @@ public class CompensationLogService {
     private final ObjectMapper objectMapper;
     private final CheckedLogicExecutor checkedExecutor;
 
+    private final String instanceId = generateInstanceId();
+
+    private static String generateInstanceId() {
+        return Optional.ofNullable(System.getenv("HOSTNAME"))
+                .or(() -> Optional.ofNullable(System.getenv("COMPUTERNAME")))
+                .orElse("unknown")
+                + "-" + UUID.randomUUID().toString().substring(0, 8);
+    }
+
     /**
      * Consumer Group 초기화 (P1-N1)
      */
     @PostConstruct
     public void initConsumerGroup() {
+        log.info("[CompensationLog] Instance consumer ID: {}", instanceId);
+
         checkedExecutor.executeUncheckedVoid(() -> {
             RStream<String, String> stream = redissonClient.getStream(properties.getCompensationStream());
 
@@ -109,7 +122,7 @@ public class CompensationLogService {
     /**
      * Compensation Log 읽기 (Consumer Group)
      *
-     * @param consumerId Consumer 식별자
+     * @param consumerId Consumer 식별자 (deprecated, instanceId 사용됨)
      * @param count      읽을 최대 메시지 수
      * @return 읽은 메시지 목록
      */
@@ -119,11 +132,11 @@ public class CompensationLogService {
 
             return stream.readGroup(
                     properties.getSyncConsumerGroup(),
-                    consumerId,
+                    instanceId,
                     StreamReadGroupArgs.neverDelivered().count(count)
             );
 
-        }, TaskContext.of("Compensation", "ReadLogs", consumerId),
+        }, TaskContext.of("Compensation", "ReadLogs", instanceId),
                 e -> new MapleDataProcessingException("Compensation Log 읽기 실패", e));
     }
 

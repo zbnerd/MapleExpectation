@@ -37,6 +37,17 @@ import java.util.List;
  *   <li>expectation.buffer.flushed: 플러시된 작업 수</li>
  * </ul>
  *
+ * <h3>Issue #283 P1-10: Scale-out 분산 안전성 분석</h3>
+ * <p>이 스케줄러는 자체적으로 volatile/in-memory shutdown 플래그를 보유하지 않습니다.
+ * Shutdown 상태는 {@link ExpectationWriteBackBuffer#isShuttingDown()}에 위임하며,
+ * 분산 락({@code expectation-batch-sync-lock})으로 다중 인스턴스 간 중복 실행을 방지합니다.</p>
+ * <ul>
+ *   <li>분산 락: {@link LockStrategy}를 통한 Redis 기반 분산 락 사용 -> Scale-out 안전</li>
+ *   <li>Shutdown 플래그: 버퍼에 위임 -> 각 인스턴스가 독립적으로 자신의 shutdown 관리</li>
+ *   <li>@Scheduled: 각 인스턴스에서 독립 실행되나, 분산 락이 한 번에 하나만 flush 허용</li>
+ * </ul>
+ * <p><b>결론: Redis 분산 락 기반으로 이미 Scale-out 안전. 추가 변환 불필요.</b></p>
+ *
  * @see ExpectationWriteBackBuffer 메모리 버퍼
  * @see LikeSyncScheduler 참조 패턴
  */

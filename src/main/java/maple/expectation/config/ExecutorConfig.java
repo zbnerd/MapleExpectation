@@ -355,7 +355,7 @@ public class ExecutorConfig {
     // ==================== AI Task Executor (P0-1: Semaphore 제한 Virtual Thread) ====================
 
     /**
-     * AI LLM 호출 전용 Executor (P0-1: 무제한 Virtual Thread → Semaphore 제한)
+     * AI LLM 호출 전용 Executor (Issue #283 P0-5: Semaphore 제한 외부화)
      *
      * <h4>문제</h4>
      * <p>AiSreService에서 Executors.newVirtualThreadPerTaskExecutor()를 인스턴스 필드로 직접 생성.
@@ -363,14 +363,21 @@ public class ExecutorConfig {
      *
      * <h4>해결</h4>
      * <ul>
-     *   <li>Semaphore(5)로 동시 LLM 호출 최대 5개 제한</li>
+     *   <li>Semaphore로 동시 LLM 호출 제한 (기본값 10, YAML 외부화)</li>
      *   <li>Virtual Thread 사용으로 I/O 대기 시 효율적</li>
      *   <li>Spring Bean으로 관리하여 라이프사이클 추적 가능</li>
      * </ul>
+     *
+     * <h4>설정</h4>
+     * <pre>
+     * ai.sre.max-concurrent-threads: 10  # 동시 LLM 호출 최대 개수
+     * </pre>
      */
     @Bean(name = "aiTaskExecutor")
-    public Executor aiTaskExecutor() {
-        Semaphore semaphore = new Semaphore(5);
+    public Executor aiTaskExecutor(
+            @org.springframework.beans.factory.annotation.Value("${ai.sre.max-concurrent-threads:10}") int maxConcurrent) {
+
+        Semaphore semaphore = new Semaphore(maxConcurrent);
         Executor virtualThreadExecutor = Executors.newVirtualThreadPerTaskExecutor();
 
         return runnable -> virtualThreadExecutor.execute(() -> {
@@ -378,7 +385,7 @@ public class ExecutorConfig {
             try {
                 acquired = semaphore.tryAcquire(10, TimeUnit.SECONDS);
                 if (!acquired) {
-                    log.warn("[AiTaskExecutor] Semaphore timeout - LLM 호출 동시성 한도 초과");
+                    log.warn("[AiTaskExecutor] Semaphore timeout - LLM 호출 동시성 한도 초과 (limit={})", maxConcurrent);
                     throw new RejectedExecutionException("AI task executor semaphore timeout");
                 }
                 runnable.run();

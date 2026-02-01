@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
+import maple.expectation.global.lock.LockStrategy;
 import maple.expectation.global.queue.strategy.RedisBufferStrategy;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -35,6 +36,13 @@ import java.util.List;
  *   <li>redriveExpiredInflight: 30초 (타임아웃 메시지 복구)</li>
  * </ul>
  *
+ * <h3>분산 환경 안전 (Issue #283 P1-7)</h3>
+ * <p>각 스케줄링 작업에 분산 락을 적용하여 Scale-out 시 중복 실행을 방지합니다.</p>
+ * <ul>
+ *   <li>waitTime=0: 락 획득 실패 시 즉시 스킵 (다른 인스턴스가 처리 중)</li>
+ *   <li>leaseTime: processRetryQueue(30s), redriveExpiredInflight(60s)</li>
+ * </ul>
+ *
  * <h3>5-Agent Council 합의</h3>
  * <ul>
  *   <li>Red (SRE): 타임아웃 기반 자동 복구로 메시지 유실 방지</li>
@@ -56,6 +64,7 @@ import java.util.List;
 public class BufferRecoveryScheduler {
 
     private final RedisBufferStrategy<?> redisBufferStrategy;
+    private final LockStrategy lockStrategy;
     private final LogicExecutor executor;
     private final MeterRegistry meterRegistry;
 
@@ -78,11 +87,23 @@ public class BufferRecoveryScheduler {
      *     ↓ ZRANGEBYSCORE 0 ~ now LIMIT 100
      * Main Queue (List)
      * </pre>
+     *
+     * <h4>분산 락 (Issue #283 P1-7)</h4>
+     * <p>waitTime=0으로 락 획득 실패 시 즉시 스킵하여 중복 처리 방지</p>
      */
     @Scheduled(fixedRateString = "${scheduler.buffer-recovery.retry-rate:5000}")
     public void processRetryQueue() {
-        executor.executeVoid(
-                this::doProcessRetryQueue,
+        executor.executeOrDefault(
+                () -> lockStrategy.executeWithLock(
+                        "scheduler:buffer-recovery:retry",
+                        0,
+                        30,
+                        () -> {
+                            doProcessRetryQueue();
+                            return null;
+                        }
+                ),
+                null,
                 TaskContext.of("Scheduler", "Buffer.ProcessRetry")
         );
     }
@@ -113,11 +134,23 @@ public class BufferRecoveryScheduler {
      *
      * <h4>GPT-5 Iteration 4 (1)</h4>
      * <p>Lua Script로 ACK/Redrive 레이스 컨디션 방지</p>
+     *
+     * <h4>분산 락 (Issue #283 P1-7)</h4>
+     * <p>waitTime=0으로 락 획득 실패 시 즉시 스킵하여 중복 처리 방지</p>
      */
     @Scheduled(fixedRateString = "${scheduler.buffer-recovery.redrive-rate:30000}")
     public void redriveExpiredInflight() {
-        executor.executeVoid(
-                this::doRedriveExpiredInflight,
+        executor.executeOrDefault(
+                () -> lockStrategy.executeWithLock(
+                        "scheduler:buffer-recovery:redrive",
+                        0,
+                        60,
+                        () -> {
+                            doRedriveExpiredInflight();
+                            return null;
+                        }
+                ),
+                null,
                 TaskContext.of("Scheduler", "Buffer.Redrive")
         );
     }

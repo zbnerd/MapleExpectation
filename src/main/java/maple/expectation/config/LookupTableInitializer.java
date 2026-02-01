@@ -53,13 +53,15 @@ public class LookupTableInitializer implements ApplicationRunner {
     /**
      * 초기화 완료 플래그 (#271 V5 P1 검토 완료)
      *
-     * <h4>Stateless 검토 결과</h4>
+     * <h4>Stateless 검토 결과 (Issue #283 P1-12)</h4>
      * <p>인스턴스별 독립 readiness는 <b>의도된 동작</b>입니다:</p>
      * <ul>
      *   <li>목적: 각 인스턴스가 자신의 Lookup Table 초기화 완료를 추적</li>
-     *   <li>K8s rolling update: 각 Pod가 독립적으로 readiness 판정 → 정상 동작</li>
+     *   <li>K8s rolling update: 각 Pod가 독립적으로 readiness 판정 -> 정상 동작</li>
      *   <li>Redis-backed 전환 불필요: Probe는 인스턴스별 상태를 체크해야 함</li>
+     *   <li>Lookup Table은 읽기 전용 데이터로, 인스턴스마다 동일하게 초기화됨</li>
      * </ul>
+     * <p><b>결론: 인스턴스 로컬 readiness 플래그는 Scale-out 환경에서 올바른 설계. 변환 불필요.</b></p>
      */
     private final AtomicBoolean initialized = new AtomicBoolean(false);
 

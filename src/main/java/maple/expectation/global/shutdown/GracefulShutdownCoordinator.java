@@ -56,6 +56,21 @@ public class GracefulShutdownCoordinator implements SmartLifecycle {
     private final Counter shutdownSuccessCounter;
     private final Counter shutdownFailureCounter;
 
+    /**
+     * SmartLifecycle 실행 상태 플래그
+     *
+     * <h4>Issue #283 P1-14: Scale-out 분산 안전성</h4>
+     * <p>이 플래그는 Spring {@link SmartLifecycle} 계약의 일부로,
+     * <b>인스턴스 로컬 lifecycle</b>을 관리합니다:</p>
+     * <ul>
+     *   <li>start(): 이 인스턴스의 Coordinator가 활성화되었음을 표시</li>
+     *   <li>stop(): 이 인스턴스의 4단계 순차 종료를 실행 후 false로 전환</li>
+     *   <li>isRunning(): Spring이 이 인스턴스의 lifecycle 상태를 확인</li>
+     * </ul>
+     * <p>각 인스턴스는 독립적으로 SIGTERM을 수신하고 자신의 종료 절차를 실행합니다.
+     * DB 동기화 단계에서는 {@link LockStrategy} 분산 락으로 중복 실행을 방지합니다.</p>
+     * <p><b>결론: SmartLifecycle 계약에 의한 인스턴스 로컬 상태. Redis 전환 불필요.</b></p>
+     */
     private volatile boolean running = false;
 
     public GracefulShutdownCoordinator(
