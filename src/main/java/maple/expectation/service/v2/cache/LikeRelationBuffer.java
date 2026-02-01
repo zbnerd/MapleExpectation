@@ -10,6 +10,7 @@ import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import org.redisson.api.RSet;
 import org.redisson.api.RedissonClient;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.HashSet;
@@ -41,6 +42,7 @@ import java.util.concurrent.TimeUnit;
  * @see LikeRelationBufferStrategy 전략 인터페이스
  */
 @Slf4j
+@ConditionalOnProperty(name = "app.buffer.redis.enabled", havingValue = "false")
 @Component
 public class LikeRelationBuffer implements LikeRelationBufferStrategy {
 

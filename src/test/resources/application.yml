@@ -72,6 +72,9 @@ app:
   aop:
     trace:
       enabled: false
+  buffer:
+    redis:
+      enabled: false
 
 # BYOK 인증 설정 (테스트용)
 auth:

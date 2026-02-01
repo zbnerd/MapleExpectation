@@ -6,6 +6,7 @@ import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
@@ -30,6 +31,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * @see LikeBufferStrategy 전략 인터페이스
  */
 @Slf4j
+@ConditionalOnProperty(name = "app.buffer.redis.enabled", havingValue = "false")
 @Component
 public class LikeBufferStorage implements LikeBufferStrategy {
 

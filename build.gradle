@@ -96,7 +96,7 @@ dependencies {
     testImplementation('org.springframework.boot:spring-boot-starter-test') {
         exclude group: 'org.junit.vintage', module: 'junit-vintage-engine'
     }
-    testImplementation platform('org.testcontainers:testcontainers-bom:1.19.3')
+    testImplementation platform('org.testcontainers:testcontainers-bom:1.21.3')
     testImplementation "org.testcontainers:testcontainers"
     testImplementation "org.testcontainers:junit-jupiter"
     testImplementation "org.testcontainers:mysql"
