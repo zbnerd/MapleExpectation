@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
@@ -24,6 +25,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @see maple.expectation.global.queue.persistence.RedisEquipmentPersistenceTracker Redis 구현체
  */
 @Slf4j
+@ConditionalOnProperty(name = "app.buffer.redis.enabled", havingValue = "false")
 @Component
 @RequiredArgsConstructor
 public class EquipmentPersistenceTracker implements PersistenceTrackerStrategy {

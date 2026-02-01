@@ -364,10 +364,7 @@ otel:
 
 # Redis 기반 Write-Behind 버퍼 (P1-2: Scale-out 지원)
 # true: Redis Reliable Queue, false: In-Memory ConcurrentLinkedQueue
-app:
-  buffer:
-    redis:
-      enabled: false  # prod 프로필에서 true로 설정
+# → app.buffer.redis.enabled는 상단 app: 블록(line 184)에서 관리
 
 
 # Thread Pool 설정 외부화 (P1-1)

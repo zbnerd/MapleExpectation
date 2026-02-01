@@ -14,9 +14,11 @@ import org.redisson.client.RedisException;
 import org.redisson.client.RedisTimeoutException;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Primary;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -48,6 +50,11 @@ import java.util.concurrent.TimeUnit;
  *   <li>Checked Throwable: 정책 위반이므로 fail-fast (IllegalStateException)</li>
  * </ul>
  *
+ * <h3>MySQL Fallback 조건부 로딩</h3>
+ * <p>MySqlNamedLockStrategy는 @ConditionalOnBean(name = "lockJdbcTemplate")이므로,
+ * lockJdbcTemplate이 없는 환경(test 프로필만 활성화)에서는 Redis-only 모드로 동작합니다.
+ * MySQL fallback이 불가능한 경우, 명확한 예외 메시지와 함께 실패합니다.</p>
+ *
  * @see <a href="docs/02_Technical_Guides/lock-strategy.md">Lock Strategy Guide</a>
  */
 @Slf4j
@@ -56,12 +63,13 @@ import java.util.concurrent.TimeUnit;
 public class ResilientLockStrategy extends AbstractLockStrategy {
 
     private final LockStrategy redisLockStrategy;
+    @Nullable
     private final LockStrategy mysqlLockStrategy;
     private final CircuitBreaker circuitBreaker;
 
     public ResilientLockStrategy(
             @Qualifier("redisDistributedLockStrategy") LockStrategy redisLockStrategy,
-            MySqlNamedLockStrategy mysqlLockStrategy,
+            @Nullable MySqlNamedLockStrategy mysqlLockStrategy,
             CircuitBreakerRegistry circuitBreakerRegistry,
             LogicExecutor executor
     ) {
@@ -69,6 +77,10 @@ public class ResilientLockStrategy extends AbstractLockStrategy {
         this.redisLockStrategy = redisLockStrategy;
         this.mysqlLockStrategy = mysqlLockStrategy;
         this.circuitBreaker = circuitBreakerRegistry.circuitBreaker("redisLock");
+
+        if (mysqlLockStrategy == null) {
+            log.warn("⚠️ [ResilientLockStrategy] MySQL Fallback 비활성화: lockJdbcTemplate 빈 없음. Redis-only 모드로 동작합니다.");
+        }
     }
 
     // ========================================
@@ -205,6 +217,7 @@ public class ResilientLockStrategy extends AbstractLockStrategy {
      *   <li>RuntimeException/Error는 그대로 throw</li>
      *   <li>Biz 경계에서 checked Throwable은 정책 위반이므로 fail-fast</li>
      *   <li>mysqlFallback.getUnchecked()로 checked 예외 처리 (인프라 레이어)</li>
+     *   <li>MySQL 전략 없으면 명확한 예외로 fail-fast</li>
      * </ul>
      *
      * @param mysqlFallback ThrowingSupplier - getUnchecked()로 실행
@@ -230,8 +243,19 @@ public class ResilientLockStrategy extends AbstractLockStrategy {
             return null; // unreachable
         }
 
-        // 2) Infra 예외: MySQL fallback (getUnchecked로 checked는 fail-fast)
+        // 2) Infra 예외: MySQL fallback 시도
         if (isInfrastructureException(cause)) {
+            // MySQL 전략 없으면 Redis 실패로 즉시 전파
+            if (mysqlLockStrategy == null) {
+                log.error("[TieredLock:{}] Redis failed + MySQL unavailable (Redis-only mode). key={}, state={}, cause={}:{}",
+                        op, key, circuitBreaker.getState(),
+                        cause.getClass().getSimpleName(), cause.getMessage());
+                throw new DistributedLockException(
+                        "락 획득/실행 실패: Redis 불가 + MySQL Fallback 비활성화 [op=" + op + ", key=" + key + "]",
+                        cause
+                );
+            }
+
             log.warn("[TieredLock:{}] Redis failed -> MySQL fallback. key={}, state={}, cause={}:{}",
                     op, key, circuitBreaker.getState(),
                     cause.getClass().getSimpleName(), cause.getMessage());
@@ -270,9 +294,14 @@ public class ResilientLockStrategy extends AbstractLockStrategy {
                     circuitBreaker.executeRunnable(() -> redisLockStrategy.unlock(originalKey));
                     return null;
                 },
-                () -> mysqlLockStrategy.unlock(originalKey),
+                () -> unlockMySqlIfAvailable(originalKey),
                 context
         );
+    }
+
+    private void unlockMySqlIfAvailable(String key) {
+        Optional.ofNullable(mysqlLockStrategy)
+                .ifPresent(strategy -> strategy.unlock(key));
     }
 
     @Override
@@ -357,8 +386,19 @@ public class ResilientLockStrategy extends AbstractLockStrategy {
             return null;
         }
 
-        // 인프라 예외: MySQL Fallback
+        // 인프라 예외: MySQL Fallback 시도
         if (isInfrastructureException(cause)) {
+            // MySQL 전략 없으면 Redis 실패로 즉시 전파
+            if (mysqlLockStrategy == null) {
+                log.error("[TieredLock:OrderedExecute] Redis failed + MySQL unavailable (Redis-only mode). keys={}, state={}, cause={}:{}",
+                        keys, circuitBreaker.getState(),
+                        cause.getClass().getSimpleName(), cause.getMessage());
+                throw new DistributedLockException(
+                        "다중 락 획득 실패: Redis 불가 + MySQL Fallback 비활성화 [keys=" + keys + "]",
+                        cause
+                );
+            }
+
             log.warn("[TieredLock:OrderedExecute] Redis failed -> MySQL fallback. keys={}, state={}, cause={}:{}",
                     keys, circuitBreaker.getState(),
                     cause.getClass().getSimpleName(), cause.getMessage());
