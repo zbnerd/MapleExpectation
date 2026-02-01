@@ -66,6 +66,10 @@ public class RedisExpectationWriteBackBuffer {
      *
      * <p>Redis는 원자적이므로 CAS가 필요 없지만,
      * 기존 인터페이스 호환을 위해 메트릭만 유지</p>
+     *
+     * <h4>Issue #283 P1-11: Scale-out 분산 안전성</h4>
+     * <p>인스턴스 로컬 캐시 값으로, 실제 카운트는 Redis에서 조회합니다.
+     * 각 인스턴스가 독립적으로 메트릭을 수집하므로 분산 환경에서 안전합니다.</p>
      */
     private final AtomicInteger pendingCountCache = new AtomicInteger(0);
 
@@ -73,6 +77,17 @@ public class RedisExpectationWriteBackBuffer {
      * Inflight 메시지 추적 (ACK용)
      *
      * <p>consume()으로 가져온 메시지는 ACK 전까지 INFLIGHT 상태</p>
+     *
+     * <h4>Issue #283 P1-11: synchronized 블록 분산 안전성 분석</h4>
+     * <p>이 리스트의 {@code synchronized} 블록은 <b>인스턴스 로컬 스레드 안전성</b>을 위한 것입니다.
+     * 각 인스턴스는 자신이 consume한 메시지만 추적하며, 다른 인스턴스와 공유하지 않습니다.</p>
+     * <ul>
+     *   <li>drain() → 이 인스턴스가 Redis에서 가져온 메시지 ID를 로컬에 기록</li>
+     *   <li>ackAll()/nackAll() → 로컬에 기록된 메시지 ID로 Redis에 ACK/NACK 전송</li>
+     *   <li>메시지 소유권: Redis INFLIGHT 큐가 인스턴스별 소유권을 보장</li>
+     * </ul>
+     * <p><b>결론: synchronized는 인스턴스 내부 drain/ack 스레드 동기화용.
+     * Redis INFLIGHT 패턴이 분산 수준의 메시지 안전성을 이미 보장하므로 추가 변환 불필요.</b></p>
      */
     private final List<String> inflightMessageIds = new ArrayList<>();
 

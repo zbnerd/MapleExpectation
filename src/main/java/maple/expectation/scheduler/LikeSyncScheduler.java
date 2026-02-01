@@ -9,8 +9,8 @@ import maple.expectation.global.queue.like.PartitionedFlushStrategy;
 import maple.expectation.service.v2.LikeRelationSyncService;
 import maple.expectation.service.v2.LikeSyncService;
 import maple.expectation.service.v2.cache.LikeBufferStrategy;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.lang.Nullable;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -55,12 +55,26 @@ public class LikeSyncScheduler {
      * PartitionedFlushStrategy (Redis 모드에서만 주입)
      *
      * <p>In-Memory 모드에서는 null이며, Redis 모드에서만 Bean이 생성됩니다.</p>
+     *
+     * <h4>Issue #283 P1-8: Constructor Injection (CLAUDE.md Section 6)</h4>
+     * <p>@Autowired(required=false) 대신 @Nullable + 생성자 주입 패턴 사용</p>
      */
-    @Autowired(required = false)
-    private PartitionedFlushStrategy partitionedFlushStrategy;
+    @Nullable
+    private final PartitionedFlushStrategy partitionedFlushStrategy;
 
     /**
      * L1 → L2 Flush (likeCount + likeRelation)
+     *
+     * <h4>분산 환경 안전 (Issue #283 P1-8)</h4>
+     * <p><b>분산 락 미적용 사유</b>: Redis 모드에서 각 인스턴스는 자신의 로컬 Caffeine L1 캐시를
+     * Redis L2로 Flush합니다. 이는 인스턴스별 독립적인 작업이므로 분산 락이 불필요합니다.</p>
+     *
+     * <p><b>중복 방지 메커니즘</b>:</p>
+     * <ul>
+     *   <li>각 인스턴스의 L1 캐시는 독립적으로 관리됨</li>
+     *   <li>L1 → L2 Flush는 인스턴스별 로컬 작업</li>
+     *   <li>L2 → L3 DB 동기화만 분산 락 필요 (globalSyncCount/Relation)</li>
+     * </ul>
      */
     @Scheduled(fixedRate = 1000)
     public void localFlush() {

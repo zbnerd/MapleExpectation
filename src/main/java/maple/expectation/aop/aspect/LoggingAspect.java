@@ -17,6 +17,10 @@ import org.springframework.stereotype.Component;
  * <h3>#271 V5 Stateless Architecture</h3>
  * <p>SmartLifecycle을 구현하여 Graceful Shutdown 시 통계를 출력합니다.
  * Phase가 낮아 다른 컴포넌트보다 나중에 종료됩니다.</p>
+ *
+ * <h3>Issue #283 P0-6: Scale-out Safety</h3>
+ * <p>{@code running} 플래그는 인스턴스별 SmartLifecycle 상태로, 분산 환경에서
+ * 각 인스턴스가 독립적으로 관리하는 것이 올바른 설계입니다.</p>
  */
 @Aspect
 @Component
@@ -36,6 +40,14 @@ public class LoggingAspect implements SmartLifecycle {
      */
     @Around("@annotation(maple.expectation.aop.annotation.LogExecutionTime)")
     public Object logExecutionTime(ProceedingJoinPoint joinPoint) {
+        // Issue #283 P0-6: Graceful Shutdown 중에는 성능 기록 스킵
+        if (!running) {
+            return executor.execute(
+                    joinPoint::proceed,
+                    TaskContext.of("Logging", "ShutdownBypass")
+            );
+        }
+
         String methodName = joinPoint.getSignature().toShortString();
         long start = System.currentTimeMillis();
 

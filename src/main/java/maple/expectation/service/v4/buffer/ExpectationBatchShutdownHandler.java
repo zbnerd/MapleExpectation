@@ -25,6 +25,7 @@ import java.util.concurrent.TimeUnit;
  *   <li>P1-4: running=false -> executeWithFinally 패턴 통일</li>
  *   <li>P1-6: Shutdown 메트릭 추가 (Micrometer)</li>
  *   <li>P1-10: flushBatch 실패 시 실패 건수 추적</li>
+ *   <li>P1-16/P1-17 (#283): running 플래그 및 shutdown 완료 추적 - 인스턴스 로컬 안전성 문서화</li>
  * </ul>
  *
  * <h3>Phase 설정</h3>
@@ -47,6 +48,23 @@ public class ExpectationBatchShutdownHandler implements SmartLifecycle {
     private final Counter drainSuccessCounter;
     private final Counter drainFailureCounter;
 
+    /**
+     * SmartLifecycle 실행 상태 플래그
+     *
+     * <h4>Issue #283 P1-16 & P1-17: Scale-out 분산 안전성</h4>
+     * <p>이 플래그는 Spring {@link SmartLifecycle} 계약의 일부로,
+     * <b>인스턴스 로컬 lifecycle</b>을 관리합니다:</p>
+     * <ul>
+     *   <li>start(): 이 인스턴스의 ShutdownHandler가 활성화되었음을 표시</li>
+     *   <li>stop(): 이 인스턴스의 로컬 버퍼({@link ExpectationWriteBackBuffer})를 drain 후 false 전환</li>
+     *   <li>버퍼 drain: 각 인스턴스는 자신의 ConcurrentLinkedQueue만 drain -> 인스턴스 로컬 작업</li>
+     *   <li>shutdown 완료 추적: shutdownDrainTimer 메트릭으로 개별 인스턴스 drain 시간 기록</li>
+     * </ul>
+     * <p>Phase(MAX_VALUE - 500)로 GracefulShutdownCoordinator보다 먼저 실행되어
+     * 버퍼의 데이터 유실을 방지합니다. 각 인스턴스가 독립적으로 shutdown을 수행하므로
+     * 분산 플래그로의 전환은 불필요합니다.</p>
+     * <p><b>결론: SmartLifecycle 계약에 의한 인스턴스 로컬 상태. Redis 전환 불필요.</b></p>
+     */
     private volatile boolean running = true;
 
     public ExpectationBatchShutdownHandler(
