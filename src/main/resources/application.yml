@@ -348,6 +348,7 @@ ai:
     enabled: ${AI_SRE_ENABLED:false}  # 기본 비활성화 (prod에서 true)
     daily-limit: 100  # [P0-Green] 일일 LLM 호출 한도
     throttle-seconds: 60  # 동일 에러 패턴 스로틀링 간격
+    max-concurrent-threads: 10  # Issue #283 P0-5: 동시 LLM 호출 최대 개수
 
 # Spring Batch 설정 - spring.batch는 상단 spring: 블록에 병합됨
 

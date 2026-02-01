@@ -1,34 +1,100 @@
 package maple.expectation.monitoring;
 
+import maple.expectation.global.executor.LogicExecutor;
+import maple.expectation.global.executor.TaskContext;
 import maple.expectation.monitoring.throttle.AlertThrottler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.redisson.api.RAtomicLong;
+import org.redisson.api.RMap;
+import org.redisson.api.RedissonClient;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.*;
 
 /**
- * 알림 스로틀러 테스트 (Issue #251)
+ * 알림 스로틀러 테스트 (Issue #251, #283 P0-1)
  *
- * <p>[P0-Green] 일일 LLM 호출 한도 및 스로틀링 검증</p>
+ * <p>Redis 기반 AlertThrottler의 단위 테스트.
+ * RedissonClient를 Mock하여 Redis 의존 없이 검증합니다.</p>
  */
 @DisplayName("AlertThrottler 테스트")
 class AlertThrottlerTest {
 
     private AlertThrottler throttler;
+    private RedissonClient redissonClient;
+    private LogicExecutor executor;
+    private RAtomicLong mockCounter;
+    private RMap<String, Long> mockPatternMap;
+    private AtomicLong counterValue;
+    private Map<String, Long> patternMapBacking;
 
+    @SuppressWarnings("unchecked")
     @BeforeEach
     void setUp() {
-        throttler = new AlertThrottler();
+        redissonClient = mock(RedissonClient.class);
+        executor = createPassThroughExecutor();
+        mockCounter = mock(RAtomicLong.class);
+        mockPatternMap = mock(RMap.class);
+        counterValue = new AtomicLong(0);
+        patternMapBacking = new HashMap<>();
+
+        // RAtomicLong 동작 시뮬레이션
+        given(redissonClient.getAtomicLong(anyString())).willReturn(mockCounter);
+        given(mockCounter.incrementAndGet()).willAnswer(inv -> counterValue.incrementAndGet());
+        given(mockCounter.decrementAndGet()).willAnswer(inv -> counterValue.decrementAndGet());
+        given(mockCounter.get()).willAnswer(inv -> counterValue.get());
+        given(mockCounter.isExists()).willReturn(true);
+        given(mockCounter.remainTimeToLive()).willReturn(1000L);
+
+        // RMap 동작 시뮬레이션
+        given(redissonClient.<String, Long>getMap(anyString())).willReturn(mockPatternMap);
+        given(mockPatternMap.get(anyString())).willAnswer(inv -> patternMapBacking.get(inv.getArgument(0)));
+        given(mockPatternMap.put(anyString(), any())).willAnswer(inv -> {
+            return patternMapBacking.put(inv.getArgument(0), inv.getArgument(1));
+        });
+        given(mockPatternMap.isExists()).willReturn(true);
+        given(mockPatternMap.remainTimeToLive()).willReturn(1000L);
+
+        throttler = new AlertThrottler(redissonClient, executor);
         ReflectionTestUtils.setField(throttler, "dailyLimit", 5);
         ReflectionTestUtils.setField(throttler, "throttleSeconds", 60);
+    }
+
+    /**
+     * LogicExecutor의 pass-through Mock 생성
+     *
+     * <p>executor.executeOrDefault()가 실제 supplier를 즉시 실행하도록 설정</p>
+     */
+    @SuppressWarnings("unchecked")
+    private LogicExecutor createPassThroughExecutor() {
+        LogicExecutor mock = mock(LogicExecutor.class);
+        given(mock.executeOrDefault(any(), any(), any(TaskContext.class))).willAnswer(inv -> {
+            try {
+                return ((maple.expectation.global.common.function.ThrowingSupplier<?>) inv.getArgument(0)).get();
+            } catch (Exception e) {
+                return inv.getArgument(1);
+            }
+        });
+        doAnswer(inv -> {
+            ((maple.expectation.global.executor.function.ThrowingRunnable) inv.getArgument(0)).run();
+            return null;
+        }).when(mock).executeVoid(any(), any(TaskContext.class));
+        return mock;
     }
 
     @Test
     @DisplayName("일일 한도 내에서 AI 분석 호출이 허용되어야 한다")
     void shouldAllowAiAnalysisWithinDailyLimit() {
-        // When & Then
         assertThat(throttler.canSendAiAnalysis()).isTrue();
         assertThat(throttler.canSendAiAnalysis()).isTrue();
         assertThat(throttler.canSendAiAnalysis()).isTrue();
@@ -39,12 +105,10 @@ class AlertThrottlerTest {
     @Test
     @DisplayName("일일 한도 초과 시 AI 분석 호출이 거부되어야 한다")
     void shouldRejectAiAnalysisWhenExceedingDailyLimit() {
-        // Given: 한도까지 호출
         for (int i = 0; i < 5; i++) {
             throttler.canSendAiAnalysis();
         }
 
-        // When & Then
         assertThat(throttler.canSendAiAnalysis()).isFalse();
         assertThat(throttler.getDailyUsage()).isEqualTo(5);
         assertThat(throttler.getRemainingCalls()).isEqualTo(0);
@@ -53,16 +117,14 @@ class AlertThrottlerTest {
     @Test
     @DisplayName("일일 카운터 리셋 후 호출이 다시 허용되어야 한다")
     void shouldAllowCallsAfterDailyReset() {
-        // Given: 한도까지 호출
         for (int i = 0; i < 5; i++) {
             throttler.canSendAiAnalysis();
         }
         assertThat(throttler.canSendAiAnalysis()).isFalse();
 
-        // When: 리셋
-        throttler.resetDailyCount();
+        // 리셋: Redis에서는 TTL로 자동 만료되지만, 테스트에서는 counter를 직접 리셋
+        counterValue.set(0);
 
-        // Then
         assertThat(throttler.getDailyUsage()).isEqualTo(0);
         assertThat(throttler.canSendAiAnalysis()).isTrue();
     }
@@ -70,13 +132,10 @@ class AlertThrottlerTest {
     @Test
     @DisplayName("동일 에러 패턴은 스로틀링되어야 한다")
     void shouldThrottleSameErrorPattern() {
-        // Given
         String errorPattern = "TimeoutException";
 
-        // When: 첫 번째 호출
         boolean first = throttler.shouldSendAlert(errorPattern);
 
-        // Then: 첫 번째는 허용, 두 번째는 스로틀링
         assertThat(first).isTrue();
         assertThat(throttler.shouldSendAlert(errorPattern)).isFalse();
     }
@@ -84,12 +143,10 @@ class AlertThrottlerTest {
     @Test
     @DisplayName("다른 에러 패턴은 스로틀링되지 않아야 한다")
     void shouldNotThrottleDifferentErrorPatterns() {
-        // When
         boolean timeout = throttler.shouldSendAlert("TimeoutException");
         boolean connection = throttler.shouldSendAlert("ConnectionException");
         boolean redis = throttler.shouldSendAlert("RedisException");
 
-        // Then
         assertThat(timeout).isTrue();
         assertThat(connection).isTrue();
         assertThat(redis).isTrue();
@@ -98,32 +155,14 @@ class AlertThrottlerTest {
     @Test
     @DisplayName("스로틀링과 일일 한도가 함께 적용되어야 한다")
     void shouldApplyBothThrottlingAndDailyLimit() {
-        // Given
         String errorPattern = "TestException";
 
-        // When: 스로틀링과 일일 한도 동시 체크
         boolean first = throttler.canSendAiAnalysisWithThrottle(errorPattern);
         boolean second = throttler.canSendAiAnalysisWithThrottle(errorPattern);
         boolean third = throttler.canSendAiAnalysisWithThrottle("DifferentException");
 
-        // Then
-        assertThat(first).isTrue(); // 첫 번째: 허용
+        assertThat(first).isTrue();
         assertThat(second).isFalse(); // 스로틀링
-        assertThat(third).isTrue(); // 다른 패턴: 허용
-    }
-
-    @Test
-    @DisplayName("스로틀 캐시 정리가 동작해야 한다")
-    void shouldCleanupThrottleCache() {
-        // Given
-        throttler.shouldSendAlert("Pattern1");
-        throttler.shouldSendAlert("Pattern2");
-        throttler.shouldSendAlert("Pattern3");
-
-        // When: 캐시 정리 실행
-        throttler.cleanupThrottleCache();
-
-        // Then: 정리 후에도 정상 동작 (최근 항목은 유지)
-        assertThat(throttler.shouldSendAlert("Pattern1")).isFalse(); // 아직 스로틀링 중
+        assertThat(third).isTrue();
     }
 }
