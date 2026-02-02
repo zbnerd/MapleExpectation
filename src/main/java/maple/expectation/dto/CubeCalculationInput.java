@@ -88,6 +88,33 @@ public class CubeCalculationInput {
         return "사용".equals(starforceScrollFlag);
     }
 
+    // ========== 환생의 불꽃 필드 (#303 동적 계산) ==========
+
+    /** 추옵 STR */
+    private int addOptionStr;
+    /** 추옵 DEX */
+    private int addOptionDex;
+    /** 추옵 INT */
+    private int addOptionInt;
+    /** 추옵 LUK */
+    private int addOptionLuk;
+    /** 추옵 최대 HP */
+    private int addOptionMaxHp;
+    /** 추옵 올스탯% */
+    private int addOptionAllStat;
+    /** 추옵 공격력 */
+    private int addOptionAtt;
+    /** 추옵 마력 */
+    private int addOptionMag;
+    /** 추옵 보스 데미지% */
+    private int addOptionBossDmg;
+    /** 추옵 데미지% */
+    private int addOptionDmg;
+    /** 기본 공격력 (item_base_option.attack_power) */
+    private int baseAttackPower;
+    /** 기본 마력 (item_base_option.magic_power) */
+    private int baseMagicPower;
+
     // ========== DP 모드용 필드 (신규) ==========
 
     /**

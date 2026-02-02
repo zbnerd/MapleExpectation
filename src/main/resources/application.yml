@@ -225,6 +225,11 @@ cache:
       l1-max-size: 5000
       l2-ttl-minutes: 20
       l2-serializer: jdk
+    flameTrials:
+      l1-ttl-minutes: 10
+      l1-max-size: 5000
+      l2-ttl-minutes: 20
+      l2-serializer: jdk
     ocidCache:
       l1-ttl-minutes: 30
       l1-max-size: 5000

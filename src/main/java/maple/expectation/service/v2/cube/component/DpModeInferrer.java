@@ -142,6 +142,11 @@ public class DpModeInferrer {
             return true;
         }
 
+        // DP 모드는 part/grade/level 필수 — 없으면 v1 엔진 폴백
+        if (input.getPart() == null || input.getGrade() == null || input.getLevel() <= 0) {
+            return false;
+        }
+
         // #240 V4: 복합 옵션 감지 (쿨감+스탯, 보공+스탯, 크뎀+스탯 등)
         // 서로 다른 유효 카테고리가 2개 이상이면 DP 모드 비활성화 → v1 순열 계산
         if (isCompoundOption(input.getOptions())) {

@@ -6,7 +6,6 @@ import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.test.context.ActiveProfiles;
 
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -50,7 +49,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Slf4j
 @Tag("nightmare")
 @SpringBootTest
-@ActiveProfiles("test")
 @DisplayName("Nightmare 05: Celebrity Problem - Hot Key Meltdown")
 class CelebrityProblemNightmareTest extends AbstractContainerBaseTest {
 

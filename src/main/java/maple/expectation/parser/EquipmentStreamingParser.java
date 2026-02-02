@@ -94,6 +94,10 @@ public class EquipmentStreamingParser {
         // 특수 스킬 반지
         SPECIAL_RING_LEVEL("special_ring_level"),
 
+        // 환생의 불꽃 (#303 동적 계산)
+        ITEM_ADD_OPTION("item_add_option"),
+        ITEM_BASE_OPTION("item_base_option"),
+
         UNKNOWN("");
 
         private final String fieldName;
@@ -153,6 +157,10 @@ public class EquipmentStreamingParser {
 
         // 특수 스킬 반지
         fieldMappers.put(JsonField.SPECIAL_RING_LEVEL, this::parseSpecialRingLevel);
+
+        // 환생의 불꽃 (#303 동적 계산): 중첩 JSON 객체
+        fieldMappers.put(JsonField.ITEM_ADD_OPTION, this::parseAddOption);
+        fieldMappers.put(JsonField.ITEM_BASE_OPTION, this::parseBaseOption);
     }
 
     /**
@@ -332,6 +340,84 @@ public class EquipmentStreamingParser {
         if (level >= 0) {
             item.setSpecialRingLevel(level);
         }
+    }
+
+    /**
+     * 추가옵션(item_add_option) 중첩 JSON 파싱 (#303 동적 불꽃 계산)
+     *
+     * <p>현재 토큰이 START_OBJECT 상태에서 호출됩니다.
+     * 중첩 객체를 완전히 소비하고 각 서브필드를 CubeCalculationInput에 매핑합니다.</p>
+     */
+    private void parseAddOption(JsonParser parser, CubeCalculationInput item) throws IOException {
+        if (parser.currentToken() != JsonToken.START_OBJECT) return;
+
+        while (parser.nextToken() != JsonToken.END_OBJECT) {
+            if (parser.currentToken() != JsonToken.FIELD_NAME) continue;
+            String field = parser.currentName();
+            parser.nextToken();
+
+            if (parser.currentToken() == JsonToken.START_OBJECT || parser.currentToken() == JsonToken.START_ARRAY) {
+                parser.skipChildren();
+                continue;
+            }
+
+            int val = parseIntSafe(parser);
+            switch (field) {
+                case "str" -> item.setAddOptionStr(val);
+                case "dex" -> item.setAddOptionDex(val);
+                case "int" -> item.setAddOptionInt(val);
+                case "luk" -> item.setAddOptionLuk(val);
+                case "max_hp" -> item.setAddOptionMaxHp(val);
+                case "all_stat" -> item.setAddOptionAllStat(val);
+                case "attack_power" -> item.setAddOptionAtt(val);
+                case "magic_power" -> item.setAddOptionMag(val);
+                case "boss_damage" -> item.setAddOptionBossDmg(val);
+                case "damage" -> item.setAddOptionDmg(val);
+                default -> { /* skip */ }
+            }
+        }
+    }
+
+    /**
+     * 기본옵션(item_base_option) 중첩 JSON 파싱 (#303 동적 불꽃 계산)
+     *
+     * <p>무기의 기본 공격력/마력을 추출합니다.</p>
+     */
+    private void parseBaseOption(JsonParser parser, CubeCalculationInput item) throws IOException {
+        if (parser.currentToken() != JsonToken.START_OBJECT) return;
+
+        while (parser.nextToken() != JsonToken.END_OBJECT) {
+            if (parser.currentToken() != JsonToken.FIELD_NAME) continue;
+            String field = parser.currentName();
+            parser.nextToken();
+
+            if (parser.currentToken() == JsonToken.START_OBJECT || parser.currentToken() == JsonToken.START_ARRAY) {
+                parser.skipChildren();
+                continue;
+            }
+
+            int val = parseIntSafe(parser);
+            switch (field) {
+                case "attack_power" -> item.setBaseAttackPower(val);
+                case "magic_power" -> item.setBaseMagicPower(val);
+                case "base_equipment_level" -> { if (val > 0) item.setLevel(val); }
+                default -> { /* skip */ }
+            }
+        }
+    }
+
+    /**
+     * JSON 값을 안전하게 int로 파싱 (문자열 "123" 또는 숫자 123 모두 처리)
+     */
+    private int parseIntSafe(JsonParser parser) throws IOException {
+        if (parser.currentToken() == JsonToken.VALUE_NUMBER_INT) {
+            return parser.getIntValue();
+        }
+        String text = parser.getText();
+        if (text == null || text.isBlank() || "null".equalsIgnoreCase(text)) {
+            return 0;
+        }
+        return statParser.parseNum(text);
     }
 
     /**

@@ -39,18 +39,21 @@ public abstract class AbstractContainerBaseTest {
                 .withPassword("1234")
                 .withNetwork(NETWORK)
                 .waitingFor(Wait.forLogMessage(".*ready for connections.*\\s", 2))
-                .withStartupTimeout(Duration.ofMinutes(5));
+                .withStartupTimeout(Duration.ofMinutes(5))
+                .withReuse(true);
 
         // 2) Redis 설정
         REDIS = new GenericContainer<>(DockerImageName.parse("redis:7.0"))
                 .withExposedPorts(6379)
                 .withNetwork(NETWORK)
                 .withNetworkAliases("redis-server")
-                .waitingFor(Wait.forListeningPort());
+                .waitingFor(Wait.forListeningPort())
+                .withReuse(true);
 
         // 3) Toxiproxy 설정
         TOXIPROXY = new ToxiproxyContainer(DockerImageName.parse("ghcr.io/shopify/toxiproxy:2.5.0"))
-                .withNetwork(NETWORK);
+                .withNetwork(NETWORK)
+                .withReuse(true);
 
         MYSQL.start();
         REDIS.start();
