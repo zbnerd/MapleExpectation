@@ -2,9 +2,7 @@ package maple.expectation.cache;
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
-import maple.expectation.external.impl.RealNexonApiClient;
-import maple.expectation.service.v2.alert.DiscordAlertService;
-import maple.expectation.support.AbstractContainerBaseTest;
+import maple.expectation.support.ChaosTestSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -14,13 +12,9 @@ import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.util.UUID;
 import java.util.concurrent.Callable;
@@ -41,19 +35,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * @see maple.expectation.global.cache.TieredCache
  */
-@SpringBootTest
-@ActiveProfiles("test")
-@TestPropertySource(properties = {"nexon.api.key=dummy-test-key"})
 @Tag("chaos")
 @DisplayName("[P0] TieredCache Write Order 테스트")
 @Execution(ExecutionMode.SAME_THREAD)  // CLAUDE.md Section 24: Toxiproxy 공유 상태 충돌 방지
-class TieredCacheWriteOrderP0Test extends AbstractContainerBaseTest {
-
-    // -------------------------------------------------------------------------
-    // [Mock 구역] ApplicationContext 캐싱 일관성 (CLAUDE.md Section 24)
-    // -------------------------------------------------------------------------
-    @MockitoBean private RealNexonApiClient nexonApiClient;
-    @MockitoBean private DiscordAlertService discordAlertService;
+class TieredCacheWriteOrderP0Test extends ChaosTestSupport {
 
     @Autowired
     private CacheManager cacheManager;

@@ -7,7 +7,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.cache.CacheManager;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.test.context.ActiveProfiles;
 
 import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
@@ -50,7 +49,6 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @Tag("chaos")
 @SpringBootTest
-@ActiveProfiles("test")
 @DisplayName("Scenario 01: Redis Death - Graceful Degradation 검증")
 class RedisDeathChaosTest extends AbstractContainerBaseTest {
 

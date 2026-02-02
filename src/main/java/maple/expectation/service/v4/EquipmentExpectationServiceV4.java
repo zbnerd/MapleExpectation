@@ -171,7 +171,7 @@ public class EquipmentExpectationServiceV4 {
             GameCharacter character = gameCharacterFacade.findCharacterByUserIgn(userIgn);
             byte[] equipmentData = loadEquipmentDataAsync(character)
                     .join();  // TieredCache Callable 내부 → 동기 필요
-            List<PresetExpectation> presetResults = calculateAllPresets(equipmentData);
+            List<PresetExpectation> presetResults = calculateAllPresets(equipmentData, character.getCharacterClass());
             PresetExpectation maxPreset = findMaxPreset(presetResults);
             persistenceService.saveResults(character.getId(), presetResults);
             return buildResponse(userIgn, maxPreset, presetResults, false);
@@ -221,14 +221,14 @@ public class EquipmentExpectationServiceV4 {
 
     // ==================== Preset Calculation ====================
 
-    private List<PresetExpectation> calculateAllPresets(byte[] equipmentData) {
+    private List<PresetExpectation> calculateAllPresets(byte[] equipmentData, String characterClass) {
         byte[] decompressedData = streamingParser.decompressIfNeeded(equipmentData);
 
         List<CompletableFuture<PresetExpectation>> futures = IntStream.rangeClosed(1, 3)
                 .mapToObj(presetNo -> CompletableFuture.supplyAsync(
                         () -> {
                             var cubeInputs = streamingParser.parseCubeInputsForPreset(decompressedData, presetNo);
-                            return presetHelper.calculatePreset(cubeInputs, presetNo);
+                            return presetHelper.calculatePreset(cubeInputs, presetNo, characterClass);
                         },
                         presetExecutor
                 ))

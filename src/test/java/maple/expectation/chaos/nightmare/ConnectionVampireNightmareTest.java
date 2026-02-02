@@ -10,7 +10,6 @@ import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.test.context.ActiveProfiles;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -56,7 +55,6 @@ import static org.mockito.Mockito.when;
 @Slf4j
 @Tag("nightmare")
 @SpringBootTest
-@ActiveProfiles("test")
 @DisplayName("Nightmare 04: Connection Vampire - DB Connection Pool Starvation")
 class ConnectionVampireNightmareTest extends AbstractContainerBaseTest {
 

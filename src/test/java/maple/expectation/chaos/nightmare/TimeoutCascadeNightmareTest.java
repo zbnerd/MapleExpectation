@@ -7,7 +7,6 @@ import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.test.context.ActiveProfiles;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -53,7 +52,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Slf4j
 @Tag("nightmare")
 @SpringBootTest
-@ActiveProfiles("test")
 @DisplayName("Nightmare 06: Timeout Cascade - Zombie Request Problem")
 class TimeoutCascadeNightmareTest extends AbstractContainerBaseTest {
 
