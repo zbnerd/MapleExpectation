@@ -58,3 +58,7 @@ scripts/*
 /.claude/settings.json
 /docker/logs/mysql/slow.log
 /.claude/ralph-loop.local.md
+
+# Claude Code OMC state files
+.claude/
+.omc/
