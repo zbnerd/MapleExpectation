@@ -11,7 +11,6 @@ import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.cache.CacheManager;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -56,7 +55,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Slf4j
 @Tag("nightmare")
 @SpringBootTest
-@ActiveProfiles("test")
 @DisplayName("Nightmare 16: Self-Invocation Mirage - 실제 서비스의 프록시 바이패스 검증")
 class SelfInvocationNightmareTest extends AbstractContainerBaseTest {
 

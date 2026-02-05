@@ -1,7 +1,10 @@
 package maple.expectation.support;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
+
+import java.io.IOException;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.GenericContainer;
@@ -57,7 +60,8 @@ public abstract class SimpleRedisContainerBase {
             .withNetwork(NETWORK)
             .withNetworkAliases("mysql-db")
             .waitingFor(Wait.forLogMessage(".*ready for connections.*\\s", 2))
-            .withStartupTimeout(Duration.ofMinutes(5));
+            .withStartupTimeout(Duration.ofMinutes(5))
+            .withReuse(true);
 
     // -------------------------------------------------------------------------
     // Redis Container (단일 노드)
@@ -66,11 +70,27 @@ public abstract class SimpleRedisContainerBase {
             .withExposedPorts(6379)
             .withNetwork(NETWORK)
             .withNetworkAliases("redis-server")
-            .waitingFor(Wait.forListeningPort());
+            .waitingFor(Wait.forListeningPort())
+            .withReuse(true);
 
     static {
         // 병렬 시작으로 컨테이너 초기화 시간 단축
         Startables.deepStart(Stream.of(MYSQL, REDIS)).join();
+    }
+
+    /**
+     * 테스트 간 데이터 격리를 위한 Redis 초기화
+     *
+     * <p>Singleton Container 패턴에서 테스트 간 데이터 누수를 방지합니다.
+     * 서브클래스에서 override하여 추가 정리 로직(DB cleanup 등)을 수행할 수 있습니다.
+     */
+    @AfterEach
+    protected void cleanupTestData() {
+        try {
+            REDIS.execInContainer("redis-cli", "FLUSHDB");
+        } catch (IOException | InterruptedException e) {
+            System.err.println("[cleanupTestData] Redis FLUSHDB failed (best-effort): " + e.getMessage());
+        }
     }
 
     @DynamicPropertySource

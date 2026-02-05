@@ -60,6 +60,12 @@ public class ExpectationWriteBackBuffer {
      *
      * <h4>Purple Agent: onAdvance() 오버라이드</h4>
      * <p>모든 party가 완료될 때만 다음 phase로 진행하도록 설정</p>
+     *
+     * <h4>Issue #283 P1-13: Scale-out 분산 안전성</h4>
+     * <p>Phaser는 <b>인스턴스 로컬</b> in-flight offer 추적 메커니즘입니다.
+     * 각 인스턴스는 자신의 ConcurrentLinkedQueue에 대한 offer 작업만 추적합니다.
+     * Shutdown 시 해당 인스턴스의 진행 중인 offer가 완료될 때까지만 대기하면 되므로,
+     * 분산 Phaser로의 변환은 불필요합니다.</p>
      */
     private final Phaser shutdownPhaser = new Phaser() {
         @Override
@@ -73,6 +79,16 @@ public class ExpectationWriteBackBuffer {
      * Shutdown 진행 플래그
      *
      * <p>true로 설정되면 새로운 offer 요청을 거부합니다.</p>
+     *
+     * <h4>Issue #283 P1-13: Scale-out 분산 안전성</h4>
+     * <p>이 volatile 플래그는 <b>인스턴스 로컬 lifecycle 상태</b>를 나타냅니다.
+     * 각 인스턴스는 독립적으로 자신의 shutdown을 관리합니다:</p>
+     * <ul>
+     *   <li>K8s/ECS: 각 Pod/Task에 개별 SIGTERM 전달 -> 인스턴스별 독립 shutdown</li>
+     *   <li>Rolling update: 한 인스턴스의 shutdown이 다른 인스턴스에 영향 없음</li>
+     *   <li>이 버퍼의 데이터는 인스턴스 로컬 메모리에 존재 -> 해당 인스턴스만 drain 가능</li>
+     * </ul>
+     * <p><b>결론: 인스턴스별 독립 shutdown lifecycle이므로 Redis 전환 불필요.</b></p>
      */
     private volatile boolean shuttingDown = false;
 

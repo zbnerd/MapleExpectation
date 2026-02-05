@@ -6,7 +6,6 @@ import maple.expectation.support.AbstractContainerBaseTest;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
@@ -49,7 +48,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 @Tag("chaos")
 @SpringBootTest
-@ActiveProfiles("test")
 @DisplayName("Scenario 03: OOM - Error 전파 및 메모리 관리 검증")
 class OOMChaosTest extends AbstractContainerBaseTest {
 

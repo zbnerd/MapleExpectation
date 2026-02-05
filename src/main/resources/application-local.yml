@@ -48,3 +48,10 @@ cors:
     - "http://127.0.0.1:3000"
     - "http://127.0.0.1:3001"
     - "http://127.0.0.1:5173"
+
+# Issue #283 P0-2: 로컬 환경에서만 In-Memory 버퍼 사용
+# prod/default에서는 Redis 버퍼가 기본 활성화 (Scale-out 지원)
+app:
+  buffer:
+    redis:
+      enabled: false

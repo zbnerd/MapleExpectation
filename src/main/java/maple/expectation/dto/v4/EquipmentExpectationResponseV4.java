@@ -90,6 +90,9 @@ public class EquipmentExpectationResponseV4 {
 
         // 스타포스 옵션별 기대값 (#240)
         private final StarforceExpectationDto starforceExpectation;
+
+        // 환생의 불꽃 기대값
+        private final FlameExpectationDto flameExpectation;
     }
 
     /**
@@ -154,6 +157,28 @@ public class EquipmentExpectationResponseV4 {
                     .costWithDestroyPrevention(BigDecimal.ZERO)
                     .costWithDestroyPreventionText("0")
                     .expectedDestroyCountWith(BigDecimal.ZERO)
+                    .build();
+        }
+    }
+
+    /**
+     * 환생의 불꽃 기대값 DTO
+     *
+     * <p>강력한/영원한/심연의 환생의 불꽃 각각의 기대 시도 횟수를 표현합니다.</p>
+     */
+    @Getter
+    @Builder
+    @Jacksonized
+    public static class FlameExpectationDto {
+        private final BigDecimal powerfulFlameTrials;    // 강력한 환생의 불꽃 기대 시도 횟수
+        private final BigDecimal eternalFlameTrials;     // 영원한 환생의 불꽃 기대 시도 횟수
+        private final BigDecimal abyssFlameTrials;       // 심연의 환생의 불꽃 기대 시도 횟수
+
+        public static FlameExpectationDto empty() {
+            return FlameExpectationDto.builder()
+                    .powerfulFlameTrials(BigDecimal.ZERO)
+                    .eternalFlameTrials(BigDecimal.ZERO)
+                    .abyssFlameTrials(BigDecimal.ZERO)
                     .build();
         }
     }

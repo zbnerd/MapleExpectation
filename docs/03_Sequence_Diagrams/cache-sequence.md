@@ -1,8 +1,22 @@
 # TieredCache Single-flight 시퀀스 다이어그램
 
+> **Last Updated:** 2026-02-05
+> **Code Version:** MapleExpectation v1.x
+> **Diagram Version:** 1.0
+
 ## 개요
 
 Multi-Layer 캐시(L1: Caffeine, L2: Redis)와 분산 Single-flight 패턴으로 **Cache Stampede**를 방지합니다.
+
+## Terminology
+
+| 용어 | 정의 |
+|------|------|
+| **L1 Cache** | Caffeine in-memory cache (로컬, <5ms) |
+| **L2 Cache** | Redis distributed cache (분산, <20ms) |
+| **Single-flight** | 동시 요청 1회만 계산하는 패턴 |
+| **Cache Stampede** | 캐시 만료 시 동시 계산으로 발생하는 폭주 |
+| **Watchdog** | Redisson 자동 락 갱신 (기본 30초 TTL) |
 
 ## 캐시 조회 시퀀스
 
@@ -134,3 +148,22 @@ cache:
 - `src/main/java/maple/expectation/global/cache/TieredCache.java`
 - `src/main/java/maple/expectation/global/cache/TieredCacheManager.java`
 - `src/main/java/maple/expectation/config/RedissonConfig.java`
+
+## Fail If Wrong
+
+이 다이어그램이 부정확한 경우:
+- **코드 흐름과 다름**: TieredCache.get() 실제 구현 확인
+- **Watchdog 모드가 다름**: tryLock 파라미터 확인
+- **메트릭이 수집되지 않음**: Counter registration 확인
+
+### Verification Commands
+```bash
+# TieredCache 구현 확인
+grep -A 30 "public.*get.*Object.*Callable" src/main/java/maple/expectation/global/cache/TieredCache.java
+
+# Watchdog 모드 확인 (leaseTime 없음)
+grep "tryLock.*TimeUnit" src/main/java/maple/expectation/global/cache/TieredCache.java
+
+# 메트릭 등록 확인
+grep "Counter.builder" src/main/java/maple/expectation/global/cache/TieredCache.java
+```

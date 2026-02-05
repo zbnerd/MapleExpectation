@@ -7,12 +7,16 @@ import maple.expectation.repository.v2.GameCharacterRepository;
 import maple.expectation.repository.v2.RedisBufferRepository;
 import maple.expectation.service.v2.alert.DiscordAlertService;
 import maple.expectation.service.v2.facade.GameCharacterFacade;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+
+import java.util.List;
 
 /**
  * 경량 통합 테스트 베이스 클래스 (Issue #207 최적화)
@@ -53,6 +57,11 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 public abstract class IntegrationTestSupport extends SimpleRedisContainerBase {
 
     // -------------------------------------------------------------------------
+    // [Infrastructure] JdbcTemplate for test data cleanup
+    // -------------------------------------------------------------------------
+    @Autowired protected JdbcTemplate jdbcTemplate;
+
+    // -------------------------------------------------------------------------
     // [Mock 구역] 외부 연동 및 알림만 Mock으로 유지 (ApplicationContext 캐싱용)
     // -------------------------------------------------------------------------
     @MockitoBean protected RealNexonApiClient nexonApiClient;
@@ -66,4 +75,35 @@ public abstract class IntegrationTestSupport extends SimpleRedisContainerBase {
     @Autowired protected CharacterEquipmentRepository equipmentRepository;
     @Autowired protected LockStrategy lockStrategy;
     @Autowired protected RedisBufferRepository redisBufferRepository;
+
+    /**
+     * 테스트 간 데이터 격리를 위한 Redis + DB 초기화
+     *
+     * <p>Singleton Container 패턴에서 테스트 간 데이터 누수를 방지합니다.
+     * <ul>
+     *   <li>Redis: 부모 클래스의 FLUSHDB 실행</li>
+     *   <li>DB: INFORMATION_SCHEMA 기반 전체 테이블 TRUNCATE</li>
+     * </ul>
+     */
+    @Override
+    @AfterEach
+    protected void cleanupTestData() {
+        // 1. Redis cleanup (inherited)
+        super.cleanupTestData();
+
+        // 2. DB cleanup via JdbcTemplate - TRUNCATE all tables
+        try {
+            jdbcTemplate.execute("SET FOREIGN_KEY_CHECKS = 0");
+            List<String> tables = jdbcTemplate.queryForList(
+                    "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE'",
+                    String.class
+            );
+            for (String table : tables) {
+                jdbcTemplate.execute("TRUNCATE TABLE " + table);
+            }
+            jdbcTemplate.execute("SET FOREIGN_KEY_CHECKS = 1");
+        } catch (Exception e) {
+            System.err.println("[cleanupTestData] DB cleanup failed (best-effort): " + e.getMessage());
+        }
+    }
 }

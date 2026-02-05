@@ -6,6 +6,98 @@
 
 ---
 
+## Test Evidence & Reproducibility
+
+### 📋 Test Class
+- **Class**: `TimeoutCascadeNightmareTest`
+- **Package**: `maple.expectation.chaos.nightmare`
+- **Source**: [`src/test/java/maple/expectation/chaos/nightmare/TimeoutCascadeNightmareTest.java`](../../../src/test/java/maple/expectation/chaos/nightmare/TimeoutCascadeNightmareTest.java)
+
+### 🚀 Quick Start
+```bash
+# Prerequisites: Docker Compose running (MySQL, Redis, Toxiproxy)
+docker-compose up -d
+
+# Run specific Nightmare test
+./gradlew test --tests "maple.expectation.chaos.nightmare.TimeoutCascadeNightmareTest" \
+  2>&1 | tee logs/nightmare-06-$(date +%Y%m%d_%H%M%S).log
+
+# Run individual test methods
+./gradlew test --tests "*TimeoutCascadeNightmareTest.shouldCreateZombieRequest_whenClientTimeout*"
+./gradlew test --tests "*TimeoutCascadeNightmareTest.shouldMeasureRetryChainTime_withRedisDelay*"
+./gradlew test --tests "*TimeoutCascadeNightmareTest.shouldVerifyTimeoutHierarchy*"
+./gradlew test --tests "*TimeoutCascadeNightmareTest.shouldMeasureFallbackTime_whenRedisFails*"
+./gradlew test --tests "*TimeoutCascadeNightmareTest.shouldMeasureZombieRequestRate_underConcurrentLoad*"
+```
+
+### 📊 Test Results
+- **Result File**: [N06-timeout-cascade-result.md](../Results/N06-timeout-cascade-result.md)
+- **Test Date**: 2026-01-19
+- **Result**: ❌ FAIL (2/5 tests)
+- **Test Duration**: ~180 seconds
+
+### 🔧 Test Environment
+| Parameter | Value |
+|-----------|-------|
+| Java Version | 21 |
+| Spring Boot | 3.5.4 |
+| Redis | 7.x (Docker + Toxiproxy) |
+| Toxiproxy | Enabled (latency injection) |
+| Client Timeout | 3000ms |
+| Server TimeLimiter | 28000ms |
+| Retry Attempts | 3 |
+
+### 💥 Failure Injection
+| Method | Details |
+|--------|---------|
+| **Failure Type** | Network Latency (Toxiproxy) |
+| **Injection Method** | `redisProxy.toxics().latency("redis-latency", ToxicDirection.DOWNSTREAM, 5000)` |
+| **Failure Scope** | All Redis operations |
+| **Failure Duration** | Until test completes |
+| **Blast Radius** | All Redis-dependent requests |
+
+### ✅ Pass Criteria
+| Criterion | Threshold | Rationale |
+|-----------|-----------|-----------|
+| Zombie Request Count | 0 | No resource waste after client timeout |
+| Resource Waste Time | 0s | Server should cancel when client disconnects |
+| Fallback Success Rate | 100% | MySQL fallback should work |
+| Retry Chain Time | < 10s | Total processing time limit |
+
+### ❌ Fail Criteria
+| Criterion | Threshold | Action |
+|-----------|-----------|--------|
+| Zombie Request Count | >= 1 | Timeout hierarchy misaligned |
+| Resource Waste Time | > 0s | Server continues after client timeout |
+| Retry Chain Time | > 20s | Excessive retry accumulation |
+
+### 🧹 Cleanup Commands
+```bash
+# After test - remove Toxiproxy toxics
+curl -X DELETE http://localhost:8474/proxies/redis/toxics/redis-latency
+
+# Or restart Redis container
+docker-compose restart redis
+
+# Verify no toxics remaining
+curl http://localhost:8474/proxies/redis/toxics
+```
+
+### 📈 Expected Test Metrics
+| Metric | Before | After | Threshold |
+|--------|--------|-------|-----------|
+| Redis Response Time p99 | 10ms | 5000ms+ | N/A |
+| Zombie Request Count | 0 | 50+ | N/A |
+| Thread Pool Active | 5 | 50+ | N/A |
+| Client Timeout Rate | 0% | 100% | N/A |
+
+### 🔗 Evidence Links
+- Test Class: [TimeoutCascadeNightmareTest.java](../../../src/test/java/maple/expectation/chaos/nightmare/TimeoutCascadeNightmareTest.java)
+- Test Results: [N06-timeout-cascade-result.md](../Results/N06-timeout-cascade-result.md)
+- Related Issue: #[P1][Nightmare-06] Timeout Hierarchy Mismatch
+
+---
+
 ## 0. 최신 테스트 결과 (2025-01-20)
 
 ### ❌ FAIL (2/5 테스트 실패)

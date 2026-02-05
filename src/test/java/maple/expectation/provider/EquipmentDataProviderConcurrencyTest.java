@@ -11,7 +11,6 @@ import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.CacheManager;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.time.Duration;
@@ -38,7 +37,6 @@ import static org.mockito.Mockito.*;
  * <p>EquipmentDbWorker를 Mock하여 비동기 저장 로직을 동기적으로 검증.
  * CharacterEquipmentRepository를 직접 Mock하면 @Async 스레드와 Context 불일치 문제 발생.</p>
  */
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 @Execution(ExecutionMode.SAME_THREAD)  // CLAUDE.md Section 24: 병렬 실행 시 캐시 상태 충돌 방지
 class EquipmentDataProviderConcurrencyTest extends IntegrationTestSupport {
 

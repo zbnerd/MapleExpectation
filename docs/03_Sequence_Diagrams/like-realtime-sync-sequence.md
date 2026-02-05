@@ -1,9 +1,23 @@
 # 좋아요 실시간 동기화 시퀀스 다이어그램 (Issue #278)
 
+> **Last Updated:** 2026-02-05
+> **Code Version:** MapleExpectation v1.x
+> **Diagram Version:** 1.0
+> **Related Issue:** #278
+
 ## 개요
 
 Scale-out 환경에서 인스턴스 간 좋아요 수를 실시간으로 동기화합니다.
 Redis Pub/Sub를 사용하여 L1(Caffeine) 캐시 무효화 이벤트를 전파합니다.
+
+## Terminology
+
+| 용어 | 정의 |
+|------|------|
+| **Pub/Sub** | Redis 발행/구독 패턴 |
+| **Self-skip** | 발행자가 자신의 이벤트를 무시하는 메커니즘 |
+| **L1 Cache Evict** | 로컬 캐시 무효화 |
+| **RTopic** | Redisson의 Reactive Topic 구현체 |
 
 ## 아키텍처 개요
 
@@ -156,3 +170,28 @@ app:
 | Yellow (QA) | 테스트 | 단위 테스트 + 통합 테스트 (Testcontainers) |
 | Purple (Data) | 일관성 | Hash Tag `{likes}:*`로 클러스터 슬롯 보장 |
 | Red (SRE) | 안정성 | Graceful Degradation, 메트릭 모니터링 |
+
+## Evidence Links
+- **LikeEventPublisher:** `src/main/java/maple/expectation/service/v2/like/realtime/LikeEventPublisher.java`
+- **LikeEventSubscriber:** `src/main/java/maple/expectation/service/v2/like/realtime/LikeEventSubscriber.java`
+- **LikeRealtimeSyncConfig:** `src/main/java/maple/expectation/config/LikeRealtimeSyncConfig.java`
+- **Tests:** `src/test/java/maple/expectation/service/v2/like/realtime/*Test.java`
+
+## Fail If Wrong
+
+이 다이어그램이 부정확한 경우:
+- **Pub/Sub가 동작하지 않음**: Redis 설정 및 RTopic 확인
+- **Self-skip 실패**: instance-id 설정 확인
+- **L1 Cache 불일치**: evict 이벤트 발행 확인
+
+### Verification Commands
+```bash
+# Pub/Sub 설정 확인
+grep -A 10 "like.realtime" src/main/resources/application.yml
+
+# RTopic 사용 확인
+grep -r "RTopic\|getTopic" src/main/java/maple/expectation/service/v2/like/realtime/
+
+# instance-id 확인
+grep "instance-id" src/main/resources/application.yml
+```

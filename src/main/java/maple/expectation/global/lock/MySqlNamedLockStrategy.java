@@ -8,6 +8,7 @@ import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.global.executor.strategy.ExceptionTranslator;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.SingleConnectionDataSource;
@@ -31,10 +32,17 @@ import java.util.Deque;
  *   <li>P1-BLUE-03: LockOrderMetrics 의존성 주입</li>
  * </ul>
  *
+ * <h3>Conditional Bean Loading</h3>
+ * <p>이 빈은 lockJdbcTemplate이 존재할 때만 로드됩니다.
+ * LockHikariConfig는 @Profile({"!test", "container"})이므로,
+ * test 프로필만 활성화된 환경에서는 이 빈이 생성되지 않습니다.
+ * ResilientLockStrategy는 Optional로 주입받아 Redis-only 모드로 동작합니다.</p>
+ *
  * @see LockOrderMetrics
  */
 @Slf4j
 @Component
+@ConditionalOnBean(name = "lockJdbcTemplate")
 public class MySqlNamedLockStrategy implements LockStrategy {
 
     private final JdbcTemplate lockJdbcTemplate;

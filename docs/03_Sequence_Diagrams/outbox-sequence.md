@@ -1,11 +1,25 @@
 # Transactional Outbox Pattern 시퀀스 다이어그램
 
 > **Issue #80, #81, #127**: 도네이션 처리의 데이터 일관성 및 멱등성 보장
+>
+> **Last Updated:** 2026-02-05
+> **Code Version:** MapleExpectation v1.x
+> **Diagram Version:** 1.0
 
 ## 1. 개요
 
 Transactional Outbox 패턴은 **분산 시스템에서 데이터 일관성을 보장**하기 위한 패턴입니다.
 비즈니스 트랜잭션과 이벤트 발행을 **동일 DB 트랜잭션**에서 원자적으로 처리합니다.
+
+## Terminology
+
+| 용어 | 정의 |
+|------|------|
+| **At-Least-Once** | 최소 1회 전달 보장 (중복 가능) |
+| **멱등성 (Idempotency)** | requestId 기반 중복 처리 방지 |
+| **Content Hash** | SHA-256 기반 개별 레코드 무결성 검증 |
+| **Exponential Backoff** | 재시도 간격 기하급수적 증가 |
+| **Triple Safety Net** | DLQ → File Backup → Discord Alert |
 
 ### 핵심 특성
 
@@ -344,4 +358,29 @@ CREATE TABLE donation_dlq (
 ## 11. 참고 문서
 
 - [Microservices Patterns - Transactional Outbox](https://microservices.io/patterns/data/transactional-outbox.html)
-- [CLAUDE.md 섹션 8-1: Redis Lua Script & Cluster Hash Tag](../CLAUDE.md)
+- [CLAUDE.md 섹션 8-1: Redis Lua Script & Cluster Hash Tag](../../CLAUDE.md)
+
+## Evidence Links
+- **DonationOutbox:** `src/main/java/maple/expectation/domain/v2/DonationOutbox.java`
+- **OutboxProcessor:** `src/main/java/maple/expectation/service/v2/donation/outbox/OutboxProcessor.java`
+- **DlqHandler:** `src/main/java/maple/expectation/service/v2/donation/outbox/DlqHandler.java`
+- **Tests:** `src/test/java/maple/expectation/service/v2/donation/outbox/*Test.java`
+
+## Fail If Wrong
+
+이 다이어그램이 부정확한 경우:
+- **Outbox 저장 실패 시 데이터 유실**: 트랜잭션 경계 확인
+- **중복 처리 발생**: requestId unique 제약 확인
+- **SKIP LOCKED 미작동**: 쿼리 구현 확인
+
+### Verification Commands
+```bash
+# Outbox 스키마 확인
+grep -A 30 "CREATE TABLE donation_outbox" src/main/resources/db/migration/*.sql
+
+# SKIP LOCKED 쿼리 확인
+grep -B 5 -A 15 "SKIP LOCKED\|skipLocked" src/main/java/maple/expectation/repository/v2/DonationOutboxRepository.java
+
+# requestId unique 확인
+grep -i "requestid.*unique" src/main/resources/db/migration/*.sql
+```

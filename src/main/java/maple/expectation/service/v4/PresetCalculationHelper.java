@@ -7,11 +7,18 @@ import maple.expectation.dto.CubeCalculationInput;
 import maple.expectation.dto.v4.EquipmentCalculationInput;
 import maple.expectation.dto.v4.EquipmentExpectationResponseV4.CostBreakdownDto;
 import maple.expectation.dto.v4.EquipmentExpectationResponseV4.CubeExpectationDto;
+import maple.expectation.dto.v4.EquipmentExpectationResponseV4.FlameExpectationDto;
 import maple.expectation.dto.v4.EquipmentExpectationResponseV4.ItemExpectationV4;
 import maple.expectation.dto.v4.EquipmentExpectationResponseV4.PresetExpectation;
 import maple.expectation.dto.v4.EquipmentExpectationResponseV4.StarforceExpectationDto;
 import maple.expectation.service.v2.calculator.v4.EquipmentExpectationCalculator;
 import maple.expectation.service.v2.calculator.v4.EquipmentExpectationCalculatorFactory;
+import maple.expectation.service.v2.flame.FlameEquipCategory;
+import maple.expectation.service.v2.flame.FlameInputResolver;
+import maple.expectation.service.v2.flame.FlameInputResolver.FlameInput;
+import maple.expectation.service.v2.flame.FlameTrialsProvider;
+import maple.expectation.service.v2.flame.FlameType;
+import maple.expectation.service.v2.flame.component.FlameScoreCalculator;
 import maple.expectation.service.v2.starforce.StarforceLookupTable;
 import maple.expectation.service.v2.starforce.config.NoljangProbabilityTable;
 import org.springframework.stereotype.Component;
@@ -41,27 +48,31 @@ public class PresetCalculationHelper {
 
     private final EquipmentExpectationCalculatorFactory calculatorFactory;
     private final StarforceLookupTable starforceLookupTable;
+    private final FlameTrialsProvider flameTrialsProvider;
+    private final FlameInputResolver flameInputResolver;
 
     /**
      * 프리셋 기대값 계산
      *
-     * @param cubeInputs 프리셋의 큐브 입력 목록
-     * @param presetNo   프리셋 번호 (1~3)
+     * @param cubeInputs     프리셋의 큐브 입력 목록
+     * @param presetNo       프리셋 번호 (1~3)
+     * @param characterClass 직업명 (환생의 불꽃 동적 계산용)
      * @return 프리셋 기대값 결과
      */
-    public PresetExpectation calculatePreset(List<CubeCalculationInput> cubeInputs, int presetNo) {
+    public PresetExpectation calculatePreset(List<CubeCalculationInput> cubeInputs, int presetNo,
+                                              String characterClass) {
         List<ItemExpectationV4> itemResults = new ArrayList<>();
         BigDecimal totalCost = BigDecimal.ZERO;
         CostBreakdownDto totalBreakdown = CostBreakdownDto.empty();
 
         for (var cubeInput : cubeInputs) {
             if (!cubeInput.isReady()) {
-                itemResults.add(buildNoPotentialItem(cubeInput, presetNo));
+                itemResults.add(buildNoPotentialItem(cubeInput, presetNo, characterClass));
                 continue;
             }
 
             EquipmentCalculationInput input = buildInput(cubeInput, presetNo);
-            ItemExpectationV4 itemResult = calculateSingleItem(input, cubeInput);
+            ItemExpectationV4 itemResult = calculateSingleItem(input, cubeInput, characterClass);
 
             itemResults.add(itemResult);
             totalCost = totalCost.add(itemResult.getExpectedCost());
@@ -110,12 +121,13 @@ public class PresetCalculationHelper {
     /**
      * 단일 아이템 기대값 계산
      */
-    private ItemExpectationV4 calculateSingleItem(EquipmentCalculationInput input, CubeCalculationInput cubeInput) {
+    private ItemExpectationV4 calculateSingleItem(EquipmentCalculationInput input, CubeCalculationInput cubeInput,
+                                                    String characterClass) {
         EquipmentExpectationCalculator calculator = calculatorFactory.createFullCalculator(input);
         BigDecimal itemCost = calculator.calculateCost();
         var costBreakdown = calculator.getDetailedCosts();
 
-        return buildItemResult(input, cubeInput, itemCost, costBreakdown, calculator.getEnhancePath());
+        return buildItemResult(input, cubeInput, itemCost, costBreakdown, calculator.getEnhancePath(), characterClass);
     }
 
     /**
@@ -124,9 +136,11 @@ public class PresetCalculationHelper {
     private ItemExpectationV4 buildItemResult(EquipmentCalculationInput input, CubeCalculationInput cubeInput,
                                                BigDecimal itemCost,
                                                EquipmentExpectationCalculator.CostBreakdown costBreakdown,
-                                               String enhancePath) {
+                                               String enhancePath, String characterClass) {
         StarforceExpectationDto starforceExpectation = calculateStarforceExpectation(
                 input.getCurrentStar(), input.getTargetStar(), input.getItemLevel(), input.isNoljang());
+
+        FlameExpectationDto flameExpectation = resolveFlameExpectation(cubeInput, characterClass, input.getItemLevel());
 
         String potentialText = formatPotentialOptions(input.getPotentialOptions());
         String additionalPotentialText = formatPotentialOptions(input.getAdditionalPotentialOptions());
@@ -156,13 +170,18 @@ public class PresetCalculationHelper {
                 .blackCubeExpectation(blackCubeExpectation)
                 .additionalCubeExpectation(additionalCubeExpectation)
                 .starforceExpectation(starforceExpectation)
+                .flameExpectation(flameExpectation)
                 .build();
     }
 
     /**
      * 잠재능력 없는 아이템 빌드
      */
-    ItemExpectationV4 buildNoPotentialItem(CubeCalculationInput cubeInput, int presetNo) {
+    ItemExpectationV4 buildNoPotentialItem(CubeCalculationInput cubeInput, int presetNo,
+                                             String characterClass) {
+        FlameExpectationDto flameExpectation = resolveFlameExpectation(
+                cubeInput, characterClass, cubeInput.getLevel());
+
         return ItemExpectationV4.builder()
                 .itemName(cubeInput.getItemName())
                 .itemIcon(cubeInput.getItemIcon())
@@ -181,6 +200,7 @@ public class PresetCalculationHelper {
                 .blackCubeExpectation(CubeExpectationDto.empty())
                 .additionalCubeExpectation(CubeExpectationDto.empty())
                 .starforceExpectation(StarforceExpectationDto.empty())
+                .flameExpectation(flameExpectation)
                 .build();
     }
 
@@ -267,6 +287,56 @@ public class PresetCalculationHelper {
             return "";
         }
         return String.join(" | ", options);
+    }
+
+    /**
+     * 불꽃 기대값 해석 및 계산 (#303 동적 불꽃 계산)
+     *
+     * <p>FlameInputResolver로 장비 데이터에서 동적으로 계산 입력을 추출하고,
+     * 추옵이 없는 장비는 empty를 반환합니다.</p>
+     */
+    private FlameExpectationDto resolveFlameExpectation(CubeCalculationInput cubeInput,
+                                                         String characterClass, int level) {
+        FlameInput flameInput = flameInputResolver.resolve(cubeInput, characterClass);
+        if (flameInput == null) {
+            return FlameExpectationDto.empty();
+        }
+        return calculateFlameExpectation(level, flameInput);
+    }
+
+    /**
+     * 환생의 불꽃 기대값 계산
+     *
+     * <p>강력한/영원한/심연의 불꽃 3종에 대해 동일 목표 환산치로 기대 시도 횟수를 계산합니다.</p>
+     */
+    private FlameExpectationDto calculateFlameExpectation(int level, FlameInput flameInput) {
+        FlameEquipCategory category = FlameEquipCategory.of(flameInput.isBossDrop(), flameInput.isWeapon());
+        FlameScoreCalculator.JobWeights weights = flameInput.weights();
+        int target = flameInput.target();
+        int baseAtt = flameInput.baseAtt();
+        int baseMag = flameInput.baseMag();
+
+        BigDecimal powerful = calculateFlameTrials(category, FlameType.POWERFUL, level, weights, target, baseAtt, baseMag);
+        BigDecimal eternal = calculateFlameTrials(category, FlameType.ETERNAL, level, weights, target, baseAtt, baseMag);
+        BigDecimal abyss = calculateFlameTrials(category, FlameType.ABYSS, level, weights, target, baseAtt, baseMag);
+
+        return FlameExpectationDto.builder()
+                .powerfulFlameTrials(powerful)
+                .eternalFlameTrials(eternal)
+                .abyssFlameTrials(abyss)
+                .build();
+    }
+
+    private BigDecimal calculateFlameTrials(FlameEquipCategory category, FlameType flameType,
+                                             int level, FlameScoreCalculator.JobWeights weights,
+                                             int target, int baseAtt, int baseMag) {
+        Double trials = flameTrialsProvider.calculateExpectedTrials(
+                category, flameType, level, weights, target, baseAtt, baseMag);
+
+        if (trials == null || !Double.isFinite(trials)) {
+            return BigDecimal.ZERO;
+        }
+        return BigDecimal.valueOf(trials).setScale(2, RoundingMode.HALF_UP);
     }
 
     /**

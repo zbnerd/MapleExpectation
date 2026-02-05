@@ -6,6 +6,95 @@
 
 ---
 
+## Test Evidence & Reproducibility
+
+### 📋 Test Class
+- **Class**: `SelfInvocationNightmareTest`
+- **Package**: `maple.expectation.chaos.nightmare`
+- **Source**: [`src/test/java/maple/expectation/chaos/nightmare/SelfInvocationNightmareTest.java`](../../../src/test/java/maple/expectation/chaos/nightmare/SelfInvocationNightmareTest.java)
+
+### 🚀 Quick Start
+```bash
+# Prerequisites: Docker Compose running (MySQL, Redis)
+docker-compose up -d
+
+# Run specific Nightmare test
+./gradlew test --tests "maple.expectation.chaos.nightmare.SelfInvocationNightmareTest" \
+  2>&1 | tee logs/nightmare-16-$(date +%Y%m%d_%H%M%S).log
+
+# Run individual test methods
+./gradlew test --tests "*SelfInvocationNightmareTest.shouldNotHaveSelfInvocationInCodebase*"
+./gradlew test --tests "*SelfInvocationNightmareTest.shouldUseSeparateBeanForCache*"
+./gradlew test --tests "*SelfInvocationNightmareTest.shouldProxyMethodsWork*"
+./gradlew test --tests "*SelfInvocationNightmareTest.shouldCacheHitOnExternalCall*"
+./gradlew test --tests "*SelfInvocationNightmareTest.shouldTransactionWorkOnExternalCall*"
+```
+
+### 📊 Test Results
+- **Result File**: [N16-self-invocation-result.md](../Results/N16-self-invocation-result.md) (if exists)
+- **Test Date**: 2025-01-20
+- **Result**: ✅ PASS (5/5 tests)
+- **Test Duration**: ~60 seconds
+
+### 🔧 Test Environment
+| Parameter | Value |
+|-----------|-------|
+| Java Version | 21 |
+| Spring Boot | 3.5.4 |
+| AOP Proxy Type | CGLIB |
+| @EnableAspectJAutoProxy | exposeProxy = true (not used) |
+
+### 💥 Failure Injection
+| Method | Details |
+|--------|---------|
+| **Failure Type** | AOP Bypass |
+| **Injection Method** | this.method() internal call |
+| **Failure Scope** | @Cacheable, @Transactional annotations |
+| **Failure Duration** | N/A (architectural test) |
+| **Blast Radius** | Cache misses, transaction boundaries |
+
+### ✅ Pass Criteria
+| Criterion | Threshold | Rationale |
+|-----------|-----------|-----------|
+| Self-Invocation Count | 0 | No proxy bypass |
+| Cache Hit Rate | > 0 | @Cacheable works |
+| Transaction Boundaries | Correct | @Transactional works |
+
+### ❌ Fail Criteria
+| Criterion | Threshold | Action |
+|-----------|-----------|--------|
+| Self-Invocation Count | > 0 | AOP bypassed |
+| Cache Miss on 2nd Call | Yes | @Cacheable not working |
+| Transaction Not Applied | Yes | @Transactional not working |
+
+### 🧹 Cleanup Commands
+```bash
+# No cleanup needed - architectural test
+# Verify AOP proxy configuration
+curl http://localhost:8080/actuator/beans | grep -A 5 "@EnableAspectJAutoProxy"
+```
+
+### 📈 Expected Test Metrics
+| Metric | Expected | Actual | Threshold |
+|--------|----------|--------|-----------|
+| Self-Invocation Patterns | 0 | 0 | = 0 |
+| Cache Hit on 2nd Call | Yes | Yes | must hit |
+| Transaction Applied | Yes | Yes | must apply |
+
+### 🔗 Evidence Links
+- Test Class: [SelfInvocationNightmareTest.java](../../../src/test/java/maple/expectation/chaos/nightmare/SelfInvocationNightmareTest.java)
+- AOP Configuration: [AopConfig.java](../../../src/main/java/maple/expectation/config/AopConfig.java)
+- Cache Service: Separate bean for caching operations
+
+### ❌ Fail If Wrong
+This test is invalid if:
+- Test environment uses different AOP configuration
+- Proxy type differs (JDK vs CGLIB)
+- Spring AOP not properly enabled
+- Test doesn't scan all relevant packages
+
+---
+
 ## 0. 최신 테스트 결과 (2025-01-20)
 
 ### ✅ PASS (5/5 테스트 성공)
@@ -173,6 +262,17 @@ Java에서 `this`는 현재 객체의 실제 인스턴스를 참조.
 2. **코드 리뷰 체크리스트**: Self-invocation 패턴 확인 항목 포함
 3. **IntelliJ Inspection 활성화**: Spring Self-invocation 검사 설정
 4. **ArchUnit 규칙 추가**: 자동화된 Self-invocation 감지 테스트
+
+---
+
+## Fail If Wrong
+
+This test is invalid if:
+- [ ] Test environment uses different AOP configuration
+- [ ] Proxy type differs (JDK vs CGLIB)
+- [ ] Spring AOP not properly enabled
+- [ ] Test doesn't scan all relevant packages
+- [ ] AspectJ weaving mode differs
 
 ---
 

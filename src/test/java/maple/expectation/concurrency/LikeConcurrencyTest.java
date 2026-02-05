@@ -3,15 +3,13 @@ package maple.expectation.concurrency;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import maple.expectation.domain.v2.GameCharacter;
-import maple.expectation.external.impl.RealNexonApiClient;
 import maple.expectation.repository.v2.GameCharacterRepository;
 import maple.expectation.repository.v2.RedisBufferRepository;
 import maple.expectation.service.v2.GameCharacterService;
 import maple.expectation.service.v2.LikeProcessor;
 import maple.expectation.service.v2.LikeSyncService;
-import maple.expectation.service.v2.alert.DiscordAlertService;
 import maple.expectation.service.v2.cache.LikeBufferStorage;
-import maple.expectation.support.AbstractContainerBaseTest;
+import maple.expectation.support.ChaosTestSupport;
 import maple.expectation.support.EnableTimeLogging;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,10 +19,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import eu.rekawek.toxiproxy.model.ToxicDirection;
@@ -54,25 +48,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *   <li>MockBeans로 ApplicationContext 캐싱 일관성 확보</li>
  * </ul>
  */
-@SpringBootTest
-@ActiveProfiles("test")
-@TestPropertySource(properties = {"nexon.api.key=dummy-test-key"})
 @EnableTimeLogging
 @Tag("chaos")
 @Execution(ExecutionMode.SAME_THREAD)  // CLAUDE.md Section 24: Toxiproxy 공유 상태 충돌 방지
-public class LikeConcurrencyTest extends AbstractContainerBaseTest {
+public class LikeConcurrencyTest extends ChaosTestSupport {
 
     private static final int LATCH_TIMEOUT_SECONDS = 30;
     private static final int TERMINATION_TIMEOUT_SECONDS = 10;
-
-    // -------------------------------------------------------------------------
-    // [Mock 구역] 외부 연동 Mock (ApplicationContext 캐싱 일관성)
-    // -------------------------------------------------------------------------
-    @MockitoBean private RealNexonApiClient nexonApiClient;
-    @MockitoBean private DiscordAlertService discordAlertService;
-
-    // -------------------------------------------------------------------------
-    // [Real Bean 구역] 실제 DB/Redis 작동 확인용
     // -------------------------------------------------------------------------
     @Autowired private GameCharacterService gameCharacterService;
     @Autowired private GameCharacterRepository gameCharacterRepository;

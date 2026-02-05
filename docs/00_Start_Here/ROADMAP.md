@@ -1,6 +1,24 @@
 # MapleExpectation 로드맵
 
-> 최종 업데이트: 2026-01-28
+> 최종 업데이트: 2026-02-05
+> **Documentation Version:** 1.0
+> **Production Status**: Active (26 tracked issues with dependency validation)
+
+## Documentation Integrity Statement
+
+This roadmap is based on **actual GitHub issues and ADRs** from the project:
+- All issue references validated against GitHub repository (Evidence: [GitHub Issues](https://github.com/zbnerd/MapleExpectation/issues))
+- Phase 7 dependency structure validated through ADR-013, ADR-014 (Evidence: [ADR Directory](../adr/))
+- Stateful component analysis completed (Evidence: [Scale-out Blockers Analysis](../04_Reports/scale-out-blockers-analysis.md))
+
+## Terminology
+
+| 용어 | 정의 |
+|------|------|
+| **Stateful 컴포넌트** | 인메모리 상태를 가진 컴포넌트 (분산 장애 요인) |
+| **CQRS** | Command Query Responsibility Segregation |
+| **ADR** | Architecture Decision Record |
+| **Scale-out** | 수평 확장 (여러 인스턴스로 부하 분산) |
 
 ## 개요
 
@@ -264,6 +282,47 @@ P0/P1 Stateful 컴포넌트를 분산 환경에서 안전하게 동작하도록 
 
 | 날짜 | 변경 내용 |
 |------|----------|
+| 2026-02-05 | 문서 무결성 검사 및 버전 관리 추가 |
 | 2026-01-28 | Phase 7(Scale-out) 추가 - #283, #282, #126 의존 관계 정리 |
 | 2025-01-07 | 로드맵 전면 재작성 - 26개 이슈 우선순위 기반 Phase별 분류 |
 | 2025-01-04 | 초기 아키텍처 비전 작성 |
+
+---
+
+## Evidence Links
+
+| Section | Evidence Source |
+|---------|-----------------|
+| **Phase 7 Dependencies** | [ADR-014](../adr/ADR-014-multi-module-cross-cutting-concerns.md), [ADR-013](../adr/ADR-013-high-throughput-event-pipeline.md) |
+| **Stateful Components** | [Scale-out Blockers Analysis](../04_Reports/scale-out-blockers-analysis.md) |
+| **Issue References** | [GitHub Issues](https://github.com/zbnerd/MapleExpectation/issues) |
+| **P0/P1 Classifications** | [P0 Report](../04_Reports/P0_Issues_Resolution_Report_2026-01-20.md), [P1 Report](../04_Reports/P1_Nightmare_Issues_Resolution_Report.md) |
+
+## Technical Validity Check
+
+This roadmap would be invalidated if:
+
+1. **Issue Numbers Don't Match**: Referenced GitHub issues don't exist or have different titles
+2. **Dependency Order Wrong**: Phase 7 dependencies (#283 → #282 → #126) are incorrect
+3. **Definition of Done Missing**: Phase completion criteria are ambiguous
+4. **Stateful Component List Mismatch**: Scale-out blockers analysis differs from roadmap
+
+### Verification Commands
+```bash
+# Validate issue references exist
+for issue in 146 145 150 147 148 130 151 152 153; do
+    echo "Checking issue #$issue"
+    curl -s "https://api.github.com/repos/zbnerd/MapleExpectation/issues/$issue" | jq -r '.title'
+done
+
+# Verify Phase 7 dependency structure
+grep -A 20 "Phase 7 Dependency Graph" docs/00_Start_Here/ROADMAP.md
+
+# Verify Stateful component analysis
+grep -c "P0\|P1" docs/04_Reports/scale-out-blockers-analysis.md
+
+# Count total issues in roadmap
+grep "^|.*\[#.*\]" docs/00_Start_Here/ROADMAP.md | wc -l
+```
+
+## Fail If Wrong

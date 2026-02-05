@@ -21,7 +21,7 @@ import org.springframework.context.annotation.Primary;
  *
  * <h3>활성화 조건</h3>
  * <p>{@code app.buffer.redis.enabled=true} 설정 시 활성화됩니다.
- * 기본값은 false이며, 기존 In-Memory 버퍼가 사용됩니다.</p>
+ * 기본값은 true이며, Redis 기반 버퍼가 사용됩니다. In-Memory는 local/test 전용.</p>
  *
  * <h3>5-Agent Council 합의</h3>
  * <ul>
@@ -31,7 +31,7 @@ import org.springframework.context.annotation.Primary;
  * </ul>
  */
 @Configuration
-@ConditionalOnProperty(name = "app.buffer.redis.enabled", havingValue = "true", matchIfMissing = false)
+@ConditionalOnProperty(name = "app.buffer.redis.enabled", havingValue = "true", matchIfMissing = true)
 public class RedisBufferConfig {
 
     private static final int DEFAULT_MAX_RETRIES = 3;

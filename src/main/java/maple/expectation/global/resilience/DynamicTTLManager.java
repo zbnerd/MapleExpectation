@@ -9,9 +9,9 @@ import maple.expectation.global.event.MySQLDownEvent;
 import maple.expectation.global.event.MySQLUpEvent;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
+import maple.expectation.global.lock.LockStrategy;
 import org.redisson.api.BatchOptions;
 import org.redisson.api.RBatch;
-import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.redisson.client.codec.StringCodec;
 import org.springframework.context.event.EventListener;
@@ -26,7 +26,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Dynamic TTL Manager (Issue #218)
@@ -66,6 +65,7 @@ public class DynamicTTLManager {
     private final MySQLFallbackProperties properties;
     private final LogicExecutor executor;
     private final MeterRegistry meterRegistry;
+    private final LockStrategy lockStrategy;
 
     @PostConstruct
     public void init() {
@@ -80,24 +80,20 @@ public class DynamicTTLManager {
     @Async
     @EventListener
     public void onMySQLDown(MySQLDownEvent event) {
-        executor.executeVoid(() -> {
+        TaskContext context = TaskContext.of("Resilience", "OnMySQLDown", event.circuitBreakerName());
+        executor.executeOrDefault(() -> {
             log.warn("[DynamicTTL] MySQL DOWN 이벤트 수신: {}", event);
 
-            RLock lock = redissonClient.getLock(properties.getTtlLockKey());
-            boolean acquired = lock.tryLock(
-                    properties.getLockWaitSeconds(),
+            return lockStrategy.executeWithLock(
+                    properties.getTtlLockKey(),
+                    0,
                     properties.getLockLeaseSeconds(),
-                    TimeUnit.SECONDS
+                    () -> {
+                        extendAllCacheTTL();
+                        return null;
+                    }
             );
-
-            if (!acquired) {
-                log.warn("[DynamicTTL] 분산 락 획득 실패 - 다른 인스턴스가 처리 중");
-                return;
-            }
-
-            executeWithLockSafety(lock, this::extendAllCacheTTL);
-
-        }, TaskContext.of("Resilience", "OnMySQLDown", event.circuitBreakerName()));
+        }, null, context);
     }
 
     /**
@@ -108,44 +104,22 @@ public class DynamicTTLManager {
     @Async
     @EventListener
     public void onMySQLUp(MySQLUpEvent event) {
-        executor.executeVoid(() -> {
+        TaskContext context = TaskContext.of("Resilience", "OnMySQLUp", event.circuitBreakerName());
+        executor.executeOrDefault(() -> {
             log.info("[DynamicTTL] MySQL UP 이벤트 수신: {}", event);
 
-            RLock lock = redissonClient.getLock(properties.getTtlLockKey());
-            boolean acquired = lock.tryLock(
-                    properties.getLockWaitSeconds(),
+            return lockStrategy.executeWithLock(
+                    properties.getTtlLockKey(),
+                    0,
                     properties.getLockLeaseSeconds(),
-                    TimeUnit.SECONDS
-            );
-
-            if (!acquired) {
-                log.warn("[DynamicTTL] 분산 락 획득 실패 - 다른 인스턴스가 처리 중");
-                return;
-            }
-
-            executeWithLockSafety(lock, this::restoreAllCacheTTL);
-
-        }, TaskContext.of("Resilience", "OnMySQLUp", event.circuitBreakerName()));
-    }
-
-    /**
-     * 락 안전 실행 (P1-N2: isHeldByCurrentThread 체크)
-     */
-    private void executeWithLockSafety(RLock lock, Runnable action) {
-        executor.executeWithFinally(
-                () -> {
-                    action.run();
-                    return null;
-                },
-                () -> {
-                    if (lock.isHeldByCurrentThread()) {
-                        lock.unlock();
-                        log.debug("[DynamicTTL] 분산 락 해제 완료");
+                    () -> {
+                        restoreAllCacheTTL();
+                        return null;
                     }
-                },
-                TaskContext.of("Resilience", "ExecuteWithLock", properties.getTtlLockKey())
-        );
+            );
+        }, null, context);
     }
+
 
     /**
      * 대상 캐시 TTL 제거 (PERSIST)

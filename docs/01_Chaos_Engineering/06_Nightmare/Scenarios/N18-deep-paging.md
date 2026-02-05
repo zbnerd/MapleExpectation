@@ -6,6 +6,102 @@
 
 ---
 
+## Test Evidence & Reproducibility
+
+### 📋 Test Class
+- **Class**: `DeepPagingNightmareTest`
+- **Package**: `maple.expectation.chaos.nightmare`
+- **Source**: [`src/test/java/maple/expectation/chaos/nightmare/DeepPagingNightmareTest.java`](../../../src/test/java/maple/expectation/chaos/nightmare/DeepPagingNightmareTest.java)
+
+### 🚀 Quick Start
+```bash
+# Prerequisites: Docker Compose running (MySQL)
+docker-compose up -d
+
+# Run specific Nightmare test
+./gradlew test --tests "maple.expectation.chaos.nightmare.DeepPagingNightmareTest" \
+  2>&1 | tee logs/nightmare-18-$(date +%Y%m%d_%H%M%S).log
+
+# Run individual test methods
+./gradlew test --tests "*DeepPagingNightmareTest.shouldMeasureOffsetPagingPerformance*"
+./gradlew test --tests "*DeepPagingNightmareTest.shouldMeasureCursorPagingPerformance*"
+./gradlew test --tests "*DeepPagingNightmareTest.shouldComparePerformanceDegradation*"
+./gradlew test --tests "*DeepPagingNightmareTest.shouldAnalyzeExplainPlan*"
+```
+
+### 📊 Test Results
+- **Result File**: [N18-deep-paging-result.md](../Results/N18-deep-paging-result.md) (if exists)
+- **Test Date**: 2025-01-20
+- **Result**: ✅ PASS (4/4 tests)
+- **Test Duration**: ~180 seconds
+
+### 🔧 Test Environment
+| Parameter | Value |
+|-----------|-------|
+| Java Version | 21 |
+| Spring Boot | 3.5.4 |
+| MySQL | 8.0 (Docker) |
+| Test Data Size | 100,000 rows |
+| Page Size | 10 rows |
+| Max Offset Tested | 99,990 |
+
+### 💥 Failure Injection
+| Method | Details |
+|--------|---------|
+| **Failure Type** | Performance Degradation |
+| **Injection Method** | Deep OFFSET pagination (100,000+) |
+| **Failure Scope** | Pagination queries |
+| **Failure Duration** | N/A (performance test) |
+| **Blast Radius** | API response time, DB load |
+
+### ✅ Pass Criteria
+| Criterion | Threshold | Rationale |
+|-----------|-----------|-----------|
+| First Page Response | < 10ms | Baseline performance |
+| Last Page Response | < 5000ms | Acceptable degradation |
+| Cursor Pagination Consistent | < 10ms | O(log n) maintained |
+| EXPLAIN Type | index | Index scan confirmed |
+
+### ❌ Fail Criteria
+| Criterion | Threshold | Action |
+|-----------|-----------|--------|
+| Last Page Response | > 10000ms | Severe degradation |
+| EXPLAIN Type | ALL | Full table scan |
+| Cursor Response | > 100ms | Cursor broken too |
+
+### 🧹 Cleanup Commands
+```bash
+# After test - clean up test data
+mysql -u root -p maple_expectation -e "DELETE FROM test_items WHERE created_at >= CURDATE()"
+
+# Or truncate test table
+mysql -u root -p maple_expectation -e "TRUNCATE TABLE test_items"
+
+# Verify table state
+mysql -u root -p maple_expectation -e "SELECT COUNT(*) FROM test_items"
+```
+
+### 📈 Expected Test Metrics
+| Metric | Page 1 | Page 1000 | Page 10000 | Page 100000 |
+|--------|--------|----------|-----------|-------------|
+| OFFSET Response | 1ms | 50ms | 500ms | 5000ms |
+| Cursor Response | 1ms | 1ms | 1ms | 1ms |
+| EXPLAIN Type | index | index | index | index/all |
+
+### 🔗 Evidence Links
+- Test Class: [DeepPagingNightmareTest.java](../../../src/test/java/maple/expectation/chaos/nightmare/DeepPagingNightmareTest.java)
+- Repository: Pagination repository methods
+- Related Issue: #[P2] Deep Paging Performance Degradation
+
+### ❌ Fail If Wrong
+This test is invalid if:
+- Test data size differs significantly from production
+- Index configuration differs from production
+- MySQL version differs (affects EXPLAIN)
+- Test does not actually query deep pages
+
+---
+
 ## 0. 최신 테스트 결과 (2025-01-20)
 
 ### ✅ PASS (4/4 테스트 성공)
@@ -180,6 +276,17 @@ OFFSET 기반 페이징의 O(n) 복잡도 특성을 확인.
 2. **Cursor Pagination 도입**: 무한 스크롤 UI에 keyset 페이징 적용
 3. **대량 데이터 Export**: 깊은 페이지 대신 스트리밍/CSV Export 제공
 4. **인덱스 최적화**: ORDER BY 컬럼에 적합한 인덱스 구성
+
+---
+
+## Fail If Wrong
+
+This test is invalid if:
+- [ ] Test data size differs significantly from production
+- [ ] Index configuration differs from production
+- [ ] MySQL version differs (affects EXPLAIN)
+- [ ] Test does not actually query deep pages
+- [ ] Page size differs from production API
 
 ---
 

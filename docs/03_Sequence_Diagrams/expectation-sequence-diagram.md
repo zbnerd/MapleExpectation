@@ -1,9 +1,23 @@
 # Expectation API 데이터 흐름 분석
 
+> **Last Updated:** 2026-02-05
+> **Code Version:** MapleExpectation v1.x
+> **Diagram Version:** 1.0
+
 ## 개요
 
 `GET /api/v3/characters/{userIgn}/expectation` API의 전체 데이터 흐름을 분석한 문서입니다.
 Trace Log 기반으로 비동기 파이프라인, 캐시 레이어, 외부 API 호출 등의 흐름을 시각화합니다.
+
+## Terminology
+
+| 용어 | 정의 |
+|------|------|
+| **Light Snapshot** | 캐시 키 생성용 최소 필드 (ocid, fingerprint) |
+| **Full Snapshot** | 계산용 전체 필드 |
+| **Single-Flight** | 동시 요청 1회만 계산 |
+| **Tiered Cache** | L1(Caffeine) + L2(Redis) |
+| **GZIP** | 응답 압축 |
 
 ---
 
@@ -352,3 +366,27 @@ singleflight.follower.count
 - **Issue #118**: 비동기 Non-Blocking 파이프라인 (.join() 제거)
 - **Issue #158**: TotalExpectationResponse 캐싱
 - **CLAUDE.md**: 프로젝트 아키텍처 가이드라인
+
+## Evidence Links
+- **EquipmentService:** `src/main/java/maple/expectation/service/v2/EquipmentService.java`
+- **GameCharacterFacade:** `src/main/java/maple/expectation/service/v2/facade/GameCharacterFacade.java`
+- **ExpectationCalculator:** `src/main/java/maple/expectation/service/v2/calculator/ExpectationCalculator.java`
+
+## Fail If Wrong
+
+이 다이어그램이 부정확한 경우:
+- **API 호출 순서가 다름**: EquipmentService 실제 흐름 확인
+- **Two-Phase Snapshot 미작동**: Light → Full 로드 순서 확인
+- **캐싱이 작동하지 않음**: TieredCache 확인
+
+### Verification Commands
+```bash
+# EquipmentService 비동기 구현 확인
+grep "CompletableFuture" src/main/java/maple/expectation/service/v2/EquipmentService.java | head -20
+
+# Two-Phase 구현 확인
+grep -A 10 "fetchLightSnapshot\|fetchFullSnapshot" src/main/java/maple/expectation/service/v2/
+
+# Single-flight 확인
+grep -A 20 "getWithLoader\|SingleFlight" src/main/java/maple/expectation/global/cache/
+```

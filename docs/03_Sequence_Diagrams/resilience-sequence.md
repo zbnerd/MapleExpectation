@@ -1,8 +1,22 @@
 # Resilience4j CircuitBreaker 시퀀스 다이어그램
 
+> **Last Updated:** 2026-02-05
+> **Code Version:** MapleExpectation v1.x
+> **Diagram Version:** 1.0
+
 ## 개요
 
 외부 API 장애가 내부 시스템으로 전파되지 않도록 **서킷브레이커** 패턴을 적용합니다.
+
+## Terminology
+
+| 용어 | 정의 |
+|------|------|
+| **CLOSED** | 정상 상태 (요청 통과) |
+| **OPEN** | 차단 상태 (모든 요청 거부) |
+| **HALF_OPEN** | 복구 시도 상태 (3회 제한 시도) |
+| **IgnoreMarker** | 실패 카운트에서 제외할 예외 (4xx) |
+| **RecordMarker** | 실패 카운트에 포함할 예외 (5xx) |
 
 ## 상태 전이 다이어그램
 
@@ -162,3 +176,22 @@ private void notifyCircuitOpen() {
 - `src/main/resources/application.yml` (resilience4j 섹션)
 - `src/main/java/maple/expectation/global/resilience/DistributedCircuitBreakerManager.java`
 - `src/main/java/maple/expectation/external/client/ResilientNexonApiClient.java`
+
+## Fail If Wrong
+
+이 다이어그램이 부정확한 경우:
+- **CircuitBreaker가 열리지 않음**: failureRateThreshold 설정 확인
+- **4xx가 실패로 카운트됨**: IgnoreMarker 구현 확인
+- **Fallback이 호출되지 않음**: fallbackMethod 이름 확인
+
+### Verification Commands
+```bash
+# CircuitBreaker 설정 확인
+grep -A 20 "circuitbreaker:" src/main/resources/application.yml
+
+# IgnoreMarker 구현 확인
+find src/main/java -name "*IgnoreMarker.java"
+
+# ResilientNexonApiClient fallback 확인
+grep -A 10 "Fallback" src/main/java/maple/expectation/external/impl/ResilientNexonApiClient.java
+```

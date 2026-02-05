@@ -72,6 +72,9 @@ app:
   aop:
     trace:
       enabled: false
+  buffer:
+    redis:
+      enabled: false
 
 # BYOK 인증 설정 (테스트용)
 auth:
@@ -115,6 +118,11 @@ cache:
       l2-ttl-minutes: 10
       l2-serializer: json
     cubeTrials:
+      l1-ttl-minutes: 10
+      l1-max-size: 5000
+      l2-ttl-minutes: 20
+      l2-serializer: jdk
+    flameTrials:
       l1-ttl-minutes: 10
       l1-max-size: 5000
       l2-ttl-minutes: 20

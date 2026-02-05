@@ -2,24 +2,19 @@ package maple.expectation.cache;
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
-import maple.expectation.external.impl.RealNexonApiClient;
-import maple.expectation.service.v2.alert.DiscordAlertService;
-import maple.expectation.support.AbstractContainerBaseTest;
+import maple.expectation.support.ChaosTestSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -48,17 +43,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  *   <li>메트릭 수집 검증</li>
  * </ul>
  */
-@SpringBootTest
-@ActiveProfiles("test")
-@TestPropertySource(properties = {"nexon.api.key=dummy-test-key"})
+@Tag("integration")
 @Execution(ExecutionMode.SAME_THREAD)  // CLAUDE.md Section 24: Redis 공유 상태 충돌 방지
-class TieredCacheRaceConditionTest extends AbstractContainerBaseTest {
-
-    // -------------------------------------------------------------------------
-    // [Mock 구역] ApplicationContext 캐싱 일관성 (CLAUDE.md Section 24)
-    // -------------------------------------------------------------------------
-    @MockitoBean private RealNexonApiClient nexonApiClient;
-    @MockitoBean private DiscordAlertService discordAlertService;
+class TieredCacheRaceConditionTest extends ChaosTestSupport {
 
     @Autowired
     private CacheManager cacheManager;

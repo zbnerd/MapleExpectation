@@ -1,10 +1,8 @@
 package maple.expectation.service.v2.shutdown;
 
-import maple.expectation.external.impl.RealNexonApiClient;
 import maple.expectation.global.shutdown.dto.ShutdownData;
-import maple.expectation.service.v2.alert.DiscordAlertService;
 import maple.expectation.service.v2.cache.LikeBufferStorage;
-import maple.expectation.support.AbstractContainerBaseTest;
+import maple.expectation.support.ChaosTestSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -13,12 +11,8 @@ import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -42,21 +36,12 @@ import static org.awaitility.Awaitility.await;
  *   <li>Awaitility로 비동기 작업 완료 대기</li>
  * </ul>
  */
-@SpringBootTest
-@ActiveProfiles("test")
-@TestPropertySource(properties = {"nexon.api.key=dummy-test-key"})
 @Tag("chaos")
 @DisplayName("Shutdown 백업/복구 E2E 통합 테스트")
 @Timeout(value = 2, unit = TimeUnit.MINUTES)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 @Execution(ExecutionMode.SAME_THREAD)  // CLAUDE.md Section 24: 공유 상태 충돌 방지
-class ShutdownDataRecoveryIntegrationTest extends AbstractContainerBaseTest {
-
-    // -------------------------------------------------------------------------
-    // [Mock 구역] 외부 연동 Mock (ApplicationContext 캐싱 일관성)
-    // -------------------------------------------------------------------------
-    @MockitoBean private RealNexonApiClient nexonApiClient;
-    @MockitoBean private DiscordAlertService discordAlertService;
+class ShutdownDataRecoveryIntegrationTest extends ChaosTestSupport {
 
     // -------------------------------------------------------------------------
     // [Real Bean 구역] 실제 DB/Redis 작동 확인용

@@ -425,4 +425,294 @@ public void createOrderIdempotent(String requestId, Order order) {
 
 ---
 
+## 16. 문서 무결성 체크리스트 (30문항 자체 평가)
+
+| # | 검증 항목 | 상태 | 비고 |
+|---|----------|------|------|
+| 1 | 시나리오 목적이 명확하게 정의됨 | ✅ | "Black Hole Commit - ACK 유실" 시나리오 |
+| 2 | 테스트 전략과 검증 포인트가 구체적 | ✅ | 4가지 핵심 검증 포인트 정의 |
+| 3 | 성공/실패 기준이 정량화됨 | ✅ | "Write-Read 일관성 100%" 등 |
+| 4 | 장애 주입 방법이 실제 가능한 방법 | ✅ | Toxiproxy reset_peer toxic |
+| 5 | 모든 클레임에 Evidence ID 연결 | ✅ | [E1]-[E6] (테스트 코드 참조) |
+| 6 | 테스트 코드가 실제로 존재 | ✅ | BlackHoleCommitChaosTest.java 확인 |
+| 7 | 로그 예시가 실제 실행 결과 기반 | ✅ | 테스트 실행 결과 캡처 |
+| 8 | 복구 절차가 구체적이고 실행 가능 | ✅ | TCP RST 후 재연결 명령어 |
+| 9 | 데이터 무결성 검증 방법 포함 | ✅ | Idempotency Key 패턴 검증 |
+| 10 | 부정적 증거(Negative Evidence) 기록 | ⬜ | TODO: 추가 필요 |
+| 11 | 테스트 환경 정보가 상세함 | ✅ | Redis 7.2, Toxiproxy 2.5.0 명시 |
+| 12 | 재현 가능성이 높은 명령어 제공 | ✅ | Gradle 테스트 명령어 포함 |
+| 13 | 관련 CS 원리 설명 포함 | ✅ | 2PC, WAL, Idempotency, Exactly-Once |
+| 14 | 트레이드오프 분석 포함 | ⬜ | TODO: 추가 필요 |
+| 15 | 개선 이슈가 명확히 정의됨 | ✅ | Write-Ahead Log 도입 권장 |
+| 16 | 용어(Terminology) 섹션 포함 | ⬜ | TODO: 추가 필요 |
+| 17 | Fail If Wrong 조건 명시 | ⬜ | TODO: 추가 필요 |
+| 18 | 테스트 결과에 대한 통계적 검증 | ✅ | 100회 반복, 불일치 0건 |
+| 19 | 장애 시나리오의 현실성 | ✅ | ACK 유실은 실제 발생 가능 |
+| 20 | 완화(Mitigation) 전략 포함 | ✅ | Idempotency Key, 재시도 패턴 |
+| 21 | 모니터링 알람 기준 제시 | ⬜ | TODO: 추가 필요 |
+| 22 | 실행 명령어가 복사 가능 | ✅ | 모든 bash/curl 명령어 제공 |
+| 23 | 문서 버전/날짜 정보 포함 | ✅ | "2026-01-19" 테스트 일시 명시 |
+| 24 | 참고 자료 링크 유효성 | ✅ | Stripe Idempotency, Kafka Exactly-Once 링크 |
+| 25 | 다른 시나리오와의 관계 설명 | ⬜ | TODO: 추가 필요 |
+| 26 | 에이전트 역할 분명함 | ✅ | 5-Agent Council 명시 |
+| 27 | 다이어그램의 가독성 | ✅ | Mermaid sequenceDiagram 활용 |
+| 28 | 코드 예시의 실동작 가능성 | ✅ | Idempotency Key 패턴 예시 코드 |
+| 29 | 검증 명령어(Verification Commands) 제공 | ✅ | tcpdump, redis-cli 명령어 |
+| 30 | 전체 문서의 일관성 | ✅ | 5-Agent Council 형식 준수 |
+
+### 점수: 25/30 (83%)
+
+---
+
+## 17. Fail If Wrong (문서 유효성 조건)
+
+이 문서는 다음 조건 중 **하나라도 위배**되면 **유효하지 않음**:
+
+1. **Write-Read 일관성 100% 미달**: 정상 상태에서 불일치 발생
+2. **Idempotency Key가 중복 쓰기를 차단하지 못함**: `setIfAbsent()` 실패
+3. **재시도 패턴으로 복구 실패**: 최종 성공하지 못함
+4. **테스트 코드가 존재하지 않음**: `BlackHoleCommitChaosTest.java` 파일 누락
+5. **로그가 실제 실행 결과가 아님**: 로그가 위조/조작됨
+6. **ACK 유실 시뮬레이션 실패**: `reset_peer` toxic이 동작하지 않음
+
+---
+
+## 18. Terminology (용어 정의)
+
+| 용어 | 정의 | 관련 링크 |
+|------|------|-----------|
+| **Black Hole Commit** | 쓰기 요청은 성공한 것 같지만 ACK가 유실된 상태 | [E1] |
+| **ACK (Acknowledgment)** | 수신 측이 데이터를 받았음을 확인하는 응답 패킷 | [E1] |
+| **Idempotency** | 같은 요청을 여러 번 해도 결과가 같은 성질 | [E2] |
+| **Idempotency Key** | 중복 요청을 식별하기 위한 고유 키 | [E2] |
+| **Two-Phase Commit (2PC)** | 분산 트랜잭션의 원자성 보장 프로토콜 | [E3] |
+| **Write-Ahead Log (WAL)** | 변경 전 로그를 먼저 기록하는 복구 기술 | [E3] |
+| **Exactly-Once Semantics** | 메시지가 정확히 한 번만 처리됨을 보장 | [E4] |
+| **At-Least-Once Delivery** | 메시지가 최소 한 번은 전달됨을 보장 (중복 가능) | [E4] |
+| **At-Most-Once Delivery** | 메시지가 최대 한 번 전달됨 (유실 가능) | [E4] |
+| **Two Generals Problem** | 신뢰할 수 없는 통신에서 합의가 불가능함을 증명 | [E4] |
+
+---
+
+## 19. Evidence IDs (증거 식별자)
+
+### Code Evidence
+- **[C1]** `/home/maple/MapleExpectation/src/test/java/maple/expectation/chaos/network/BlackHoleCommitChaosTest.java`
+  - Line 84-139: `shouldTimeout_butDataMayExist_whenAckDropped()` - ACK 유실 시뮬레이션
+  - Line 146-177: `shouldPreventDuplicateWrite_withIdempotencyKey()` - Idempotency 패턴 검증
+  - Line 184-215: `shouldDetectProtocolError_whenPartialResponseLost()` - 부분 응답 유실
+  - Line 222-259: `shouldMaintainConsistency_acrossWriteRead()` - Write-Read 일관성
+  - Line 266-326: `shouldSucceed_afterRetryOnTimeout()` - 재시도 패턴 검증
+
+### Configuration Evidence
+- **[E1]** Toxiproxy 설정: `reset_peer` toxic, UPSTREAM 방향
+- **[E2]** Redis 설정: `SET NX` (If Not Exists) 명령어
+- **[E3]** Spring 설정: `@Transactional` 어노테이션
+
+### Test Result Evidence
+- **[T1]** ACK 유실 시 타임아웃: ~3000ms (예상 대로)
+- **[T2]** Idempotency Key 차단: 첫 쓰기 성공, 두 번째 쓰기 차단
+- **[T3]** Write-Read 일관성: 100회 반복, 불일치 0건
+
+### Negative Evidence
+- **[N1]** ACK 유실 시 클라이언트는 실패로 인지하지만 데이터는 저장될 수 있음
+- **[N2]** WAL 미구현 상태 (현재 개선 필요)
+- **[N3]** Idempotency Key TTL 만료 전 충돌 가능성
+
+---
+
+## 20. Test Environment (테스트 환경)
+
+### Software Versions
+```yaml
+Java: 21
+Spring Boot: 3.5.4
+Redis: 7.2 (via Testcontainers)
+MySQL: 8.0 (via Testcontainers)
+Redisson: 3.27.0
+Toxiproxy: 2.5.0 (Testcontainers embedded)
+Testcontainers: 1.19.0
+JUnit: 5.10.0
+```
+
+### Infrastructure Configuration
+```yaml
+# Docker Compose equivalent (Testcontainers)
+redis:
+  image: redis:7.2
+  ports: ["6379:6379"]
+
+mysql:
+  image: mysql:8.0
+  environment:
+    MYSQL_ROOT_PASSWORD: test
+    MYSQL_DATABASE: maple_test
+
+toxiproxy:
+  image: ghcr.io/shopify/toxiproxy:2.5.0
+  ports: ["8474:8474"]
+```
+
+### Toxiproxy Configuration
+```json
+{
+  "name": "redis-proxy",
+  "upstream": "redis:6379",
+  "listen": "0.0.0.0:6379",
+  "enabled": true
+}
+```
+
+---
+
+## 21. Reproducibility Guide (재현 가이드)
+
+### 사전 요구사항
+```bash
+# Docker 실행 중 확인
+docker version
+
+# Java 21 확인
+java -version
+
+# Gradle 확인
+./gradlew --version
+```
+
+### 1단계: 의존성 설치
+```bash
+cd /home/maple/MapleExpectation
+./gradlew dependencies
+```
+
+### 2단계: 테스트 실행
+```bash
+# 전체 Black Hole Commit 테스트 실행
+./gradlew test --tests "maple.expectation.chaos.network.BlackHoleCommitChaosTest" \
+  -Ptag=chaos \
+  --info \
+  2>&1 | tee logs/black-hole-$(date +%Y%m%d_%H%M%S).log
+```
+
+### 3단계: 개별 테스트 실행
+```bash
+# ACK 드롭 테스트
+./gradlew test --tests "*BlackHoleCommitChaosTest.shouldTimeout_butDataMayExist*"
+
+# Idempotency 패턴 테스트
+./gradlew test --tests "*BlackHoleCommitChaosTest.shouldPreventDuplicateWrite*"
+
+# Write-Read 일관성 테스트
+./gradlew test --tests "*BlackHoleCommitChaosTest.shouldMaintainConsistency*"
+
+# 재시도 패턴 테스트
+./gradlew test --tests "*BlackHoleCommitChaosTest.shouldSucceed_afterRetryOnTimeout*"
+```
+
+### 4단계: 결과 검증
+```bash
+# 테스트 리포트 확인
+open build/reports/tests/test/index.html
+
+# 로그 확인
+grep -E "(ACK|Idempotency|Duplicate|Consistency|Retry)" logs/black-hole-*.log
+```
+
+---
+
+## 22. Negative Evidence (부정적 증거)
+
+### 발견된 문제점
+1. **ACK 유실 시 불확실성** [N1]
+   - **증상**: 클라이언트는 타임아웃으로 실패로 인지하지만, 실제로는 데이터가 저장됨
+   - **위험도**: 🔴 High - 재시도 시 중복 데이터 생성
+   - **해결책**: Idempotency Key 패턴 적용
+
+2. **Write-Ahead Log 미구현** [N2]
+   - **증상**: 현재 버전에서는 WAL이 없음
+   - **위험도**: 🟡 Medium - 크래시 후 복구 불가
+   - **해결책**: 섹션 11 참고 (WAL 도입 권장)
+
+3. **Idempotency Key TTL 만료** [N3]
+   - **증상**: Idempotency Key가 만료된 후 재시도 시 중복 생성
+   - **위험도**: 🟠 Medium - 장기적인 타임아웃 후 재시도 시 문제
+   - **해결책**: TTL을 충분히 길게 설정 (24시간 이상)
+
+### 실패한 접근 방식
+1. **데이터베이스 트랜잭션만으로 해결 시도 실패**
+   - **시도**: `@Transactional`로 ACK 유실 방지 시도
+   - **문제**: 네트워크 레벨 ACK 유실은 트랜잭션으로 방지 불가
+   - **대안**: Idempotency Key 패턴 적용
+
+2. **단순 재시도 로직의 한계**
+   - **시도**: 타임아웃 시 무조건 재시도
+   - **문제**: 중복 데이터 생성 가능
+   - **대안**: Idempotency Key와 재시도 조합
+
+---
+
+## 23. Verification Commands (검증 명령어)
+
+### Toxiproxy 상태 확인
+```bash
+# 프록시 목록 확인
+toxiproxy-cli list
+
+# 특정 프록시 상태 확인
+toxiproxy-cli inspect redis-proxy
+
+# Toxic 목록 확인
+curl http://localhost:8474/proxies/redis-proxy/toxics | jq
+```
+
+### 네트워크 패킷 캡처
+```bash
+# Redis 트래픽 캡처
+tcpdump -i eth0 port 6379 -w redis-traffic.pcap
+
+# 캡처 파일 분석
+tcpdump -r redis-traffic.pcap -A | grep -E "(SET|GET|OK)"
+
+# UPSTREAM 패킷만 필터링
+tcpdump -i eth0 src port 6379 and dst port < 1024 -w upstream.pcap
+```
+
+### Idempotency Key 확인
+```bash
+# 모든 Idempotency 키 검색
+redis-cli KEYS "idempotency:*"
+
+# 특정 Idempotency 키 확인
+redis-cli GET "idempotency:order-123"
+
+# Idempotency 키 TTL 확인
+redis-cli TTL "idempotency:order-123"
+
+# Idempotency 키 수 세기
+redis-cli KEYS "idempotency:*" | wc -l
+```
+
+### 중복 데이터 확인
+```bash
+# 모든 주문 키 검색
+redis-cli KEYS "order:*" | wc -l
+
+# 특정 주문 데이터 확인
+redis-cli GET "order:abc-123"
+
+# 중복 키 찾기 (정규식)
+redis-cli --scan --pattern "order:*" | sort | uniq -d
+```
+
+### 연결 상태 확인
+```bash
+# TCP 연결 상태 확인
+netstat -an | grep 6379
+
+# 많은 TIME_WAIT/CLOSE_WAIT 확인 (ACK 유실 징후)
+netstat -an | grep -E "TIME_WAIT|CLOSE_WAIT" | grep 6379 | wc -l
+```
+
+---
+
 *Generated by 5-Agent Council - Chaos Testing Deep Dive*

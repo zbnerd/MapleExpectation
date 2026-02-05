@@ -225,6 +225,11 @@ cache:
       l1-max-size: 5000
       l2-ttl-minutes: 20
       l2-serializer: jdk
+    flameTrials:
+      l1-ttl-minutes: 10
+      l1-max-size: 5000
+      l2-ttl-minutes: 20
+      l2-serializer: jdk
     ocidCache:
       l1-ttl-minutes: 30
       l1-max-size: 5000
@@ -348,6 +353,7 @@ ai:
     enabled: ${AI_SRE_ENABLED:false}  # 기본 비활성화 (prod에서 true)
     daily-limit: 100  # [P0-Green] 일일 LLM 호출 한도
     throttle-seconds: 60  # 동일 에러 패턴 스로틀링 간격
+    max-concurrent-threads: 10  # Issue #283 P0-5: 동시 LLM 호출 최대 개수
 
 # Spring Batch 설정 - spring.batch는 상단 spring: 블록에 병합됨
 
@@ -364,10 +370,7 @@ otel:
 
 # Redis 기반 Write-Behind 버퍼 (P1-2: Scale-out 지원)
 # true: Redis Reliable Queue, false: In-Memory ConcurrentLinkedQueue
-app:
-  buffer:
-    redis:
-      enabled: false  # prod 프로필에서 true로 설정
+# → app.buffer.redis.enabled는 상단 app: 블록(line 184)에서 관리
 
 
 # Thread Pool 설정 외부화 (P1-1)
@@ -392,6 +395,13 @@ outbox:
   stale-threshold: 5m               # Stalled 판정 기준 (5분)
   max-backoff: 1h                   # Exponential Backoff 최대 대기 (1시간)
   instance-id: ${app.instance-id}   # Scale-out 인스턴스 식별자
+  scheduler:
+    nexon-api-outbox:
+      enabled: true
+      initial-delay: 10s
+      fixed-rate: 10s
+      recover-stalled:
+        fixed-rate: 5m
 
 # Graceful Shutdown 설정 (P1-1, P1-2, P1-3, P1-5: 하드코딩 제거 → YAML 외부화)
 shutdown:

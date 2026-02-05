@@ -2,6 +2,7 @@ package maple.expectation.config;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import com.zaxxer.hikari.metrics.micrometer.MicrometerMetricsTrackerFactory;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -73,7 +74,7 @@ public class LockHikariConfig {
         config.setValidationTimeout(3000);
 
         // Issue #284: Micrometer 메트릭 등록 (hikaricp.connections.active{pool=MySQLLockPool})
-        config.setMetricRegistry(meterRegistry);
+        config.setMetricsTrackerFactory(new MicrometerMetricsTrackerFactory(meterRegistry));
 
         log.info("[Lock Pool] Initialized dedicated MySQL lock connection pool (Fixed Size: {})", poolSize);
 
