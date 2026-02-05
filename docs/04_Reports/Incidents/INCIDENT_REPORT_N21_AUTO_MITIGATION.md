@@ -33,6 +33,42 @@ This report would be **INVALIDATED** if ANY of the following conditions are NOT 
 
 ---
 
+## Security Considerations (보안 고려사항)
+
+이 자동 완화 시나리오와 관련된 보안 사항:
+
+### 1. Auto-Mitigation API 노출
+
+- [ ] **Auto-mitigation endpoint는 내부 전용**: 외부 인터넷에서 접근 불가
+  - 확인 방법: `SecurityConfig.java`에서 IP whitelist 확인
+  - 현재 상태: ✅ 내부 네트워크(VPC)에서만 접근 가능
+
+- [ ] **자동 완화 권한 분리**: ROLE_ADMIN만 권한 변경 가능
+  - 확인 방법: `@PreAuthorize("hasRole('ADMIN')")` 어노테이션 확인
+  - 현재 상태: ✅ 권한 분리됨
+
+### 2. 민감 설정 데이터 보호
+
+- [ ] **Circuit Breaker 설정**: Actuator endpoint 접근 제한
+  - 확인 방법: `management.endpoints.web.exposure.include` 확인
+  - 현재 상태: ✅ health,info만 공개, configprops는 제한
+
+- [ ] **완화 이력 로그**: 수정 이력은 90일 보관
+  - 관련 문서: [DLQ Retention Policy](../../05_Guides/DLQ_RETENTION_POLICY.md)
+  - 현재 상태: ✅ 정책 준수
+
+### 3. 데이터 유출 방지
+
+- [ ] **민감 로그 마스킹**: 사용자 ID, 토큰 등 마스킹
+  - 확인 방법: LogicExecutor의 maskSensitiveData() 확인
+  - 현재 상태: ✅ 자동 마스킹 적용
+
+- [ ] **Grafana dashboard 접근 제한**: VPN 또는 내부 네트워크 only
+  - 확인 방법: Grafana nginx 설정 확인
+  - 현재 상태: ✅ VPN 통해서만 접근 가능
+
+---
+
 ## Evidence Registry (증거 레지스트리)
 
 | ID | 유형 | 설명 | 위치/링크 | 검증 상태 |

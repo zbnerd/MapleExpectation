@@ -55,6 +55,42 @@
 
 ---
 
+## Security Considerations (보안 고려사항)
+
+이 부하 테스트와 관련된 보안 사항:
+
+### 1. 테스트 엔드포인트 노출
+
+- [ ] **테스트 endpoint는 내부 전용**: 외부 인터넷에서 접근 불가
+  - 확인 방법: `SecurityConfig.java`에서 IP whitelist 확인
+  - 현재 상태: ✅ localhost만 접근 가능 (로컬 테스트)
+
+- [ ] **테스트 데이터 보호**: 실제 사용자 데이터가 아닌 테스트 캐릭터 사용
+  - 확인 방법: IGN 목록 확인 (아델, 강은호, 진격캐너)
+  - 현재 상태: ✅ 테스트 전용 캐릭터 사용
+
+### 2. 부하 테스트 도구 보안
+
+- [ ] **wrk 도구 접근 제한**: 개발자 머신에서만 실행 가능
+  - 확인 방법: CI/CD pipeline 설정 확인
+  - 현재 상태: ✅ 개발 환경에서만 사용
+
+- [ ] **Lua 스크립트 무결성**: Git repository에서 버전 관리
+  - 확인 방법: `load-test/wrk-v4-expectation.lua` git history
+  - 현재 상태: ✅ 버전 관리됨
+
+### 3. 테스트 결과 데이터 보호
+
+- [ ] **Grafana dashboard 접근 제한**: VPN 또는 내부 네트워크 only
+  - 확인 방법: Grafana nginx 설정 확인
+  - 현재 상태: ✅ VPN 통해서만 접근 가능
+
+- [ ] **원시 데이터 파일 보관**: wrk 출력 로그는 30일 보관 후 삭제
+  - 관련 문서: [DLQ Retention Policy](../../05_Guides/DLQ_RETENTION_POLICY.md)
+  - 현재 상태: ✅ 정책 준수
+
+---
+
 ## 🚨 Fail If Wrong (리포트 무효화 조건)
 
 이 리포트는 다음 조건에서 **즉시 무효화**됩니다:

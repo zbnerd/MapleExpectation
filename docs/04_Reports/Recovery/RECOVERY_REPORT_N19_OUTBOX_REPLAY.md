@@ -20,6 +20,41 @@
 
 ---
 
+## Security Considerations (보안 고려사항)
+
+이 장애 복구 시나리오와 관련된 보안 사항:
+
+### 1. Outbox Replay API 노출
+
+- [ ] **Replay API는 내부 전용**: 외부 인터넷에서 접근 불가
+  - 확인 방법: `SecurityConfig.java`에서 IP whitelist 확인
+  - 현재 상태: ✅ 내부 네트워크(VPC)에서만 접근 가능
+
+- [ ] **수동 replay 권한 분리**: ROLE_ADMIN만 실행 가능
+  - 확인 방법: `@PreAuthorize("hasRole('ADMIN')")` 어노테이션 확인
+  - 현재 상태: ✅ 권한 분리됨
+
+### 2. DLQ 데이터 접근 제한
+
+- [ ] **DLQ 테이블 접근 제한**: SELECT만 가능, DELETE는 별도 권한
+  - 확인 방법: Database role permissions 확인
+  - 현재 상태: ⚠️ 개선 필요 (DELETE 권한 제한)
+
+- [ ] **민감 로그 마스킹**: OCID 전체 또는 일부 마스킹
+  - 확인 방법: LogicExecutor의 maskSensitiveData() 확인
+  - 현재 상태: ✅ 자동 마스킹 적용
+
+### 3. Outbox 데이터 보호
+
+- [ ] **Outbox 테이블 암호화**: 미사용 (저장소 암호화로 대체)
+  - 현재 상태: ⚠️ 개선 권장 (TDE 적용 검토)
+
+- [ ] **Replay 로그 보관**: 재처리 로그는 30일 보관 후 삭제
+  - 관련 문서: [DLQ Retention Policy](../../05_Guides/DLQ_RETENTION_POLICY.md)
+  - 현재 상태: ✅ 정책 준수
+
+---
+
 ## 1. 경영진 보고서 (Executive Summary)
 
 ### 인시던트 개요
