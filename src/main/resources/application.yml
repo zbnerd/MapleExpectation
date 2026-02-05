@@ -148,6 +148,7 @@ resilience4j:
         waitDuration: 1s           # 1초부터 시작
         enableExponentialBackoff: true
         exponentialBackoffMultiplier: 2.0
+        randomizationFactor: 0.5   # ✅ Jitter 추가 (Retry Storm 방지 - 09-retry-storm.md 해결)
         retryExceptions:           # P1-9: 명시적 재시도 대상 (LikeSyncCircuitOpenException 제외)
           - org.springframework.dao.DataAccessException
           - org.springframework.jdbc.BadSqlGrammarException
