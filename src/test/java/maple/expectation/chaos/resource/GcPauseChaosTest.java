@@ -125,7 +125,13 @@ class GcPauseChaosTest extends AbstractContainerBaseTest {
         startLatch.countDown();
 
         // 모든 요청 완료 대기
-        boolean completed = endLatch.await(30, TimeUnit.SECONDS);
+        boolean completed = false;
+        try {
+            completed = endLatch.await(30, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Test interrupted", e);
+        }
         executor.shutdown();
 
         // Then: 결과 검증

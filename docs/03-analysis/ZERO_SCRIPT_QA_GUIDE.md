@@ -555,7 +555,7 @@ After QA Monitoring Complete:
 | 10 | 외부 참조 자료/문서 링크 제공 | 5/5 | [D10] 섹션: 참조 문서 (라인 746-753) | ✅ CLAUDE.md 링크 포함 |
 | 11 | 데이터/숫자의 출처 명시됨 | 5/5 | [D11] 포트번호, 상태 코드 등 명시 | ✅ 출처 명확 |
 | 12 | 설정값의 근거나 의도 설명됨 | 4/5 | [D12] Port Configuration, Performance Thresholds | 일부 설정 근거 누락 |
-| 13 | 여러 환경(OS/버전) 차이 고려됨 | 4/5 | [D13] Linux/Unix 우선, Windows 주의사항 추가 | ⚠️ Windows 미고려 |
+| 13 | 여러 환경(OS/버전) 차이 고려됨 | 4/5 | [D13] Linux/Unix 우선, Windows 주의사항 추가 | ⚠️ Windows 미고려 (주요 개발 환경은 Linux) |
 | 14 | 보안 민감 정보 처리 방법 명시됨 | 5/5 | [D14] Environment Variables + 비밀번호 마스킹 가이드 | ✅ 상세화 완료 |
 | 15 | 자동화된 검증 방법 제공됨 | 5/5 | [D15] Monitoring Commands Reference | ✅ 쉘 명령어 제공 |
 | 16 | 수동 절차와 자동 절차 구분됨 | 5/5 | [D16] Phase 1-3, Terminal 분리 | ✅ 명확히 구분됨 |

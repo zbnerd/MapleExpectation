@@ -70,6 +70,29 @@ services:
       retries: 3
 
   # ============================================
+  # Node Exporter: System Metrics Collection
+  # ============================================
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: maple-node-exporter
+    restart: always
+    ports:
+      - "9100:9100"
+    command:
+      - '--collector.disable-defaults'
+      - '--collector.cpu'
+      - '--collector.diskstats'
+      - '--collector.filesystem'
+      - '--collector.meminfo'
+      - '--collector.netdev'
+      - '--collector.stat'
+    networks:
+      - maple-network
+    depends_on:
+      prometheus:
+        condition: service_healthy
+
+  # ============================================
   # Promtail: MySQL Slow Query 로그 수집 (Issue #209)
   # ============================================
   promtail:
@@ -88,6 +111,33 @@ services:
       resources:
         limits:
           memory: 128M
+          cpus: '0.25'
+
+  # ============================================
+  # Alert Manager: Alert Routing and Management
+  # ============================================
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: maple-alertmanager
+    restart: always
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./docker/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.enable-lifecycle'
+    networks:
+      - maple-network
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 256M
           cpus: '0.25'
 
   # ============================================
@@ -123,6 +173,7 @@ volumes:
   loki_data:
   grafana_data:
   prometheus_data:
+  alertmanager_data:
 
 # P0-1 해결: external 대신 동일 네트워크 재정의
 # 기존 docker-compose.yml과 동일한 설정 (단독 또는 함께 실행 가능)
