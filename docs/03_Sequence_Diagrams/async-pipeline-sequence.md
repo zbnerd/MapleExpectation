@@ -1,8 +1,22 @@
 # Async Pipeline 시퀀스 다이어그램
 
+> **Last Updated:** 2026-02-05
+> **Code Version:** MapleExpectation v1.x
+> **Diagram Version:** 1.0
+> **Related Issue:** #118
+
 ## 개요
 
 톰캣 스레드 즉시 반환(0ms 목표)으로 고처리량 API를 구현합니다. Issue #118에서 `.join()` 제거 및 완전 비동기화 적용.
+
+## Terminology
+
+| 용어 | 정의 |
+|------|------|
+| **Tomcat Thread** | http-nio-* 요청 처리 스레드 |
+| **Two-Phase Snapshot** | Light → Full 단계적 데이터 로드 |
+| **Write-Behind** | 응답 후 비동기 DB 저장 |
+| **Single-flight** | 동시 요청 1회만 계산 |
 
 ## 전체 파이프라인 시퀀스
 
@@ -178,3 +192,22 @@ return service.calculateAsync(userIgn)
 - `src/main/java/maple/expectation/controller/GameCharacterControllerV2.java`
 - `src/main/java/maple/expectation/service/v2/EquipmentService.java`
 - `src/main/java/maple/expectation/config/ExecutorConfig.java`
+
+## Fail If Wrong
+
+이 다이어그램이 부정확한 경우:
+- **톰캣 스레드 반환하지 않음**: CompletableFuture 반환 확인
+- **.join() 사용으로 블로킹 발생**: 비동기 파이프라인 확인
+- **Write-Behind 누락**: CompletableFuture.runAsync 확인
+
+### Verification Commands
+```bash
+# 톰캣 스레드 반환 확인
+grep "CompletableFuture.*ResponseEntity" src/main/java/maple/expectation/controller/*Controller.java
+
+# .join() 사용 확인 (금지)
+grep "\.join()" src/main/java/maple/expectation/service/v2/EquipmentService.java
+
+# Write-Behind 확인
+grep "CompletableFuture.runAsync" src/main/java/maple/expectation/service/v2/
+```

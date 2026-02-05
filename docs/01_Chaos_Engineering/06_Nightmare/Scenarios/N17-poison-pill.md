@@ -6,6 +6,105 @@
 
 ---
 
+## Test Evidence & Reproducibility
+
+### 📋 Test Class
+- **Class**: `PoisonPillNightmareTest`
+- **Package**: `maple.expectation.chaos.nightmare`
+- **Source**: [`src/test/java/maple/expectation/chaos/nightmare/PoisonPillNightmareTest.java`](../../../src/test/java/maple/expectation/chaos/nightmare/PoisonPillNightmareTest.java)
+
+### 🚀 Quick Start
+```bash
+# Prerequisites: Docker Compose running (MySQL, Redis)
+docker-compose up -d
+
+# Run specific Nightmare test
+./gradlew test --tests "maple.expectation.chaos.nightmare.PoisonPillNightmareTest" \
+  2>&1 | tee logs/nightmare-17-$(date +%Y%m%d_%H%M%S).log
+
+# Run individual test methods
+./gradlew test --tests "*PoisonPillNightmareTest.shouldDetectPayloadCorruption_withContentHash*"
+./gradlew test --tests "*PoisonPillNightmareTest.shouldPreventHeadOfLineBlocking*"
+./gradlew test --tests "*PoisonPillNightmareTest.shouldMoveToDlq_whenMaxRetryExceeded*"
+./gradlew test --tests "*PoisonPillNightmareTest.shouldAutomaticallyMoveToDlq_whenPayloadCorrupted*"
+./gradlew test --tests "*PoisonPillNightmareTest.shouldPreserveCorruptedPayload_inDlq*"
+```
+
+### 📊 Test Results
+- **Result File**: [N17-poison-pill-result.md](../Results/N17-poison-pill-result.md) (if exists)
+- **Test Date**: 2025-01-20
+- **Result**: ❌ FAIL (2/5 tests)
+- **Test Duration**: ~120 seconds
+
+### 🔧 Test Environment
+| Parameter | Value |
+|-----------|-------|
+| Java Version | 21 |
+| Spring Boot | 3.5.4 |
+| Outbox Table | donation_outbox |
+| DLQ Table | donation_dlq |
+| Content Hash Algorithm | SHA-256 |
+
+### 💥 Failure Injection
+| Method | Details |
+|--------|---------|
+| **Failure Type** | Payload Corruption |
+| **Injection Method** | Native query UPDATE on payload field |
+| **Failure Scope** | Outbox entries |
+| **Failure Duration** | Until test completes |
+| **Blast Radius** | Message processing pipeline |
+
+### ✅ Pass Criteria
+| Criterion | Threshold | Rationale |
+|-----------|-----------|-----------|
+| ContentHash Detection | 100% | Corruption detected |
+| DLQ Transfer Rate | 100% | Poison pills isolated |
+| HoL Blocking Prevention | Yes | Normal messages processed |
+| Triple Safety Net | All 3 levels | DB → File → Discord |
+
+### ❌ Fail Criteria
+| Criterion | Threshold | Action |
+|-----------|-----------|--------|
+| ContentHash Missed | > 0 | Corruption not detected |
+| Processing Continues | > 0 | Poison pill retried |
+| HoL Blocking | Yes | Queue stuck |
+| DLQ Not Created | > 0 | Evidence lost |
+
+### 🧹 Cleanup Commands
+```bash
+# After test - clear DLQ entries
+mysql -u root -p maple_expectation -e "DELETE FROM donation_dlq WHERE created_at >= CURDATE()"
+
+# Reset corrupted outbox entries
+mysql -u root -p maple_expectation -e "UPDATE donation_outbox SET status = 'PENDING', processed_by = NULL, processed_at = NULL WHERE status = 'DEAD_LETTER'"
+
+# Verify outbox state
+mysql -u root -p maple_expectation -e "SELECT status, COUNT(*) FROM donation_outbox GROUP BY status"
+```
+
+### 📈 Expected Test Metrics
+| Metric | Before | After | Threshold |
+|--------|--------|-------|-----------|
+| ContentHash Mismatch | 0 | N | corruption count |
+| DLQ Entries | 0 | N | = corruption count |
+| COMPLETED Normal | 0 | M | total - N |
+| HoL Blocked | No | No | must not block |
+
+### 🔗 Evidence Links
+- Test Class: [PoisonPillNightmareTest.java](../../../src/test/java/maple/expectation/chaos/nightmare/PoisonPillNightmareTest.java)
+- Outbox Entity: [DonationOutbox.java](../../../src/main/java/maple/expectation/domain/v2/NexonApiOutbox.java)
+- DLQ Handler: [DlqHandler.java](../../../src/main/java/maple/expectation/service/v2/outbox/DlqHandler.java)
+- Related Issue: #[P2] Outbox ContentHash Detection and DLQ Transfer
+
+### ❌ Fail If Wrong
+This test is invalid if:
+- Test does not corrupt payload correctly
+- ContentHash verification disabled in test environment
+- DLQ tables differ from production schema
+- OutboxProcessor not running during test
+
+---
+
 ## 0. 최신 테스트 결과 (2025-01-20)
 
 ### ❌ FAIL (2/5 테스트 실패)
@@ -323,6 +422,17 @@ Poison Pill 자동 DLQ 이동 및 변조된 payload 보존 테스트에서
 2. **ContentHash 검증 로직 확인**: verifyIntegrity() 호출 경로 점검
 3. **DlqHandler 동작 검증**: Triple Safety Net 각 단계 로깅 강화
 4. **테스트 격리**: @Transactional 제거 후 수동 롤백으로 전환
+
+---
+
+## Fail If Wrong
+
+This test is invalid if:
+- [ ] Test does not corrupt payload correctly
+- [ ] ContentHash verification disabled in test environment
+- [ ] DLQ tables differ from production schema
+- [ ] OutboxProcessor not running during test
+- [ ] Native query UPDATE fails silently
 
 ---
 

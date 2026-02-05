@@ -1,6 +1,22 @@
 # Auto Warmup - 인기 캐릭터 자동 웜업 (#275)
 
 > **상위 문서**: [CLAUDE.md](../../CLAUDE.md) | [infrastructure.md](infrastructure.md)
+>
+> **Last Updated:** 2026-02-05
+> **Applicable Versions:** Spring Boot 3.5.4, Redis 7.x
+> **Documentation Version:** 1.0
+
+## Terminology
+
+| 용어 | 정의 |
+|------|------|
+| **Cold Cache** | 초기 시작 시 캐시가 비어있는 상태 |
+| **Warm Cache** | 자주 조회되는 데이터가 캐시된 상태 |
+| **PopularCharacterTracker** | 인기 캐릭터 추적 서비스 |
+| **ZINCRBY** | Redis Sorted Set 점수 증가 명령 |
+| **ZREVRANGE** | Redis Sorted Set 상위 N개 조회 |
+
+---
 
 ## 1. 개요
 
@@ -186,3 +202,27 @@ Actuator 엔드포인트는 제공하지 않습니다 (스케줄러 자동 실�
 - [infrastructure.md](infrastructure.md) - Redis, Cache 설정
 - [async-concurrency.md](async-concurrency.md) - 비동기 처리
 - [CLAUDE.md](../../CLAUDE.md) - 프로젝트 가이드라인
+
+## Evidence Links
+- **PopularCharacterTracker:** `src/main/java/maple/expectation/service/v4/warmup/PopularCharacterTracker.java`
+- **PopularCharacterWarmupScheduler:** `src/main/java/maple/expectation/scheduler/PopularCharacterWarmupScheduler.java`
+- **Configuration:** `src/main/resources/application.yml` (scheduler.warmup 섹션)
+
+## Fail If Wrong
+
+이 가이드가 부정확한 경우:
+- **웜업이 동작하지 않음**: scheduler.warmup.enabled 설정 확인
+- **Thundering Herd 발생**: delay-between-ms 설정 확인
+- **메모리 누수**: ZSET TTL 설정 확인
+
+### Verification Commands
+```bash
+# 웜업 스케줄러 확인
+find src/main/java -name "*WarmupScheduler.java"
+
+# 웜업 설정 확인
+grep -A 5 "scheduler.warmup" src/main/resources/application.yml
+
+# ZSET 패턴 확인
+grep -r "popular:characters" src/main/java --include="*.java"
+```

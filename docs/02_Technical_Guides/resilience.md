@@ -1,8 +1,21 @@
 # Resilience Guide
 
 > **상위 문서:** [CLAUDE.md](../CLAUDE.md)
+>
+> **Last Updated:** 2026-02-05
+> **Applicable Versions:** Resilience4j 2.2.0, Spring Boot 3.5.4
+> **Documentation Version:** 1.0
 
 이 문서는 MapleExpectation 프로젝트의 회복 탄력성(Resilience) 패턴 및 외부 API 장애 대응 전략을 정의합니다.
+
+## Terminology
+
+| 용어 | 정의 |
+|------|------|
+| **Circuit Breaker** | 장애 확산 방지를 위한 회로 차단 패턴 |
+| **Graceful Degradation** | 장애 시 서비스 가용성 유지 전략 |
+| **Fallback** | 장애 시 대체 동작 제공 |
+| **Marker Interface** | 서킷브레이커 실패 기록 여부 결정 |
 
 ---
 
@@ -37,3 +50,30 @@ graph TD
     
     ReturnCache --> End[서비스 유지]
     ErrorAlert --> End
+
+---
+
+## Evidence Links
+- **ResilientNexonApiClient:** `src/main/java/maple/expectation/external/impl/ResilientNexonApiClient.java`
+- **Marker Interfaces:** `src/main/java/maple/expectation/global/error/exception/marker/`
+- **Configuration:** `src/main/resources/application.yml` (resilience4j 섹션)
+- **Tests:** `src/test/java/maple/expectation/external/ResilientNexonApiClientTest.java`
+
+## Fail If Wrong
+
+이 가이드가 부정확한 경우:
+- **CircuitBreaker가 예상대로 동작하지 않음**: resilience4j 설정과 Marker Interface 확인
+- **Fallback이 호출되지 않음**: @Retry, @CircuitBreaker 어노테이션 순서 확인
+- **외부 API 장애 시 서비스 전체 마비**: Graceful Degradation 미작동 확인
+
+### Verification Commands
+```bash
+# CircuitBreaker 설정 확인
+grep -A 30 "resilience4j:" src/main/resources/application.yml
+
+# Marker Interface 확인
+find src/main/java -name "*Marker.java"
+
+# ResilientNexonApiClient 구현 확인
+grep -A 20 "class ResilientNexonApiClient" src/main/java/maple/expectation/external/impl/
+```

@@ -1,5 +1,20 @@
 # Redis HA 아키텍처 및 Redlock 검토
 
+> **Last Updated:** 2026-02-05
+> **Applicable Versions:** Redisson 3.27.0, Redis 7.x
+> **Documentation Version:** 1.0
+
+## Terminology
+
+| 용어 | 정의 |
+|------|------|
+| **Sentinel** | Redis 고가용성 모니터링 시스템 |
+| **Quorum** | 과반수 합의 (2/3) |
+| **Split-brain** | 네트워크 분리 시 이중 Master 발생 |
+| **Redlock** | 다중 Redis 인스턴스 기반 분산 락 알고리즘 |
+
+---
+
 ## 1. 현재 구현: Sentinel 기반 HA
 
 ### 1.1 아키텍처
@@ -369,4 +384,24 @@ Half-Open: 3회 시도로 Redis 상태 확인
   - `src/main/java/maple/expectation/global/lock/RedisDistributedLockStrategy.java`
   - `src/main/java/maple/expectation/service/v2/shutdown/ShutdownDataRecoveryService.java`
   - `src/main/resources/application.yml` (CircuitBreaker 설정)
-  - `docs/resilience.md`
+  - `docs/02_Technical_Guides/resilience.md`
+
+## Evidence Links
+- **RedissonConfig:** `src/main/java/maple/expectation/config/RedissonConfig.java`
+- **Failover Tests:** `src/test/java/maple/expectation/chaos/nightmare/*SentinelTest.java`
+
+## Fail If Wrong
+
+이 가이드가 부정확한 경우:
+- **Sentinel Failover가 작동하지 않음**: Redisson 설정 확인
+- **READONLY 에러 발생**: ReadMode.MASTER 설정 확인
+- **스케줄러 중복 실행**: 분산 락 동작 확인
+
+### Verification Commands
+```bash
+# Redisson Sentinel 설정 확인
+grep -A 20 "useSentinelServers" src/main/java/maple/expectation/config/RedissonConfig.java
+
+# Failover 테스트 결과 확인
+find src/test/java -name "*Failover*Test.java"
+```

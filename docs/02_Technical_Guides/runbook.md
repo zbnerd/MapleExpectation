@@ -1,5 +1,19 @@
 # MapleExpectation 운영 가이드 (Runbook)
 
+> **Last Updated:** 2026-02-05
+> **Documentation Version:** 1.0
+
+## Terminology
+
+| 용어 | 정의 |
+|------|------|
+| **ExternalServiceException** | 넥슨 API 장애 예외 |
+| **RateLimitExceededException** | API 호출 한도 초과 예외 |
+| **Circuit Breaker** | 장애 확산 방지 패턴 |
+| **Graceful Degradation** | 장애 시 서비스 가용성 유지 |
+
+---
+
 ## 1. 장애 대응 매뉴얼
 
 ### 1.1 ExternalServiceException (Nexon API 장애)
@@ -98,4 +112,28 @@ docker-compose -f docker-compose.rollback.yml up -d
 ```bash
 # 이전 리비전으로 롤백
 kubectl rollout undo deployment/maple-expectation
+```
+
+## Evidence Links
+- **GlobalExceptionHandler:** `src/main/java/maple/expectation/global/error/GlobalExceptionHandler.java`
+- **DiscordAlertService:** `src/main/java/maple/expectation/service/v2/alert/DiscordAlertService.java`
+- **Actuator Config:** `src/main/resources/application.yml` (management 섹션)
+
+## Fail If Wrong
+
+이 가이드가 부정확한 경우:
+- **장애 대응 절차가 동작하지 않음**: 실제 로그와 비교
+- **롤백 절차가 환경에 맞지 않음**: 배포 환경 확인
+- **메트릭 수집이 안됨**: Actuator 엔드포인트 확인
+
+### Verification Commands
+```bash
+# Actuator 엔드포인트 확인
+curl http://localhost:8080/actuator/health
+
+# 메트릭 확인
+curl http://localhost:8080/actuator/metrics
+
+# Discord 알림 설정 확인
+grep -A 10 "discord" src/main/resources/application-*.yml
 ```

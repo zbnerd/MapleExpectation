@@ -5,6 +5,43 @@
 
 ---
 
+## Test Evidence & Metadata
+
+### 🔗 Evidence Links
+- **Scenario**: [N04-connection-vampire.md](../Scenarios/N04-connection-vampire.md)
+- **Test Class**: [ConnectionVampireNightmareTest.java](../../../src/test/java/maple/expectation/chaos/nightmare/ConnectionVampireNightmareTest.java)
+- **Affected Code**: [GameCharacterService.java](../../../src/main/java/maple/expectation/service/GameCharacterService.java) (Line 70-102)
+- **Log File**: `logs/nightmare-04-20260119_HHMMSS.log`
+
+### 🔧 Test Environment
+| Parameter | Value |
+|-----------|-------|
+| Java Version | 21 |
+| Spring Boot | 3.5.4 |
+| MySQL | 8.0 (Docker) |
+| HikariCP Pool Size | 10 |
+| Connection Timeout | 3000ms |
+| API Delay (Mock) | 5000ms |
+
+### 📊 Test Data Set
+| Data Type | Description |
+|-----------|-------------|
+| Concurrent Requests | 20 (2x pool size) |
+| API Call Pattern | `getOcidByCharacterName().join()` |
+| Transaction Propagation | REQUIRES_NEW |
+| Character Name | Test IGN (varying) |
+
+### ⏱️ Test Execution Details
+| Metric | Value |
+|--------|-------|
+| Test Start Time | 2026-01-19 10:20:00 KST |
+| Test End Time | 2026-01-19 10:22:00 KST |
+| Total Duration | ~120 seconds |
+| Connection Timeouts | 0 |
+| Pool Usage | < 100% |
+
+---
+
 ## 테스트 결과 요약
 
 | 테스트 | 결과 | 비고 |

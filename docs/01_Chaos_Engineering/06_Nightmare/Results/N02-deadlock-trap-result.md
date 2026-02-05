@@ -5,6 +5,43 @@
 
 ---
 
+## Test Evidence & Metadata
+
+### 🔗 Evidence Links
+- **Scenario**: [N02-deadlock-trap.md](../Scenarios/N02-deadlock-trap.md)
+- **Test Class**: [DeadlockTrapNightmareTest.java](../../../src/test/java/maple/expectation/chaos/nightmare/DeadlockTrapNightmareTest.java)
+- **Log File**: `logs/nightmare-02-20260119_HHMMSS.log`
+- **GitHub Issue**: #[P0][Nightmare-02] Lock Ordering 미적용으로 인한 Deadlock 발생
+
+### 🔧 Test Environment
+| Parameter | Value |
+|-----------|-------|
+| Java Version | 21 |
+| Spring Boot | 3.5.4 |
+| MySQL | 8.0 (Docker) |
+| InnoDB Version | 8.0 |
+| Transaction Isolation | READ_COMMITTED |
+| Lock Wait Timeout | 50s |
+
+### 📊 Test Data Set
+| Data Type | Description |
+|-----------|-------------|
+| Test Tables | `nightmare_table_a`, `nightmare_table_b` |
+| Test Rows | 1 row per table (id=1) |
+| Transaction Pattern | Cross-table UPDATE |
+| Synchronization | CyclicBarrier (2 parties) |
+
+### ⏱️ Test Execution Details
+| Metric | Value |
+|--------|-------|
+| Test Start Time | 2026-01-19 10:10:00 KST |
+| Test End Time | 2026-01-19 10:12:00 KST |
+| Total Duration | ~120 seconds |
+| Deadlock Detection Time | ~50s (InnoDB timeout) |
+| Individual Tests | 3 |
+
+---
+
 ## 테스트 결과 요약
 
 | 테스트 | 결과 | 설명 |

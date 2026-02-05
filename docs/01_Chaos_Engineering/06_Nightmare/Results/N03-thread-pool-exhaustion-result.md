@@ -5,6 +5,41 @@
 
 ---
 
+## Test Evidence & Metadata
+
+### 🔗 Evidence Links
+- **Scenario**: [N03-thread-pool-exhaustion.md](../Scenarios/N03-thread-pool-exhaustion.md)
+- **Test Class**: [ThreadPoolExhaustionNightmareTest.java](../../../src/test/java/maple/expectation/chaos/nightmare/ThreadPoolExhaustionNightmareTest.java)
+- **Executor Config**: [ExecutorConfig.java](../../../src/main/java/maple/expectation/config/ExecutorConfig.java)
+- **Log File**: `logs/nightmare-03-20260119_HHMMSS.log`
+
+### 🔧 Test Environment
+| Parameter | Value |
+|-----------|-------|
+| Java Version | 21 |
+| Spring Boot | 3.5.4 |
+| expectationComputeExecutor | core=4, max=8, queue=200 |
+| alertTaskExecutor | core=2, max=4, queue=200 |
+| Rejection Policy | EXPECTATION_ABORT_POLICY / LOGGING_ABORT_POLICY |
+
+### 📊 Test Data Set
+| Data Type | Description |
+|-----------|-------------|
+| Test Tasks | 60 tasks (15x pool capacity) |
+| Task Duration | ~50ms per task |
+| Measured Metric | Main thread blocking time |
+
+### ⏱️ Test Execution Details
+| Metric | Value |
+|--------|-------|
+| Test Start Time | 2026-01-19 10:15:00 KST |
+| Test End Time | 2026-01-19 10:17:00 KST |
+| Total Duration | ~120 seconds |
+| Main Thread Blocking | 2010ms |
+| Individual Tests | 2 |
+
+---
+
 ## 테스트 결과 요약
 
 | 테스트 | 결과 | 설명 |

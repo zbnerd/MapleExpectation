@@ -1,8 +1,21 @@
 # Testing Guide
 
 > **상위 문서:** [CLAUDE.md](../CLAUDE.md)
+>
+> **Last Updated:** 2026-02-05
+> **Applicable Versions:** JUnit 5, Testcontainers 1.x, Java 21
+> **Documentation Version:** 1.0
 
 이 문서는 MapleExpectation 프로젝트의 테스트 작성, 동시성 테스트, Flaky Test 방지 규칙을 정의합니다.
+
+## Terminology
+
+| 용어 | 정의 |
+|------|------|
+| **Flaky Test** | 코드 변경 없이 때때로 실패하는 비결정적 테스트 |
+| **Testcontainers** | Docker를 활용한 통합 테스트 환경 격리 |
+| **Race Condition** | 비동기 작업 완료 순서에 의존하여 발생하는 결함 |
+| **CountDownLatch** | 스레드 간 작업 완료 신호 동기화 도구 |
 
 ---
 
@@ -407,4 +420,29 @@ junit.jupiter.execution.parallel.config.dynamic.factor=0.5
 
 # Nightly (전체 검증)
 ./gradlew test
+```
+
+## Evidence Links
+- **Test Base Classes:** `src/test/java/maple/expectation/config/`
+- **Example Tests:** `src/test/java/maple/expectation/service/v2/`
+- **JUnit Config:** `src/test/resources/junit-platform.properties`
+
+## Fail If Wrong
+
+이 가이드가 부정확한 경우:
+- **awaitTermination() 누락**: 비동기 테스트가 Race Condition으로 실패
+- **Testcontainers 미사용**: 외부 의존성(Redis, MySQL)으로 인한 Flaky Test
+- **@BeforeEach 미사용**: 테스트 간 상태 공유로 간헐적 실패
+- **Thread.sleep() 사용**: 환경별 성능 차이로 Flaky Test
+
+### Verification Commands
+```bash
+# awaitTermination 사용 확인
+grep -r "awaitTermination" src/test/java --include="*.java"
+
+# Thread.sleep 사용 확인 (금지)
+grep -r "Thread\.sleep" src/test/java --include="*.java"
+
+# @BeforeEach 사용 확인
+grep -r "@BeforeEach" src/test/java --include="*.java" | wc -l
 ```

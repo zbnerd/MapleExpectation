@@ -6,6 +6,101 @@
 
 ---
 
+## Test Evidence & Reproducibility
+
+### 📋 Test Class
+- **Class**: `ZombieOutboxNightmareTest`
+- **Package**: `maple.expectation.chaos.nightmare`
+- **Source**: [`src/test/java/maple/expectation/chaos/nightmare/ZombieOutboxNightmareTest.java`](../../../src/test/java/maple/expectation/chaos/nightmare/ZombieOutboxNightmareTest.java)
+
+### 🚀 Quick Start
+```bash
+# Prerequisites: Docker Compose running (MySQL, Redis)
+docker-compose up -d
+
+# Run specific Nightmare test
+./gradlew test --tests "maple.expectation.chaos.nightmare.ZombieOutboxNightmareTest" \
+  2>&1 | tee logs/nightmare-13-$(date +%Y%m%d_%H%M%S).log
+
+# Run individual test methods
+./gradlew test --tests "*ZombieOutboxNightmareTest.shouldCreateZombieOutbox_whenJvmCrash*"
+./gradlew test --tests "*ZombieOutboxNightmareTest.shouldRecoverZombie_byScheduler*"
+./gradlew test --tests "*ZombieOutboxNightmareTest.shouldMaintainDataIntegrity_afterZombieRecovery*"
+./gradlew test --tests "*ZombieOutboxNightmareTest.shouldRecoverMultipleZombies_createdByRealDonations*"
+```
+
+### 📊 Test Results
+- **Result File**: [N13-zombie-outbox-result.md](../Results/N13-zombie-outbox-result.md) (if exists)
+- **Test Date**: 2025-01-20
+- **Result**: ❌ FAIL (2/4 tests)
+- **Test Duration**: ~150 seconds
+
+### 🔧 Test Environment
+| Parameter | Value |
+|-----------|-------|
+| Java Version | 21 |
+| Spring Boot | 3.5.4 |
+| MySQL | 8.0 (Docker) |
+| Outbox Table | donation_outbox |
+| Stale Threshold | 5 minutes (configurable) |
+
+### 💥 Failure Injection
+| Method | Details |
+|--------|---------|
+| **Failure Type** | JVM Crash Simulation |
+| **Injection Method** | PROCESSING status without completion |
+| **Failure Scope** | Outbox entries |
+| **Failure Duration** | Until scheduler runs |
+| **Blast Radius** | Message delivery pipeline |
+
+### ✅ Pass Criteria
+| Criterion | Threshold | Rationale |
+|-----------|-----------|-----------|
+| Zombie Recovery Rate | 100% | All stalled items recovered |
+| Data Integrity | 100% | No message loss |
+| Stalled Detection | < 10min | Configurable threshold |
+
+### ❌ Fail Criteria
+| Criterion | Threshold | Action |
+|-----------|-----------|--------|
+| Zombie Recovery Rate | < 100% | Messages lost |
+| Permanent PROCESSING | > 0 | Stalled items not detected |
+| Data Inconsistency | > 0 | Integrity violation |
+
+### 🧹 Cleanup Commands
+```bash
+# After test - clear zombie outbox entries
+mysql -u root -p maple_expectation -e "DELETE FROM donation_outbox WHERE status = 'PROCESSING'"
+
+# Reset stale entries to PENDING
+mysql -u root -p maple_expectation -e "UPDATE donation_outbox SET status = 'PENDING', processed_by = NULL, processed_at = NULL WHERE status = 'PROCESSING'"
+
+# Verify outbox state
+mysql -u root -p maple_expectation -e "SELECT status, COUNT(*) FROM donation_outbox GROUP BY status"
+```
+
+### 📈 Expected Test Metrics
+| Metric | Before | After | Threshold |
+|--------|--------|-------|-----------|
+| PROCESSING Entries | 0 | N+ | N/A |
+| PENDING Entries | 0 | 0 | = 0 |
+| Stalled Recovered | 0 | N | = N |
+
+### 🔗 Evidence Links
+- Test Class: [ZombieOutboxNightmareTest.java](../../../src/test/java/maple/expectation/chaos/nightmare/ZombieOutboxNightmareTest.java)
+- Outbox Entity: [DonationOutbox.java](../../../src/main/java/maple/expectation/domain/v2/NexonApiOutbox.java)
+- Scheduler: [NexonApiOutboxScheduler.java](../../../src/main/java/maple/expectation/scheduler/NexonApiOutboxScheduler.java)
+- Related Issue: #[P1] Outbox Zombie Recovery Data Integrity
+
+### ❌ Fail If Wrong
+This test is invalid if:
+- Test does not simulate JVM crash correctly
+- Stale threshold differs from production
+- Scheduler not running during test
+- Database constraints prevent PROCESSING state
+
+---
+
 ## 0. 최신 테스트 결과 (2025-01-20)
 
 ### ❌ FAIL (2/4 테스트 실패)
@@ -163,6 +258,17 @@ Zombie Outbox 복구 시 **DistributedLockException** 발생으로
 2. **Stale Threshold 조정**: 테스트용 짧은 threshold 설정 (예: 10초)
 3. **락 획득 재시도**: 실패 시 재시도 로직 추가
 4. **모니터링 알람**: `outbox_stalled_recovered_total` 메트릭 감시
+
+---
+
+## Fail If Wrong
+
+This test is invalid if:
+- [ ] Test does not simulate JVM crash correctly
+- [ ] Stale threshold differs from production setting
+- [ ] Scheduler not running during test
+- [ ] Database constraints prevent PROCESSING state
+- [ ] Clock skew affects stale detection
 
 ---
 

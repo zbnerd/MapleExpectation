@@ -6,6 +6,99 @@
 
 ---
 
+## Test Evidence & Reproducibility
+
+### 📋 Test Class
+- **Class**: `AsyncContextLossNightmareTest`
+- **Package**: `maple.expectation.chaos.nightmare`
+- **Source**: [`src/test/java/maple/expectation/chaos/nightmare/AsyncContextLossNightmareTest.java`](../../../src/test/java/maple/expectation/chaos/nightmare/AsyncContextLossNightmareTest.java)
+
+### 🚀 Quick Start
+```bash
+# Prerequisites: Docker Compose running (MySQL, Redis)
+docker-compose up -d
+
+# Run specific Nightmare test
+./gradlew test --tests "maple.expectation.chaos.nightmare.AsyncContextLossNightmareTest" \
+  2>&1 | tee logs/nightmare-12-$(date +%Y%m%d_%H%M%S).log
+
+# Run individual test methods
+./gradlew test --tests "*AsyncContextLossNightmareTest.shouldPropagateMdcInAlertTaskExecutor*"
+./gradlew test --tests "*AsyncContextLossNightmareTest.shouldPropagateMdcInExpectationComputeExecutor*"
+./gradlew test --tests "*AsyncContextLossNightmareTest.shouldMeasureContextPropagationRate_over100Iterations*"
+```
+
+### 📊 Test Results
+- **Result File**: [N12-async-context-loss-result.md](../Results/N12-async-context-loss-result.md) (if exists)
+- **Test Date**: 2025-01-20
+- **Result**: ✅ PASS (100% MDC propagation)
+- **Test Duration**: ~60 seconds
+
+### 🔧 Test Environment
+| Parameter | Value |
+|-----------|-------|
+| Java Version | 21 |
+| Spring Boot | 3.5.4 |
+| Executors Tested | alertTaskExecutor, expectationComputeExecutor |
+| TaskDecorator | MdcCopyingTaskDecorator |
+| Iteration Count | 100 |
+
+### 💥 Failure Injection
+| Method | Details |
+|--------|---------|
+| **Failure Type** | Context Loss (No-op) |
+| **Injection Method** | Async boundary crossing |
+| **Failure Scope** | All @Async methods |
+| **Failure Duration** | N/A (architectural test) |
+| **Blast Radius** | Distributed tracing, audit logs |
+
+### ✅ Pass Criteria
+| Criterion | Threshold | Rationale |
+|-----------|-----------|-----------|
+| MDC Propagation Rate | 100% | Full traceability |
+| SecurityContext Propagation | 100% | User context preserved |
+| Thread Name Pattern | match | `alert-`, `expectation-` prefix |
+
+### ❌ Fail Criteria
+| Criterion | Threshold | Action |
+|-----------|-----------|--------|
+| MDC Propagation Rate | < 100% | Tracing broken |
+| Null MDC Values | > 0 | Context lost |
+| Wrong Thread Names | any | Executor misconfigured |
+
+### 🧹 Cleanup Commands
+```bash
+# No cleanup needed - architectural test
+# Verify executor configuration
+curl http://localhost:8080/actuator/beans | grep -A 10 "TaskExecutor"
+```
+
+### 📈 Expected Test Metrics
+| Metric | Expected | Actual | Threshold |
+|--------|----------|--------|-----------|
+| MDC Propagation Success | 100% | 100% | = 100% |
+| Context Loss Events | 0 | 0 | = 0 |
+| Executor Thread Names | match | match | correct prefix |
+
+### 🔗 Evidence Links
+- Test Class: [AsyncContextLossNightmareTest.java](../../../src/test/java/maple/expectation/chaos/nightmare/AsyncContextLossNightmareTest.java)
+- TaskDecorator: [`ExecutorConfig.java`](../../../src/main/java/maple/expectation/config/ExecutorConfig.java)
+- Related: [MdcCopyingTaskDecorator.java](../../../src/main/java/maple/expectation/config/MdcCopyingTaskDecorator.java)
+
+### ❌ Fail If Wrong
+This test is invalid if:
+- TaskDecorator not applied to executor beans
+- Test environment uses different executor configuration
+- MDC settings differ from production
+- Thread pool sizing differs significantly
+
+### ⚠️ Known Limitations
+- CompletableFuture chains (`thenRunAsync`) lose MDC in Stage 2,3
+- This is expected behavior - use independent `runAsync()` instead
+- Micrometer Context Propagation library can address this
+
+---
+
 ## 0. 최신 테스트 결과 (2025-01-20)
 
 ### ✅ PASS
@@ -154,6 +247,17 @@ CompletableFuture 체인(`thenRunAsync`)에서 **Stage 2,3 MDC 손실** 발생.
 2. **CompletableFuture 사용 주의**: 체인 사용 시 독립적인 `runAsync()` 권장
 3. **Micrometer Context Propagation 검토**: 체인 컨텍스트 전파가 필요한 경우 도입
 4. **스레드 이름 패턴 확인**: `alert-`, `expectation-` 프리픽스로 디버깅 용이
+
+---
+
+## Fail If Wrong
+
+This test is invalid if:
+- [ ] TaskDecorator not applied to executor beans
+- [ ] Test environment uses different executor configuration
+- [ ] MDC settings differ from production
+- [ ] Thread pool sizing differs significantly
+- [ ] Test doesn't verify actual async boundary crossing
 
 ---
 

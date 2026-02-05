@@ -6,6 +6,111 @@
 
 ---
 
+## Test Evidence & Reproducibility
+
+### 📋 Test Class
+- **Class**: `NexonApiOutboxNightmareTest`
+- **Package**: `maple.expectation.chaos.nightmare`
+- **Source**: [`src/test/java/maple/expectation/chaos/nightmare/NexonApiOutboxNightmareTest.java`](../../../src/test/java/maple/expectation/chaos/nightmare/NexonApiOutboxNightmareTest.java)
+
+### 🚀 Quick Start
+```bash
+# Prerequisites: Docker Compose running (MySQL, Redis, Mock API)
+docker-compose up -d
+
+# Run specific Nightmare test
+./gradlew test --tests "maple.expectation.chaos.nightmare.NexonApiOutboxNightmareTest" \
+  2>&1 | tee logs/nightmare-19-$(date +%Y%m%d_%H%M%S).log
+
+# Run individual test methods
+./gradlew test --tests "*NexonApiOutboxNightmareTest.shouldGenerateOutboxEntries*"
+./gradlew test --tests "*NexonApiOutboxNightmareTest.shouldReplayOutboxAfterApiRecovery*"
+./gradlew test --tests "*NexonApiOutboxNightmareTest.shouldMaintainDataIntegrity*"
+./gradlew test --tests "*NexonApiOutboxNightmareTest.shouldTransferToDlq_onMaxRetry*"
+```
+
+### 📊 Test Results
+- **Result Files**:
+  - [N19-outbox-replay-result.md](../Results/N19-outbox-replay-result.md)
+  - [N19-outbox-fallback-implementation.md](../Results/N19-outbox-fallback-implementation.md)
+  - [N19-implementation-summary.md](../Results/N19-implementation-summary.md)
+- **Test Date**: 2026-01-19 to 2026-02-04
+- **Result**: ✅ PASS (Transactional Outbox verified)
+- **Test Duration**: ~600 seconds (including replay)
+
+### 🔧 Test Environment
+| Parameter | Value |
+|-----------|-------|
+| Java Version | 21 |
+| Spring Boot | 3.5.4 |
+| MySQL | 8.0 (Docker) |
+| Outbox Table | nexon_api_outbox |
+| Simulated Outage | 6 hours |
+| Entry Volume | 1,000,000 entries |
+
+### 💥 Failure Injection
+| Method | Details |
+|--------|---------|
+| **Failure Type** | External API Outage |
+| **Injection Method** | Mock API returns 500 errors |
+| **Failure Scope** | All Nexon API calls |
+| **Failure Duration** | 6 hours (simulated) |
+| **Blast Radius** | Outbox accumulation, Replay delay |
+
+### ✅ Pass Criteria
+| Criterion | Threshold | Rationale |
+|-----------|-----------|-----------|
+| Message Loss | 0 | Transactional guarantee |
+| Data Integrity | >= 99.99% | Reconciliation accuracy |
+| Replay Throughput | >= 1000 tps | Recovery SLA |
+| DLQ Rate | < 0.1% | Only critical errors |
+
+### ❌ Fail Criteria
+| Criterion | Threshold | Action |
+|-----------|-----------|--------|
+| Message Loss | > 0 | Transaction broken |
+| Data Integrity | < 99.99% | Reconciliation failed |
+| Replay Throughput | < 500 tps | Recovery too slow |
+| DLQ Rate | > 1% | Too many failures |
+
+### 🧹 Cleanup Commands
+```bash
+# After test - clear outbox entries
+mysql -u root -p maple_expectation -e "DELETE FROM nexon_api_outbox WHERE created_at >= CURDATE()"
+
+# Clear DLQ entries
+mysql -u root -p maple_expectation -e "DELETE FROM nexon_api_dlq WHERE created_at >= CURDATE()"
+
+# Reset replay scheduler
+curl -X POST http://localhost:8080/admin/replay/reset
+
+# Verify outbox state
+mysql -u root -p maple_expectation -e "SELECT status, COUNT(*) FROM nexon_api_outbox GROUP BY status"
+```
+
+### 📈 Expected Test Metrics
+| Metric | Before Outage | During Outage | After Recovery |
+|--------|---------------|---------------|----------------|
+| Outbox Pending | 0 | 1,000,000 | 0 |
+| Replay Throughput | 100 tps | 0 | 1000+ tps |
+| API Success Rate | 100% | 0% | 100% |
+| DLQ Rate | 0% | 0% | <0.1% |
+
+### 🔗 Evidence Links
+- Test Class: [NexonApiOutboxNightmareTest.java](../../../src/test/java/maple/expectation/chaos/nightmare/NexonApiOutboxNightmareTest.java)
+- Outbox Entity: [NexonApiOutbox.java](../../../src/main/java/maple/expectation/domain/v2/NexonApiOutbox.java)
+- Scheduler: [NexonApiOutboxScheduler.java](../../../src/main/java/maple/expectation/scheduler/NexonApiOutboxScheduler.java)
+- Implementation: [N19-outbox-fallback-implementation.md](../Results/N19-outbox-fallback-implementation.md)
+
+### ❌ Fail If Wrong
+This test is invalid if:
+- Test environment differs from production schema
+- Transaction isolation level differs
+- Replay scheduler not running during test
+- Mock API doesn't simulate real outage patterns
+
+---
+
 ## 1. 테스트 전략 (🟡 Yellow's Plan)
 
 ### 목적

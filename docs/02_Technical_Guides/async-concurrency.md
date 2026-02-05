@@ -1,8 +1,22 @@
 # Async & Concurrency Guide
 
 > **상위 문서:** [CLAUDE.md](../CLAUDE.md)
+>
+> **Last Updated:** 2026-02-05
+> **Applicable Versions:** Java 21, Spring Boot 3.5.4
+> **Documentation Version:** 1.0
 
 이 문서는 MapleExpectation 프로젝트의 비동기 처리, Thread Pool, 동시성 관련 규칙을 정의합니다.
+
+## Terminology
+
+| 용어 | 정의 |
+|------|------|
+| **Virtual Thread** | Java 21의 경량 스레드 (Project Loom) |
+| **Two-Phase Snapshot** | Light → Full 단계적 데이터 로드 패턴 |
+| **Write-Behind** | 응답 후 비동기 DB 저장 패턴 |
+| **CallerRunsPolicy** | 거부된 작업을 호출자 스레드에서 실행 (위험) |
+| **AbortPolicy** | 작업 거부 시 예외 발생 (권장) |
 
 ---
 
@@ -248,3 +262,28 @@ executor.setRejectedExecutionHandler(new CallerRunsPolicy());  // 지연 > 유�
 | 조회/계산 (읽기) | AbortPolicy | 재시도 가능, 멱등성 |
 | DB 저장 (쓰기) | CallerRunsPolicy/DLQ | 데이터 유실 방지 |
 | 알림 전송 | AbortPolicy | Best-effort 허용 |
+
+### Evidence Links
+- **ExecutorConfig:** `src/main/java/maple/expectation/config/ExecutorConfig.java`
+- **EquipmentService:** `src/main/java/maple/expectation/service/v2/EquipmentService.java`
+- **Test:** `src/test/java/maple/expectation/service/v2/EquipmentServiceTest.java`
+
+## Fail If Wrong
+
+이 가이드가 부정확한 경우:
+- **코드 예제가 Java 21 문법과 맞지 않음**: Virtual Threads, CompletableFuture 체이닝 확인
+- **Thread Pool 설정이 application.yml과 다름**: 실제 설정과 비교
+- **CallerRunsPolicy가 사용됨**: 톰캣 스레드 고갈 위험 확인
+- **.join() 사용으로 블로킹 발생**: 비동기 파이프라인 확인
+
+### Verification Commands
+```bash
+# Thread Pool 설정 확인
+grep -r "ThreadPoolTaskExecutor" src/main/java/maple/expectation/config/
+
+# .join() 사용 확인 (금지)
+grep -r "\.join()" src/main/java/maple/expectation --include="*.java"
+
+# CallerRunsPolicy 확인 (금지)
+grep -r "CallerRunsPolicy" src/main/java --include="*..java"
+```

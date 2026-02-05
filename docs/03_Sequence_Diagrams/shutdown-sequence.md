@@ -1,8 +1,21 @@
 # Graceful Shutdown 시퀀스 다이어그램
 
+> **Last Updated:** 2026-02-05
+> **Code Version:** MapleExpectation v1.x
+> **Diagram Version:** 1.0
+
 ## 개요
 
 4단계 순차 종료로 진행 중인 작업과 데이터를 안전하게 보존합니다.
+
+## Terminology
+
+| 용어 | 정의 |
+|------|------|
+| **SmartLifecycle** | Spring 생명주기 콜백 인터페이스 |
+| **Graceful Shutdown** | 진행 중 작업 완료 후 종료 |
+| **DLQ** | Dead Letter Queue (최후 안전망) |
+| **Compensation Command** | 실패 시 복구 명령 |
 
 ## 전체 종료 시퀀스
 
@@ -174,3 +187,22 @@ private static final Duration TOTAL_TIMEOUT = Duration.ofSeconds(50);
 - `src/main/java/maple/expectation/global/shutdown/GracefulShutdownCoordinator.java`
 - `src/main/java/maple/expectation/service/v2/shutdown/ShutdownDataPersistenceService.java`
 - `src/main/java/maple/expectation/service/v2/shutdown/ShutdownDataRecoveryService.java`
+
+## Fail If Wrong
+
+이 다이어그램이 부정확한 경우:
+- **데이터 유실 발생**: Shutdown 시 flush 동작 확인
+- **종료 타임아웃**: lifecycle.timeout-per-shutdown-phase 설정 확인
+- **DLQ 미동작**: LikeSyncEventListener 확인
+
+### Verification Commands
+```bash
+# Graceful Shutdown Coordinator 확인
+find src/main/java -name "*ShutdownCoordinator.java"
+
+# SmartLifecycle getPhase 확인
+grep -A 5 "getPhase" src/main/java/maple/expectation/global/shutdown/
+
+# shutdown 타임아웃 설정 확인
+grep "timeout-per-shutdown-phase" src/main/resources/application.yml
+```

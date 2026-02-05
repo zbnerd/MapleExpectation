@@ -6,6 +6,99 @@
 
 ---
 
+## Test Evidence & Reproducibility
+
+### 📋 Test Class
+- **Class**: `LockFallbackAvalancheNightmareTest`
+- **Package**: `maple.expectation.chaos.nightmare`
+- **Source**: [`src/test/java/maple/expectation/chaos/nightmare/LockFallbackAvalancheNightmareTest.java`](../../../src/test/java/maple/expectation/chaos/nightmare/LockFallbackAvalancheNightmareTest.java)
+
+### 🚀 Quick Start
+```bash
+# Prerequisites: Docker Compose running (MySQL, Redis)
+docker-compose up -d
+
+# Run specific Nightmare test
+./gradlew test --tests "maple.expectation.chaos.nightmare.LockFallbackAvalancheNightmareTest" \
+  2>&1 | tee logs/nightmare-11-$(date +%Y%m%d_%H%M%S).log
+
+# Run individual test methods
+./gradlew test --tests "*LockFallbackAvalancheNightmareTest.shouldCollectHikariMetrics*"
+./gradlew test --tests "*LockFallbackAvalancheNightmareTest.shouldExecuteQueryWhileHoldingLock*"
+./gradlew test --tests "*LockFallbackAvalancheNightmareTest.shouldNotExhaustPool_withConcurrentFallback*"
+```
+
+### 📊 Test Results
+- **Result File**: [N11-lock-fallback-avalanche-result.md](../Results/N11-lock-fallback-avalanche-result.md) (if exists)
+- **Test Date**: 2025-01-20
+- **Result**: ✅ PASS (3/3 tests)
+- **Test Duration**: ~120 seconds
+
+### 🔧 Test Environment
+| Parameter | Value |
+|-----------|-------|
+| Java Version | 21 |
+| Spring Boot | 3.5.4 |
+| MySQL | 8.0 (Docker) |
+| Redis | 7.x (Docker) |
+| HikariCP Pool Size | 10 |
+| Concurrent Fallback Requests | 30 |
+
+### 💥 Failure Injection
+| Method | Details |
+|--------|---------|
+| **Failure Type** | Redis Connection Failure |
+| **Injection Method** | Toxiproxy connection close or Redis stop |
+| **Failure Scope** | All Redis lock operations |
+| **Failure Duration** | Until test completes |
+| **Blast Radius** | MySQL Connection Pool (Named Lock fallback) |
+
+### ✅ Pass Criteria
+| Criterion | Threshold | Rationale |
+|-----------|-----------|-----------|
+| Connection Timeout Count | 0 | Pool should not exhaust |
+| Pool Usage Rate | < 80% | Headroom maintained |
+| HikariCP Metrics Available | Yes | Monitoring works |
+
+### ❌ Fail Criteria
+| Criterion | Threshold | Action |
+|-----------|-----------|--------|
+| Connection Timeout Count | >= 1 | Pool exhausted |
+| Pool Usage Rate | = 100% | No headroom |
+| Pending Threads | > 5 | Queue building up |
+
+### 🧹 Cleanup Commands
+```bash
+# After test - restore Redis
+docker-compose restart redis
+
+# Or flush Named Locks
+mysql -u root -p -e "SELECT RELEASE_LOCK('nightmare_test_lock')"
+
+# Verify pool status
+curl http://localhost:8080/actuator/metrics/hikaricp.connections.active
+```
+
+### 📈 Expected Test Metrics
+| Metric | Before | After | Threshold |
+|--------|--------|-------|-----------|
+| Active Connections | 2 | 10 (max) | N/A |
+| Pending Threads | 0 | 0 | < 5 |
+| Connection Timeout | 0 | 0 | = 0 |
+
+### 🔗 Evidence Links
+- Test Class: [LockFallbackAvalancheNightmareTest.java](../../../src/test/java/maple/expectation/chaos/nightmare/LockFallbackAvalancheNightmareTest.java)
+- ResilientLockStrategy: [`ResilientLockStrategy.java`](../../../src/main/java/maple/expectation/global/lock/ResilientLockStrategy.java)
+
+### ❌ Fail If Wrong
+This test is invalid if:
+- Test does not reproduce Redis failure mode correctly
+- MySQL Named Lock behavior differs from production
+- Pool size configuration differs significantly
+- Test environment uses different isolation level
+
+---
+
 ## 0. 최신 테스트 결과 (2025-01-20)
 
 ### ✅ PASS (3/3 테스트 성공)
@@ -153,6 +246,17 @@ Connection Pool 고갈을 방지함을 확인.
 2. **Fallback Semaphore 유지**: 현재 5개 동시 요청 제한 적절
 3. **Connection Timeout 설정**: 1000ms 빠른 실패 유지
 4. **Pool 크기 여유**: maxPoolSize > 예상 동시 락 요청 수
+
+---
+
+## Fail If Wrong
+
+This test is invalid if:
+- [ ] Test does not reproduce Redis failure mode correctly
+- [ ] MySQL Named Lock behavior differs from production
+- [ ] Pool size configuration differs significantly
+- [ ] Test environment uses different isolation level
+- [ ] HikariCP leak-detection not enabled
 
 ---
 

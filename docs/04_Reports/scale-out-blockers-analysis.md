@@ -3,6 +3,49 @@
 > **분석 일자:** 2026-01-28
 > **분석 범위:** `src/main/java` 전체 (global, service, scheduler, config, aop, monitoring 패키지)
 > **관련 이슈:** [#283](https://github.com/zbnerd/MapleExpectation/issues/283)
+> **분석자:** 5-Agent Council
+> **상태:** Accepted
+
+---
+
+## Terminology (용어 정의)
+
+| 용어 | 정의 |
+|------|------|
+| **Scale-out (수평 확장)** | 인스턴스 수를 늘려 처리 용량을 확장하는 방식 |
+| **Stateful Component** | 인스턴스 메모리에 상태를 저장하는 컴포넌트로 Scale-out 시 데이터 불일치 유발 |
+| **Feature Flag** | 설정값에 따라 동작을 변경하는 메커니즘 |
+| **Consumer Group** | Redis Stream에서 메시지를 분산 처리하는 소비자 그룹 |
+| **Shutting Down Race** | 다중 인스턴스 종료 시 데이터 flush 경합으로 인한 데이터 유 현상 |
+| **Positive/Negative Caching** | 존재하는 데이터/존재하지 않는 데이터를 캐싱하여 DB 부하 감소 |
+| **MatchIfMissing** | Spring ConditionalOnProperty에서 설정이 없을 때의 동작 |
+
+---
+
+## Evidence-Based Analysis
+
+### Analysis Methodology
+
+1. **Code Scan:** `src/main/java` 전역 스캔 (Grep + AST 기반 패턴 매칭)
+2. **Pattern Detection:** In-Memory 상태, Scheduler 중복, Feature Flag 종속 패턴 탐지
+3. **Impact Assessment:** P0 (즉시 Scale-out 불가) / P1 (데이터 불일치 위험) 분류
+4. **Solution Design:** Redis 기반 분산 전환 방안 제안
+
+### Verification Commands
+
+```bash
+# Verify In-Memory state patterns
+grep -r "ConcurrentHashMap\|AtomicInteger\|volatile" src/main/java/
+
+# Verify Scheduler annotations
+grep -r "@Scheduled" src/main/java/ --include="*.java"
+
+# Verify Feature Flag defaults
+grep -r "matchIfMissing" src/main/java/
+
+# Verify distributed lock usage
+grep -r "@Locked\|getLock" src/main/java/
+```
 
 ---
 
@@ -435,3 +478,94 @@ public void stop() {
 - [#282 멀티 모듈 전환](https://github.com/zbnerd/MapleExpectation/issues/282)
 - [#126 Pragmatic CQRS](https://github.com/zbnerd/MapleExpectation/issues/126)
 - [ADR-014: 멀티 모듈 전환](../adr/ADR-014-multi-module-cross-cutting-concerns.md)
+
+---
+
+## Fail If Wrong Conditions
+
+This analysis is invalid if:
+1. **New In-Memory State Found:** Additional stateful components discovered after deployment
+2. **Feature Flag Misconfiguration:** `matchIfMissing=false` causing In-Memory mode in production
+3. **Scheduler Collision:** Multiple instances processing same scheduled task simultaneously
+4. **Data Inconsistency:** Scale-out causing count/record mismatches
+5. **Shutdown Data Loss:** Graceful shutdown failing to persist buffered data
+
+---
+
+## Trade-off Analysis
+
+| Decision | Benefit | Cost | Reversibility |
+|----------|---------|------|---------------|
+| **Redis AtomicLong (P0-1)** | AI 호출 한도 정확성 | Redis +1 QPS | Easy: revert to AtomicInteger |
+| **Redis Buffer Strategy (P0-2)** | 배포 시 데이터 안전성 | Redis 메모리 +10MB | Easy: feature flag toggle |
+| **Redis Single-Flight (P0-4)** | API 중복 호출 방지 | Redis +50 QPS | Medium: requires cache warmup |
+| **Virtual Thread → Bean (P0-5)** | OOM 방지 | 최대 동시 요청 제한 | Easy: remove @Bean |
+| **matchIfMissing=true (P1-4/5)** | Production 안전 기본값 | Dev에서 명시적 설정 필요 | Easy: revert default |
+
+---
+
+## Anti-Patterns Documented
+
+### Anti-Pattern: In-Memory State in Distributed Environment
+
+**Problem:** Using `ConcurrentHashMap`, `AtomicInteger`, or `volatile` for state that must be consistent across instances.
+
+**Evidence:**
+- `AlertThrottler.dailyAiCallCount` - AI quota doubled with 2 instances
+- `LikeBufferStorage` - Count divergence between instances
+- `SingleFlightExecutor.inFlight` - Duplicate API calls
+
+**Solution:** Replace with Redis-based distributed primitives.
+
+### Anti-Pattern: Scheduler without Distributed Lock
+
+**Problem:** `@Scheduled` methods run on all instances simultaneously.
+
+**Evidence:**
+- `BufferRecoveryScheduler` processes same retry queue on all instances
+- `OutboxScheduler` causes duplicate outbox processing
+
+**Solution:** Apply `@Locked` distributed lock or leader election pattern.
+
+### Anti-Pattern: Feature Flag with Unsafe Default
+
+**Problem:** `matchIfMissing=false` defaults to In-Memory mode when configuration is missing.
+
+**Evidence:**
+- Production deployment with missing Redis config → In-Memory mode activated
+- Data loss during rolling update
+
+**Solution:** Use `matchIfMissing=true` for distributed-safe defaults.
+
+---
+
+## Reproducibility Checklist
+
+To verify this analysis on your environment:
+
+```bash
+# 1. Check In-Memory state patterns
+./gradlew checkInMemoryState  # Custom task (if available)
+# OR manually:
+grep -r "new ConcurrentHashMap\|new AtomicInteger\|volatile.*=" src/main/java/ | wc -l
+
+# 2. Verify Feature Flag defaults
+grep -r "matchIfMissing" src/main/java/ | grep "false"
+
+# 3. Check Scheduler methods without @Locked
+grep -A5 "@Scheduled" src/main/java/ | grep -B1 "void " | grep -v "@Locked" | wc -l
+
+# 4. Test scale-out behavior
+docker-compose up -d --scale app=2
+# Verify only one instance processes scheduled tasks
+docker-compose logs app | grep "Scheduled task executed"
+
+# 5. Verify Redis distributed locks
+redis-cli --scan --pattern "*:lock:*" | wc -l
+```
+
+---
+
+*Last Updated: 2026-01-28*
+*Review Date: 2026-03-28*
+*Status: Accepted - Sprint 1-3 Implementation Planned*

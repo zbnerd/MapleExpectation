@@ -1,6 +1,16 @@
 # MapleExpectation 로드맵
 
-> 최종 업데이트: 2026-01-28
+> 최종 업데이트: 2026-02-05
+> **Documentation Version:** 1.0
+
+## Terminology
+
+| 용어 | 정의 |
+|------|------|
+| **Stateful 컴포넌트** | 인메모리 상태를 가진 컴포넌트 (분산 장애 요인) |
+| **CQRS** | Command Query Responsibility Segregation |
+| **ADR** | Architecture Decision Record |
+| **Scale-out** | 수평 확장 (여러 인스턴스로 부하 분산) |
 
 ## 개요
 
@@ -264,6 +274,26 @@ P0/P1 Stateful 컴포넌트를 분산 환경에서 안전하게 동작하도록 
 
 | 날짜 | 변경 내용 |
 |------|----------|
+| 2026-02-05 | 문서 무결성 검사 및 버전 관리 추가 |
 | 2026-01-28 | Phase 7(Scale-out) 추가 - #283, #282, #126 의존 관계 정리 |
 | 2025-01-07 | 로드맵 전면 재작성 - 26개 이슈 우선순위 기반 Phase별 분류 |
 | 2025-01-04 | 초기 아키텍처 비전 작성 |
+
+## Fail If Wrong
+
+이 로드맵이 부정확한 경우:
+- **의존 관계가 잘못됨**: Phase 7 (#283 → #282 → #126) 확인
+- **이슈 번호가 변경됨**: GitHub Issues와 대조
+- **완료 기준이 모호함**: DoD(Definition of Done) 확인
+
+### Verification Commands
+```bash
+# 의존 관계 확인
+grep -A 5 "#283\|#282\|#126" docs/00_Start_Here/ROADMAP.md
+
+# 이슈 참조 확인
+grep -c "github.com" docs/00_Start_Here/ROADMAP.md
+
+# Phase별 이슈 수 확인
+grep "^|.*#" docs/00_Start_Here/ROADMAP.md | wc -l
+```

@@ -6,6 +6,96 @@
 
 ---
 
+## Test Evidence & Reproducibility
+
+### 📋 Test Class
+- **Class**: `PipelineExceptionNightmareTest`
+- **Package**: `maple.expectation.chaos.nightmare`
+- **Source**: [`src/test/java/maple/expectation/chaos/nightmare/PipelineExceptionNightmareTest.java`](../../../src/test/java/maple/expectation/chaos/nightmare/PipelineExceptionNightmareTest.java)
+
+### 🚀 Quick Start
+```bash
+# Prerequisites: Docker Compose running (MySQL, Redis)
+docker-compose up -d
+
+# Run specific Nightmare test
+./gradlew test --tests "maple.expectation.chaos.nightmare.PipelineExceptionNightmareTest" \
+  2>&1 | tee logs/nightmare-14-$(date +%Y%m%d_%H%M%S).log
+
+# Run individual test methods
+./gradlew test --tests "*PipelineExceptionNightmareTest.shouldSwallowException_withExecuteOrDefault*"
+./gradlew test --tests "*PipelineExceptionNightmareTest.shouldLogException_withExecuteOrDefault*"
+./gradlew test --tests "*PipelineExceptionNightmareTest.shouldThrowException_withExecuteOrCatch*"
+./gradlew test --tests "*PipelineExceptionNightmareTest.shouldVerifyUsagePattern_inCodebase*"
+./gradlew test --tests "*PipelineExceptionNightmareTest.shouldPropagateException_withExecute*"
+```
+
+### 📊 Test Results
+- **Result File**: [N14-pipeline-exception-result.md](../Results/N14-pipeline-exception-result.md) (if exists)
+- **Test Date**: 2025-01-20
+- **Result**: ❌ FAIL (1/5 tests)
+- **Test Duration**: ~90 seconds
+
+### 🔧 Test Environment
+| Parameter | Value |
+|-----------|-------|
+| Java Version | 21 |
+| Spring Boot | 3.5.4 |
+| LogicExecutor | DefaultLogicExecutor |
+| Test Pattern | execute, executeOrDefault, executeOrCatch |
+
+### 💥 Failure Injection
+| Method | Details |
+|--------|---------|
+| **Failure Type** | Silent Exception Swallowing |
+| **Injection Method** | executeOrDefault with exception returning default |
+| **Failure Scope** | Business logic using wrong pattern |
+| **Failure Duration** | N/A (architectural test) |
+| **Blast Radius** | Error visibility, debugging capability |
+
+### ✅ Pass Criteria
+| Criterion | Threshold | Rationale |
+|-----------|-----------|-----------|
+| Exception Logged | Yes | Audit trail exists |
+| execute Usage | Critical paths | Business logic throws |
+| executeOrDefault | Read-only | Safe for null-OK operations |
+| executeOrCatch | With recovery | Explicit error handling |
+
+### ❌ Fail Criteria
+| Criterion | Threshold | Action |
+|-----------|-----------|--------|
+| Silent Failure | > 0 | Exception swallowed |
+| Business Logic Default | > 0 | Mutation uses default |
+| Exception Not Logged | > 0 | No audit trail |
+
+### 🧹 Cleanup Commands
+```bash
+# No cleanup needed - architectural test
+# Verify LogicExecutor usage in codebase
+grep -r "executeOrDefault" src/main/java --include="*.java" | grep -v "//.*executeOrDefault"
+```
+
+### 📈 Expected Test Metrics
+| Metric | Expected | Actual | Threshold |
+|--------|----------|--------|-----------|
+| Exception Propagation | Yes | Partial | execute only |
+| Logging Coverage | 100% | 100% | = 100% |
+| Pattern Compliance | 100% | ~95% | > 90% |
+
+### 🔗 Evidence Links
+- Test Class: [PipelineExceptionNightmareTest.java](../../../src/test/java/maple/expectation/chaos/nightmare/PipelineExceptionNightmareTest.java)
+- LogicExecutor: [DefaultLogicExecutor.java](../../../src/main/java/maple/expectation/global/executor/DefaultLogicExecutor.java)
+- Related Issue: #[P1] LogicExecutor Exception Propagation
+
+### ❌ Fail If Wrong
+This test is invalid if:
+- Test environment uses different exception handling strategy
+- LogicExecutor configuration differs from production
+- Test does not verify actual exception propagation
+- Mock framework interferes with exception flow
+
+---
+
 ## 0. 최신 테스트 결과 (2025-01-20)
 
 ### ❌ FAIL (1/5 테스트 실패)
@@ -125,6 +215,17 @@ executeOrDefault가 비즈니스 크리티컬 작업에 사용되어 예외 삼�
 2. **테스트 수정**: cause 체인에서 원본 메시지 확인으로 변경
 3. **로깅 강화**: 예외 발생 시 원본 메시지도 함께 로깅
 4. **코드 리뷰**: executeOrDefault 사용처 중 mutation 로직 점검
+
+---
+
+## Fail If Wrong
+
+This test is invalid if:
+- [ ] Test environment uses different exception handling strategy
+- [ ] LogicExecutor configuration differs from production
+- [ ] Test does not verify actual exception propagation
+- [ ] Mock framework interferes with exception flow
+- [ ] ExceptionTranslator behavior differs
 
 ---
 

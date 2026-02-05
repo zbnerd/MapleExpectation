@@ -1,8 +1,23 @@
 # Infrastructure & Integration Guide
 
-> **상위 문서:** [CLAUDE.md](../CLAUDE.md)
+> **상위 문서:** [CLAUDE.md](../../CLAUDE.md)
+>
+> **Last Updated:** 2026-02-05
+> **Applicable Versions:** Java 21, Spring Boot 3.5.4, Redisson 3.27.0, Resilience4j 2.2.0
+> **Documentation Version:** 1.0
 
 이 문서는 MapleExpectation 프로젝트의 인프라, Redis, Cache, Security 관련 규칙을 정의합니다.
+
+## Terminology
+
+| 용어 | 정의 |
+|------|------|
+| **L1 Cache** | Caffeine in-memory cache (로컬, <5ms) |
+| **L2 Cache** | Redis distributed cache (분산, <20ms) |
+| **Watchdog** | Redisson의 자동 락 갱신 메커니즘 (기본 30초 TTL) |
+| **Hash Tag** | Redis Cluster에서 동일 슬롯 보장을 위한 `{key}` 패턴 |
+| **Graceful Degradation** | 캐시 장애 시 서비스 가용성 유지 전략 |
+| **SKIP LOCKED** | MySQL 잠긴 행 건너뛰기 (분산 배치 처리용) |
 
 ---
 
@@ -13,12 +28,20 @@ AOP 적용 시 프록시 메커니즘 한계 극복을 위해 반드시 **Facade
 - **Orchestration:** Facade는 분산 락 획득 및 서비스 간 흐름을 제어하고, Service는 트랜잭션과 비즈니스 로직을 담당합니다.
 - **Scope:** 락의 범위가 트랜잭션보다 커야 함(Lock -> Transaction -> Unlock)을 보장합니다.
 
+### Evidence Links
+- **Implementation:** `src/main/java/maple/expectation/service/v2/facade/GameCharacterFacade.java`
+- **AOP Aspect:** `src/main/java/maple/expectation/aop/aspect/TraceAspect.java`
+
 ---
 
 ## 8. Redis & Redisson Integration
 
 - **Distributed Lock:** 동시성 제어 시 `RLock`을 사용하며 `try-finally`로 데드락을 방지합니다.
 - **Naming:** Redis 키는 `domain:sub-domain:id` 형식을 따르며 모든 데이터에 TTL을 설정합니다.
+
+### Evidence Links
+- **Configuration:** `src/main/java/maple/expectation/config/RedissonConfig.java`
+- **Lock Strategy:** `src/main/java/maple/expectation/global/lock/RedisDistributedLockStrategy.java`
 
 ---
 
@@ -595,6 +618,8 @@ springdoc:
   packages-to-scan: maple.expectation.controller
 ```
 
+**실제 설정 파일**: `src/main/resources/application.yml` (lines 199-213)
+
 ### 테스트 환경 설정 (비활성화)
 ```yaml
 # src/test/resources/application.yml
@@ -627,3 +652,35 @@ public ResponseEntity<CharacterDto> getCharacter(@PathVariable String ign) { ...
 | `/swagger-ui/index.html` | Swagger UI (직접) |
 | `/v3/api-docs` | OpenAPI JSON |
 | `/v3/api-docs.yaml` | OpenAPI YAML |
+
+### 관련 코드
+- 설정 참조: `src/main/resources/application.yml` (lines 199-213)
+- SecurityConfig: `src/main/java/maple/expectation/config/SecurityConfig.java`
+
+---
+
+## Fail If Wrong
+
+이 가이드가 부정확한 경우:
+- **코드 예제가 현재 버전에서 컴파일되지 않음**: Java 21, Spring Boot 3.5.4, Redisson 3.27.0 호환성 확인
+- **설정 예제가 application.yml과 일치하지 않음**: 실제 설정 파일(`src/main/resources/application.yml`)과 비교
+- **Redisson 설정이 동작하지 않음**: `RedissonConfig.java` 구현 확인
+- **Circuit Breaker가 예상대로 동작하지 않음**: resilience4j 설정과 Marker Interface 확인
+- **Watchdog 모드가 락을 갱신하지 않음**: leaseTime 파라미터 사용 확인
+- **Hash Tag 패턴이 Cluster에서 실패**: `{key}` 형식 사용 확인
+
+### Verification Commands
+```bash
+# Redisson 설정 확인
+grep -A 20 "RedissonConfig" src/main/java/maple/expectation/config/RedissonConfig.java
+
+# application.yml 설정 확인
+grep -A 30 "resilience4j:" src/main/resources/application.yml
+
+# CircuitBreaker Marker 확인
+find src/main/java -name "*Marker.java"
+```
+
+### Related Tests
+- Redis 통합 테스트: `src/test/java/maple/expectation/config/RedissonConfigTest.java`
+- CircuitBreaker 테스트: `src/test/java/maple/expectation/global/resilience/*Test.java`

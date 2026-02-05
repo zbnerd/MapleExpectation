@@ -1,8 +1,21 @@
 # LogicExecutor Pipeline 시퀀스 다이어그램
 
+> **Last Updated:** 2026-02-05
+> **Code Version:** MapleExpectation v1.x
+> **Diagram Version:** 1.0
+
 ## 개요
 
 LogicExecutor는 비즈니스 로직의 실행 흐름을 추상화하여 **try-catch 제거** 및 **일관된 예외 처리**를 제공합니다.
+
+## Terminology
+
+| 용어 | 정의 |
+|------|------|
+| **ExecutionPipeline** | BEFORE → ON_SUCCESS/ON_FAILURE → AFTER 단계 |
+| **LoggingPolicy** | 성능 로그 및 에러 로그 정책 |
+| **ExceptionTranslator** | Checked → Unchecked 예외 변환 |
+| **TaskContext** | 실행 컨텍스트 (도메인, 작업, 키) |
 
 ## 시퀀스 다이어그램
 
@@ -126,3 +139,22 @@ return executor.executeWithTranslation(
 - `src/main/java/maple/expectation/global/executor/DefaultLogicExecutor.java`
 - `src/main/java/maple/expectation/global/executor/policy/ExecutionPipeline.java`
 - `src/main/java/maple/expectation/global/executor/TaskContext.java`
+
+## Fail If Wrong
+
+이 다이어그램이 부정확한 경우:
+- **try-catch가 사용됨**: LogicExecutor 패턴 위반 확인
+- **예외가 변환되지 않음**: ExceptionTranslator 사용 확인
+- **메트릭이 기록되지 않음**: LoggingPolicy 동작 확인
+
+### Verification Commands
+```bash
+# try-catch 사용 확인 (비즈니스 로직에서 금지)
+grep -r "try {" src/main/java/maple/expectation/service --include="*.java" | grep -v "// Bad"
+
+# ExceptionTranslator 확인
+find src/main/java -name "ExceptionTranslator.java"
+
+# TaskContext 사용 확인
+grep -r "TaskContext.of" src/main/java/maple/expectation/service --include="*.java" | wc -l
+```

@@ -1,8 +1,20 @@
 # Multi-Agent Protocol
 
 > **상위 문서:** [CLAUDE.md](../CLAUDE.md)
+>
+> **Last Updated:** 2026-02-05
+> **Documentation Version:** 1.0
 
 이 문서는 MapleExpectation 프로젝트의 5-Agent Council 프로토콜을 정의합니다.
+
+## Terminology
+
+| 용어 | 정의 |
+|------|------|
+| **5-Agent Council** | Blue, Green, Yellow, Purple, Red 에이전트 |
+| **Pentagonal Pipeline** | 5단계 검토 파이프라인 |
+| **Sequential Thinking** | 단계별 문제 해결 접근법 |
+| **Trade-off** | 기술적 선택의 이유와 대안 비교 |
 
 ---
 
@@ -142,4 +154,20 @@
 - **Red 의견**: Redis 장애 시 서비스 전체 마비 위험
 - **최종 결정**: DB 락 사용 (가용성 > 성능)
 - **승인**: Purple (데이터 무결성 확보)
+```
+
+## Fail If Wrong
+
+이 프로토콜이 부정확한 경우:
+- **에이전트 역할이 명확하지 않음**: Council 규칙 재검토
+- **Trade-off 기록 누락**: PR 템플릿 확인
+- **코드 리뷰 생략**: Pentagonal Pipeline 준수 확인
+
+### Verification Commands
+```bash
+# PR 템플릿 확인
+cat docs/98_Templates/PR_TEMPLATE.md
+
+# 멀티 에이전트 사용 확인
+grep -r "@Blue\|@Green\|@Yellow\|@Purple\|@Red" docs/
 ```

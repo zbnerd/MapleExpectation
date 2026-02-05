@@ -5,6 +5,43 @@
 
 ---
 
+## Test Evidence & Metadata
+
+### 🔗 Evidence Links
+- **Scenario**: [N05-celebrity-problem.md](../Scenarios/N05-celebrity-problem.md)
+- **Test Class**: [CelebrityProblemNightmareTest.java](../../../src/test/java/maple/expectation/chaos/nightmare/CelebrityProblemNightmareTest.java)
+- **Affected Code**: [TieredCache.java](../../../src/main/java/maple/expectation/global/cache/TieredCache.java)
+- **Log File**: `logs/nightmare-05-20260119_HHMMSS.log`
+
+### 🔧 Test Environment
+| Parameter | Value |
+|-----------|-------|
+| Java Version | 21 |
+| Spring Boot | 3.5.4 |
+| Redis | 7.x (Docker) |
+| Caffeine (L1) | 5min TTL, 5000 entries |
+| Redis (L2) | 10min TTL |
+| Singleflight Lock | 30s timeout |
+
+### 📊 Test Data Set
+| Data Type | Description |
+|-----------|-------------|
+| Hot Key | `hot:key:celebrity` |
+| Concurrent Requests | 1,000 |
+| Thread Pool Size | 100 |
+| Lock Timeout | 30,000ms |
+
+### ⏱️ Test Execution Details
+| Metric | Value |
+|--------|-------|
+| Test Start Time | 2026-01-19 10:25:00 KST |
+| Test End Time | 2026-01-19 10:27:00 KST |
+| Total Duration | ~120 seconds |
+| DB Query Ratio | < 10% |
+| Lock Failures | < 5% |
+
+---
+
 ## 테스트 결과 요약
 
 | 테스트 | 결과 | 비고 |

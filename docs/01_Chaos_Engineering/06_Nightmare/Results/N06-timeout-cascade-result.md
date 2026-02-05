@@ -5,6 +5,45 @@
 
 ---
 
+## Test Evidence & Metadata
+
+### 🔗 Evidence Links
+- **Scenario**: [N06-timeout-cascade.md](../Scenarios/N06-timeout-cascade.md)
+- **Test Class**: [TimeoutCascadeNightmareTest.java](../../../src/test/java/maple/expectation/chaos/nightmare/TimeoutCascadeNightmareTest.java)
+- **Affected Config**: [application.yml](../../../src/main/resources/application.yml) (resilience4j, redis timeout)
+- **Log File**: `logs/nightmare-06-20260119_HHMMSS.log`
+- **GitHub Issue**: #[P1][Nightmare-06] 타임아웃 계층 불일치로 인한 Zombie Request 발생
+
+### 🔧 Test Environment
+| Parameter | Value |
+|-----------|-------|
+| Java Version | 21 |
+| Spring Boot | 3.5.4 |
+| Redis | 7.x (Docker + Toxiproxy) |
+| Toxiproxy Latency | 5000ms |
+| Client Timeout | 3000ms |
+| Server TimeLimiter | 28000ms |
+| Retry Attempts | 3 |
+
+### 📊 Test Data Set
+| Data Type | Description |
+|-----------|-------------|
+| Redis Key | `timeout:test:nightmare` |
+| Latency Injection | Toxiproxic downstream |
+| Test Pattern | Async API call with timeout |
+| Concurrent Load | 50 requests |
+
+### ⏱️ Test Execution Details
+| Metric | Value |
+|--------|-------|
+| Test Start Time | 2026-01-19 10:30:00 KST |
+| Test End Time | 2026-01-19 10:33:00 KST |
+| Total Duration | ~180 seconds |
+| Retry Chain Time | 17+ seconds |
+| Zombie Requests | 50+ detected |
+
+---
+
 ## 테스트 결과 요약
 
 | 테스트 | 결과 | 비고 |

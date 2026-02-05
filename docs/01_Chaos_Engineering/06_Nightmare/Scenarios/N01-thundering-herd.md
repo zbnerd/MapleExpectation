@@ -6,6 +6,88 @@
 
 ---
 
+## Test Evidence & Reproducibility
+
+### 📋 Test Class
+- **Class**: `ThunderingHerdNightmareTest`
+- **Package**: `maple.expectation.chaos.nightmare`
+- **Source**: [`src/test/java/maple/expectation/chaos/nightmare/ThunderingHerdNightmareTest.java`](../../../src/test/java/maple/expectation/chaos/nightmare/ThunderingHerdNightmareTest.java)
+
+### 🚀 Quick Start
+```bash
+# Prerequisites: Docker Compose running (MySQL, Redis)
+docker-compose up -d
+
+# Run specific Nightmare test
+./gradlew test --tests "maple.expectation.chaos.nightmare.ThunderingHerdNightmareTest" \
+  2>&1 | tee logs/nightmare-01-$(date +%Y%m%d_%H%M%S).log
+
+# Run individual test methods
+./gradlew test --tests "*ThunderingHerdNightmareTest.shouldMinimizeDbQueries*"
+./gradlew test --tests "*ThunderingHerdNightmareTest.shouldFailFast*"
+./gradlew test --tests "*ThunderingHerdNightmareTest.shouldReturnConsistentData*"
+```
+
+### 📊 Test Results
+- **Result File**: [N01-thundering-herd-result.md](../Results/N01-thundering-herd-result.md)
+- **Test Date**: 2026-01-19
+- **Result**: ✅ PASS (3/3 tests)
+- **Test Duration**: ~120 seconds
+
+### 🔧 Test Environment
+| Parameter | Value |
+|-----------|-------|
+| Java Version | 21 |
+| Spring Boot | 3.5.4 |
+| MySQL | 8.0 (Docker) |
+| Redis | 7.x (Docker) |
+| Concurrent Requests | 1,000 |
+| Thread Pool | 100 |
+
+### 💥 Failure Injection
+| Method | Details |
+|--------|---------|
+| **Failure Type** | Cache Stampede (Redis FLUSHALL) |
+| **Injection Method** | `redisTemplate.getConnectionFactory().getConnection().flushAll()` |
+| **Failure Scope** | All Redis cache entries |
+| **Failure Duration** | Until first request loads data |
+| **Blast Radius** | All cache-dependent requests |
+
+### ✅ Pass Criteria
+| Criterion | Threshold | Rationale |
+|-----------|-----------|-----------|
+| DB Query Ratio | ≤ 10% | Singleflight should minimize DB calls |
+| Response Time p99 | < 5,000ms | Acceptable user experience |
+| Data Consistency | 100% | All clients receive same value |
+
+### ❌ Fail Criteria
+| Criterion | Threshold | Action |
+|-----------|-----------|--------|
+| DB Query Ratio | > 50% | Thundering Herd detected - Issue required |
+| Connection Timeout | ≥ 1 | Pool exhaustion detected |
+| Data Inconsistency | > 0 unique values | Cache race condition |
+
+### 🧹 Cleanup Commands
+```bash
+# After test - restore cache state
+redis-cli FLUSHALL
+
+# Or restart Redis
+docker-compose restart redis
+
+# Verify cache state
+redis-cli DBSIZE
+```
+
+### 📈 Expected Test Metrics
+| Metric | Before | After | Threshold |
+|--------|--------|-------|-----------|
+| Cache Hit Rate | 95% | 0% → N/A | N/A |
+| DB Query Rate | 5 qps | 100+ qps | N/A |
+| Connection Pool Active | 2 | 10 (max) | N/A |
+
+---
+
 ## 1. 테스트 전략 (🟡 Yellow's Plan)
 
 ### 목적
@@ -343,6 +425,17 @@ TieredCache에 Singleflight 패턴이 구현되어 있으나,
 - 분산 락 기반 Singleflight는 네트워크 지연에 취약
 - 로컬 메모리 기반 Singleflight 추가 필요
 - 캐시 워밍업 전략 병행 권장
+
+---
+
+## Fail If Wrong
+
+This test is invalid if:
+- [ ] Test does not reproduce the Cache Stampede failure mode
+- [ ] Metrics before/after are not comparable
+- [ ] Test environment differs from production configuration
+- [ ] Docker containers are not running during test
+- [ ] Redis/MySQL connection failures unrelated to test
 
 ---
 

@@ -6,6 +6,99 @@
 
 ---
 
+## Test Evidence & Reproducibility
+
+### 📋 Test Class
+- **Class**: `MetadataLockFreezeNightmareTest`
+- **Package**: `maple.expectation.chaos.nightmare`
+- **Source**: [`src/test/java/maple/expectation/chaos/nightmare/MetadataLockFreezeNightmareTest.java`](../../../src/test/java/maple/expectation/chaos/nightmare/MetadataLockFreezeNightmareTest.java)
+
+### 🚀 Quick Start
+```bash
+# Prerequisites: Docker Compose running (MySQL)
+docker-compose up -d
+
+# Run specific Nightmare test
+./gradlew test --tests "maple.expectation.chaos.nightmare.MetadataLockFreezeNightmareTest" \
+  2>&1 | tee logs/nightmare-07-$(date +%Y%m%d_%H%M%S).log
+
+# Run individual test methods
+./gradlew test --tests "*MetadataLockFreezeNightmareTest.shouldDetectMetadataLockContention*"
+./gradlew test --tests "*MetadataLockFreezeNightmareTest.shouldMeasureDdlExecutionTime*"
+./gradlew test --tests "*MetadataLockFreezeNightmareTest.shouldNotBlockQueries_whenDdlExecuted*"
+```
+
+### 📊 Test Results
+- **Result File**: [N07-metadata-lock-freeze-result.md](../Results/N07-metadata-lock-freeze-result.md) (if exists)
+- **Test Date**: 2025-01-20
+- **Result**: ❌ FAIL (1/3 tests)
+- **Test Duration**: ~90 seconds
+
+### 🔧 Test Environment
+| Parameter | Value |
+|-----------|-------|
+| Java Version | 21 |
+| Spring Boot | 3.5.4 |
+| MySQL | 8.0 (Docker) |
+| DDL Type | ALTER TABLE |
+| Long-running Transaction | SELECT with HOLD |
+
+### 💥 Failure Injection
+| Method | Details |
+|--------|---------|
+| **Failure Type** | Metadata Lock Cascade |
+| **Injection Method** | Long-running SELECT transaction + concurrent DDL |
+| **Failure Scope** | All queries targeting the same table |
+| **Failure Duration** | Until long transaction commits |
+| **Blast Radius** | Entire table freezes |
+
+### ✅ Pass Criteria
+| Criterion | Threshold | Rationale |
+|-----------|-----------|-----------|
+| Blocked Queries | ≤ 5 | Minimal query queue impact |
+| DDL Execution Time | < 30s | Reasonable schema change time |
+| Data Consistency | 100% | Schema integrity maintained |
+
+### ❌ Fail Criteria
+| Criterion | Threshold | Action |
+|-----------|-----------|--------|
+| Blocked Queries | > 5 | Convoy effect detected |
+| Query Wait Time | > 3000ms | MDL contention too high |
+| DDL Timeout | 1+ | Lock starvation occurred |
+
+### 🧹 Cleanup Commands
+```bash
+# After test - kill any long-running transactions
+docker exec mysql_container mysql -u root -p -e "SHOW PROCESSLIST"
+
+# Kill specific transaction
+docker exec mysql_container mysql -u root -p -e "KILL <connection_id>"
+
+# Or restart MySQL
+docker-compose restart mysql
+```
+
+### 📈 Expected Test Metrics
+| Metric | Before | After | Threshold |
+|--------|--------|-------|-----------|
+| Active Queries | 2-3 | 10+ | N/A |
+| Query Wait Time | <10ms | 3000+ms | N/A |
+| Metadata Locks | 0 | 1 (pending) | N/A |
+| Error Rate | 0% | 5%+ | N/A |
+
+### 🔗 Evidence Links
+- Test Class: [MetadataLockFreezeNightmareTest.java](../../../src/test/java/maple/expectation/chaos/nightmare/MetadataLockFreezeNightmareTest.java)
+- Related Issue: #[P0] Production DDL Metadata Lock Blocking
+
+### ❌ Fail If Wrong
+This test is invalid if:
+- Test does not reproduce the MDL Freeze failure mode
+- MySQL configuration differs from production (lock_wait_timeout)
+- Test environment uses different transaction isolation level
+- DDL operations are not tested against real data volume
+
+---
+
 ## 0. 최신 테스트 결과 (2025-01-20)
 
 ### ❌ FAIL (1/3 테스트 실패)
@@ -245,6 +338,17 @@ Production 환경에서 ALTER TABLE 실행 시 **서비스 전체 Freeze 위험*
 3. **트랜잭션 타임아웃 강화**: 장시간 트랜잭션 자동 종료
 4. **저부하 시간대 DDL 실행**: 새벽 시간대 배포 윈도우 활용
 5. **MDL 모니터링 알람**: `lock_wait_timeout` 초과 시 알림
+
+---
+
+## Fail If Wrong
+
+This test is invalid if:
+- [ ] Test does not reproduce the MDL Freeze failure mode
+- [ ] MySQL configuration differs from production (lock_wait_timeout)
+- [ ] Test environment uses different transaction isolation level
+- [ ] DDL operations are not tested against real data volume
+- [ ] InnoDB version differs significantly
 
 ---
 

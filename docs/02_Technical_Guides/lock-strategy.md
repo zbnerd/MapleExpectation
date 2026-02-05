@@ -1,10 +1,24 @@
 # Lock Strategy Guide
 
 > **Issue #28**: Pessimistic Lock vs Atomic Update 선택 근거 및 도메인별 적용 기준
+>
+> **Last Updated:** 2026-02-05
+> **Applicable Versions:** Redisson 3.27.0, MySQL 8.0
+> **Documentation Version:** 1.0
 
 ## Executive Summary
 
 MapleExpectation은 **3-Tier Lock Architecture**를 채택하여 Redis 장애 시에도 MySQL Fallback으로 가용성을 보장합니다.
+
+## Terminology
+
+| 용어 | 정의 |
+|------|------|
+| **Watchdog** | Redisson의 자동 락 갱신 메커니즘 (기본 30초 TTL) |
+| **SKIP LOCKED** | MySQL 잠긴 행 건너뛰기 (분산 배치 처리용) |
+| **Atomic Update** | `SET col = col + n` 형식의 원자적 증감 연산 |
+| **Optimistic Lock** | @Version 기반 낙관적 락 |
+| **Pessimistic Lock** | JPA PESSIMISTIC_WRITE 기반 비관적 락 |
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -268,3 +282,28 @@ lockStrategy.executeWithLock("like-db-sync-lock", 0, 30, () -> {
 | 일자 | 이슈 | 변경 내용 |
 |------|------|----------|
 | 2026-01-27 | #28 | 초기 문서 작성 |
+
+## Evidence Links
+- **LockStrategy Interface:** `src/main/java/maple/expectation/global/lock/LockStrategy.java`
+- **ResilientLockStrategy:** `src/main/java/maple/expectation/global/lock/ResilientLockStrategy.java`
+- **GameCharacterRepository:** `src/main/java/maple/expectation/repository/v2/GameCharacterRepository.java`
+- **DonationOutboxRepository:** `src/main/java/maple/expectation/repository/v2/DonationOutboxRepository.java`
+
+## Fail If Wrong
+
+이 가이드가 부정확한 경우:
+- **락 전략이 도메인 특성과 맞지 않음**: 비즈니스 요구사항 재검토
+- **Redis 장애 시 락 획득 불가**: ResilientLockStrategy Fallback 동작 확인
+- **SKIP LOCKED으로 병목 발생**: 배치 처리 최적화 확인
+
+### Verification Commands
+```bash
+# Lock Strategy 구현 확인
+find src/main/java -name "*LockStrategy.java"
+
+# SKIP LOCKED 사용 확인
+grep -r "SKIP LOCKED\|skipLocked" src/main/java --include="*.java"
+
+# @Lock 사용 확인
+grep -r "@Lock.*PESSIMISTIC" src/main/java --include="*.java"
+```
