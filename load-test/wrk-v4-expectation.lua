@@ -40,7 +40,7 @@ end
 
 function request()
     requests = requests + 1
-    local path = "/api/v4/expectation/" .. current_ign
+    local path = "/api/v4/characters/" .. current_ign .. "/expectation"
     return wrk.format("GET", path, {
         ["Accept"] = "application/json",
         ["Accept-Encoding"] = "gzip"
