@@ -642,6 +642,108 @@ changes(scenario_current_mode[24h])
 
 ---
 
+## Evidence Links
+
+### Code Evidence
+- **[E1]** TieredCache: `src/main/java/maple/expectation/global/cache/TieredCache.java`
+- **[E2]** EquipmentExpectationServiceV4: `src/main/java/maple/expectation/service/v4/EquipmentExpectationServiceV4.java`
+- **[E3]** Resilience4j Circuit Breaker: `src/main/resources/application.yml` (Line 55-82)
+- **[E4]** ResilientLockStrategy: `src/main/java/maple/expectation/global/lock/ResilientLockStrategy.java`
+- **[E5]** ExpectationBatchWriteScheduler: `src/main/java/maple/expectation/scheduler/ExpectationBatchWriteScheduler.java`
+- **[E6]** Graceful Shutdown Handler: `src/main/java/maple/expectation/config/ShutdownConfig.java`
+- **[E7]** RateLimitingService: `src/main/java/maple/expectation/service/v4/ratelimit/RateLimitingService.java`
+- **[E8]** Prometheus Metrics: `src/main/resources/META-INF/metrics.yml`
+- **[E9]** Alert Rules: `src/main/resources/lock-alerts.yml`
+- **[E10]** Nightmare Tests: `docs/01_Chaos_Engineering/06_Nightmare/`
+- **[E11]** Actuator Exporter: `src/main/resources/application.yml`
+- **[E12]** HikariCP Monitoring: `src/main/resources/application.yml` (Line 16)
+
+### Configuration Evidence
+- **[C1]** Circuit Breaker thresholds: `src/main/resources/application.yml` (Line 55-82)
+- **[C2]** Circuit Breaker timeout: `src/main/resources/application.yml`
+- **[C3]** Graceful shutdown: `src/main/resources/application.yml` (Line 10)
+- **[C4]** Prometheus metrics: `src/main/resources/application.yml`
+
+### Performance Evidence
+- **[P1]** Traffic patterns: Production incident data (Q4 2025)
+- **[P2]** Circuit Breaker effectiveness: 323 trips without service disruption
+- **[P3]** Memory usage: Peak 1.2GB during Red scenario
+
+### Test Evidence
+- **[T1]** Chaos Engineering: N01-N18 Nightmare scenarios
+- **[T2]** TieredCache race conditions: `src/test/java/maple/expectation/cache/TieredCacheRaceConditionTest.java`
+- **[T3]** Circuit Breaker validation: `src/test/java/maple/expectation/service/v4/EquipmentExpectationServiceV4Test.java`
+
+### Documentation Evidence
+- **[D1]** P0 Report: `docs/04_Reports/P0_Issues_Resolution_Report_2026-01-20.md`
+- **[D2]** ADR-005: `docs/adr/ADR-005-resilience4j-scenario-abc.md`
+- **[D3]** ADR-008: `docs/adr/ADR-008-durability-graceful-shutdown.md`
+
+---
+
+## Verification Commands
+
+### Scenario Simulation
+```bash
+# Green/Yellow 시나리오 확인 (정상 트래픽)
+curl -s http://localhost:8080/api/v4/character/test/expectation | jq '.success'
+
+# Orange 시나리오 시뮬레이션 (Nexon API 장애)
+# Redis에 강제 장애 주입
+redis-cli DEBUG SEGFAULT
+curl -s http://localhost:8080/api/v4/character/test/expectation | jq '.fallback'
+
+# Red 시나리오 시뮬레이션 (과부하)
+wrk -t4 -c500 -d30s --latency http://localhost:8080/api/v4/character/test/expectation
+```
+
+### Circuit Breaker 확인
+```bash
+# Circuit Breaker 상태 확인
+curl -s http://localhost:8080/actuator/circuitbreakers | jq '.[] | {name, state, failureRate}'
+
+# Circuit Breaker 메트릭 확인
+curl -s http://localhost:8080/actuator/metrics | jq '.[] | select(contains("circuitbreaker"))'
+```
+
+### TieredCache 확인
+```bash
+# L1 캐시 Hit Rate 확인
+curl -s http://localhost:8080/actuator/metrics/cachehit.ratio | jq '.measurements[0].value'
+
+# Redis L2 캐시 확인
+redis-cli info keyspace | grep db0
+```
+
+### Lock Strategy 확인
+```bash
+# 분산 락 상태 확인
+curl -s http://localhost:8080/actuator/metrics | jq '.[] | select(contains("lock"))'
+
+# 락 획득 실패 확인
+curl -s http://localhost:8080/actuator/metrics/lock_acquisition_total | jq '.measurements[] | select(.tags.status == "failed")'
+```
+
+### Buffer 상태 확인
+```bash
+# Write-Behind Buffer 확인
+curl -s http://localhost:8080/actuator/metrics/expectation.buffer.pending | jq '.measurements[0].value'
+
+# Buffer 배치 상태 확인
+curl -s http://localhost:8080/actuator/metrics/expectation.buffer.batch.total | jq
+```
+
+### Health Check
+```bash
+# 애플리케이션 상태 확인
+curl -s http://localhost:8080/actuator/health | jq '.status'
+
+# 상세 상태 확인
+curl -s http://localhost:8080/actuator/health/details | jq
+```
+
+---
+
 ## Related Documents
 
 - [KPI-BSC Dashboard](../04_Reports/KPI_BSC_DASHBOARD.md) - 성과 지표

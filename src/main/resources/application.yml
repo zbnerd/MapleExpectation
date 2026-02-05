@@ -43,10 +43,15 @@ management:
     web:
       exposure:
         include: "health,info,metrics,prometheus,loggers"
+    enabled-by-default: true
 
   endpoint:
     health:
       show-details: always # 서킷 브레이커 상태를 상세히 보기 위해 필수
+    prometheus:
+      enabled: true
+    metrics:
+      enabled: true
   health:
     circuitbreakers:
       enabled: true
