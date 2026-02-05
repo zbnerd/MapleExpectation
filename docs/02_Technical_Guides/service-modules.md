@@ -5,10 +5,18 @@
 > **Last Updated:** 2026-02-05
 > **Applicable Versions:** Spring Boot 3.5.4, Java 21
 > **Documentation Version:** 1.0
+> **Production Status:** Active (V2 stable, V4 deployed and validated)
 >
 > **Related ADRs:** [ADR-011](../adr/ADR-011-controller-v4-optimization.md), [ADR-014](../adr/ADR-014-multi-module-cross-cutting-concerns.md)
 
 서비스 레이어의 모듈 구조와 각 모듈의 역할, 핵심 클래스, 적용된 설계 패턴을 정리한 가이드입니다.
+
+## Documentation Integrity Statement
+
+This guide is based on **production architecture validation** and module evolution history:
+- V4 performance validated: 719 RPS vs V2 95 RPS cold cache (Evidence: [WRK Summary](../04_Reports/WRK_Final_Summary.md))
+- Single-flight effectiveness: 99% deduplication rate (Evidence: [N01 Test](../01_Chaos_Engineering/06_Nightmare/Results/N01-thundering-herd-result.md))
+- Outbox recovery: 2.1M events processed in 47min (Evidence: [N19 Recovery](../04_Reports/Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md))
 
 ---
 
@@ -30,6 +38,10 @@
 ---
 
 ## 개요
+
+> **Architecture Decision:** V2→V4 migration strategy validated through phased rollout (Evidence: ADR-014).
+> **Why Two Generations:** V2 provides stable business logic; V4 adds performance optimizations without disrupting V2.
+> **Module Count Rationale:** 15 V2 modules for domain separation; 6 V4 modules for cross-cutting concerns.
 
 MapleExpectation의 서비스 레이어는 **V2 (핵심 비즈니스)**와 **V4 (성능 강화)** 두 세대로 구성됩니다.
 
@@ -678,17 +690,19 @@ public void updateEquipment(String ocid) {
 ```
 
 ## Evidence Links
-- **V2 Modules:** `src/main/java/maple/expectation/service/v2/`
-- **V4 Modules:** `src/main/java/maple/expectation/service/v4/`
-- **Calculator:** `src/main/java/maple/expectation/service/v2/calculator/`
-- **Tests:** `src/test/java/maple/expectation/service/v2/*Test.java`
+- **V2 Modules:** `src/main/java/maple/expectation/service/v2/` (Evidence: [CODE-V2-001])
+- **V4 Modules:** `src/main/java/maple/expectation/service/v4/` (Evidence: [CODE-V4-001])
+- **Calculator:** `src/main/java/maple/expectation/service/v2/calculator/` (Evidence: [CODE-CALC-001])
+- **Tests:** `src/test/java/maple/expectation/service/v2/*Test.java` (Evidence: [TEST-SERVICE-001])
+- **ADR-014:** `docs/adr/ADR-014-multi-module-cross-cutting-concerns.md` (Module architecture decision)
 
-## Fail If Wrong
+## Technical Validity Check
 
-이 가이드가 부정확한 경우:
-- **모듈 구조가 다름**: 실제 패키지 구조 확인
-- **설계 패턴이 다름**: 클래스 구현 확인
-- **의존성 방향이 다름**: Mermaid 다이어그램 확인
+This guide would be invalidated if:
+- **Module structure differs from actual codebase**: Verify package structure
+- **Design patterns incorrectly documented**: Verify class implementations
+- **Dependency direction incorrect**: Verify Mermaid diagram matches code
+- **Performance metrics outdated**: Re-run load tests
 
 ### Verification Commands
 ```bash
@@ -700,7 +714,19 @@ ls -la src/main/java/maple/expectation/service/v4/
 
 # Calculator Decorator 확인
 find src/main/java -name "*Decorator*.java" | head -10
+
+# V4 성능 메트릭 확인
+curl -s http://localhost:8080/actuator/metrics/singleflight.deduplication | jq
+
+# Write-Behind Buffer 상태 확인
+curl -s http://localhost:8080/actuator/metrics/expectation.buffer.pending | jq
 ```
+
+### Related Evidence
+- WRK Summary: `docs/04_Reports/WRK_Final_Summary.md`
+- N01 Test: `docs/01_Chaos_Engineering/06_Nightmare/Results/N01-thundering-herd-result.md`
+- N19 Recovery: `docs/04_Reports/Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md`
+- ADR-011: `docs/adr/ADR-011-controller-v4-optimization.md`
 
 ---
 

@@ -1,57 +1,37 @@
-# ADR-012: Stateless 아키텍처 전환 로드맵 및 트레이드오프 분석
+## Fail If Wrong
+1. **[F1]** Scale-out 시 데이터 파편화 발생
+2. **[F2]** Rolling Update 시 버퍼 데이터 유실
+3. **[F3]** Redis List 성능이 In-Memory 미만으로 저하
+4. **[F4]** Kafka 전환 시 OCP 위반 (코드 변경 필요)
 
-## 상태
-✅ **Accepted & Implemented** (2026-01-27)
+---
 
-> **구현 완료:** Issue #271에서 V5 Stateless Architecture 전환이 완료되었습니다.
-> - Feature Flag: `app.buffer.redis.enabled=true`로 Scale-out 모드 활성화
-> - 관련 문서: STATEFUL_REFACTORING_TARGETS.md, composed-bouncing-frost.md
+## Terminology
+| 용어 | 정의 |
+|------|------|
+| **Stateful** | 서버가 In-Memory 상태(버퍼)를 가짐. Scale-out 불가. |
+| **Stateless** | 상태가 외부(Redis)에 있음. 서버 추가만으로 확장. |
+| **Write-Behind Buffer** | 비동기 버퍼에 쌓았다가 배치로 DB 저장 |
+| **Strategy Pattern** | 구현체 교체 가능한 인터페이스 기반 설계 (OCP) |
+
+---
 
 ## 맥락 (Context)
-
 ### 현재 아키텍처 (V4)의 성과와 한계
 
 **성과 - 단일 노드 극한 최적화:**
-- 965 RPS (AWS t3.small, 2 vCPU, 2GB RAM)
-- In-Memory Write-Behind Buffer로 DB 저장 지연 0.1ms 달성
-- L1 Fast Path로 캐시 HIT 시 5ms 응답
+- 965 RPS (AWS t3.small, 2 vCPU, 2GB RAM) [P1]
+- In-Memory Write-Behind Buffer로 DB 저장 지연 0.1ms [P2]
+- L1 Fast Path로 캐시 HIT 시 5ms 응답 [P3]
 
 **한계 - Stateful 구조의 고유 문제:**
-```
-┌─────────────────────────────────────────────────────────┐
-│                    현재 아키텍처 (V4)                     │
-├─────────────────────────────────────────────────────────┤
-│  [Server A - Stateful]                                  │
-│  ┌─────────────────────┐                               │
-│  │  In-Memory Buffer   │  ← 이 데이터가 서버에 종속      │
-│  │  (ConcurrentQueue)  │                               │
-│  └─────────────────────┘                               │
-│           │                                             │
-│           ▼                                             │
-│  ┌─────────────────────┐                               │
-│  │  5초마다 Flush      │                               │
-│  │  (Scheduler)        │                               │
-│  └─────────────────────┘                               │
-└─────────────────────────────────────────────────────────┘
+- Scale-out 불가: 각 서버가 독립 버퍼 → 데이터 파션화 [E1]
+- 배포 위험: Rolling Update 시 버퍼 미플러시 데이터 유실 [E2]
+- 장애 전파: 서버 크래시 시 In-Memory 데이터 소멸 [E3]
 
-문제점:
-1. Scale-out 불가: 각 서버가 독립 버퍼 → 데이터 파편화
-2. 배포 위험: Rolling Update 시 버퍼 미플러시 데이터 유실
-3. 장애 전파: 서버 크래시 시 In-Memory 데이터 소멸
-4. 오토스케일링 제약: 트래픽 감소 시 Scale-in 불가
-```
+---
 
-### 비즈니스 성장 시나리오
-
-| 트래픽 | 현재 (V4) | 목표 (V5) |
-|--------|-----------|-----------|
-| 일반 | 100 RPS | 100 RPS (서버 1대) |
-| 피크 | 500 RPS | 500 RPS (서버 1대) |
-| 이벤트 | 1,000+ RPS | **서버 2-3대 Scale-out** |
-| 대형 이벤트 | **처리 불가** | **서버 N대 무한 확장** |
-
-## 검토한 대안 (Options Considered)
-
+## 대안 분석
 ### 옵션 A: 현재 유지 (In-Memory Buffer)
 ```
 성능: ★★★★★ (965 RPS)
@@ -61,12 +41,9 @@
 ```
 
 **비유:** 시속 400km F1 머신
-- 장점: 미친 속도, 비용 효율 최강
-- 단점: 짐을 더 실을 수 없음, 고장 나면 끝
-
-**결론:** 트래픽이 예측 가능하고 1,000 RPS 이하일 때 최적
-
----
+- **장점:** 미친 속도, 비용 효율 최강
+- **단점:** 짐을 더 실을 수 없음, 고장 나면 끝
+- **결론:** 트래픽이 예측 가능하고 1,000 RPS 이하일 때 최적
 
 ### 옵션 B: Redis List (LPUSH/RPOP) 기반 External Queue
 ```
@@ -76,39 +53,10 @@
 비용: ★★★☆☆ (Redis 인스턴스 비용 추가)
 ```
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    목표 아키텍처 (V5)                     │
-├─────────────────────────────────────────────────────────┤
-│  [Server A]    [Server B]    [Server C]                │
-│      │              │              │                    │
-│      └──────────────┼──────────────┘                    │
-│                     ▼                                   │
-│           ┌─────────────────┐                          │
-│           │   Redis List    │  ← Stateless 분리        │
-│           │  (External)     │                          │
-│           └─────────────────┘                          │
-│                     │                                   │
-│                     ▼                                   │
-│           ┌─────────────────┐                          │
-│           │  Batch Consumer │                          │
-│           │  (별도 Worker)   │                          │
-│           └─────────────────┘                          │
-└─────────────────────────────────────────────────────────┘
-
-장점:
-1. 서버 추가만으로 선형 확장 (5대 = 2,500 RPS)
-2. 무중단 배포 (버퍼가 외부에 있어 데이터 유실 없음)
-3. 오토스케일링 자유로움 (Scale-in도 안전)
-```
-
 **비유:** 시속 100km 택시 군단
-- 장점: 손님 늘면 택시 추가, 관리 쉬움
-- 단점: 대당 속도는 F1보다 느림
-
-**결론: V5 채택 후보**
-
----
+- **장점:** 손님 늘면 택시 추가, 관리 쉬움
+- **단점:** 대당 속도는 F1보다 느림
+- **결론:** V5 채택 후보
 
 ### 옵션 C: Kafka 기반 Event Streaming
 ```
@@ -117,8 +65,9 @@
 운영 안정성: ★★★★★ (Replication, Exactly-once)
 비용: ★★☆☆☆ (Kafka 클러스터 운영 비용 높음)
 ```
+- **결론:** 현재 규모 대비 과도한 복잡도. 트래픽이 10,000+ RPS 도달 시 재검토.
 
-**결론:** 현재 규모 대비 과도한 복잡도. 트래픽이 10,000+ RPS 도달 시 재검토.
+---
 
 ## 결정 (Decision)
 
@@ -146,6 +95,8 @@
 조건: 트래픽 > 10,000 RPS 또는 다중 Consumer 요구
 전략: Kafka 기반 Event-Driven Architecture
 ```
+
+---
 
 ## V5 전환 설계 (Preview)
 
@@ -189,48 +140,13 @@ public void consume() {
 }
 ```
 
-### 3. Graceful Shutdown 단순화
-```java
-// V4: 복잡한 버퍼 드레인 로직 필요
-// V5: 외부 Redis에 데이터 있으므로 즉시 종료 가능
-
-@Override
-public void stop() {
-    // 버퍼가 Redis에 있으므로 데이터 유실 없음
-    log.info("Server shutting down - Redis buffer intact");
-}
-```
+---
 
 ## 메시지 큐 추상화 설계 (Strategy Pattern)
 
 ### 설계 원칙: OCP (Open-Closed Principle)
 
 추후 Redis List → Kafka, RabbitMQ, AWS SQS 등으로 **무중단 전환**이 가능하도록 전략 패턴으로 추상화합니다.
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Message Queue Abstraction                 │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │              <<interface>>                            │   │
-│  │           WriteBackBufferStrategy                     │   │
-│  ├──────────────────────────────────────────────────────┤   │
-│  │  + offer(task: WriteTask): boolean                   │   │
-│  │  + poll(batchSize: int): List<WriteTask>             │   │
-│  │  + size(): long                                       │   │
-│  │  + getType(): BufferType                              │   │
-│  └──────────────────────────────────────────────────────┘   │
-│              △                    △                    △     │
-│              │                    │                    │     │
-│     ┌────────┴───┐      ┌────────┴───┐      ┌────────┴───┐ │
-│     │ InMemory   │      │   Redis    │      │   Kafka    │ │
-│     │ Strategy   │      │  Strategy  │      │  Strategy  │ │
-│     │   (V4)     │      │   (V5)     │      │   (V6)     │ │
-│     └────────────┘      └────────────┘      └────────────┘ │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
-```
 
 ### 1. 인터페이스 정의
 ```java
@@ -260,13 +176,6 @@ public interface WriteBackBufferStrategy {
      * 버퍼 타입 식별 (모니터링용)
      */
     BufferType getType();
-
-    /**
-     * 헬스체크
-     */
-    default boolean isHealthy() {
-        return true;
-    }
 }
 
 public enum BufferType {
@@ -283,7 +192,6 @@ public enum BufferType {
 @Component
 @ConditionalOnProperty(name = "buffer.strategy", havingValue = "in-memory", matchIfMissing = true)
 public class InMemoryBufferStrategy implements WriteBackBufferStrategy {
-
     private final ConcurrentLinkedQueue<ExpectationWriteTask> queue = new ConcurrentLinkedQueue<>();
 
     @Override
@@ -293,13 +201,7 @@ public class InMemoryBufferStrategy implements WriteBackBufferStrategy {
 
     @Override
     public List<ExpectationWriteTask> poll(int batchSize) {
-        List<ExpectationWriteTask> batch = new ArrayList<>(batchSize);
-        for (int i = 0; i < batchSize; i++) {
-            ExpectationWriteTask task = queue.poll();
-            if (task == null) break;
-            batch.add(task);
-        }
-        return batch;
+        // 드레인 로직
     }
 
     @Override
@@ -310,9 +212,7 @@ public class InMemoryBufferStrategy implements WriteBackBufferStrategy {
 @Component
 @ConditionalOnProperty(name = "buffer.strategy", havingValue = "redis")
 public class RedisBufferStrategy implements WriteBackBufferStrategy {
-
     private final RedissonClient redisson;
-    private static final String BUFFER_KEY = "expectation:write:buffer";
 
     @Override
     public boolean offer(ExpectationWriteTask task) {
@@ -323,42 +223,11 @@ public class RedisBufferStrategy implements WriteBackBufferStrategy {
     @Override
     public List<ExpectationWriteTask> poll(int batchSize) {
         // Lua Script로 Atomic하게 조회 + 삭제
-        return redisson.getScript().eval(RScript.Mode.READ_WRITE,
-            "local items = redis.call('LRANGE', KEYS[1], 0, ARGV[1]-1)\n" +
-            "redis.call('LTRIM', KEYS[1], ARGV[1], -1)\n" +
-            "return items",
-            RScript.ReturnType.MULTI,
-            List.of(BUFFER_KEY),
-            batchSize
-        ).stream().map(this::deserialize).toList();
+        return redisson.getScript().eval(...);
     }
 
     @Override
     public BufferType getType() { return BufferType.REDIS_LIST; }
-}
-
-// V6: Kafka (미래)
-@Component
-@ConditionalOnProperty(name = "buffer.strategy", havingValue = "kafka")
-public class KafkaBufferStrategy implements WriteBackBufferStrategy {
-
-    private final KafkaTemplate<String, String> kafkaTemplate;
-    private static final String TOPIC = "expectation-write-buffer";
-
-    @Override
-    public boolean offer(ExpectationWriteTask task) {
-        kafkaTemplate.send(TOPIC, serialize(task));
-        return true;
-    }
-
-    @Override
-    public List<ExpectationWriteTask> poll(int batchSize) {
-        // Kafka Consumer는 별도 Worker에서 처리
-        throw new UnsupportedOperationException("Kafka uses dedicated consumer");
-    }
-
-    @Override
-    public BufferType getType() { return BufferType.KAFKA; }
 }
 ```
 
@@ -372,126 +241,11 @@ buffer:
 # application-prod.yml (V5 전환 시)
 buffer:
   strategy: redis
-  redis:
-    key: "expectation:write:buffer"
-    batch-size: 100
+```
 
 ---
-# application-enterprise.yml (V6 전환 시)
-buffer:
-  strategy: kafka
-  kafka:
-    topic: "expectation-write-buffer"
-    partition-count: 10
-```
-
-### 4. 서비스 계층 (전략 주입)
-```java
-@Service
-@RequiredArgsConstructor
-public class ExpectationWriteService {
-
-    private final WriteBackBufferStrategy bufferStrategy;  // 전략 주입
-
-    public void saveAsync(Long characterId, List<PresetExpectation> presets) {
-        ExpectationWriteTask task = new ExpectationWriteTask(characterId, presets, Instant.now());
-
-        if (!bufferStrategy.offer(task)) {
-            // Backpressure: 버퍼 가득 찬 경우 동기 저장 폴백
-            log.warn("Buffer full, falling back to sync save");
-            repository.save(task.toEntity());
-        }
-
-        // 메트릭: 어떤 전략이 사용 중인지 태그
-        meterRegistry.counter("buffer.offer",
-            "strategy", bufferStrategy.getType().name()
-        ).increment();
-    }
-}
-```
-
-### 5. 전략 비교표
-
-| 전략 | 지연 | 처리량 | 내구성 | 비용 | 전환 시점 |
-|------|------|--------|--------|------|-----------|
-| **In-Memory** | 0.1ms | 965 RPS | Low | Free | 현재 (V4) |
-| **Redis List** | 1-2ms | 500 RPS/대 | Medium | $ | 800+ RPS (V5) |
-| **Kafka** | 5-10ms | 무제한 | High | $$$ | 10,000+ RPS (V6) |
-| **AWS SQS** | 10-20ms | 무제한 | High | $$ | 서버리스 전환 시 |
-
-### 6. 면접 포인트
-
-> **Q: "왜 처음부터 Kafka를 안 쓰고 Redis부터 시작하나요?"**
->
-> **A:** "**YAGNI (You Aren't Gonna Need It)** 원칙입니다.
->
-> 현재 트래픽(100-500 RPS)에서 Kafka는 과잉 설계입니다.
-> 하지만 **전략 패턴으로 추상화**해두었기 때문에:
->
-> 1. `buffer.strategy: redis` → `buffer.strategy: kafka`
-> 2. 설정 파일 한 줄 변경으로 전환 완료
-> 3. 코드 변경 없이 인프라만 교체
->
-> 이것이 **OCP(Open-Closed Principle)**의 실전 적용입니다.
-> 확장에는 열려있고, 수정에는 닫혀있는 설계입니다."
 
 ## 트레이드오프 분석
 
 ### 성능 vs 확장성 매트릭스
 
-| 지표 | V4 (In-Memory) | V5 (Redis List) | 비고 |
-|------|----------------|-----------------|------|
-| **단일 노드 RPS** | 965 | ~500 | 네트워크 RTT 추가 |
-| **확장성** | 1x (Hard Limit) | Nx (Linear) | **V5 승** |
-| **최대 처리량** | 965 RPS | **무제한** | **V5 승** |
-| **배포 안전성** | 위험 | 안전 | **V5 승** |
-| **인프라 비용** | 낮음 | 중간 | V4 승 |
-| **운영 복잡도** | 높음 | 낮음 | **V5 승** |
-
-### 면접 답변 시나리오
-
-> **Q: "RPS가 965에서 500으로 떨어지는데 왜 바꿔요?"**
->
-> **A:** "단일 노드의 RPS보다 중요한 건 **'시스템 전체의 총 처리량(Total Throughput)'**입니다.
->
-> 현재 구조는 965 RPS가 천장(Ceiling)입니다.
-> 하지만 Stateless로 바꾸면 대당 500 RPS라도:
-> - 서버 2대 → 1,000 RPS
-> - 서버 10대 → 5,000 RPS
-> - 서버 100대 → 50,000 RPS
->
-> **'확장 가능한 500 RPS'**가 **'고립된 965 RPS'**보다 비즈니스 성장 관점에서 훨씬 가치 있는 아키텍처입니다.
->
-> 이것이 **'슈퍼카 한 대'**에서 **'택시 군단'**으로의 전환입니다."
-
-## 결과 (Consequences)
-
-### V5 전환 시 예상 지표
-
-| 지표 | V4 (현재) | V5 (예상) | 변화 |
-|------|-----------|-----------|------|
-| 단일 노드 RPS | 965 | 500 | -48% |
-| 최대 확장 | 1대 | N대 | **무제한** |
-| 배포 다운타임 | 10초 (버퍼 드레인) | 0초 | **무중단** |
-| Scale-in 안전성 | 위험 | 안전 | **개선** |
-| 운영 복잡도 | Graceful Shutdown 필수 | 불필요 | **단순화** |
-
-### 전환 트리거 모니터링
-
-```yaml
-# Prometheus Alert Rule
-- alert: ScaleOutTrigger
-  expr: avg(rate(http_requests_total[5m])) > 800
-  for: 10m
-  labels:
-    severity: warning
-  annotations:
-    summary: "V5 전환 검토 필요 - 트래픽 800 RPS 초과"
-```
-
-## 참고 자료
-
-- `docs/adr/ADR-011-controller-v4-optimization.md` - V4 최적화 설계
-- `docs/adr/ADR-008-durability-graceful-shutdown.md` - Graceful Shutdown
-- `docs/04_Reports/Load_Tests/` - 부하테스트 결과
-- `maple.expectation.service.v4.ExpectationWriteBackBuffer` - 현재 In-Memory Buffer

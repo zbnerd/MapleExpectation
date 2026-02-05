@@ -1,8 +1,35 @@
 # DP Calculator 시퀀스 다이어그램
 
+> **Architecture reflects current state as of 2026-02-05**
+> **See ADR-009 for design decisions**
+
 ## 개요
 
 동적 프로그래밍(DP)으로 큐브 기대값을 계산합니다. Kahan Summation Algorithm을 적용한 double 연산으로 부동소수점 오차를 최소화합니다. (재미용 서비스 특성상 금융급 BigDecimal 정확도 불필요)
+
+---
+
+## Documentation Validity
+
+**Invalid if:**
+- Sequence diagrams don't match actual execution traces
+- Class names in diagrams don't exist in codebase
+- Method call order differs from actual execution
+- Cache key structure doesn't match actual implementation
+
+**Verification:**
+```bash
+# Verify class existence
+find src/main/java -name "CubeDpCalculator.java" -o -name "ProbabilityConvolver.java"
+
+# Verify cache key pattern
+grep -r "expectation:v3" src/main/java/maple/expectation/
+
+# Trace execution
+grep -A 5 "calculateWithCache" src/main/java/maple/expectation/service/v2/cube/
+```
+
+---
 
 ## 전체 계산 시퀀스
 
@@ -192,3 +219,19 @@ expectation:v3:{ocid}:{equipmentHash}:{tableVersionHash}:lv3
 - `src/main/java/maple/expectation/service/v2/cube/component/ProbabilityConvolver.java`
 - `src/main/java/maple/expectation/service/v2/cube/component/DpModeInferrer.java`
 - `src/main/java/maple/expectation/repository/v2/CubeProbabilityRepository.java`
+
+---
+
+## Evidence IDs
+
+| ID | Claim | Evidence Source |
+|----|-------|-----------------|
+| EV-DP-001 | DP Algorithm: O(slots × target × K) | [ProbabilityConvolver.java](../../src/main/java/maple/expectation/service/v2/cube/component/ProbabilityConvolver.java) |
+| EV-DP-002 | Kahan Summation applied | [CubeDpCalculator.java](../../src/main/java/maple/expectation/service/v2/cube/component/CubeDpCalculator.java) |
+| EV-DP-003 | Cache hit rate >95% | [N01 Thundering Herd Test](../01_Chaos_Engineering/06_Nightmare/Results/N01-thundering-herd-result.md) |
+| EV-DP-004 | 34,488 probabilities loaded | [CubeProbabilityRepository.java](../../src/main/java/maple/expectation/repository/v2/CubeProbabilityRepository.java) |
+
+---
+
+*Last Updated: 2026-02-05*
+*Architecture Version: 1.3.0*

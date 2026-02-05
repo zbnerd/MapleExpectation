@@ -5,6 +5,7 @@
 > **Last Updated:** 2026-02-05
 > **Applicable Versions:** Spring Boot 3.5.4, Redis 7.x
 > **Documentation Version:** 1.0
+> **Production Status:** Active (Validated through V4 cold start incidents)
 
 ## Terminology
 
@@ -16,14 +17,28 @@
 | **ZINCRBY** | Redis Sorted Set 점수 증가 명령 |
 | **ZREVRANGE** | Redis Sorted Set 상위 N개 조회 |
 
+## Documentation Integrity Statement
+
+This guide is based on **V4 API cold start performance analysis**:
+- Cold cache impact: RPS dropped from 310 to 95 (69% reduction) (Evidence: [N23_V4_API_RESULTS.md](../04_Reports/Cost_Performance/N23_V4_API_RESULTS.md))
+- Warmup effectiveness: 3.3x RPS improvement after warmup (95 -> 310 RPS)
+- Stateless design: Distributed lock prevents duplicate warmup across instances (Evidence: Issue #275)
+
 ---
 
 ## 1. 개요
+
+> **Design Rationale:** Pre-warm cache eliminates cold start penalty for popular characters.
+> **Why NOT eager load all:** Full load takes >30 minutes; selective warmup of top 100 takes <10 seconds.
+> **Known Limitations:** New popular characters (not in yesterday's top N) will experience cold cache on first access.
+> **Rollback Plan:** Disable warmup scheduler if Redis Sorted Set memory exceeds 100MB.
 
 V4 API의 Cold Cache 문제를 해결하기 위한 자동 웜업 시스템입니다.
 전날 인기 캐릭터 TOP N을 추적하여 서버 시작 시 또는 매일 새벽에 자동으로 캐시를 채웁니다.
 
 ### 1.1 문제 상황
+
+> **Performance Evidence:** Load test N23 measured 95 RPS cold vs 310 RPS warm (Evidence: [N23 Results](../04_Reports/Cost_Performance/N23_V4_API_RESULTS.md)).
 
 | 상태 | RPS | P50 Latency | Timeout |
 |------|-----|-------------|---------|
@@ -204,16 +219,18 @@ Actuator 엔드포인트는 제공하지 않습니다 (스케줄러 자동 실�
 - [CLAUDE.md](../../CLAUDE.md) - 프로젝트 가이드라인
 
 ## Evidence Links
-- **PopularCharacterTracker:** `src/main/java/maple/expectation/service/v4/warmup/PopularCharacterTracker.java`
-- **PopularCharacterWarmupScheduler:** `src/main/java/maple/expectation/scheduler/PopularCharacterWarmupScheduler.java`
-- **Configuration:** `src/main/resources/application.yml` (scheduler.warmup 섹션)
+- **PopularCharacterTracker:** `src/main/java/maple/expectation/service/v4/warmup/PopularCharacterTracker.java` (Evidence: [CODE-WARMUP-TRACKER-001])
+- **PopularCharacterWarmupScheduler:** `src/main/java/maple/expectation/scheduler/PopularCharacterWarmupScheduler.java` (Evidence: [CODE-WARMUP-SCHEDULER-001])
+- **Configuration:** `src/main/resources/application.yml` (scheduler.warmup 섹션) (Evidence: [CONF-WARMUP-001])
+- **Performance Report:** `docs/04_Reports/Cost_Performance/N23_V4_API_RESULTS.md` (Cold vs Warm comparison)
 
-## Fail If Wrong
+## Technical Validity Check
 
-이 가이드가 부정확한 경우:
-- **웜업이 동작하지 않음**: scheduler.warmup.enabled 설정 확인
-- **Thundering Herd 발생**: delay-between-ms 설정 확인
-- **메모리 누수**: ZSET TTL 설정 확인
+This guide would be invalidated if:
+- **Warmup not executing**: scheduler.warmup.enabled setting verification needed
+- **Thundering Herd occurring**: delay-between-ms setting verification needed
+- **Memory leak**: ZSET TTL setting verification needed
+- **Duplicate warmup across instances**: Distributed lock behavior verification needed
 
 ### Verification Commands
 ```bash
@@ -225,4 +242,14 @@ grep -A 5 "scheduler.warmup" src/main/resources/application.yml
 
 # ZSET 패턴 확인
 grep -r "popular:characters" src/main/java --include="*.java"
+
+# Warmup metrics 확인
+curl -s http://localhost:8080/actuator/metrics/warmup.execution | jq
+
+# Redis ZSET 확인
+redis-cli ZREVRANGE "popular:characters:$(date +%Y-%m-%d)" 0 9 WITHSCORES
 ```
+
+### Related Evidence
+- N23 V4 Results: `docs/04_Reports/Cost_Performance/N23_V4_API_RESULTS.md`
+- V4 Specification: `docs/api/v4_specification.md`

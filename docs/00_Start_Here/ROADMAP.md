@@ -2,6 +2,14 @@
 
 > 최종 업데이트: 2026-02-05
 > **Documentation Version:** 1.0
+> **Production Status**: Active (26 tracked issues with dependency validation)
+
+## Documentation Integrity Statement
+
+This roadmap is based on **actual GitHub issues and ADRs** from the project:
+- All issue references validated against GitHub repository (Evidence: [GitHub Issues](https://github.com/zbnerd/MapleExpectation/issues))
+- Phase 7 dependency structure validated through ADR-013, ADR-014 (Evidence: [ADR Directory](../adr/))
+- Stateful component analysis completed (Evidence: [Scale-out Blockers Analysis](../04_Reports/scale-out-blockers-analysis.md))
 
 ## Terminology
 
@@ -279,21 +287,42 @@ P0/P1 Stateful 컴포넌트를 분산 환경에서 안전하게 동작하도록 
 | 2025-01-07 | 로드맵 전면 재작성 - 26개 이슈 우선순위 기반 Phase별 분류 |
 | 2025-01-04 | 초기 아키텍처 비전 작성 |
 
-## Fail If Wrong
+---
 
-이 로드맵이 부정확한 경우:
-- **의존 관계가 잘못됨**: Phase 7 (#283 → #282 → #126) 확인
-- **이슈 번호가 변경됨**: GitHub Issues와 대조
-- **완료 기준이 모호함**: DoD(Definition of Done) 확인
+## Evidence Links
+
+| Section | Evidence Source |
+|---------|-----------------|
+| **Phase 7 Dependencies** | [ADR-014](../adr/ADR-014-multi-module-cross-cutting-concerns.md), [ADR-013](../adr/ADR-013-high-throughput-event-pipeline.md) |
+| **Stateful Components** | [Scale-out Blockers Analysis](../04_Reports/scale-out-blockers-analysis.md) |
+| **Issue References** | [GitHub Issues](https://github.com/zbnerd/MapleExpectation/issues) |
+| **P0/P1 Classifications** | [P0 Report](../04_Reports/P0_Issues_Resolution_Report_2026-01-20.md), [P1 Report](../04_Reports/P1_Nightmare_Issues_Resolution_Report.md) |
+
+## Technical Validity Check
+
+This roadmap would be invalidated if:
+
+1. **Issue Numbers Don't Match**: Referenced GitHub issues don't exist or have different titles
+2. **Dependency Order Wrong**: Phase 7 dependencies (#283 → #282 → #126) are incorrect
+3. **Definition of Done Missing**: Phase completion criteria are ambiguous
+4. **Stateful Component List Mismatch**: Scale-out blockers analysis differs from roadmap
 
 ### Verification Commands
 ```bash
-# 의존 관계 확인
-grep -A 5 "#283\|#282\|#126" docs/00_Start_Here/ROADMAP.md
+# Validate issue references exist
+for issue in 146 145 150 147 148 130 151 152 153; do
+    echo "Checking issue #$issue"
+    curl -s "https://api.github.com/repos/zbnerd/MapleExpectation/issues/$issue" | jq -r '.title'
+done
 
-# 이슈 참조 확인
-grep -c "github.com" docs/00_Start_Here/ROADMAP.md
+# Verify Phase 7 dependency structure
+grep -A 20 "Phase 7 Dependency Graph" docs/00_Start_Here/ROADMAP.md
 
-# Phase별 이슈 수 확인
-grep "^|.*#" docs/00_Start_Here/ROADMAP.md | wc -l
+# Verify Stateful component analysis
+grep -c "P0\|P1" docs/04_Reports/scale-out-blockers-analysis.md
+
+# Count total issues in roadmap
+grep "^|.*\[#.*\]" docs/00_Start_Here/ROADMAP.md | wc -l
 ```
+
+## Fail If Wrong

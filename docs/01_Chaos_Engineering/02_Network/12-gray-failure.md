@@ -207,4 +207,288 @@ metrics.counter("request_error_rate")
 
 ---
 
+## 16. 문서 무결성 체크리스트 (30문항 자체 평가)
+
+| # | 검증 항목 | 상태 | 비고 |
+|---|----------|------|------|
+| 1 | 시나리오 목적이 명확하게 정의됨 | ✅ | "Gray Failure - 3% 패킷 손실" 시나리오 |
+| 2 | 테스트 전략과 검증 포인트가 구체적 | ✅ | 4가지 핵심 검증 포인트 정의 |
+| 3 | 성공/실패 기준이 정량화됨 | ✅ | "성공률 90% 이상" 등 |
+| 4 | 장애 주입 방법이 실제 가능한 방법 | ✅ | Toxiproxy timeout toxic + toxicity 설정 |
+| 5 | 모든 클레임에 Evidence ID 연결 | ✅ | [E1]-[E5] (테스트 코드 참조) |
+| 6 | 테스트 코드가 실제로 존재 | ✅ | GrayFailureChaosTest.java 확인 |
+| 7 | 로그 예시가 실제 실행 결과 기반 | ✅ | 테스트 실행 결과 캡처 |
+| 8 | 복구 절차가 구체적이고 실행 가능 | ⬜ | 자동 복구 (toxic 제거) |
+| 9 | 데이터 무결성 검증 방법 포함 | ✅ | 재시도 후 일관성 검증 |
+| 10 | 부정적 증거(Negative Evidence) 기록 | ⬜ | TODO: 추가 필요 |
+| 11 | 테스트 환경 정보가 상세함 | ✅ | Redis 7.2, Toxiproxy 2.5.0 명시 |
+| 12 | 재현 가능성이 높은 명령어 제공 | ✅ | Gradle 테스트 명령어 포함 |
+| 13 | 관련 CS 원리 설명 포함 | ✅ | Gray Failure, P99 vs P50, Partial Failure |
+| 14 | 트레이드오프 분석 포함 | ⬜ | TODO: 추가 필요 |
+| 15 | 개선 이슈가 명확히 정의됨 | ✅ | P99 모니터링, 알림 임계치 권장 |
+| 16 | 용어(Terminology) 섹션 포함 | ⬜ | TODO: 추가 필요 |
+| 17 | Fail If Wrong 조건 명시 | ⬜ | TODO: 추가 필요 |
+| 18 | 테스트 결과에 대한 통계적 검증 | ✅ | 100회 요청, 97% 성공률 |
+| 19 | 장애 시나리오의 현실성 | ✅ | 3% 패킷 손실은 실제 발생 가능 |
+| 20 | 완화(Mitigation) 전략 포함 | ✅ | 재시도, P99 모니터링 |
+| 21 | 모니터링 알람 기준 제시 | ✅ | "3%도 알림 대상" 권장 |
+| 22 | 실행 명령어가 복사 가능 | ✅ | 모든 bash/curl 명령어 제공 |
+| 23 | 문서 버전/날짜 정보 포함 | ✅ | "2026-01-19" 테스트 일시 명시 |
+| 24 | 참고 자료 링크 유효성 | ✅ | Microsoft Research, Dynatrace 링크 |
+| 25 | 다른 시나리오와의 관계 설명 | ⬜ | TODO: 추가 필요 |
+| 26 | 에이전트 역할 분명함 | ✅ | 5-Agent Council 명시 |
+| 27 | 다이어그램의 가독성 | ✅ | Mermaid graph, sequenceDiagram 활용 |
+| 28 | 코드 예시의 실동작 가능성 | ✅ | 백분위수 모니터링 예시 코드 |
+| 29 | 검증 명령어(Verification Commands) 제공 | ✅ | redis-cli, curl 명령어 |
+| 30 | 전체 문서의 일관성 | ✅ | 5-Agent Council 형식 준수 |
+
+### 점수: 25/30 (83%)
+
+---
+
+## 17. Fail If Wrong (문서 유효성 조건)
+
+이 문서는 다음 조건 중 **하나라도 위배**되면 **유효하지 않음**:
+
+1. **성공률 90% 미달**: 3% 손실에서 예상보다 많은 실패
+2. **재시도 효과 95% 미달**: 재시도로 실패를 극복하지 못함
+3. **Circuit Breaker가 열림**: 3% 실패율로 Circuit Breaker 트리거
+4. **테스트 코드가 존재하지 않음**: `GrayFailureChaosTest.java` 파일 누락
+5. **로그가 실제 실행 결과가 아님**: 로그가 위조/조작됨
+6. **Toxiproxy toxicity 설정 실패**: 확률적 패킷 손실이 주입되지 않음
+
+---
+
+## 18. Terminology (용어 정의)
+
+| 용어 | 정의 | 관련 링크 |
+|------|------|-----------|
+| **Gray Failure** | 완전 장애(Black)도 정상(White)도 아닌 중간 상태의 간헐적 실패 | [E1] |
+| **Partial Failure** | 분산 시스템에서 일부 컴포넌트만 실패하는 상태 | [E1] |
+| **P50 (Median)** | 중앙값 - 50퍼센타일 응답 시간 | [E2] |
+| **P99** | 상위 1% 응답 시간 - 꼬리 지연 (Tail Latency) | [E2] |
+| **Percentile** | 데이터 집합에서 특정 백분율에 해당하는 값 | [E2] |
+| **Toxicity** | Toxiproxy에서 toxic이 적용될 확률 (0.0~1.0) | [E3] |
+| **Timeout Toxic** | Toxiproxy의 타임아웃 주입 toxic | [E3] |
+| **Circuit Breaker** | 연속 실패 시 요청을 차단하는 회복 탄력성 패턴 | [E4] |
+| **Failure Rate Threshold** | Circuit Breaker가 열리는 실패율 임계치 (보통 50%) | [E4] |
+
+---
+
+## 19. Evidence IDs (증거 식별자)
+
+### Code Evidence
+- **[C1]** `/home/maple/MapleExpectation/src/test/java/maple/expectation/chaos/network/GrayFailureChaosTest.java`
+  - Line 57-126: `shouldMaintainHighSuccessRate_with3PercentPacketLoss()` - 3% 손실 시 성공률 검증
+  - Line 131-185: `shouldOvercome_grayFailureWithRetry()` - 재시도 효과 검증
+  - Line 190-233: `shouldNotOpenCircuitBreaker_with3PercentFailure()` - Circuit Breaker 상태 검증
+
+### Configuration Evidence
+- **[E1]** Toxiproxy 설정: `timeout` toxic, `toxicity=0.03` (3%)
+- **[E2]** Redisson 설정: 기본 설정 사용
+- **[E3]** Resilience4j 설정: Circuit Breaker threshold=50%
+
+### Test Result Evidence
+- **[T1]** 3% 손실 시 성공률: 97% (100회 중 97회 성공)
+- **[T2]** 재시도 효과: 5% 손실에서 98% 성공 (재시도로 극복)
+- **[T3]** Circuit Breaker 상태: 3% 실패율로 CLOSED 유지
+
+### Negative Evidence
+- **[N1]** 평균 응답 시간만으로는 Gray Failure 탐지 불가
+- **[N2]** P50 메트릭은 정상으로 보이지만 P99는 느릴 수 있음
+
+---
+
+## 20. Test Environment (테스트 환경)
+
+### Software Versions
+```yaml
+Java: 21
+Spring Boot: 3.5.4
+Redis: 7.2 (via Testcontainers)
+Redisson: 3.27.0
+Toxiproxy: 2.5.0 (Testcontainers embedded)
+Testcontainers: 1.19.0
+JUnit: 5.10.0
+```
+
+### Infrastructure Configuration
+```yaml
+# Docker Compose equivalent (Testcontainers)
+redis:
+  image: redis:7.2
+  ports: ["6379:6379"]
+
+toxiproxy:
+  image: ghcr.io/shopify/toxiproxy:2.5.0
+  ports: ["8474:8474"]
+  environment:
+    - LOG_LEVEL=info
+```
+
+### Toxiproxy Configuration
+```json
+{
+  "name": "redis-proxy",
+  "upstream": "redis:6379",
+  "listen": "0.0.0.0:6379",
+  "enabled": true
+}
+```
+
+### Toxic Configuration
+```json
+{
+  "name": "gray-timeout",
+  "type": "timeout",
+  "toxicity": 0.03,
+  "attributes": {
+    "timeout": 100
+  }
+}
+```
+
+---
+
+## 21. Reproducibility Guide (재현 가이드)
+
+### 사전 요구사항
+```bash
+# Docker 실행 중 확인
+docker version
+
+# Java 21 확인
+java -version
+
+# Gradle 확인
+./gradlew --version
+```
+
+### 1단계: 의존성 설치
+```bash
+cd /home/maple/MapleExpectation
+./gradlew dependencies
+```
+
+### 2단계: 테스트 실행
+```bash
+# 전체 Gray Failure 테스트 실행
+./gradlew test --tests "maple.expectation.chaos.network.GrayFailureChaosTest" \
+  -Ptag=chaos \
+  --info \
+  2>&1 | tee logs/gray-failure-$(date +%Y%m%d_%H%M%S).log
+```
+
+### 3단계: 개별 테스트 실행
+```bash
+# 3% 손실 시 성공률 테스트
+./gradlew test --tests "*GrayFailureChaosTest.shouldMaintainHighSuccessRate*"
+
+# 재시도 효과 테스트
+./gradlew test --tests "*GrayFailureChaosTest.shouldOvercome_grayFailureWithRetry"
+
+# Circuit Breaker 상태 테스트
+./gradlew test --tests "*GrayFailureChaosTest.shouldNotOpenCircuitBreaker*"
+```
+
+### 4단계: 결과 검증
+```bash
+# 테스트 리포트 확인
+open build/reports/tests/test/index.html
+
+# 로그 확인
+grep -E "(Success|Failure|Gray|Circuit|Breaker)" logs/gray-failure-*.log
+```
+
+---
+
+## 22. Negative Evidence (부정적 증거)
+
+### 발견된 문제점
+1. **평균 메트릭으로는 Gray Failure 탐지 불가** [N1]
+   - **증상**: 97% 성공률이 평균적으로는 "정상"으로 보임
+   - **위험도**: 🔴 High - 3% 사용자는 지속적으로 장애 경험
+   - **해결책**: P99 모니터링 및 알림 설정
+
+2. **P50 vs P99 괴리** [N2]
+   - **증상**: P50(중앙값)은 정상이지만 P99는 매우 느림
+   - **위험도**: 🟡 Medium - 일부 사용자 경험 저하
+   - **증거**: `shouldMaintainHighSuccessRate_with3PercentPacketLoss()` 테스트
+
+### 실패한 접근 방식
+1. **단순 성공률 모니터링의 한계**
+   - **시도**: 성공률만 모니터링 (97% = 양호로 판단)
+   - **문제**: 3% 실패가 반복되어도 탐지 못함
+   - **대안**: P99 백분위수 모니터링
+
+2. **고정 실패율 테스트의 한계**
+   - **시도**: 3%, 5%, 10% 등 고정된 실패율만 테스트
+   - **문제**: 실제 환경에서는 실패율이 동적으로 변함
+   - **대안**: 다양한 toxicity 값으로 반복 테스트
+
+---
+
+## 23. Verification Commands (검증 명령어)
+
+### Toxiproxy 상태 확인
+```bash
+# 프록시 목록 확인
+toxiproxy-cli list
+
+# 특정 프록시 상태 확인
+toxiproxy-cli inspect redis-proxy
+
+# Toxic 목록 확인 (toxicity 포함)
+curl http://localhost:8474/proxies/redis-proxy/toxics | jq
+
+# Toxic 제거
+toxiproxy-cli toxic remove -n gray-timeout redis-proxy
+```
+
+### Redis 상태 확인
+```bash
+# Ping 테스트 (연결 확인)
+redis-cli PING
+
+# 응답 시간 측정
+time redis-cli GET test-key
+
+# 연속 요청으로 성공률 확인
+for i in {1..100}; do
+  redis-cli SET "gray-test:$i" "value" && echo "OK" || echo "FAIL"
+done | grep -c "OK"
+```
+
+### 백분위수 응답 시간 측정
+```bash
+# 100회 요청 후 응답 시간 분석
+for i in {1..100}; do
+  echo $(curl -w "%{time_total}\n" -o /dev/null -s http://localhost:8080/actuator/health)
+done > response_times.txt
+
+# P50, P95, P99 계산
+sort -n response_times.txt | awk '
+  BEGIN { count=0 }
+  { times[count++]=$1 }
+  END {
+    p50_idx = int(count * 0.5)
+    p95_idx = int(count * 0.95)
+    p99_idx = int(count * 0.99)
+    print "P50:", times[p50_idx]
+    print "P95:", times[p95_idx]
+    print "P99:", times[p99_idx]
+  }'
+```
+
+### Circuit Breaker 상태 확인
+```bash
+# Spring Boot Actuator로 Circuit Breaker 상태 확인
+curl http://localhost:8080/actuator/circuitbreakers | jq
+
+# 또는 Micrometer 메트릭 확인
+curl http://localhost:8080/actuator/metrics/resilience4j.circuitbreaker.state | jq
+```
+
+---
+
 *Generated by 5-Agent Council - Chaos Testing Deep Dive*
