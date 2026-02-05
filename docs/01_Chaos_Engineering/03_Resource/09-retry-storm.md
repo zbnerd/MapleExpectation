@@ -255,13 +255,19 @@ grep "backing off" logs/retry-storm-*.log
    - **위험도**: 🟠 중상 - 지속적 장애 시 Circuit Breaker가 열리지 않을 수 있음
    - **TODO**: Retry + Circuit Breaker 통합 테스트 필요
 
-3. **Jitter 미구현** ⚠️
-   - **관찰**: 테스트 코드에 순수 Exponential Backoff만 구현
-   - **영향**: 여러 클라이언트가 동시에 재시도 가능 (Thundering Herd 위험)
-   - **개선**: 랜덤 Jitter 추가 필요
-   ```java
-   // 현재: Thread.sleep(100L * (1L << attempts));
-   // 개선: Thread.sleep(backoff + (long)(Math.random() * backoff * 0.3));
+3. **Jitter 미구현** → ✅ **구현 완료**
+   - **관찰**: 순수 Exponential Backoff만 사용 시 Thundering Herd 위험
+   - **해결**: `randomizationFactor: 0.5` 추가 (application.yml likeSyncRetry)
+   - **영향**: 재시도 간격에 ±50% 랜덤 Jitter 적용 (Retry Storm 방지)
+   ```yaml
+   # application.yml
+   resilience4j:
+     retry:
+       instances:
+         likeSyncRetry:
+           enableExponentialBackoff: true
+           exponentialBackoffMultiplier: 2.0
+           randomizationFactor: 0.5  # ✅ Jitter 추가
    ```
 
 4. **Retry Budget 미적용** ❌
