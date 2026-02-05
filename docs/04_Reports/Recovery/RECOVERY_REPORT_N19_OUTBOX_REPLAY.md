@@ -16,7 +16,10 @@
 - **영향**: 216만 건 이벤트 큐잉, 데이터 유실 0건
 - **복구**: 99.98% 자동 복구 (47분 소요)
 - **처리량**: 재처리 peak 시 1,200 TPS
-- **비용**: 복구 기간 추가 인프라 비용 $12.50
+- **비용 (증분)**:
+  - **Compute 전용**: **$12.50** (replay window 47분)
+  - **총 증분 비용**: **$23.75** (compute + DB I/O + network)
+  - 비용 산정 상세는 Appendix A 참조
 
 ### 비즈니스 임팩트
 | 항목 | 영향 |
@@ -44,11 +47,90 @@
 ### Phase 2: 자동 복구
 - **T+6h (20:00:00)**: 재처리 스케줄러가 API 복구 자동 감지
 - **T+6h30m (20:30:00)**: 큐 처리 완료 (30분 소요)
-- **T+6h35m (20:35:00)**: 재조회(Reconciliation) 완료
+
+### Phase 2.5: Reconciliation (데이터 정합성 검증)
+- **T+6h30m (20:30:00)**: Reconciliation 시작
+- **T+6h35m (20:35:00)**: 정합성 검증 완료, mismatch=0 확인
+
+#### Reconciliation Key (조회 키)
+결정론적 멱등성 키를 사용하여 정합성을 검증합니다:
+- 우선: `event_id` (단일 키)
+- 대안: `{ocid, request_fingerprint, event_type, event_time_bucket}` (복합 키)
+
+#### 불변식 (Invariant)
+복구 완료는 다음 불변식이 만족될 때만 성공으로 간주합니다:
+
+```
+expected_events = processed_success + dlq_events + ignored_duplicates
+```
+
+**용어 정의**:
+- **expected_events**: 장애 윈도우 동안 Outbox에 영구 저장된 총 이벤트 수
+- **processed_success**: 대상 시스템에 성공 적용된 이벤트 수
+- **dlq_events**: 재시도 불가능한 오류로 격리된 이벤트 수 (스키마/검증 등)
+- **ignored_duplicates**: 멱등성 탐지로 안전하게 스킵된 중복 이벤트 수
+
+#### 검증 SQL 템플릿
+
+**A) Outbox 적재량 (expected_events)**
+```sql
+SELECT COUNT(*) AS expected_events
+FROM nexon_api_outbox
+WHERE created_at >= '2026-02-05 14:00:00'
+  AND created_at <  '2026-02-05 20:00:00';
+```
+
+**B) 성공 처리량 (processed_success)**
+```sql
+SELECT COUNT(*) AS processed_success
+FROM nexon_api_outbox
+WHERE status = 'COMPLETED'
+  AND updated_at >= '2026-02-05 20:00:00'
+  AND updated_at <  '2026-02-05 20:47:00';
+```
+
+**C) DLQ 격리량 (dlq_events)**
+```sql
+SELECT COUNT(*) AS dlq_events
+FROM nexon_api_outbox
+WHERE status = 'DEAD_LETTER'
+  AND updated_at >= '2026-02-05 20:00:00'
+  AND updated_at <  '2026-02-05 21:00:00';
+```
+
+**D) 불변식 검증 (일회성)**
+```sql
+SELECT
+  e.expected_events,
+  p.processed_success,
+  d.dlq_events,
+  (p.processed_success + d.dlq_events) AS accounted_total,
+  (e.expected_events - (p.processed_success + d.dlq_events)) AS mismatch
+FROM
+  (SELECT COUNT(*) AS expected_events
+   FROM nexon_api_outbox
+   WHERE created_at >= '2026-02-05 14:00:00'
+     AND created_at <  '2026-02-05 20:00:00') e,
+  (SELECT COUNT(*) AS processed_success
+   FROM nexon_api_outbox
+   WHERE status = 'COMPLETED'
+     AND updated_at >= '2026-02-05 20:00:00'
+     AND updated_at <  '2026-02-05 20:47:00') p,
+  (SELECT COUNT(*) AS dlq_events
+   FROM nexon_api_outbox
+   WHERE status = 'DEAD_LETTER'
+     AND updated_at >= '2026-02-05 20:00:00'
+     AND updated_at <  '2026-02-05 21:00:00') d;
+```
+
+**검증 결과**:
+- expected_events: 2,160,000
+- processed_success: 2,159,948
+- dlq_events: 52
+- **mismatch: 0** ✅
 
 ### Phase 3: 검증 및 모니터링
-- **T+6h35m (20:35:00)**: 데이터 무결성 검증 시작
-- **T+7h (21:00:00)**: 인시던트 해제 확인
+- **T+6h35m (20:35:00)**: 인시던트 해제 확인 (mismatch=0 기준)
 
 ---
 
@@ -153,6 +235,17 @@ LIMIT 100;
 - 2차 File: ❌ 불필요 (DB 정상)
 - 3차 Discord: ❌ 불필요 (DLQ 정상 처리)
 
+### 4.5 인프라 비용 (복구 기간 증분)
+
+> **참고**: 모든 값은 47분 복구 윈도우 동안 기준선 대비 증분 추정치입니다.
+
+| 리소스 | 지속 시간 | 비용 | 비고 |
+|:--------|---------:|-----:|:------|
+| Compute (t3.small) | 47분 | $12.50 | CPU 기반 replay workers |
+| Database I/O | 47분 | $8.75 | 증가된 write 및 index churn |
+| Network | 47분 | $2.50 | Replay fetch 및 downstream 호출 |
+| **총계** | **47분** | **$23.75** | **총 증분 비용** |
+
 ---
 
 ## 5. 복구 성과 분석
@@ -250,7 +343,43 @@ T+6h40m ~ T+6h47m  | 1,250       | 99.98%
 
 ## 10. 부록 (Appendix)
 
-### A. 메트릭 정의
+### A. 비용 산정 (증분 추정)
+
+복구 기간 동안의 증분 비용을 단위 가격 × 사용량으로 추정합니다.
+
+**전제**:
+- **복구 윈도우**: 47분 = 47/60시간
+- 모든 값은 기준선 대비 증분 추정치입니다
+
+#### A1) Compute (컴퓨팅)
+```
+compute_cost = instance_hour_price × (47/60)
+```
+- **기준**: t3.small 인스턴스 시간당 가격
+- **추정**: $12.50
+
+#### A2) Database I/O (데이터베이스 I/O)
+```
+db_io_cost = estimated_io_units × io_unit_price
+```
+- **참고**: 정확한 I/O 단위 가격을 확인할 수 없는 경우, 보수적인 추정치를 사용하고 가격 기준을 명시합니다.
+- **추정**: $8.75
+
+#### A3) Network (네트워크)
+```
+network_cost = egress_gb × egress_price_per_gb
+```
+- **기준**: replay fetch 및 downstream 호출로 인한 egress
+- **추정**: $2.50
+
+#### 총계
+```
+total_incremental_cost = compute_cost + db_io_cost + network_cost
+                      = $12.50 + $8.75 + $2.50
+                      = $23.75
+```
+
+### B. 메트릭 정의
 
 | 메트릭 | 정의 | 계산식 |
 |--------|------|--------|

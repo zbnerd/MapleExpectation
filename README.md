@@ -34,6 +34,14 @@
 | Zero Failure Rate | 18개 Nightmare 카오스 테스트 검증 |
 | Cost Efficiency | Single t3.small (~$15/month) |
 
+### 핵심 성과 요약 (Core Achievements)
+
+> **증거 기반의 탑티어 운영 효율 (Evidence-Based Operational Excellence)**
+
+- **Zero data loss**: 2.16M events preserved; replay 99.98% in 47m ([N19 Outbox Replay](docs/04_Reports/Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md))
+- **Policy-driven auto mitigation**: MTTD 30s, MTTR 2m with audit log ([N21 Auto Mitigation](docs/04_Reports/Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md))
+- **Cost frontier**: $30 config delivers best RPS/$ with p99 < 100ms ([N23 Cost Performance](docs/04_Reports/Cost_Performance/COST_PERF_REPORT_N23.md))
+
 ---
 
 ## Cost vs Throughput (운영 효율)

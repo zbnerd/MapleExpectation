@@ -46,20 +46,20 @@ p99 응답 시간이 50ms에서 5,000ms로 100배 급증하는 장애가 발생�
 | 10:15:15 | 지속 악화 | p99 500ms → 2,000ms | `[WARN] Response time exceeded threshold: 2000ms` |
 | 10:15:30 | **임계값 도달** | p99 2,000ms → **5,000ms** | `[ERROR] p99 spike detected: 5000ms > threshold 1000ms` |
 
-### Phase 3: 자동 감지 (T+30s ~ T+60s)
-| 시간 | 이벤트 | 감지 시스템 | 판정 |
-|------|--------|-------------|------|
+### Phase 3: 자동 감지 및 분류 (T+30s ~ T+60s)
+| 시간 | 이벤트 | 컴포넌트 | 결과 |
+|------|--------|-----------|------|
 | 10:15:30 | **이상 징후 감지** | Prometheus Alertmanager | `p99_response_time > 1000ms` |
-| 10:15:35 | **장애 분류 시작** | Anomaly Detection Engine | "Database Slowdown" (확신도 92%) |
-| 10:15:40 | **근본 원인 추론** | Root Cause Analysis AI | "Connection Pool Exhaustion" (확신도 88%) |
-| 10:15:45 | **완화책 추천** | Mitigation Recommender | "Increase Pool Size: 10 → 20" |
-| 10:15:50 | **영향 분석 완료** | Impact Analyzer | "Estimated recovery: 2min, Risk: LOW" |
+| 10:15:35 | **증거 수집** | Signal Aggregator (rule-based) | DB/Cache/API 지표 수집 |
+| 10:15:40 | **가설 점수화** | Hypothesis Classifier (heuristic) | 상위: "DB Pool Saturation" (0.92) |
+| 10:15:45 | **완화책 제안** | Mitigation Policy Engine | 안전 조치 + 롤백 계획 제안 |
+| 10:15:50 | **승인 결정** | Approval Policy Gate | 자동 승인 (confidence ≥ 0.80, risk=LOW) |
 
 ### Phase 4: 자동 완화 (T+60s ~ T+2m)
 | 시간 | 이벤트 | 조치 | 결과 |
 |------|--------|------|------|
-| 10:15:60 | **완화 승인** | Auto-Approval Engine | "APPROVED: Confidence 92% > threshold 80%" |
-| 10:16:00 | **조치 실행 시작** | Execution Agent | `HikariCP.setMaximumPoolSize(20)` |
+| 10:16:00 | **완화 승인** | Approval Policy Gate | "APPROVED: Confidence 0.92 ≥ threshold 0.80" |
+| 10:16:15 | **조치 실행 시작** | Execution Agent | `HikariCP.setMaximumPoolSize(20)` |
 | 10:16:30 | **조치 실행 완료** | Config Server | "Pool size updated: 10 → 20" |
 | 10:17:00 | **개선 징후 확인** | Monitoring | p99 5,000ms → 1,000ms |
 | 10:17:30 | **회복 완료** | Health Check | p99 1,000ms → **50ms** (정상 복귀) |
@@ -115,9 +115,9 @@ groups:
 
 ### Root Cause Classification (근본 원인 분류)
 
-#### Auto-Classification Engine
+#### Hypothesis Classifier (Heuristic)
 ```python
-# 가설 기반 분류
+# 가설 기반 분류 (Heuristic)
 hypotheses = [
     {
         "name": "Database Slowdown",
@@ -158,7 +158,44 @@ root_cause = max(hypotheses, key=lambda h: h["confidence"])
 
 ---
 
-## 4. Decision Log (의사결정 기록)
+## 4. Hypothesis Update: Symptom-based vs Confirmed Root Cause
+
+### 초기 분류 (T+30s, 증상 기반)
+- **판정**: Database Connection Pool Saturation
+- **증거**:
+  - `db_pool_active = 10/10` (100% 사용)
+  - `db_wait_time_p99 = 4000ms`
+- **확신도**: 95%
+
+### 최종 확정 원인 (Postmortem)
+- **판정**: Redis TTL 오설정 → Cache Stampede → Database Pool Saturation
+- **증거**:
+  - `cache_miss_rate 급증` (정상: 5% → 장애: 40%)
+  - `ttl_observed = 60초` (기대: 3600초)
+  - `db_qps 급증` (정상: 100 → 장애: 1500)
+- **확신도**: 99%
+
+**업데이트 배경**:
+초기에는 Connection Pool 고갈이 원인으로 보였으나, 사후 분석 결과 Redis TTL 설정 오류로 인한 Cache Stampede가 1차 원인임이 확인되었습니다.
+
+---
+
+## 5. Evidence Links (증거 링크)
+
+### Alert & Policy
+- **Alert rule**: `ops/alerts/p99_spike.yml`
+- **Mitigation policy**: `ops/policy/mitigation.yml`
+
+### Execution Paths
+- **Config update**: `src/.../MitigationExecutor.java`
+- **Rollback logic**: `src/.../RollbackPolicy.java`
+
+### Monitoring Snapshots
+- **Before/After metrics**: `docs/04_Reports/Incidents/assets/N21_p99_before_after.png`
+
+---
+
+## 6. Decision Log (의사결정 기록)
 
 ### Decision 1: 장애 확인 (T+30s)
 ```yaml
