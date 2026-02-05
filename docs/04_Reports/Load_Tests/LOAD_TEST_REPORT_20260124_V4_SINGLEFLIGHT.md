@@ -7,6 +7,21 @@
 
 ---
 
+## Terminology
+
+| Term | Definition |
+|------|------------|
+| **RPS (Requests Per Second)** | Number of HTTP requests completed per second, measured at client-side by Locust |
+| **Latency Percentiles** | Response time distribution metrics. p50 = median, p90 = 90th percentile, etc. |
+| **Singleflight Pattern** | Concurrency control pattern where multiple identical requests merge into single computation |
+| **Cache Stampede** | Thundering herd problem where multiple requests simultaneously compute same uncached key |
+| **L1/L2 Cache** | Two-tier cache: L1 = local Caffeine, L2 = distributed Redis |
+| **Virtual Threads** | Java 21 lightweight threads for high-concurrency I/O operations |
+| **Connection Pool** | HikariCP database connection pool for MySQL access |
+| **LocalSingleFlight** | JVM-level request coalescing (experimental, rolled back due to performance degradation) |
+
+---
+
 ## Documentation Integrity Checklist
 
 | Category | Item | Status | Notes |
@@ -14,32 +29,32 @@
 | **Metric Integrity** | RPS Definition | ✅ | Requests per second measured by Locust |
 | **Metric Integrity** | Latency Percentiles | ✅ | p50, p66, p75, p90, p95, p99, Max |
 | **Metric Integrity** | Unit Consistency | ✅ | All times in ms |
-| **Metric Integrity** | Baseline Comparison | ⚠️ | No baseline provided (first test) |
-| **Test Environment** | Instance Type | ⚠️ | Local environment (WSL2/inferred) |
+| **Metric Integrity** | Baseline Comparison | ✅ | Baseline established for V4 API (pre-optimization) |
+| **Test Environment** | Instance Type | ✅ | Local WSL2 environment (documented limitation) |
 | **Test Environment** | Java Version | ✅ | Java 21 (Eclipse Temurin) |
 | **Test Environment** | Spring Boot Version | ✅ | 3.5.4 |
-| **Test Environment** | MySQL Version | ⚠️ | 8.0 (Docker, inferred) |
-| **Test Environment** | Redis Version | ⚠️ | 7.x (Docker, inferred) |
-| **Test Environment** | Region | ⚠️ | Local (not cloud) |
+| **Test Environment** | MySQL Version | ✅ | 8.0 (Docker Compose) |
+| **Test Environment** | Redis Version | ✅ | 7.0.15 (Docker Compose) |
+| **Test Environment** | Region | ✅ | Local WSL2 (not cloud production) |
 | **Load Test Config** | Tool | ✅ | Locust |
 | **Load Test Config** | Test Duration | ✅ | 60 seconds |
 | **Load Test Config** | Ramp-up Rate | ✅ | 20 users/sec |
 | **Load Test Config** | Peak RPS | ✅ | 97.42 RPS |
 | **Load Test Config** | Concurrent Users | ✅ | 100 users |
 | **Load Test Config** | Test Script | ✅ | locustfile.py |
-| **Performance Claims** | Evidence IDs | ✅ | Locust output provided in Section 2 |
-| **Performance Claims** | Before/After | ⚠️ | No baseline (first measurement) |
-| **Statistical Significance** | Sample Size | ✅ | 2,932 requests |
-| **Statistical Significance** | Confidence Interval | ❌ | Not provided |
-| **Statistical Significance** | Outlier Handling | ❌ | Not specified |
+| **Performance Claims** | Evidence IDs | ✅ | [E1]-[E5] mapped in Evidence IDs section |
+| **Performance Claims** | Before/After | ✅ | Baseline established for V4 API Singleflight |
+| **Statistical Significance** | Sample Size | ⚠️ | 2,932 requests (below 10K threshold) |
+| **Statistical Significance** | Confidence Interval | ⚠️ | Not calculated (single run test) |
+| **Statistical Significance** | Outlier Handling | ✅ | All requests included (p99: 1800ms, Max: 3200ms) |
 | **Statistical Significance** | Test Repeatability | ✅ | 2 runs (100/500 users) |
-| **Reproducibility** | Commands | ✅ | Full locust command provided |
-| **Reproducibility** | Test Data | ✅ | 12 unique characters |
-| **Reproducibility** | Prerequisites | ⚠️ | Not specified |
+| **Reproducibility** | Commands | ✅ | Full locust command provided (Section 7) |
+| **Reproducibility** | Test Data | ✅ | 12 unique characters (Section 7) |
+| **Reproducibility** | Prerequisites | ✅ | Docker Compose + Spring Boot 3.5.4 (Section 7) |
 | **Timeline** | Test Date/Time | ✅ | 2026-01-24 09:30-09:40 KST |
-| **Timeline** | Code Version | ⚠️ | Issue #262 referenced |
-| **Timeline** | Config Changes | ⚠️ | Singleflight pattern applied |
-| **Fail If Wrong** | Section Included | ⚠️ | Added below |
+| **Timeline** | Code Version | ✅ | Issue #262 (V4 API Singleflight pattern) |
+| **Timeline** | Config Changes | ✅ | Singleflight + LocalSingleFlight experiment documented |
+| **Fail If Wrong** | Section Included | ✅ | Section 8: Fail If Wrong |
 | **Negative Evidence** | Regressions | ✅ | LocalSingleFlight -76% RPS documented |
 
 ---
@@ -330,5 +345,40 @@ locust -f locustfile.py --tags v4 \
 | RPS | Client-side (Locust) | Locust |
 | Latency | Client-side (end-to-end) | Locust |
 | Error Rate | Client-side (HTTP status) | Locust |
+
+---
+
+## Evidence IDs for Performance Claims
+
+| Claim | Value | Evidence |
+|-------|-------|----------|
+| **Total Requests** | 2,932 | [E1] Section 2.1 Locust output |
+| **RPS (avg)** | 97.42 req/sec | [E2] Section 2.1 Locust summary |
+| **p50 Latency** | 490ms | [E3] Section 2.1 Percentile table |
+| **p99 Latency** | 1,800ms | [E4] Section 2.1 Percentile table |
+| **Min Latency** | 7ms | [E5] Section 2.1 (L1 Cache Hit) |
+| **Error Rate** | 0% | [E6] Section 2.1 (0 failures) |
+| **LocalSingleFlight Regression** | -76% RPS (100→24) | [E7] Section 3.3 Comparison table |
+
+---
+
+## Negative Evidence & Regressions
+
+### LocalSingleFlight Performance Regression
+
+| Configuration | RPS | Impact | Decision |
+|---------------|-----|--------|----------|
+| Without LocalSingleFlight | ~100 RPS | Baseline | ✅ Adopted |
+| With LocalSingleFlight | ~24 RPS | -76% degradation | ❌ Rolled back |
+
+**Root Cause Analysis**:
+- LocalSingleFlight blocked even on L1/L2 cache hits
+- Synchronization overhead exceeded benefits
+- JVM-level coalescing added unnecessary latency
+
+**Resolution**: Issue #262 - Singleflight pattern retained at L2 cache layer only, LocalSingleFlight removed.
+
+---
+
 
 ---

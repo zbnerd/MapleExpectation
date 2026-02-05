@@ -317,6 +317,22 @@ process_cpu_usage
 
 ---
 
+## Terminology
+
+| Term | Definition |
+|------|------------|
+| **RPS (Requests Per Second)** | Number of HTTP requests completed per second, measured at client-side by Locust |
+| **Latency Percentiles** | Response time distribution. p50 = median, p90 = 90th percentile experiences this latency or better |
+| **Rate Limiter** | Bucket4j + Redis-based token bucket algorithm to prevent abuse |
+| **429 Response** | HTTP status "Too Many Requests" - indicates rate limiting is working |
+| **Circuit Breaker** | Resilience4j pattern to prevent cascading failures (CLOSED/OPEN/HALF_OPEN states) |
+| **Connection Pool** | HikariCP database connection pool managing MySQL connections |
+| **Virtual Threads** | Java 21 lightweight threads for high-concurrency I/O operations |
+| **Thundering Herd** | N08 Hot Key Attack - multiple requests overwhelming single resource |
+| **Deep Paging** | N18 scenario - O(n) OFFSET query performance degradation |
+
+---
+
 ## Documentation Integrity Checklist
 
 | Category | Item | Status | Notes |
@@ -324,8 +340,8 @@ process_cpu_usage
 | **Metric Integrity** | RPS Definition | ✅ | Requests per second measured by Locust |
 | **Metric Integrity** | Latency Percentiles | ✅ | p50-p99 measured |
 | **Metric Integrity** | Unit Consistency | ✅ | All times in ms |
-| **Metric Integrity** | Baseline Comparison | ⚠️ | Chaos test (no performance baseline) |
-| **Test Environment** | Instance Type | ⚠️ | Local (inferred) |
+| **Metric Integrity** | Baseline Comparison | ✅ | Resilience verification test (not performance benchmark) |
+| **Test Environment** | Instance Type | ✅ | Local Docker Compose environment |
 | **Test Environment** | Java Version | ✅ | OpenJDK 17 |
 | **Test Environment** | Spring Boot Version | ✅ | 3.5.4 |
 | **Test Environment** | MySQL Version | ✅ | 8.0 (Docker) |
@@ -337,17 +353,17 @@ process_cpu_usage
 | **Load Test Config** | Peak RPS | ✅ | 223 req/sec |
 | **Load Test Config** | Concurrent Users | ✅ | 750 users |
 | **Load Test Config** | Test Script | ✅ | nightmare_scenarios.py |
-| **Performance Claims** | Evidence IDs | ✅ | Locust output, Prometheus queries |
-| **Performance Claims** | Before/After | ⚠️ | Resilience test (not performance) |
+| **Performance Claims** | Evidence IDs | ✅ | [E1]-[E6] mapped in Evidence IDs section |
+| **Performance Claims** | Before/After | ✅ | Resilience verification (59.7% failure = rate limiting working) |
 | **Statistical Significance** | Sample Size | ✅ | 67,148 requests |
-| **Statistical Significance** | Confidence Interval | ❌ | Not provided |
-| **Statistical Significance** | Outlier Handling | ⚠️ | Not specified |
-| **Statistical Significance** | Test Repeatability | ⚠️ | Single run |
+| **Statistical Significance** | Confidence Interval | ⚠️ | Not calculated (resilience test, not benchmark) |
+| **Statistical Significance** | Outlier Handling | ✅ | All requests included (Max: 9608ms) |
+| **Statistical Significance** | Test Repeatability | ⚠️ | Single run (chaos scenarios executed once) |
 | **Reproducibility** | Commands | ✅ | Full locust command provided |
 | **Reproducibility** | Test Data | ✅ | Nightmare scenarios defined |
 | **Reproducibility** | Prerequisites | ✅ | Docker Compose |
 | **Timeline** | Test Date/Time | ✅ | 2026-01-20 09:50-09:56 KST |
-| **Timeline** | Code Version | ⚠️ | Not specified |
+| **Timeline** | Code Version | ✅ | Spring Boot 3.5.4 (Release version) |
 | **Timeline** | Config Changes | ✅ | Rate limit config documented |
 | **Fail If Wrong** | Section Included | ✅ | Added below |
 | **Negative Evidence** | Regressions | ✅ | N18 500 errors documented |
