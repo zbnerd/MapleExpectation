@@ -1534,5 +1534,176 @@ grep -r "try {" src/main/java/maple/expectation/service --include="*.java" | wc 
 
 ---
 
+## Terminology (용어 정의)
+
+| 용어 | 정의 |
+|------|------|
+| **ExecutionPolicy** | 실행 전후 훅을 제공하는 무상태 컴포넌트 |
+| **Pipeline** | 다수 Policy를 순서대로 실행하는 엔진 |
+| **entered** | before가 성공적으로 실행된 정책 리스트 (정리 대상) |
+| **Primary Exception** | 최종 throw될 주 예외 |
+| **suppressed** | Primary에 부가적으로 추가되는 예외 (원인 추적) |
+| **FailureMode** | lifecycle 훅의 실패 처리 모드 (SWALLOW/PROPAGATE) |
+| **ExecutionOutcome** | task 실행 결과 (SUCCESS/FAILURE) |
+| **HookType** | 훅 종류 (BEFORE/ON_SUCCESS/ON_FAILURE/AFTER) |
+| **Single Measurement Principle** | elapsedNanos는 task 실행 구간만 포함하며 한 번만 확정 |
+| **Self-Suppression** | 동일 예외 객체를 자신에게 추가하는 행위 |
+
+---
+
+## Evidence Links
+
+### Code Evidence
+- **[E1]** ExecutionPolicy interface: `src/main/java/maple/expectation/global/executor/policy/ExecutionPolicy.java`
+- **[E2]** ExecutionPipeline core algorithm: `src/main/java/maple/expectation/global/executor/policy/ExecutionPipeline.java`
+- **[E3]** LoggingPolicy observability hook: `src/main/java/maple/expectation/global/executor/policy/LoggingPolicy.java`
+- **[E4]** FinallyPolicy cleanup hook: `src/main/java/maple/expectation/global/executor/policy/FinallyPolicy.java`
+- **[E5]** FailureMode enum: `src/main/java/maple/expectation/global/executor/policy/FailureMode.java`
+- **[E6]** ExecutionOutcome enum: `src/main/java/maple/expectation/global/executor/policy/ExecutionOutcome.java`
+- **[E7]** HookType enum: `src/main/java/maple/expectation/global/executor/policy/HookType.java`
+- **[E8]** CheckedLogicExecutor: `src/main/java/maple/expectation/global/executor/CheckedLogicExecutor.java`
+- **[E9]** DefaultCheckedLogicExecutor implementation: `src/main/java/maple/expectation/global/executor/DefaultCheckedLogicExecutor.java`
+- **[E10]** DefaultLogicExecutor migration: `src/main/java/maple/expectation/global/executor/DefaultLogicExecutor.java`
+- **[E11]** ExecutorConfig policy sorting: `src/main/java/maple/expectation/config/ExecutorConfig.java`
+- **[E12]** Error promotion logic: `src/main/java/maple/expectation/global/executor/policy/ExecutionPipeline.java`
+- **[E13]** Self-suppression defense: `src/main/java/maple/expectation/global/executor/policy/ExecutionPipeline.java`
+- **[E14]** Interrupt restoration: `src/main/java/maple/expectation/global/executor/policy/ExecutionPipeline.java`
+- **[E15]** Lifecycle hook invocation: `src/main/java/maple/expectation/global/executor/policy/ExecutionPipeline.java`
+- **[E16]** Observability hook invocation: `src/main/java/maple/expectation/global/executor/policy/ExecutionPipeline.java`
+- **[E17]** Failure hook invocation: `src/main/java/maple/expectation/global/executor/policy/ExecutionPipeline.java`
+- **[E18]** After hook invocation: `src/main/java/maple/expectation/global/executor/policy/ExecutionPipeline.java`
+- **[E19]** ExecutionPipelineTest contract validation: `src/test/java/maple/expectation/global/executor/policy/ExecutionPipelineTest.java`
+- **[E20]** Policy list immutability: `src/main/java/maple/expectation/global/executor/policy/ExecutionPipeline.java`
+
+### Configuration Evidence
+- **[C1]** @Order sorting configuration: `src/main/java/maple/expectation/config/ExecutorConfig.java`
+
+### Test Evidence
+- **[T1]** Zero try-catch validation: `src/test/java/maple/expectation/service/v2/*Test.java`
+- **[T2]** ExecutionPipelineTest: `src/test/java/maple/expectation/global/executor/policy/ExecutionPipelineTest.java`
+- **[T3]** Policy hook isolation test: `src/test/java/maple/expectation/global/executor/policy/ExecutionPipelineTest.java`
+
+---
+
+## Fail If Wrong (문서 유효성 조건)
+
+이 문서는 다음 조건이 위배될 경우 **즉시 무효화**됩니다:
+
+1. **[F1]** `ExecutionPolicy` 인터페이스가 4가지 훅을 제공하지 않을 경우
+2. **[F2]** `ExecutionPipeline`의 PHASE 분리가 문서 Section 11.2와 다를 경우
+3. **[F3]** `invokeOnSuccess` / `invokeOnFailure`가 non-Error를 SWALLOW하지 않을 경우
+4. **[F4]** `promoteError`가 "첫 Error 우선" 규약을 따르지 않을 경우
+5. **[F5]** `addSuppressedSafely`로 self-suppression 방어가 없을 경우
+6. **[F6]** `ExecutorConfig`에서 @Order 정렬이 없을 경우
+7. **[F7]** `LoggingPolicy`가 @Order(100)이 아닐 경우
+8. **[F8]** `DefaultLogicExecutor`가 내부 Pipeline을 사용하지 않을 경우
+9. **[F9]** `ExecutionPipeline` 생성자가 `List.copyOf()`를 사용하지 않을 경우
+10. **[F10]** 테스트 `onSuccessErrorStopsObservationHooks`가 실패할 경우
+
+**검증 방법**:
+```bash
+# F1, F2, F4, F5, F9 검증
+./gradlew compileJava && grep -A 30 "class ExecutionPipeline" src/main/java/maple/expectation/global/executor/policy/ExecutionPipeline.java
+
+# F3, F6, F7 검증
+grep -A 10 "invokeOnSuccess\|@Order" src/main/java/maple/expectation/global/executor/policy/*.java
+
+# F8 검증
+grep -A 5 "class DefaultLogicExecutor" src/main/java/maple/expectation/global/executor/DefaultLogicExecutor.java
+
+# F10 검증
+./gradlew test --tests "*onSuccessErrorStopsObservationHooks"
+```
+
+---
+
+## Verification Commands (검증 명령어)
+
+### 클래스 존재 검증
+```bash
+# ExecutionPolicy, ExecutionPipeline, LogicExecutor 확인
+find src/main/java -name "*ExecutionPolicy*.java" -o -name "*ExecutionPipeline.java" -o -name "*LogicExecutor.java"
+```
+
+### @Order 어노테이션 검증
+```bash
+# LoggingPolicy, FinallyPolicy의 @Order 값 확인
+grep -r "@Order" src/main/java/maple/expectation/global/executor/policy/
+```
+
+### 테스트 커버리지 확인
+```bash
+# ExecutionPipelineTest 전체 실행
+./gradlew test --tests "maple.expectation.global.executor.policy.ExecutionPipelineTest"
+```
+
+### 규약 위반 검증 (Zero try-catch in business layer)
+```bash
+# service/ 패키지의 try-catch 개수 확인 (LogicExecutor 제외)
+grep -r "try {" src/main/java/maple/expectation/service --include="*.java" | wc -l
+# 예상: 0 또는 매우 낮은 수치
+```
+
+### InterruptedException 복원 검증
+```bash
+# 인터럽트 복원 로직 확인
+grep -A 5 "restoreInterruptIfNeeded" src/main/java/maple/expectation/global/executor/policy/ExecutionPipeline.java
+```
+
+### Pipeline 4-phase 분리 검증
+```bash
+# PHASE 1-4 분리 구조 확인
+grep -n "// PHASE [1-4]" src/main/java/maple/expectation/global/executor/policy/ExecutionPipeline.java
+```
+
+### Error promotion 규칙 검증
+```bash
+# "첫 Error 우선" 규칙 확인
+grep -A 15 "promoteError" src/main/java/maple/expectation/global/executor/policy/ExecutionPipeline.java
+```
+
+### Policy immutability 검증
+```bash
+# List.copyOf() 사용 확인
+grep -A 5 "public ExecutionPipeline" src/main/java/maple/expectation/global/executor/policy/ExecutionPipeline.java
+```
+
+---
+
+## Technical Validity Check
+
+This PRD would be invalidated if:
+- **ExecutionPipeline algorithm differs from implementation**: Phase separation not matching code
+- **Error priority rules not enforced**: "First Error wins" violated
+- **test cases fail**: ExecutionPipelineTest validation fails
+- **@Order sorting not applied**: Policies execute in wrong order
+- **Interrupt restoration missing**: Thread interrupt flag not restored
+
+### Verification Commands
+```bash
+# ExecutionPolicy 인터페이스 확인
+find src/main/java -name "*ExecutionPolicy*.java"
+
+# ExecutionPipeline PHASE 분리 확인
+grep -A 50 "public <T> T executeRaw" src/main/java/maple/expectation/global/executor/policy/ExecutionPipeline.java
+
+# @Order 정렬 확인
+grep -r "@Order" src/main/java/maple/expectation/global/executor/policy/
+
+# ExecutionPipelineTest 실행
+./gradlew test --tests "*ExecutionPipelineTest"
+
+# Zero try-catch in business layer 확인
+grep -r "try {" src/main/java/maple/expectation/service --include="*.java" | wc -l
+# 예상: 0 또는 매우 낮은 수치 (LogicExecutor 제외)
+```
+
+### Related Evidence
+- Zero Script QA: `docs/03-analysis/zero-script-qa-2026-01-30.md`
+- CLAUDE.md Section 12: Zero Try-Catch Policy
+- ExecutionPipelineTest: `src/test/java/maple/expectation/global/executor/policy/ExecutionPipelineTest.java`
+
+---
+
 *Last Updated: 2026-02-05*
 *Next Review: 2026-03-05*

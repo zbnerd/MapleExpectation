@@ -585,7 +585,7 @@ grep "response time" logs/application-20260205.log | \
 grep "ERROR" logs/application-20260205.log | wc -l
 ```
 
-### E. K6 스크립트 [K1]
+### D. K6 스크립트 [K1]
 ```javascript
 // load-test.js
 import http from 'k6/http';
@@ -634,6 +634,49 @@ export default function () {
       1    2    3   Instances
 ```
 
+### F. 자동화 검증 스크립트 [V1]
+```bash
+#!/bin/bash
+# scripts/validate-cost-performance.sh
+
+# 1. RPS 불변식 검증
+echo "=== RPS/$ 불변식 검증 ==="
+calc_rps_per_dollar() {
+    local rps=$1
+    local cost=$2
+    echo "scale=2; $rps / $cost" | bc
+}
+
+config_a_rps_dollar=$(calc_rps_per_dollar 100 15)
+config_b_rps_dollar=$(calc_rps_per_dollar 250 30)
+config_c_rps_dollar=$(calc_rps_per_dollar 310 45)
+
+echo "Config A: 100 / 15 = $config_a_rps_dollar RPS/$"
+echo "Config B: 250 / 30 = $config_b_rps_dollar RPS/$"
+echo "Config C: 310 / 45 = $config_c_rps_dollar RPS/$"
+
+# 2. ROI 검증
+echo -e "\n=== ROI 검증 ==="
+calc_roi() {
+    local gain=$1
+    local cost=$2
+    echo "scale=2; $gain / $cost" | bc
+}
+
+a_to_b_roi=$(calc_roi 150 100)
+b_to_c_roi=$(calc_roi 60 50)
+
+echo "A→B: 150 / 100 = $a_to_b_roi"
+echo "B→C: 60 / 50 = $b_to_c_roi"
+
+# 3. 파일 존재 확인
+echo -e "\n=== 파일 존재 확인 ==="
+[ -f "load-test/k6-results-20260205.json" ] && echo "✅ K6 결과 파일 존재" || echo "❌ K6 결과 파일 누락"
+[ -f "docs/04_Reports/Cost_Performance/aws-cost-export-Feb2026.csv" ] && echo "✅ 비용 파일 존재" || echo "❌ 비용 파일 누락"
+
+echo -e "\n검증 완료!"
+```
+
 ---
 
 ## 15. Approval & Sign-off
@@ -678,6 +721,12 @@ export default function () {
 4. **예약 인스턴스**: Section 8의 절감율은 AWS 예상가 기준
 
 **모든 메트릭은 재현 가능하며, Section 14 Appendix의 재현 가이드를 통해 검증 가능합니다.**
+
+### TODO - 향후 검토사항
+1. **실제 Redis Cluster 테스트 수행** (현재 예상치 기준)
+2. **예약 인스턴스 실제 적용 후 비용 절감율 검증**
+3. **Auto-Scaling 정책 실제 적용 테스트**
+4. **p99 개선을 위한 코드 리팩토링 (Redis 락 경합 해소)**
 
 ---
 

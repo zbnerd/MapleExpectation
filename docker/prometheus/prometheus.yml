@@ -1,33 +1,113 @@
-# Issue #209: Prometheus Configuration
-# 5-Agent Council 합의:
-# - Red (Lead): 네트워크 설계 (maple-network 통합)
-# - Green: 15초 스크래핑 간격, 15일 데이터 보존
-# - Purple: Docker 네트워크 격리 (/actuator/prometheus 보호)
-
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
+  external_labels:
+    monitor: 'maple-expectation'
 
-# P0 Issues Resolution - Alert Rules
-# Related: #221 (N02), #227 (N07), #228 (N09)
+# Rule files
 rule_files:
-  - "rules/*.yml"
+  - "alert_rules.yml"
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
 
 scrape_configs:
   # ============================================
-  # Prometheus 자체 메트릭
+  # Maple Expectation Application
   # ============================================
-  - job_name: 'prometheus'
-    static_configs:
-      - targets: ['localhost:9090']
-
-  # ============================================
-  # Spring Boot Actuator 메트릭
-  # ============================================
-  - job_name: 'spring-boot'
+  - job_name: 'maple-expectation'
+    scrape_interval: 5s
     metrics_path: '/actuator/prometheus'
     static_configs:
-      - targets: ['host.docker.internal:8080']
-    scrape_interval: 15s
-    # 연결 실패 시 빠른 타임아웃
+      - targets: ['maple-expectation:8080']
+        labels:
+          application: 'maple-expectation'
+          environment: '${ENVIRONMENT:local}'
     scrape_timeout: 10s
+
+  # ============================================
+  # Spring Boot Actuator
+  # ============================================
+  - job_name: 'spring-boot-actuator'
+    scrape_interval: 5s
+    metrics_path: '/actuator'
+    static_configs:
+      - targets: ['maple-expectation:8080']
+    scrape_timeout: 10s
+
+  # ============================================
+  # Node Exporter - System Metrics
+  # ============================================
+  - job_name: 'node-exporter'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          component: 'system'
+
+  # ============================================
+  # Redis Metrics (via Redis Exporter)
+  # ============================================
+  - job_name: 'redis'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['redis-master:6379']
+        labels:
+          component: 'redis-master'
+      - targets: ['redis-slave:6379']
+        labels:
+          component: 'redis-slave'
+
+  # ============================================
+  # MySQL Metrics (via Exporter)
+  # ============================================
+  - job_name: 'mysql'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['mysql-exporter:9104']
+        labels:
+          component: 'mysql'
+
+  # ============================================
+  # Blackbox Probes
+  # ============================================
+  - job_name: 'blackbox'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+        - http://localhost:8080/actuator/health
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox:9115
+
+  # ============================================
+  # Chaos Test Metrics
+  # ============================================
+  - job_name: 'chaos-test'
+    scrape_interval: 5s
+    metrics_path: '/chaos/metrics'
+    static_configs:
+      - targets: ['maple-expectation:8080']
+        labels:
+          test_type: 'chaos'
+
+  # ============================================
+  # Resilience4j Metrics
+  # ============================================
+  - job_name: 'resilience4j'
+    scrape_interval: 5s
+    metrics_path: '/actuator/resilience4j'
+    static_configs:
+      - targets: ['maple-expectation:8080']
+        labels:
+          component: 'circuit-breaker'
