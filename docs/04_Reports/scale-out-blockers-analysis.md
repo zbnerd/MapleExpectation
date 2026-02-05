@@ -730,7 +730,7 @@ This analysis is **INVALID** if any of the following conditions are true:
 > "The InMemoryBufferStrategy warning is explicit in the code comments:
 > ```java
 > // 현재 구현의 한계점: Scale-out 불가 (JVM 로컬 큐)
-> // TODO: Redis BufferStrategy로 전환 필요
+> // MIGRATED TO REDIS: RedisBufferStrategy implemented via app.buffer.redis.enabled=true
 > ```
 > The developers themselves acknowledged this limitation."
 

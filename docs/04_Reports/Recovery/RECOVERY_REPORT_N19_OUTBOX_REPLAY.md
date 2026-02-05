@@ -385,7 +385,11 @@ T+6h40m ~ T+6h47m  | 1,250       | 99.98%
 ### 7.2 단기 조치 (Short-term) ⏳ 진행 중
 - [ ] Content Hash 검증 로직 구현
 - [ ] DLQ Handler 연동 완료
-- [ ] Outbox 크기 모니터링 대시보드 추가
+- [x] Outbox 크기 모니터링 대시보드 추가 (Issue #N19 구현 완료)
+  - [x] `outbox.size.total` Gauge 메트릭 추가
+  - [x] 30초 주기 크기 모니터링 스케줄러
+  - [x] 백로그 임계값 경고 로그 (기본 1000건)
+  - [x] `outbox.monitoring.size-alert-threshold` 설정 외부화
 - [ ] 유닛 테스트 커버리지 확대 (Processor, RetryClient, DlqHandler)
 
 ### 7.3 장기 조치 (Long-term) 📋 계획

@@ -168,4 +168,73 @@ private boolean isCompoundOption(List<String> options) {
 
 ---
 
+## Verification Commands (검증 명령어)
+
+### 1. DP 계산 정확도 검증
+
+```bash
+# ProbabilityConvolver 정확도 테스트
+./gradlew test --tests "maple.expectation.calculator.probability.ProbabilityConvolverTest"
+
+# DP 모드 추정 테스트
+./gradlew test --tests "maple.expectation.calculator.probability.DpModeInferrerTest"
+
+# Kahan Summation 검증
+./gradlew test --tests "maple.expectation.calculator.probability.KahanSummationTest"
+```
+
+### 2. 성능 검증
+
+```bash
+# 복잡도 검증 (125,000 → 3,000)
+./gradlew test --tests "maple.expectation.calculator.probability.PerformanceTest"
+
+# 메모리 사용량 검증
+./gradlew test --tests "maple.expectation.calculator.probability.MemoryUsageTest"
+
+# 시간 복잡도 검증
+./gradlew test --tests "maple.expectation.calculator.probability.TimeComplexityTest"
+```
+
+### 3. 수학적 정확도 검증
+
+```bash
+# 확률 합계 검증 (1.0 ± 1e-12)
+./gradlew test --tests "maple.expectation.calculator.probability.ProbabilitySumTest"
+
+# 부동소수점 오차 검증
+./gradlew test --tests "maple.expectation.calculator.probability.PrecisionTest"
+
+# 순열 방식 비교 검증
+./gradlew test --tests "maple.expectation.calculator.probability.PermutationComparisonTest"
+```
+
+### 4. 통합 테스트
+
+```bash
+# Cube 계산 통합 테스트
+./gradlew test --tests "maple.expectation.calculator.cube.CubeDpCalculatorIntegrationTest"
+
+# 캐시 동작 검증
+./gradlew test --tests "maple.expectation.calculator.cache.CalculationCacheTest"
+
+# 다중 옵션 테스트
+./gradlew test --tests "maple.expectation.calculator.probability.MultiOptionTest"
+```
+
+### 5. 부하 테스트
+
+```bash
+# 대규모 트래픽 테스트
+./gradlew loadTest --args="--rps 100 --scenario=cube-calculation"
+
+# 병렬 처리 테스트
+./gradlew test --tests "maple.expectation.calculator.probability.ParallelProcessingTest"
+
+# 메모리 누수 테스트
+./gradlew test --tests "maple.expectation.calculator.probability.MemoryLeakTest"
+```
+
+---
+
 ## 관련 문서

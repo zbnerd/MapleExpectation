@@ -215,6 +215,75 @@ resilience4j_circuitbreaker_calls{name="nexonApi",kind="failed"}
 
 ---
 
+## Verification Commands (검증 명령어)
+
+### 1. Circuit Breaker 검증
+
+```bash
+# Circuit Breaker 상태 확인
+curl -s http://localhost:8080/actuator/circuitbreakers | jq '.[] | {name: .name, state: .state}'
+
+# Circuit Breaker 메트릭 확인
+curl -s http://localhost:8080/actuator/metrics/resilience4j.circuitbreaker.calls | jq '.measurements[] | {value: .value}'
+
+# Circuit Breaker 테스트
+./gradlew test --tests "maple.expectation.resilience.CircuitBreakerTest"
+```
+
+### 2. Timeout 계층 검증
+
+```bash
+# Timeout 설정 검증
+./gradlew test --tests "maple.expectation.resilience.TimeoutLayeringTest"
+
+# Zombie Request 방지 검증
+./gradlew test --tests "maple.expectation.resilience.ZombieRequestTest"
+
+# Timeout Cascade 시나리오 테스트 (N06)
+./gradlew test --tests "maple.expectation.chaos.nightmare.N06TimeoutCascadeTest"
+```
+
+### 3. Retry 및 Fallback 검증
+
+```bash
+# Retry 설정 검증
+./gradlew test --tests "maple.expectation.resilience.RetryPolicyTest"
+
+# Retry Storm 방지 검증
+./gradlew test --tests "maple.expectation.resilience.RetryStormTest"
+
+# Fallback 동작 검증
+./gradlew test --tests "maple.expectation.resilience.FallbackPolicyTest"
+```
+
+### 4. 장애 시나리오 검증
+
+```bash
+# Nexon API 장애 시나리오
+./gradlew chaos --scenario="nexon-api-failure"
+
+# Redis 장애 시나리오
+./gradlew chaos --scenario="redis-failure"
+
+# MySQL 장애 시나리오
+./gradlew chaos --scenario="mysql-failure"
+```
+
+### 5. Prometheus 메트릭 검증
+
+```bash
+# 전체 메트릭 확인
+curl -s http://localhost:8080/actuator/metrics | jq '.names[] | select(. | contains("resilience4j"))'
+
+# 실패율 확인
+curl -s http://localhost:8080/actuator/metrics/resilience4j.circuitbreaker.calls | jq '.measurements[] | {value: .value}'
+
+# 호출 횟수 확인
+curl -s http://localhost:8080/actuator/metrics/resilience4j.circuitbreaker.calls | jq '.measurements[] | {value: .value}'
+```
+
+---
+
 ## 관련 문서
 
 ### 연결된 ADR

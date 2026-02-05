@@ -228,6 +228,75 @@ public void handleDeadLetter(DonationOutbox entry, String reason) {
 
 ---
 
+## Verification Commands (검증 명령어)
+
+### 1. Outbox 기본 기능 검증
+
+```bash
+# Outbox 테스트
+./gradlew test --tests "maple.expectation.service.v2.donation.outbox.OutboxProcessorTest"
+
+# Content Hash 검증
+./gradlew test --tests "maple.expectation.service.v2.donation.outbox.ContentHashTest"
+
+# SKIP LOCKED 동시성 테스트
+./gradlew test --tests "maple.expectation.service.v2.donation.outbox.SkipLockedTest"
+```
+
+### 2. 복구 기능 검증
+
+```bash
+# Zombie 상태 복구 테스트
+./gradlew test --tests "maple.expectation.service.v2.donation.outbox.StalledRecoveryTest"
+
+# Stalled Recovery 시나리오 테스트
+./gradlew test --tests "maple.expectation.service.v2.donation.outbox.RecoveryTest"
+
+# Dead Letter Queue 테스트
+./gradlew test --tests "maple.expectation.service.v2.donation.outbox.DlqHandlerTest"
+```
+
+### 3. 장애 시나리오 검증
+
+```bash
+# DB 장애 테스트
+./gradlew chaos --scenario="outbox-db-failure"
+
+# Redis 장애 테스트
+./gradlew chaos --scenario="outbox-redis-failure"
+
+# 외부 API 장애 테스트
+./gradlew chaos --scenario="outbox-api-failure"
+```
+
+### 4. 성능 검증
+
+```bash
+# 부하테스트 (Outbox 처리)
+./gradlew loadTest --args="--rps 500 --scenario=outbox"
+
+# 처리량 메트릭 확인
+curl -s http://localhost:8080/actuator/metrics | jq '.names[] | select(. | contains("outbox"))'
+
+# 지연 시간 메트릭
+curl -s http://localhost:8080/actuator/metrics | jq '.names[] | select(. | contains("outbox latency"))'
+```
+
+### 5. 데이터 정합성 검증
+
+```bash
+# Reconciliation 테스트
+./gradlew test --tests "maple.expectation.service.v2.donation.outbox.ReconciliationTest"
+
+# 무결성 검증
+./gradlew test --tests "maple.expectation.service.v2.donation.outbox.IntegrityTest"
+
+# 원자성 테스트
+./gradlew test --tests "maple.expectation.service.v2.donation.outbox.AtomicityTest"
+```
+
+---
+
 ## 관련 문서
 - **코드:** `src/main/java/maple/expectation/domain/v2/DonationOutbox.java`
 - **시퀀스:** `docs/03_Sequence_Diagrams/outbox-sequence.md`

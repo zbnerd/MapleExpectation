@@ -4,6 +4,7 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import maple.expectation.config.OutboxProperties;
 import maple.expectation.domain.v2.DonationOutbox.OutboxStatus;
 import maple.expectation.repository.v2.DonationOutboxRepository;
 import org.springframework.stereotype.Component;
@@ -31,6 +32,7 @@ public class OutboxMetrics {
 
     private final MeterRegistry registry;
     private final DonationOutboxRepository repository;
+    private final OutboxProperties properties;
 
     // Counters (Thread-safe)
     private Counter processedCounter;
@@ -45,8 +47,9 @@ public class OutboxMetrics {
     private Counter pollFailureCounter;
     private Counter notificationSentCounter;
 
-    // Gauge backing field
+    // Gauge backing fields
     private final AtomicLong pendingCount = new AtomicLong(0);
+    private final AtomicLong totalCount = new AtomicLong(0);
 
     /**
      * 메트릭 초기화 (1회만 실행)
@@ -70,6 +73,7 @@ public class OutboxMetrics {
 
         // Gauge 초기화 (1회만)
         registry.gauge("outbox.pending.count", pendingCount);
+        registry.gauge("outbox.size.total", totalCount);
     }
 
     // ========== Counter Methods ==========
@@ -130,5 +134,34 @@ public class OutboxMetrics {
                 List.of(OutboxStatus.PENDING, OutboxStatus.FAILED)
         );
         pendingCount.set(count);
+    }
+
+    /**
+     * Outbox 전체 크기 갱신 (모든 상태 포함)
+     *
+     * <p>Issue #N19: 처리 지연 감지용 메트릭</p>
+     * <p>스케줄러에서 주기적으로 호출 (30초)</p>
+     */
+    public void updateTotalCount() {
+        long count = repository.count();
+        totalCount.set(count);
+    }
+
+    /**
+     * Outbox 상태 확인 (백로그 여부)
+     *
+     * @return true: 백로그 상태 (처리 지연), false: 정상
+     */
+    public boolean isBacklogged() {
+        return totalCount.get() > properties.getSizeAlertThreshold();
+    }
+
+    /**
+     * 현재 Outbox 크기 조회
+     *
+     * @return 전체 Outbox 항목 수
+     */
+    public long getCurrentSize() {
+        return totalCount.get();
     }
 }

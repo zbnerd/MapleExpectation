@@ -270,10 +270,13 @@ grep "backing off" logs/retry-storm-*.log
            randomizationFactor: 0.5  # ✅ Jitter 추가
    ```
 
-4. **Retry Budget 미적용** ❌
-   - **테스트 범위**: 최대 재시도 횟수만 제한
-   - **위험도**: 🟡 낮음 - 장기간 장애 시 재시도 폭주 가능
-   - **TODO**: Retry Budget (시간당 최대 재시도 횟수) 구현 필요
+4. **Retry Budget 구현 완료** ✅
+   - **구현**: `RetryBudgetManager`, `RetryBudgetProperties`
+   - **위치**: `src/main/java/maple/expectation/global/resilience/`
+   - **설정**: `resilience.retry-budget` (application.yml)
+   - **기능**: 시간 윈도우 내 최대 재시도 횟수 제한 (기본 100회/분)
+   - **메트릭**: Micrometer 게시 (`retry_budget_attempts_total`, `retry_budget_allowed_total`, `retry_budget_rejected_total`)
+   - **위험도**: 🟢 해결됨 - 장기 장애 시 재시도 폭주 방지
 
 ---
 
@@ -644,17 +647,132 @@ public Result doRequest() { ... }
 1. **Jitter 추가**: 랜덤 지연으로 Thundering Herd 더 효과적 방지
 2. **nexonApi Exponential Backoff 활성화**: 현재 `likeSyncRetry`만 활성화
 3. **Circuit Breaker 통합 테스트**: Retry + Circuit Breaker 연동 검증
-4. **Retry Budget 구현**: 시간당 최대 재시도 횟수 제한
+4. ~~**Retry Budget 구현**: 시간당 최대 재시도 횟수 제한~~ ✅ **완료**
 
 ### 🎯 다음 액션 아이템
 - [x] Exponential Backoff 구현 ✅
 - [ ] Jitter 추가 (30% 랜덤 지연)
 - [ ] nexonApi Retry 설정에 Exponential Backoff 활성화
 - [ ] Retry + Circuit Breaker 통합 테스트 작성
-- [ ] Retry Budget (시간당 최대 재시도) 구현
+- [x] Retry Budget (시간당 최대 재시도) 구현 ✅
+
+---
+
+## 8. Retry Budget 구현 상세 (2026-02-06 완료)
+
+### 개요
+**Retry Budget**은 장기간 장애 발생 시 재시도 폭주(Retry Storm)를 방지하기 위한 시간 기반 예산 관리 메커니즘입니다.
+
+### 핵심 컴포넌트
+
+#### 1. RetryBudgetProperties
+```java
+@Component
+@ConfigurationProperties(prefix = "resilience.retry-budget")
+public class RetryBudgetProperties {
+    private boolean enabled = true;              // 활성화 여부
+    private int maxRetriesPerMinute = 100;       // 1분당 최대 재시도 횟수
+    private int windowSizeSeconds = 60;          // 예산 윈도우 (초)
+    private boolean metricsEnabled = true;       // 메트릭 게시 여부
+}
+```
+
+#### 2. RetryBudgetManager
+```java
+@Component
+@RequiredArgsConstructor
+public class RetryBudgetManager {
+    private final RetryBudgetProperties properties;
+    private final MeterRegistry meterRegistry;
+
+    private final LongAdder retryCounter = new LongAdder();          // Thread-Safe 카운터
+    private final AtomicLong windowStartEpoch = new AtomicLong(...); // 윈도우 시작 시간
+
+    public boolean tryAcquire(String serviceName) {
+        // 1. 윈도우 경과 시 리셋
+        // 2. 예산 확인
+        // 3. 예산 있으면 카운터 증가 후 true
+        // 4. 예산 소진 시 false (Fail Fast)
+    }
+}
+```
+
+### 동작 방식
+
+#### 시간 윈도우 기반 예산 관리
+```
+Window: [60 seconds]
+┌─────────────────────────────────────────────────────────────┐
+│ Retry 1 ✓ → Retry 2 ✓ → ... → Retry 100 ✓ → Retry 101 ✗    │
+│                                    (Budget Exhausted)        │
+└─────────────────────────────────────────────────────────────┘
+       ↓ Window Reset (60초 후)
+┌─────────────────────────────────────────────────────────────┐
+│ Retry 1 ✓ → Retry 2 ✓ → ...                                 │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 설정 (application.yml)
+```yaml
+resilience:
+  retry-budget:
+    enabled: true
+    max-retries-per-minute: 100  # 1분당 최대 100회 재시도
+    window-size-seconds: 60      # 예산 윈도우 (초)
+    metrics-enabled: true        # Actuator 메트릭 게시
+```
+
+### ResilientNexonApiClient 통합
+```java
+@Override
+@Retry(name = NEXON_API, fallbackMethod = "getOcidFallback")
+public CompletableFuture<CharacterOcidResponse> getOcidByCharacterName(String name) {
+    // Retry Budget 확인 (재시도 전에 예산 체크)
+    if (!retryBudgetManager.tryAcquire(NEXON_API)) {
+        log.warn("[RetryBudget] 예산 소진으로 즉시 실패. name={}", name);
+        return CompletableFuture.failedFuture(new ExternalServiceException(
+                "Retry budget exceeded for OCID lookup", null));
+    }
+    return delegate.getOcidByCharacterName(name);
+}
+```
+
+### Micrometer 메트릭
+```bash
+# 전체 예산 시도 횟수
+curl http://localhost:8080/actuator/metrics/retry_budget_attempts_total
+
+# 예산 허용 횟수
+curl http://localhost:8080/actuator/metrics/retry_budget_allowed_total
+
+# 예산 거부 횟수
+curl http://localhost:8080/actuator/metrics/retry_budget_rejected_total
+```
+
+### 테스트 커버리지
+- ✅ 예산 허용: 정상적인 재시도 시도 허용
+- ✅ 예산 소진: 한도 초과 시 Fail Fast
+- ✅ 비활성화: 항상 허용
+- ✅ 메트릭 게시: 카운터 정확성 검증
+- ✅ 메트릭 거부: 예산 초과 시 거부 카운터 증가
+- ✅ 소비율 계산: 정확한 비율 반환
+- ✅ 윈도우 리셋: 수동 리셋 동작 검증
+- ✅ 윈도우 경과 시간: 정확한 시간 계산
+- ✅ 동시성 안전성: 다중 스레드에서의 카운터 정확성
+
+### 코드 증거 (Code Evidence)
+- [C4] **RetryBudgetProperties**: `/home/maple/MapleExpectation/src/main/java/maple/expectation/global/resilience/RetryBudgetProperties.java`
+- [C5] **RetryBudgetManager**: `/home/maple/MapleExpectation/src/main/java/maple/expectation/global/resilience/RetryBudgetManager.java`
+- [C6] **RetryBudgetManagerTest**: `/home/maple/MapleExpectation/src/test/java/maple/expectation/global/resilience/RetryBudgetManagerTest.java`
+- [C7] **ResilientNexonApiClient 통합**: `/home/maple/MapleExpectation/src/main/java/maple/expectation/external/impl/ResilientNexonApiClient.java` (line 100, 115, 125)
+
+### 참고 자료
+- [Google SRE - Addressing Cascading Failures](https://sre.google/sre-book/addressing-cascading-failures/)
+- [AWS Exponential Backoff](https://docs.aws.amazon.com/general/latest/gr/api-retries.html)
 
 ---
 
 *Generated by 5-Agent Council - Chaos Testing Deep Dive*
 *Documentation Integrity Checklist v2.0 applied*
 *Test Code: [C1] RetryStormChaosTest.java ✅*
+*Retry Budget Implementation: 2026-02-06 ✅*

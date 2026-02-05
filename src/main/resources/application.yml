@@ -351,6 +351,12 @@ resilience:
     # P1-1: 분산 락 설정
     lock-wait-seconds: 5
     lock-lease-seconds: 30
+  # Retry Budget 설정 (Issue #276: Retry Storm 방지)
+  retry-budget:
+    enabled: true
+    max-retries-per-minute: 100  # 1분당 최대 100회 재시도
+    window-size-seconds: 60      # 예산 윈도우 (초)
+    metrics-enabled: true        # Actuator 메트릭 게시
 
 # ========================================
 # Issue #251: AI SRE + OpenTelemetry
@@ -430,6 +436,9 @@ outbox:
   stale-threshold: 5m               # Stalled 판정 기준 (5분)
   max-backoff: 1h                   # Exponential Backoff 최대 대기 (1시간)
   instance-id: ${app.instance-id}   # Scale-out 인스턴스 식별자
+  monitoring:
+    size-alert-threshold: 1000      # Outbox 크기 경고 임계값 (건)
+    monitor-interval: 30s           # 크기 모니터링 주기
   scheduler:
     nexon-api-outbox:
       enabled: true
