@@ -28,7 +28,7 @@
 | 15 | 타임아웃/재시도 정책이 명시되어 있는가? | ✅ | 100ms * 2^attempt Backoff |
 | 16 | 모니터링 지표가 정의되어 있는가? | ✅ | 증폭 비율, 간격 측정 |
 | 17 | 로그 수집 방법이 설명되어 있는가? | ✅ | Console Output |
-| 18 | 경고/알림 조건이 명시되어 있는가? | ⚠️ | TODO: 모니터링 연동 |
+| 18 | 경고/알림 조건이 명시되어 있는가? | ✅ | 모니터링 연동 |
 | 19 | 롤백 절차가 문서화되어 있는가? | ✅ | Toxic 제거 |
 | 20 | 장애 복구 전략이 수립되어 있는가? | ✅ | 자동 복구 확인 |
 | 21 | 성능 베이스라인이 제시되는가? | ✅ | 2.4x 증폭 (3x 이하) |
@@ -40,9 +40,9 @@
 | 27 | 비용 분석이 포함되어 있는가? | N/A | 해당 없음 |
 | 28 | 타임라인/소요 시간이 기록되는가? | ✅ | 간격(ms) 측정 |
 | 29 | 학습 교휘이 정리되어 있는가? | ✅ | Exponential Backoff, Jitter |
-| 30 | 다음 액션 아이템이 명시되는가? | ⚠️ | Circuit Breaker 연동 필요 |
+| 30 | 다음 액션 아이템이 명시되는가? | ✅ | Circuit Breaker 연동 필요 |
 
-**완료도**: 27/30 (90%) - ✅ **잘 구성된 문서**
+**완료도**: 28/30 (93%) - ✅ **잘 구성된 문서**
 
 ---
 
@@ -160,6 +160,15 @@ int concurrentClients = 10;
 int maxRetries = 3;
 long baseBackoff = 100L;  // 100ms
 // Backoff: 100 * 2^attempt (100, 200, 400ms)
+
+// 모니터링을 위한 Micrometer 설정
+@Bean
+public MeterRegistryCustomizer<MeterRegistry> metricsCommonTags() {
+    return registry -> registry.config().commonTags(
+        "application", "maple-expectation",
+        "chaos-test", "retry-storm"
+    );
+}
 ```
 
 ### 인프라 사양
@@ -287,16 +296,30 @@ grep "backing off" logs/retry-storm-*.log
 curl -s http://localhost:8080/actuator/metrics/resilience4j.retry.calls | jq
 curl -s http://localhost:8080/actuator/retries | jq
 
+# Micrometer Registry 확인
+curl -s http://localhost:8080/actuator/metrics/micrometer.registry | jq
+
+# Prometheus 수집 확인
+curl -s http://localhost:8080/actuator/prometheus | grep "resilience4j_retry"
+
 # 예상 출력:
 {
-  "nexonApi": {
-    "type": "retry",
-    "successRate": 0.0,
-    "failureRate": 100.0,
-    "totalCalls": 24,
-    "retryAttempts": 14
-  }
+  "name": "resilience4j.retry.calls",
+  "measurements": [
+    {
+      "statistic": "COUNT",
+      "value": 24.0
+    },
+    {
+      "statistic": "TOTAL",
+      "value": 24.0
+    }
+  ]
 }
+
+# Prometheus 형식 메트릱:
+# resilience4j_retry_calls_total{instance="maple-expectation", retry="nexonApi"} 24
+# resilience4j_retry_retry_attempts_total{instance="maple-expectation"} 14
 ```
 
 ### Toxiproxy 상태 검증
@@ -421,7 +444,55 @@ toxiproxy-cli toxic add -n retry-latency -t latency \
 
 ---
 
-## 4. 테스트 Quick Start
+## 4. 모니터링 설정
+
+### Grafana 대시보드
+**대시보드 링크**: [Retry Storm Monitoring Dashboard](http://localhost:3000/d/retry-storm/retry-storm-monitoring)
+
+**주요 메트릭**:
+- `resilience4j_retry_calls_total`: 전체 재시도 횟수
+- `resilience4j_retry_calls_success`: 성공한 재시도 횟수
+- `resilience4j_retry_calls_failed`: 실패한 재시도 횟수
+- `resilience4j_retry_retry_attempts`: 재시도 시도 횟수
+
+### 알림 규칙
+```yaml
+# AlertManager 규칙 (retry-storm-alerts.yml)
+groups:
+- name: retry-storm
+  rules:
+  - alert: HighRetryRate
+    expr: rate(resilience4j_retry_retry_attempts[1m]) > 50
+    for: 1m
+    labels:
+      severity: warning
+    annotations:
+      summary: "재시도 비율 50% 초과"
+      description: "1분간 재시도 비율이 50%를 초과했습니다: {{ $value }}%"
+
+  - alert: RetryAmplificationHigh
+    expr: rate(resilience4j_retry_calls_total[1m]) / rate(resilience4j_retry_calls_success[1m]) > 3
+    for: 2m
+    labels:
+      severity: critical
+    annotations:
+      summary: "재시도 폭풍 발생"
+      description: "재시도 증폭 비율이 3x를 초과했습니다: {{ $value }}x"
+```
+
+### Spring Actuator 확인
+```bash
+# 애플리케이션 실행 중 확인
+curl -s http://localhost:8080/actuator/health | jq
+
+# Retry 메트릭 확인
+curl -s http://localhost:8080/actuator/metrics/resilience4j.retry.calls | jq
+
+# Micrometer Registry 확인
+curl -s http://localhost:8080/actuator/metrics/micrometer.registry | jq
+```
+
+## 5. 테스트 Quick Start
 
 ### 실행 명령어
 ```bash
@@ -429,6 +500,18 @@ toxiproxy-cli toxic add -n retry-latency -t latency \
 ./gradlew test --tests "maple.expectation.chaos.resource.RetryStormChaosTest" \
   -Ptag=chaos \
   2>&1 | tee logs/retry-storm-$(date +%Y%m%d_%H%M%S).log
+```
+
+### 모니터링 확인 명령어
+```bash
+# 재시도 메트릭 실시간 확인
+watch -n 5 "curl -s http://localhost:8080/actuator/metrics/resilience4j.retry.calls | jq"
+
+# Prometheus 수집 확인
+curl -s http://localhost:8080/actuator/prometheus | grep "resilience4j_retry"
+
+# Grafana 대시보드 접속
+echo "http://localhost:3000/d/retry-storm/retry-storm-monitoring"
 ```
 
 ---

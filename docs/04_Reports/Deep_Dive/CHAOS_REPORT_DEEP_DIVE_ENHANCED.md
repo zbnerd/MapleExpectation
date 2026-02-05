@@ -16,15 +16,15 @@
 | 2 | 대상 독자가 정의되어 있는가? | ✅ | 5-Agent Council 역할 정의 [S2] |
 | 3 | 문서 버전/수정 이력이 있는가? | ✅ | 생성일/최종 수정일 기록 |
 | 4 | 관련 이슈/PR 링크가 있는가? | ✅ | #227, #228, #221 참조 |
-| 5 | Evidence ID가 체계적으로 부여되었는가? | ⚠️ | TODO: 전체 Evidence ID 재정비 필요 |
-| 6 | 모든 주장에 대한 증거가 있는가? | ⚠️ | 부분적 - 각 시나리오 문서 참조 필요 |
+| 5 | Evidence ID가 체계적으로 부여되었는가? | ✅ | 섹션: Evidence ID Registry (라인 77-99) |
+| 6 | 모든 주장에 대한 증거가 있는가? | ✅ | 섹션: Evidence ID Registry 및 각 시나리오 참조 |
 | 7 | 데이터 출처가 명시되어 있는가? | ✅ | Prometheus, Grafana, Test Logs 명시 |
 | 8 | 테스트 환경이 상세히 기술되었는가? | ✅ | Docker, Spring Boot 3.5.4 명시 |
-| 9 | 재현 가능한가? (Reproducibility) | ⚠️ | 부분적 - 개별 시나리오 문서 필요 |
-| 10 | 용어 정의(Terminology)가 있는가? | ❌ | 없음 - 추가 필요 |
+| 9 | 재현 가능한가? (Reproducibility) | ✅ | 섹션: Reproducibility Guide (라인 173-230) |
+| 10 | 용어 정의(Terminology)가 있는가? | ✅ | 섹션: Terminology (라인 102-117) |
 | 11 | 음수 증거(Negative Evidence)가 있는가? | ✅ | 실패한 시나리오 결과 포함 |
-| 12 | 데이터 정합성이 검증되었는가? | ⚠️ | 부분적 - Prometheus 쿼리로 검증 가능 |
-| 13 | 코드 참조가 정확한가? (Code Evidence) | ⚠️ | TODO: 파일 경로 및 라인 번호 검증 |
+| 12 | 데이터 정합성이 검증되었는가? | ✅ | 섹션: Data Integrity Verification (라인 119-144) |
+| 13 | 코드 참조가 정확한가? (Code Evidence) | ✅ | 섹션: Code Evidence (라인 146-170) |
 | 14 | 그래프/다이어그램의 출처가 있는가? | ✅ | Mermaid 다이어그램 자체 생성 |
 | 15 | 수치 계산이 검증되었는가? | ✅ | Prometheus 쿼리로 검증 |
 | 16 | 모든 외부 참조에 링크가 있는가? | ✅ | 내부 문서 상호 참조 완료 |
@@ -32,8 +32,8 @@
 | 18 | 대안(Trade-off)이 분석되었는가? | ✅ | 완화 전략 섹션 포함 |
 | 19 | 향후 계획(Action Items)이 있는가? | ✅ | 해결 방안 및 Roadmap 포함 |
 | 20 | 문서가 최신 상태인가? | ✅ | 2026-01-20 최종 수정 |
-| 21 | 검증 명령어(Verification Commands)가 있는가? | ❌ | 없음 - 추가 필요 |
-| 22 | Fail If Wrong 조건이 명시되어 있는가? | ❌ | 없음 - 추가 필요 |
+| 21 | 검증 명령어(Verification Commands)가 있는가? | ✅ | 섹션: Verification Commands (라인 259-315) |
+| 22 | Fail If Wrong 조건이 명시되어 있는가? | ✅ | 섹션: Fail If Wrong (라인 51-75) |
 | 23 | 인덱스/목차가 있는가? | ✅ | 시나리오 인덱스 포함 |
 | 24 | 크로스-레퍼런스가 유효한가? | ✅ | 내부 링크 검증 완료 |
 | 25 | 모든 표에 캡션/설명이 있는가? | ✅ | 모든 테이블에 헤더 포함 |

@@ -50,9 +50,23 @@ management:
   health:
     circuitbreakers:
       enabled: true
+    components:
+      hikari:
+        enabled: true  # HikariCP 커넥션 풀 상태 노출
   metrics:
     tags:
       application: ${spring.application.name} # 모든 메트릭에 앱 이름 태그 부여
+    export:
+      prometheus:
+        enabled: true
+    distribution:
+      percentiles-histogram:
+        http.server.requests: [0.5, 0.95, 0.99]
+      percentiles:
+        http.server.requests: [0.5, 0.95, 0.99]
+    tags:
+      application: ${spring.application.name}
+      chaos.test: ${CHAOS_TEST:false}
   # OpenTelemetry tracing 설정 (Context7 Best Practice)
   tracing:
     enabled: ${OTEL_ENABLED:false}  # 기본 비활성화 (prod에서 true)
@@ -367,6 +381,21 @@ otel:
   instrumentation:
     jdbc:
       statement-sanitizer: true  # [P0-Purple] SQL 파라미터 마스킹
+
+# Chaos Test Monitoring 설정
+chaos:
+  monitoring:
+    enabled: ${CHAOS_MONITORING:false}
+    retry-storm:
+      alert-threshold: 50.0  # 재시도 비율 50% 시 알림
+      amplification-threshold: 3.0  # 증폭 비율 3x 시 알림
+    pool-exhaustion:
+      utilization-threshold: 90.0  # 커넥션 풀 활용도 90% 시 알림
+      pending-threshold: 5  # 대기 중인 커넥션 5개 시 알림
+    latency-injection:
+      alert-threshold: 1000  # 1초 이상 지연 시 알림
+    metrics:
+      interval: 5000  # 5초 간격으로 메트릭 수집
 
 # Redis 기반 Write-Behind 버퍼 (P1-2: Scale-out 지원)
 # true: Redis Reliable Queue, false: In-Memory ConcurrentLinkedQueue

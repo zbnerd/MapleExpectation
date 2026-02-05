@@ -1,0 +1,573 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "cacheTimeout": null,
+      "datasource": "Prometheus",
+      "description": "Distribution of outbox records by status",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "green",
+                  "text": "PENDING"
+                },
+                "1": {
+                  "color": "orange",
+                  "text": "PROCESSING"
+                },
+                "2": {
+                  "color": "blue",
+                  "text": "COMPLETED"
+                },
+                "3": {
+                  "color": "red",
+                  "text": "DEAD_LETTER"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 3
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "displayLabels": true,
+        "legend": {
+          "display": true,
+          "position": "right"
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "values": true,
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "7.5.7",
+      "targets": [
+        {
+          "exemplar": true,
+          "expr": "sum(nexon_api_outbox_status_count{status=~\"PENDING|PROCESSING|COMPLETED|DEAD_LETTER\"}) by (status)",
+          "interval": "",
+          "legendFormat": "{{ status }}",
+          "refId": "A"
+        }
+      ],
+      "title": "Outbox Status Distribution",
+      "type": "piechart"
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "Prometheus",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "hiddenSeries": false,
+      "id": 2,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "stepped": false,
+      "targets": [
+        {
+          "exemplar": true,
+          "expr": "nexon_api_outbox_pending_count",
+          "interval": "",
+          "legendFormat": "Pending Count",
+          "refId": "A"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "title": "Pending Count",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": 0,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "Prometheus",
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "hiddenSeries": false,
+      "id": 3,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "stepped": false,
+      "targets": [
+        {
+          "exemplar": true,
+          "expr": "rate(nexon_api_outbox_processed_total[1m])",
+          "interval": "",
+          "legendFormat": "Processed",
+          "refId": "A"
+        },
+        {
+          "exemplar": true,
+          "expr": "rate(nexon_api_outbox_api_call_success_total[1m])",
+          "interval": "",
+          "legendFormat": "API Success",
+          "refId": "B"
+        },
+        {
+          "exemplar": true,
+          "expr": "rate(nexon_api_outbox_api_call_retry_total[1m])",
+          "interval": "",
+          "legendFormat": "API Retry",
+          "refId": "C"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "title": "Replay Throughput",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "rows/s",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": 0,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "cacheTimeout": null,
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 8
+      },
+      "id": 4,
+      "options": {
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "text": {}
+      },
+      "pluginVersion": "7.5.7",
+      "targets": [
+        {
+          "exemplar": true,
+          "expr": "rate(nexon_api_outbox_dlq_total[1m]) / rate(nexon_api_outbox_processed_total[1m]) * 100",
+          "interval": "",
+          "legendFormat": "DLQ Rate",
+          "refId": "A"
+        }
+      ],
+      "title": "DLQ Rate",
+      "type": "gauge",
+      "valueMaps": [
+        {
+          "op": "=",
+          "text": "N/A",
+          "value": "null"
+        }
+      ]
+    },
+    {
+      "cacheTimeout": null,
+      "datasource": "Prometheus",
+      "description": "Alert when retry rate spikes indicate potential retry storm",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 8
+      },
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "text": {
+          "second": {}
+        }
+      },
+      "pluginVersion": "7.5.7",
+      "targets": [
+        {
+          "exemplar": true,
+          "expr": "rate(nexon_api_outbox_api_call_retry_total[1m]) > 10",
+          "interval": "",
+          "legendFormat": "Retry Storm Alert",
+          "refId": "A"
+        }
+      ],
+      "title": "Retry Storm Alert",
+      "type": "stat"
+    },
+    {
+      "cacheTimeout": null,
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 16
+      },
+      "id": 6,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "text": {
+          "second": {}
+        }
+      },
+      "pluginVersion": "7.5.7",
+      "targets": [
+        {
+          "exemplar": true,
+          "expr": "sum(nexon_api_outbox_integrity_mismatch_count) > 0",
+          "interval": "",
+          "legendFormat": "Mismatched",
+          "refId": "A"
+        }
+      ],
+      "title": "Reconciliation Status",
+      "type": "stat"
+    },
+    {
+      "columns": [],
+      "datasource": "Prometheus",
+      "description": "Recent failed replay operations with error details",
+      "gridPos": {
+        "h": 8,
+        "w": 18,
+        "x": 6,
+        "y": 16
+      },
+      "id": 7,
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Timestamp"
+          }
+        ]
+      },
+      "pluginVersion": "7.5.7",
+      "targets": [
+        {
+          "exemplar": true,
+          "expr": "topk(20, nexon_api_outbox_failed_records)",
+          "format": "table",
+          "instant": true,
+          "interval": "",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "Failed Replays",
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                {
+                  "name": "__name__",
+                  "_regex": false
+                },
+                {
+                  "name": "id",
+                  "regex": false
+                },
+                {
+                  "name": "error_message",
+                  "regex": false
+                },
+                {
+                  "name": "retry_count",
+                  "regex": false
+                },
+                {
+                  "name": "timestamp",
+                  "regex": false
+                },
+                {
+                  "name": "Value",
+                  "regex": false
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "type": "table"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 27,
+  "style": "dark",
+  "tags": [
+    "maple",
+    "outbox",
+    "replay",
+    "chaos-engineering"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "10s",
+      "30s",
+      "1m",
+      "5m",
+      "15m",
+      "30m",
+      "1h",
+      "2h",
+      "1d"
+    ]
+  },
+  "timezone": "",
+  "title": "Maple Outbox Replay",
+  "uid": "maple-outbox-replay",
+  "version": 1,
+  "alerts": [
+    {
+      "id": 1,
+      "name": "High DLQ Rate",
+      "message": "DLQ rate exceeded 0.1%",
+      "frequency": "5m",
+      "for": "2m",
+      "conditions": [
+        {
+          "type": "query",
+          "query": "rate(nexon_api_outbox_dlq_total[1m]) / rate(nexon_api_outbox_processed_total[1m]) * 100 > 0.1",
+          "operator": {}
+        }
+      ],
+      "notifications": []
+    },
+    {
+      "id": 2,
+      "name": "Retry Storm Detection",
+      "message": "High retry rate detected - potential retry storm",
+      "frequency": "1m",
+      "for": "1m",
+      "conditions": [
+        {
+          "type": "query",
+          "query": "rate(nexon_api_outbox_api_call_retry_total[1m]) > 10",
+          "operator": {}
+        }
+      ],
+      "notifications": []
+    },
+    {
+      "id": 3,
+      "name": "Integrity Mismatch Alert",
+      "message": "Reconciliation integrity mismatch detected",
+      "frequency": "5m",
+      "for": "1m",
+      "conditions": [
+        {
+          "type": "query",
+          "query": "sum(nexon_api_outbox_integrity_mismatch_count) > 0",
+          "operator": {}
+        }
+      ],
+      "notifications": []
+    }
+  ]
+}

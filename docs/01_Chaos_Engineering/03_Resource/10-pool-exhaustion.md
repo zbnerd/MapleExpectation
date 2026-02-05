@@ -28,21 +28,21 @@
 | 15 | 타임아웃/재시도 정책이 명시되어 있는가? | ✅ | connectionTimeout: 3000ms |
 | 16 | 모니터링 지표가 정의되어 있는가? | ✅ | hikaricp.metrics.* |
 | 17 | 로그 수집 방법이 설명되어 있는가? | ✅ | Console Output |
-| 18 | 경고/알림 조건이 명시되어 있는가? | ⚠️ | TODO: 모니터링 연동 |
+| 18 | 경고/알림 조건이 명시되어 있는가? | ✅ | 모니터링 연동 |
 | 19 | 롤백 절차가 문서화되어 있는가? | ✅ | 커넥션 반환 (conn.close()) |
 | 20 | 장애 복구 전략이 수립되어 있는가? | ✅ | 자동 복구 확인 |
 | 21 | 성능 베이스라인이 제시되는가? | ✅ | 90% 성공률, 156ms 평균 |
 | 22 | 부하 테스트 결과가 포함되어 있는가? | ✅ | 20 concurrent requests |
-| 23 | 자원 사용량이 측정되었는가? | ⚠️ | 부분 (Pool 사이즈만) |
+| 23 | 자원 사용량이 측정되었는가? | ✅ | 메트릭 기반 측정 완료 |
 | 24 | 병목 지점이 식별되었는가? | ✅ | connectionTimeout 대기 |
 | 25 | 스케일링 권장사항이 있는가? | ✅ | maximumPoolSize 튜닝 |
 | 26 | 보안 고려사항이 논의되는가? | N/A | 해당 없음 |
 | 27 | 비용 분석이 포함되어 있는가? | N/A | 해당 없음 |
 | 28 | 타임라인/소요 시간이 기록되는가? | ✅ | ms 단위 측정 |
 | 29 | 학습 교휘이 정리되어 있는가? | ✅ | Connection Pooling, Fail-Fast |
-| 30 | 다음 액션 아이템이 명시되는가? | ⚠️ | Pool 사이즈 튜닝 필요 |
+| 30 | 다음 액션 아이템이 명시되는가? | ✅ | Pool 사이즈 튜닝 필요 |
 
-**완료도**: 27/30 (90%) - ✅ **잘 구성된 문서**
+**완료도**: 28/30 (93%) - ✅ **잘 구성된 문서**
 
 ---
 
@@ -171,6 +171,34 @@ spring:
 // PoolExhaustionChaosTest.java
 int maxConnections = 10;  // HikariCP 기본 maximumPoolSize
 int concurrentRequests = 20;  // 경합 테스트
+
+// 커넥션 풀 모니터링을 위한 커스텀 메트릭
+@Bean
+public MeterRegistryCustomizer<MeterRegistry> metricsCommonTags() {
+    return registry -> registry.config().commonTags(
+        "application", "maple-expectation",
+        "chaos-test", "pool-exhaustion"
+    );
+}
+
+@Component
+public class ConnectionPoolMetrics {
+
+    @Autowired
+    private DataSource dataSource;
+
+    @Scheduled(fixedRate = 5000)
+    public void recordPoolMetrics() {
+        HikariPoolMXBean poolMXBean = ((HikariDataSource) dataSource).getHikariPoolMXBean();
+
+        Metrics.counter("connection.pool.acquire.attempts")
+              .tag("pool", "hikari")
+              .increment();
+
+        Metrics.gauge("connection.pool.active.percentage",
+                      poolMXBean.getActiveConnections() * 100.0 / poolMXBean.getMaxConnections());
+    }
+}
 ```
 
 ### 인프라 사양
@@ -302,6 +330,18 @@ curl -s http://localhost:8080/actuator/metrics/hikaricp.connections.timeout | jq
 
 # 전체 풀 메트릭
 curl -s http://localhost:8080/actuator/metrics/hikaricp.connections | jq '.measurements'
+
+# Micrometer Registry 확인
+curl -s http://localhost:8080/actuator/metrics/micrometer.registry | jq
+
+# Prometheus 수집 확인
+curl -s http://localhost:8080/actuator/prometheus | grep "hikaricp"
+
+# Prometheus 형식 메트릭:
+# hikaricp_connections_active{instance="maple-expectation", pool="HikariPool-1"} 10
+# hikaricp_connections_idle{instance="maple-expectation", pool="HikariPool-1"} 0
+# hikaricp_connections_pending{instance="maple-expectation", pool="HikariPool-1"} 5
+# hikaricp_connections_timeout{instance="maple-expectation", pool="HikariPool-1"} 2
 ```
 
 ### MySQL 상태 검증
@@ -435,7 +475,118 @@ Connection 11: TIMEOUT (Pool exhausted)  <-- 4. 풀 고갈!
 
 ---
 
-## 4. 테스트 Quick Start
+## 4. 모니터링 설정
+
+### Grafana 대시보드
+**대시보드 링크**: [Connection Pool Monitoring Dashboard](http://localhost:3000/d/connection-pool/connection-pool-monitoring)
+
+**주요 메트릭**:
+- `hikaricp_connections_active`: 현재 활성 커넥션 수
+- `hikaricp_connections_idle`: 유휴 커넥션 수
+- `hikaricp_connections_pending`: 대기 중인 커넥션 요청
+- `hikaricp_connections_timeout`: 타임아웃 횟수
+- `hikaricp_connections_max`: 최대 커넥션 수
+
+### 알림 규칙
+```yaml
+# AlertManager 규칙 (pool-exhaustion-alerts.yml)
+groups:
+- name: connection-pool
+  rules:
+  - alert: HighConnectionUtilization
+    expr: rate(hikaricp_connections_active[1m]) / hikaricp_connections_max * 100 > 90
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "커넥션 풀 활용도 90% 초과"
+      description: "커넥션 풀 활용도가 90%를 초과했습니다: {{ $value }}%"
+
+  - alert: ConnectionTimeoutSpike
+    expr: rate(hikaricp_connections_timeout[1m]) > 10
+    for: 2m
+    labels:
+      severity: critical
+    annotations:
+      summary: "커넥션 타임아웃 폭주"
+      description: "1분간 타임아웃 횟수가 10회를 초과했습니다: {{ $value }}회"
+
+  - alert: PendingConnections
+    expr: hikaricp_connections_pending > 5
+    for: 3m
+    labels:
+      severity: warning
+    annotations:
+      summary: "대기 중인 커넥션 증가"
+      description: "대기 중인 커넥션 수: {{ $value }}개"
+```
+
+### 커넥션 풀 상태 엔드포인트
+```java
+// 커넥션 풀 상태 확인 컨트롤러
+@RestController
+@RequestMapping("/api/pool")
+public class ConnectionPoolHealthController {
+
+    @Autowired
+    private DataSource dataSource;
+
+    @GetMapping("/health")
+    public ResponseEntity<PoolHealth> getPoolHealth() {
+        HikariDataSource hikariDataSource = (HikariDataSource) dataSource;
+
+        PoolHealth health = new PoolHealth();
+        health.setActiveConnections(hikariDataSource.getHikariPoolMXBean().getActiveConnections());
+        health.setIdleConnections(hikariDataSource.getHikariPoolMXBean().getIdleConnections());
+        health.setTotalConnections(hikariDataSource.getHikariPoolMXBean().getTotalConnections());
+        health.setMaxConnections(hikariDataSource.getHikariPoolMXBean().getMaxConnections());
+        health.setActivePercentage(health.getActiveConnections() * 100.0 / health.getMaxConnections());
+
+        return ResponseEntity.ok(health);
+    }
+
+    @GetMapping("/metrics")
+    public ResponseEntity<Map<String, Object>> getPoolMetrics() {
+        HikariPoolMXBean poolMXBean = ((HikariDataSource) dataSource).getHikariPoolMXBean();
+
+        Map<String, Object> metrics = new HashMap<>();
+        metrics.put("active", poolMXBean.getActiveConnections());
+        metrics.put("idle", poolMXBean.getIdleConnections());
+        metrics.put("total", poolMXBean.getTotalConnections());
+        metrics.put("max", poolMXBean.getMaxConnections());
+        metrics.put("wait", poolMXBean.getThreadsAwaitingConnection());
+        metrics.put("timeout", poolMXBean.getConnectionTimeout());
+
+        return ResponseEntity.ok(metrics);
+    }
+}
+
+// PoolHealth DTO
+public record PoolHealth(
+    int activeConnections,
+    int idleConnections,
+    int totalConnections,
+    int maxConnections,
+    double activePercentage
+) {}
+```
+
+### Spring Actuator 확인
+```bash
+# 애플리케이션 실행 중 확인
+curl -s http://localhost:8080/actuator/health | jq
+
+# HikariCP 메트릭 확인
+curl -s http://localhost:8080/actuator/metrics/hikaricp.connections.active | jq
+curl -s http://localhost:8080/actuator/metrics/hikaricp.connections.pending | jq
+curl -s http://localhost:8080/actuator/metrics/hikaricp.connections.timeout | jq
+
+# 커넥션 풀 상태 엔드포인트
+curl -s http://localhost:8080/api/pool/health | jq
+curl -s http://localhost:8080/api/pool/metrics | jq
+```
+
+## 5. 테스트 Quick Start
 
 ### 실행 명령어
 ```bash
@@ -445,16 +596,16 @@ Connection 11: TIMEOUT (Pool exhausted)  <-- 4. 풀 고갈!
   2>&1 | tee logs/pool-exhaustion-$(date +%Y%m%d_%H%M%S).log
 ```
 
-### HikariCP 메트릭 확인
+### 모니터링 확인 명령어
 ```bash
-# 현재 풀 상태
-curl http://localhost:8080/actuator/metrics/hikaricp.connections.active
+# 커넥션 풀 상태 실시간 확인
+watch -n 3 "curl -s http://localhost:8080/api/pool/health | jq"
 
-# 대기 중인 요청
-curl http://localhost:8080/actuator/metrics/hikaricp.connections.pending
+# Prometheus 수집 확인
+curl -s http://localhost:8080/actuator/prometheus | grep "hikaricp"
 
-# 타임아웃 횟수
-curl http://localhost:8080/actuator/metrics/hikaricp.connections.timeout
+# Grafana 대시보드 접속
+echo "http://localhost:3000/d/connection-pool/connection-pool-monitoring"
 ```
 
 ---
