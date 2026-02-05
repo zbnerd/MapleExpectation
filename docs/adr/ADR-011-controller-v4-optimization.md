@@ -159,6 +159,75 @@ public class ExpectationWriteBackBuffer {
 
 ---
 
+## Verification Commands (검증 명령어)
+
+### 1. V4 Controller 성능 검증
+
+```bash
+# V4 Controller 성능 테스트
+./gradlew test --tests "maple.expectation.controller.GameCharacterControllerV4Test"
+
+# L1 Fast Path 테스트
+./gradlew test --tests "maple.expectation.controller.L1FastPathTest"
+
+# 응답 시간 검증
+./gradlew test --tests "maple.expectation.controller.ResponseTimeTest"
+```
+
+### 2. Parallel Write-Behind 검증
+
+```bash
+# Write-Behind 버퍼 테스트
+./gradlew test --tests "maple.expectation.controller.WriteBehindBufferTest"
+
+# 동시성 처리 테스트
+./gradlew test --tests "maple.expectation.controller.ConcurrencyTest"
+
+# 버퍼 크기 검증
+./gradlew test --tests "maple.expectation.controller.BufferSizeTest"
+```
+
+### 3. 부하 테스트
+
+```bash
+# V4 부하테스트
+./gradlew loadTest --args="--rps 700 --scenario=v4-parallel-writebehind"
+
+# 처리량 메트릭
+curl -s http://localhost:8080/actuator/metrics | jq '.names[] | select(. | contains("http.server.requests"))'
+
+# 응답 시간 메트릭
+curl -s http://localhost:8080/actuator/metrics | jq '.names[] | select(. | contains("http.server.requests")) | .measurements[]'
+```
+
+### 4. 장애 시나리오 검증
+
+```bash
+# 서버 장애 테스트
+./gradlew chaos --scenario="server-failure"
+
+# DB 장애 테스트
+./gradlew chaos --scenario="database-failure"
+
+# Redis 장애 테스트
+./gradlew chaos --scenario="redis-failure"
+```
+
+### 5. 메모리 사용량 검증
+
+```bash
+# 메모리 누수 테스트
+./gradlew test --tests "maple.expectation.controller.MemoryLeakTest"
+
+# Heap 사용량 확인
+./gradlew monitor --args="--heap-memory"
+
+# GC 횟수 확인
+./gradlew monitor --args="--gc-count"
+```
+
+---
+
 ## 관련 문서
 - **코드:** `src/main/java/maple/expectation/controller/GameCharacterControllerV4.java`
 - **리포트:** `docs/04_Reports/Load_Tests/LOAD_TEST_REPORT_20260125_V4_PARALLEL_WRITEBEHIND.md`
