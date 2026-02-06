@@ -37,9 +37,7 @@
 
 ---
 
-## Evidence Pack (Recruiter-Friendly)
-
-> **"주장"이 아니라 클릭 가능한 증거**로 확인할 수 있는 운영 성과들
+## Evidence Pack
 
 ### 1) **Incident N19 — Outbox Replay / Data Survival**
 
@@ -335,13 +333,11 @@ hikaricp_connections_pending = 41 (TH=10)
 #### 📊 Strategy & Planning (NEW)
 | Document | Description |
 |----------|-------------|
-| [**Score Improvement Summary**](SCORE_IMPROVEMENT_SUMMARY.md) | **49/100 → 90/100 점수 개선 종합 보고서** (+41 points) ✨ |
-| [**Score Improvement Summary**](SCORE_IMPROVEMENT_SUMMARY.md) | **49/100 → 90/100 점수 개선 종합 보고서** (+41 points) ✨ |
-| [**Claim-Evidence Matrix**](docs/CLAIM_EVIDENCE_MATRIX.md) | **AI SRE 주장 ↔ 코드 ↔ 증거 매핑 (C-OPS-01 ~ C-OPS-08)** ✨ NEW |
-| [**Balanced Scorecard KPIs**](docs/02_Technical_Guides/balanced-scorecard-kpis.md) | **BSC 프레임워크: 22 KPIs, 4개 관점, 14/25 → 25/25** |
+| [**Claim-Evidence Matrix**](docs/CLAIM_EVIDENCE_MATRIX.md) | **AI SRE 주장 ↔ 코드 ↔ 증거 매핑 (C-OPS-01 ~ C-OPS-08)**|
+| [**Balanced Scorecard KPIs**](docs/02_Technical_Guides/balanced-scorecard-kpis.md) | **BSC 프레임워크: 22 KPIs, 4개 관점** |
 | [**Business Model Canvas**](docs/02_Technical_Guides/business-model-canvas.md) | **9요소 BMC 완성: Channels, Customer Relationships, Partnerships** |
-| [**Scenario Planning**](docs/02_Technical_Guides/scenario-planning.md) | **4가지 미래 시나리오와 대응 전략 (B3/B4: 2/6 → 6/6)** |
-| [**User Personas & Journeys**](docs/02_Technical_Guides/user-personas-journeys.md) | **3개 페르소나와 사용자 여정 맵 (C3: 2/5 → 5/5)** |
+| [**Scenario Planning**](docs/02_Technical_Guides/scenario-planning.md) | **4가지 미래 시나리오와 대응 전략** |
+| [**User Personas & Journeys**](docs/02_Technical_Guides/user-personas-journeys.md) | **3개 페르소나와 사용자 여정 맵** |
 | [**MVP Roadmap**](docs/00_Start_Here/MVP-ROADMAP.md) | **MVP 범위 정의와 4단계 구현 로드맵** |
 
 #### 🚀 Performance & Operations
