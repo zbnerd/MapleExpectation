@@ -1,4 +1,6 @@
-# MapleExpectation
+# Probabilistic Valuation Engine (codename: MapleExpectation)
+
+> **High-throughput valuation backend with audit-grade resilience and policy-guarded SRE automation**
 
 <div align="center">
 
@@ -8,13 +10,84 @@
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.4-6DB33F?logo=springboot)
 ![License](https://img.shields.io/badge/License-MIT-blue)
 
-## TL;DR
+</div>
 
-| What | Description |
-|------|-------------|
-| **Problem** | MapleStory 장비 강화 비용 계산 (요청당 200~300KB JSON 처리) |
-| **Solution** | 7대 핵심모듈 아키텍처로 14만 RPS급 등가 처리량 달성 |
-| **Result** | **RPS 965**, p50 95ms, p99 214ms, **0% Failure** (로컬 벤치마크 #266 ADR) |
+---
+
+## What This Is
+
+**Backend Engineer (Java/Spring)** — High-throughput valuation backend with **audit-grade resilience** and **policy-guarded SRE automation** (Discord).
+
+- **Core:** 확률 변수 + 시뮬레이션/계산 요청을 처리하는 **고성능 가치 산정(Expectation) 엔진 백엔드**
+- **Differentiator:** 운영 관점에서 "거짓말이 구조적으로 어려운" **Claim ↔ Code ↔ Evidence** 체계와 **Monitoring → Detection → Mitigation(승인/감사/롤백)** 루프를 구현
+- **Domain example:** MMORPG economy simulation dataset (MapleStory 강화/경제 시뮬레이션은 '예시 도메인')
+
+---
+
+## TL;DR (30 seconds)
+
+| **Goal** | **How** | **Result** |
+|----------|---------|------------|
+| p99 < 100ms | TieredCache(L1→L2→DB), Singleflight, Circuit Breaker | **RPS 965**, p50 95ms, p99 214ms, **0% Failure** |
+| 저비용(t3.small급) | Outbox, Graceful shutdown, Chaos(Nightmare) tests | **1,000+ 동시 사용자**, 240 RPS on $15/month instance |
+| 장애 시 데이터 생존 | Discord 기반 **Policy-guarded SRE Copilot** | **MTTD 30s, MTTR 2m**, audit trail, auto rollback |
+
+**Key Differentiator:** LLM은 요약/후보 제안만, 실행은 **whitelist/RBAC/audit/rollback**이 담당 → 감사 가능
+
+---
+
+## Evidence Pack (Recruiter-Friendly)
+
+> **"주장"이 아니라 클릭 가능한 �거**로 확인할 수 있는 운영 성과들
+
+### 1) **Incident N19 — Outbox Replay / Data Survival**
+
+**2.16M events** 적재, 47분 내 replay, 자동 복구 **99.98%** (reconciliation mismatch=0)
+
+- **Problem:** 외부 API 6시간 장애 → 210만 이벤트 누적
+- **Solution:** Transactional Outbox + File Backup 3중 안전망
+- **Result:** 수동 개입 0, 복구 후 99.98% 자동 재처리
+- 📄 [Report](docs/04_Reports/Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md)
+- 🔎 Evidence: SQL reconciliation results, replay logs, metrics
+
+### 2) **Incident N21 — Auto Mitigation (MTTD 30s / MTTR 2m)**
+
+**Circuit Breaker 자동 오픈** → p99 급등(3초→21초) 감지 → 4분 만에 자동 복구
+
+- **Detection:** Prometheus 기반 규칙/통계 (LLM 비의존)
+- **Action:** 서킷브레이커 자동 차단, 수동 개입 불필요
+- **Recovery:** Half-Open 상태 전환 후 정상화
+- 📄 [Report](docs/04_Reports/Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md)
+- 📈 Evidence: Grafana dashboards, Prometheus metrics
+
+### 3) **Cost/Performance Frontier — N23**
+
+월 **$15 → $45** 확장 시 **3.1x 처리량 향상**, 비용 대비 효율 최적점 도출
+
+- **Finding:** t3.large가 RPS/$ 최적 (t3.xlarge는 비효율)
+- **Method:** 스케일 구간별 RPS/p99 측정 + 비용 산식
+- **Decision:** '늘리는 것'이 아니라 **frontier로 최적점 선택**
+- 📄 [Report](docs/04_Reports/Cost_Performance/COST_PERF_REPORT_N23.md)
+- 🧪 Evidence: k6 raw results, cost analysis formulas
+
+### 4) **Policy-Guarded SRE Copilot Demo**
+
+Discord 알림(증거 포함) → 버튼 기반 완화 실행(Whitelist/RBAC/서명검증/감사/롤백)
+
+- **Workflow:** Detection → AI Summary → Discord Alert → [🔧 AUTO-MITIGATE] → Policy Execution → Audit
+- **Safety:** LLM은 요약/후보만, 실행은 **Policy Engine(whitelist/bounds/RBAC)**이 담당
+- 🧾 [Claim-Evidence Matrix](docs/CLAIM_EVIDENCE_MATRIX.md) (C-OPS-01 ~ C-OPS-08)
+- 🔗 GitHub Issues: [#310](https://github.com/zbnerd/MapleExpectation/issues/310), [#311](https://github.com/zbnerd/MapleExpectation/issues/311), [#312](https://github.com/zbnerd/MapleExpectation/issues/312)
+
+---
+
+## System Architecture
+
+<img width="1512" height="1112" alt="architecture" src="https://github.com/user-attachments/assets/e77f3f78-f57b-47a8-91f9-40843fdd4cb6" />
+
+**범례:**
+- ──── (Solid): Implemented (Current)
+- --- --- --- (Dashed): Planned (Future Roadmap)
 
 ## System Architecture
 
