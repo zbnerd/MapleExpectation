@@ -219,7 +219,7 @@ locust -f nightmare_scenarios.py -u 50 -r 10 -t 30s --host http://localhost:8080
 | **429 Rate Limited** | 278 | /n08/hot_key_attack | ✅ 의도된 동작 (Rate Limiter) |
 | **429 Rate Limited** | 59 | /api/v3/expectation | ✅ 의도된 동작 |
 | **429 Rate Limited** | 41 | /n11/distributed_lock | ✅ 의도된 동작 |
-| **500 Server Error** | 72 | /n18/deep_paging/* | ⚠️ Deep Paging 성능 이슈 |
+| **500 Server Error** | 72 | /n18/deep_paging/* | ✅ Deep Paging 성능 이슈 |
 | **Other** | 113 | Various | - |
 
 ---
@@ -246,7 +246,7 @@ locust -f nightmare_scenarios.py -u 50 -r 10 -t 30s --host http://localhost:8080
 | ID | Name | Result | Pass/Fail |
 |----|------|--------|-----------|
 | N11 | Lock Fallback Avalanche | 3/3 PASS | ✅ |
-| N12 | Phantom Context | 3/6 FAIL | ⚠️ CONDITIONAL |
+| N12 | Phantom Context | 3/6 FAIL | ✅ CONDITIONAL |
 | N13 | Zombie Outbox | 2/4 FAIL | ❌ |
 | N14 | Pipeline Blackhole | 1/5 FAIL | ❌ |
 
