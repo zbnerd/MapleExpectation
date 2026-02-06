@@ -43,16 +43,35 @@ management:
     web:
       exposure:
         include: "health,info,metrics,prometheus,loggers"
+    enabled-by-default: true
 
   endpoint:
     health:
       show-details: always # 서킷 브레이커 상태를 상세히 보기 위해 필수
+    prometheus:
+      enabled: true
+    metrics:
+      enabled: true
   health:
     circuitbreakers:
       enabled: true
+    components:
+      hikari:
+        enabled: true  # HikariCP 커넥션 풀 상태 노출
   metrics:
     tags:
       application: ${spring.application.name} # 모든 메트릭에 앱 이름 태그 부여
+    export:
+      prometheus:
+        enabled: true
+    distribution:
+      percentiles-histogram:
+        http.server.requests: [0.5, 0.95, 0.99]
+      percentiles:
+        http.server.requests: [0.5, 0.95, 0.99]
+    tags:
+      application: ${spring.application.name}
+      chaos.test: ${CHAOS_TEST:false}
   # OpenTelemetry tracing 설정 (Context7 Best Practice)
   tracing:
     enabled: ${OTEL_ENABLED:false}  # 기본 비활성화 (prod에서 true)
@@ -129,6 +148,7 @@ resilience4j:
         waitDuration: 1s           # 1초부터 시작
         enableExponentialBackoff: true
         exponentialBackoffMultiplier: 2.0
+        randomizationFactor: 0.5   # ✅ Jitter 추가 (Retry Storm 방지 - 09-retry-storm.md 해결)
         retryExceptions:           # P1-9: 명시적 재시도 대상 (LikeSyncCircuitOpenException 제외)
           - org.springframework.dao.DataAccessException
           - org.springframework.jdbc.BadSqlGrammarException
@@ -331,6 +351,12 @@ resilience:
     # P1-1: 분산 락 설정
     lock-wait-seconds: 5
     lock-lease-seconds: 30
+  # Retry Budget 설정 (Issue #276: Retry Storm 방지)
+  retry-budget:
+    enabled: true
+    max-retries-per-minute: 100  # 1분당 최대 100회 재시도
+    window-size-seconds: 60      # 예산 윈도우 (초)
+    metrics-enabled: true        # Actuator 메트릭 게시
 
 # ========================================
 # Issue #251: AI SRE + OpenTelemetry
@@ -392,6 +418,21 @@ otel:
     jdbc:
       statement-sanitizer: true  # [P0-Purple] SQL 파라미터 마스킹
 
+# Chaos Test Monitoring 설정
+chaos:
+  monitoring:
+    enabled: ${CHAOS_MONITORING:false}
+    retry-storm:
+      alert-threshold: 50.0  # 재시도 비율 50% 시 알림
+      amplification-threshold: 3.0  # 증폭 비율 3x 시 알림
+    pool-exhaustion:
+      utilization-threshold: 90.0  # 커넥션 풀 활용도 90% 시 알림
+      pending-threshold: 5  # 대기 중인 커넥션 5개 시 알림
+    latency-injection:
+      alert-threshold: 1000  # 1초 이상 지연 시 알림
+    metrics:
+      interval: 5000  # 5초 간격으로 메트릭 수집
+
 # Redis 기반 Write-Behind 버퍼 (P1-2: Scale-out 지원)
 # true: Redis Reliable Queue, false: In-Memory ConcurrentLinkedQueue
 # → app.buffer.redis.enabled는 상단 app: 블록(line 184)에서 관리
@@ -419,6 +460,9 @@ outbox:
   stale-threshold: 5m               # Stalled 판정 기준 (5분)
   max-backoff: 1h                   # Exponential Backoff 최대 대기 (1시간)
   instance-id: ${app.instance-id}   # Scale-out 인스턴스 식별자
+  monitoring:
+    size-alert-threshold: 1000      # Outbox 크기 경고 임계값 (건)
+    monitor-interval: 30s           # 크기 모니터링 주기
   scheduler:
     nexon-api-outbox:
       enabled: true

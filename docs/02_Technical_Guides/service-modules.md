@@ -730,5 +730,144 @@ curl -s http://localhost:8080/actuator/metrics/expectation.buffer.pending | jq
 
 ---
 
+## Evidence Links
+
+### Code Evidence
+- **[E1]** V2 Service Root: `src/main/java/maple/expectation/service/v2/root/` (Evidence: [CODE-V2-001])
+- **[E2]** V4 Performance Modules: `src/main/java/maple/expectation/service/v4/` (Evidence: [CODE-V4-001])
+- **[E3]** Calculator Decorator Chain: `src/main/java/maple/expectation/service/v2/calculator/` (Evidence: [CODE-CALC-001])
+- **[E4]** Like System: `src/main/java/maple/expectation/service/v2/like/` (Evidence: [CODE-LIKE-001])
+- **[E5]** Donation Outbox: `src/main/java/maple/expectation/service/v2/donation/` (Evidence: [CODE-DONATION-001])
+- **[E6]** Cache System: `src/main/java/maple/expectation/service/v2/cache/` (Evidence: [CODE-CACHE-001])
+- **[E7]** Flame Calculation: `src/main/java/maple/expectation/service/v2/flame/` (Evidence: [CODE-FLAME-001])
+
+### Performance Evidence
+- **[P1]** V4 Performance Report: `docs/04_Reports/WRK_Final_Summary.md` (Evidence: [PERF-001])
+- **[P2]** Cache Deduplication: `docs/01_Chaos_Engineering/06_Nightmare/Results/N01-thundering-herd-result.md` (Evidence: [PERF-002])
+- **[P3]** Write-Behind Buffer: `docs/01_Chaos_Engineering/06_Nightmare/Results/N19-implementation-summary.md` (Evidence: [PERF-003])
+
+### Architecture Evidence
+- **[A1]** ADR-011: `docs/adr/ADR-011-controller-v4-optimization.md` (Evidence: [ARCH-001])
+- **[A2]** ADR-014: `docs/adr/ADR-014-multi-module-cross-cutting-concerns.md` (Evidence: [ARCH-002])
+
+### Test Evidence
+- **[T1]** Service Tests: `src/test/java/maple/expectation/service/v2/*Test.java` (Evidence: [TEST-SERVICE-001])
+- **[T2]** Chaos Tests: `docs/01_Chaos_Engineering/06_Nightmare/` (Evidence: [TEST-CHAOS-001])
+
+---
+
+## Fail If Wrong (문서 유효성 조건)
+
+이 문서는 다음 조건이 위배될 경우 **즉시 무효화**됩니다:
+
+1. **[F1]** V4 모듈 내부에서 V2 모듈을 직접 호출하는 경우
+2. **[F2]** Write-Behind 버퍼 동기 드레인을 사용하는 경우
+3. **[F3]** 캐시 무효화 시 관련 캐시를 함께 갱신하지 않는 경우
+4. **[F4]** Single-flight 패턴이 95% 이상의 중복 제거율을 보장하지 않는 경우
+5. **[F5]** Decorator Chain이 계산 정밀도(오차 0.1% 이내)를 보장하지 않는 경우
+6. **[F6]** TieredCache의 L1→L2 전략이 일관되게 적용되지 않는 경우
+
+**검증 방법**:
+```bash
+# F1: V2→V2 직접 호출 방지 검증
+grep -r "private.*v2Service" src/main/java/maple/expectation/service/v4/ || echo "✅ No direct V2 calls found"
+
+# F2: 동기 드레인 방지 검증
+grep -r "drain()" src/main/java/maple/expectation/service/v4/ | grep -v "@Scheduled" || echo "✅ No synchronous drain found"
+
+# F3: 캐시 연관 갱신 검증
+grep -r "evictPattern\|invalidate.*:" src/main/java/maple/expectation/service/v2/cache/ || echo "⚠️ Check cache invalidation patterns"
+
+# F4: Single-flight 효율 검증
+curl -s http://localhost:8080/actuator/metrics/singleflight.deduplication | jq '.measurements[0].value > 0.95'
+
+# F5: 계산 정밀도 검증
+./gradlew test --tests "*CalculatorTest*"
+
+# F6: TieredCache 전략 검증
+grep -A 10 "L1 → L2 → DB" src/main/java/maple/expectation/global/cache/TieredCache.java
+```
+
+---
+
+## Verification Commands (검증 명령어)
+
+### V2 모듈 구조 확인
+```bash
+# V2 모듈 구조 확인
+ls -la src/main/java/maple/expectation/service/v2/
+
+# 각 모듈 클래스 수 확인
+find src/main/java/maple/expectation/service/v2 -name "*.java" | wc -l
+```
+
+### V4 모듈 구조 확인
+```bash
+# V4 모듈 구조 확인
+ls -la src/main/java/maple/expectation/service/v4/
+
+# V4 성능 메트릭 확인
+curl -s http://localhost:8080/actuator/metrics/singleflight.deduplication | jq
+```
+
+### Calculator Decorator 확인
+```bash
+# Calculator Decorator 확인
+find src/main/java -name "*Decorator*.java" | head -10
+
+# BigDecimal 정밀도 검증
+grep -r "BigDecimal" src/main/java/maple/expectation/service/v4/calculator/
+```
+
+### Write-Behind Buffer 상태 확인
+```bash
+# Write-Behind Buffer 상태 확인
+curl -s http://localhost:8080/actuator/metrics/expectation.buffer.pending | jq
+
+# Buffer 메트릭 범위 확인
+curl -s http://localhost:8080/actuator/metrics | jq '.[] | select(contains("expectation.buffer"))'
+```
+
+### TieredCache L1/L2 검증
+```bash
+# L1 캐시 상태 확인
+curl -s http://localhost:8080/actuator/metrics/cachehit.ratio | jq
+
+# Redis L2 캐시 확인
+redis-cli info memory | grep used_memory
+```
+
+### V2 vs V4 성능 비교
+```bash
+# V4 부하 테스트
+wrk -t4 -c100 -d30s --latency http://localhost:8080/api/v4/character/test/expectation
+
+# V2 부하 테스트 (비교용)
+wrk -t4 -c100 -d30s --latency http://localhost:8080/api/v2/character/test/expectation
+```
+
+### Design Pattern 적용 검증
+```bash
+# Facade 패턴 확인
+grep -r "Facade.*implements" src/main/java/maple/expectation/service/v*/ | head -5
+
+# Strategy 패턴 확인
+find src/main/java -name "*Strategy.java" | head -5
+
+# Decorator 패턴 확인
+grep -r "extends.*Decorator" src/main/java/maple/expectation/service/v*/ | head -5
+```
+
+---
+
+## Related Evidence
+- WRK Summary: `docs/04_Reports/WRK_Final_Summary.md`
+- N01 Test: `docs/01_Chaos_Engineering/06_Nightmare/Results/N01-thundering-herd-result.md`
+- N19 Recovery: `docs/04_Reports/Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md`
+- ADR-011: `docs/adr/ADR-011-controller-v4-optimization.md`
+- ADR-014: `docs/adr/ADR-014-multi-module-cross-cutting-concerns.md`
+
+---
+
 *Last Updated: 2026-02-05*
 *Next Review: 2026-03-05*

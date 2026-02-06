@@ -232,6 +232,88 @@ hikaricp_connection_timeout_total
 
 ---
 
+## Verification Commands (검증 명령어)
+
+### 1. Watchdog 모드 검증
+
+```bash
+# Watchdog 테스트
+./gradlew test --tests "maple.expectation.global.lock.RedisDistributedLockStrategyTest.testWatchdogMode"
+
+# LeaseTime 테스트
+./gradlew test --tests "maple.expectation.global.lock.RedisDistributedLockStrategyTest.testLeaseTime"
+
+# 락 조기 해제 방지 테스트
+./gradlew test --tests "maple.expectation.global.lock.RedisDistributedLockStrategyTest.testLockNotReleasedEarly"
+```
+
+### 2. ResilientLockStrategy 검증
+
+```bash
+# Redis 장애 시 MySQL 폴백 테스트
+./gradlew test --tests "maple.expectation.global.lock.ResilientLockStrategyTest.testRedisFailureFallback"
+
+# Circuit Breaker 동작 테스트
+./gradlew test --tests "maple.expectation.global.lock.ResilientLockStrategyTest.testCircuitBreakerTrigger"
+
+# Exception 필터링 테스트
+./gradlew test --tests "maple.expectation.global.lock.ResilientLockStrategyTest.testExceptionFiltering"
+```
+
+### 3. Sentinel HA 검증
+
+```bash
+# Redis Sentinel 장애 테스트
+./gradlew test --tests "maple.expectation.global.lock.RedisSentinelTest.testFailover"
+
+# 장애 복구 테스트
+./gradlew test --tests "maple.expectation.global.lock.RedisSentinelTest.testRecovery"
+
+# Connection Pool 관리 테스트
+./gradlew test --tests "maple.expectation.global.lock.RedisSentinelTest.testConnectionPool"
+```
+
+### 4. Deadlock 방지 검증
+
+```bash
+# N02: Deadlock Trap 테스트
+./gradlew test --tests "maple.expectation.chaos.nightmare.N02DeadlockTrapTest"
+
+# Ordered Lock 순서 테스트
+./gradlew test --tests "maple.expectation.global.lock.OrderedLockExecutorTest.testLockOrder"
+
+# Coffman Condition 테스트
+./gradlew test --tests "maple.expectation.global.lock.DeadlockTest.testCoffmanConditions"
+```
+
+### 5. 성능 검증
+
+```bash
+# 부하테스트 (Redis Lock 성능)
+./gradlew loadTest --args="--rps 500 --scenario=redis-lock"
+
+# Connection Pool Timeout 모니터링
+curl -s http://localhost:8080/actuator/metrics | jq '.names[] | select(. | contains("hikaricp_connection_timeout"))'
+
+# Lock 획득 성공률 확인
+curl -s http://localhost:8080/actuator/metrics | jq '.names[] | select(. | contains("lock_acquired"))'
+```
+
+### 6. 메트릭 검증
+
+```bash
+# Prometheus 메트릭 확인
+curl -s http://localhost:8080/actuator/metrics | jq '.names[] | select(. | contains("lock"))'
+
+# Lock 성공/실패율
+curl -s http://localhost:8080/actuator/metrics | jq '.names[] | select(. | contains("lock_acquired"))'
+
+# Fallback 비율
+curl -s http://localhost:8080/actuator/metrics | jq '.names[] | select(. | contains("lock_fallback"))'
+```
+
+---
+
 ## 관련 문서
 
 ### 연결된 ADR

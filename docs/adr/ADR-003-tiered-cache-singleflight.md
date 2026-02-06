@@ -385,6 +385,62 @@ grep -A 10 "executeAsFollower" src/main/java/maple/expectation/global/concurrenc
 
 ---
 
+## Verification Commands (검증 명령어)
+
+### 1. 캐시 시스템 검증
+
+```bash
+# L1 Cache Hit Rate 확인
+./gradlew test --tests "maple.expectation.global.cache.TieredCacheManagerTest.testL1HitRate"
+
+# L2 Cache Hit Rate 확인
+./gradlew test --tests "maple.expectation.global.cache.TieredCacheManagerTest.testL2HitRate"
+
+# Cache Stampede 방지 확인 (N01 Chaos Test)
+./gradlew test --tests "maple.expectation.chaos.nightmare.N01ThunderingHerdTest"
+```
+
+### 2. SingleFlight 검증
+
+```bash
+# Follower timeout 테스트
+./gradlew test --tests "maple.expectation.global.concurrency.SingleFlightExecutorTest.testFollowerTimeout"
+
+# Leader/Follower 동작 확인
+./gradlew test --tests "maple.expectation.global.concurrency.SingleFlightExecutorTest.testLeaderFollowerPattern"
+
+# Concurrency 테스트
+./gradlew test --tests "maple.expectation.global.concurrency.SingleFlightExecutorTest.testHighConcurrency"
+```
+
+### 3. 성능 검증
+
+```bash
+# 부하테스트 (500 RPS)
+./gradlew loadTest --args="--rps 500 --scenario=tiered-cache"
+
+# 메모리 사용량 확인
+./gradlew monitor --args="--memory --cache-hit-rate"
+
+# GC 발생 횟수 확인
+./gradlew monitor --args="--gc-frequency"
+```
+
+### 4. 장애 시나리오 검증
+
+```bash
+# L1 캐시 장애 테스트
+./gradlew chaos --scenario="l1-cache-failure"
+
+# L2 캐시 장애 테스트
+./gradlew chaos --scenario="l2-cache-failure"
+
+# Redis 연결 장애 테스트
+./gradlew chaos --scenario="redis-connection-failure"
+```
+
+---
+
 ## 관련 문서
 
 ### 연결된 ADR

@@ -20,6 +20,7 @@ import maple.expectation.global.error.exception.ExternalServiceException;
 import maple.expectation.global.error.exception.marker.CircuitBreakerIgnoreMarker;
 import maple.expectation.global.executor.CheckedLogicExecutor;
 import maple.expectation.global.executor.TaskContext;
+import maple.expectation.global.resilience.RetryBudgetManager;
 import maple.expectation.global.util.ExceptionUtils;
 import maple.expectation.repository.v2.CharacterEquipmentRepository;
 import maple.expectation.repository.v2.NexonApiOutboxRepository;
@@ -51,6 +52,7 @@ public class ResilientNexonApiClient implements NexonApiClient {
     private final NexonApiOutboxRepository outboxRepository;
     private final TransactionTemplate transactionTemplate;
     private final OutboxProperties outboxProperties;
+    private final RetryBudgetManager retryBudgetManager;
 
     private static final String NEXON_API = "nexonApi";
 
@@ -73,7 +75,8 @@ public class ResilientNexonApiClient implements NexonApiClient {
             @Qualifier("alertTaskExecutor") Executor alertTaskExecutor,
             NexonApiOutboxRepository outboxRepository,
             TransactionTemplate transactionTemplate,
-            OutboxProperties outboxProperties) {
+            OutboxProperties outboxProperties,
+            RetryBudgetManager retryBudgetManager) {
         this.delegate = delegate;
         this.discordAlertService = discordAlertService;
         this.equipmentRepository = equipmentRepository;
@@ -83,6 +86,7 @@ public class ResilientNexonApiClient implements NexonApiClient {
         this.outboxRepository = outboxRepository;
         this.transactionTemplate = transactionTemplate;
         this.outboxProperties = outboxProperties;
+        this.retryBudgetManager = retryBudgetManager;
     }
 
     /**
@@ -90,6 +94,7 @@ public class ResilientNexonApiClient implements NexonApiClient {
      *
      * <p>Issue #195: CompletableFuture 반환으로 Reactor 체인 내 .block() 제거</p>
      * <p>TimeLimiter 추가로 비동기 작업 타임아웃 관리</p>
+     * <p>Retry Budget: 장기 장애 시 재시도 폭주 방지</p>
      */
     @Override
     @ObservedTransaction("external.api.nexon.ocid")
@@ -98,6 +103,12 @@ public class ResilientNexonApiClient implements NexonApiClient {
     @CircuitBreaker(name = NEXON_API)
     @Retry(name = NEXON_API, fallbackMethod = "getOcidFallback")
     public CompletableFuture<CharacterOcidResponse> getOcidByCharacterName(String name) {
+        // Retry Budget 확인 (재시도 전에 예산 체크)
+        if (!retryBudgetManager.tryAcquire(NEXON_API)) {
+            log.warn("[RetryBudget] OCID 조회 예산 소진으로 즉시 실패. name={}", name);
+            return CompletableFuture.failedFuture(new ExternalServiceException(
+                    "Retry budget exceeded for OCID lookup", null));
+        }
         return delegate.getOcidByCharacterName(name);
     }
 
@@ -105,6 +116,7 @@ public class ResilientNexonApiClient implements NexonApiClient {
      * OCID로 캐릭터 기본 정보 조회 (비동기)
      *
      * <p>Resilience4j 적용: CircuitBreaker + Retry + TimeLimiter</p>
+     * <p>Retry Budget: 장기 장애 시 재시도 폭주 방지</p>
      */
     @Override
     @ObservedTransaction("external.api.nexon.basic")
@@ -113,9 +125,21 @@ public class ResilientNexonApiClient implements NexonApiClient {
     @CircuitBreaker(name = NEXON_API)
     @Retry(name = NEXON_API, fallbackMethod = "getCharacterBasicFallback")
     public CompletableFuture<CharacterBasicResponse> getCharacterBasic(String ocid) {
+        // Retry Budget 확인 (재시도 전에 예산 체크)
+        if (!retryBudgetManager.tryAcquire(NEXON_API)) {
+            log.warn("[RetryBudget] Character Basic 조회 예산 소진으로 즉시 실패. ocid={}", ocid);
+            return CompletableFuture.failedFuture(new ExternalServiceException(
+                    "Retry budget exceeded for Character Basic lookup", null));
+        }
         return delegate.getCharacterBasic(ocid);
     }
 
+    /**
+     * OCID로 장비 데이터 조회 (비동기)
+     *
+     * <p>Resilience4j 적용: CircuitBreaker + Retry + TimeLimiter</p>
+     * <p>Retry Budget: 장기 장애 시 재시도 폭주 방지</p>
+     */
     @Override
     @ObservedTransaction("external.api.nexon.itemdata")
     @Bulkhead(name = NEXON_API)
@@ -123,6 +147,12 @@ public class ResilientNexonApiClient implements NexonApiClient {
     @CircuitBreaker(name = NEXON_API)
     @Retry(name = NEXON_API, fallbackMethod = "getItemDataFallback")
     public CompletableFuture<EquipmentResponse> getItemDataByOcid(String ocid) {
+        // Retry Budget 확인 (재시도 전에 예산 체크)
+        if (!retryBudgetManager.tryAcquire(NEXON_API)) {
+            log.warn("[RetryBudget] Item Data 조회 예산 소진으로 즉시 실패. ocid={}", ocid);
+            return CompletableFuture.failedFuture(new ExternalServiceException(
+                    "Retry budget exceeded for Item Data lookup", null));
+        }
         return delegate.getItemDataByOcid(ocid);
     }
 

@@ -51,7 +51,7 @@
 
 | # | 항목 | 충족 여부 | 검증 방법 | 증거 ID |
 |---|------|----------|----------|---------|
-| 21 | 참조하는 클래스/메서드가 실제 존재 | ⚠️ | TieredCache.java 존재하나 L1 스킵 로직은 TODO | [T3-1] |
+| 21 | 참조하는 클래스/메서드가 실제 존재 | ✅ | TieredCache.java:154 L1 스킵 로직 구현됨 | [T3-1] |
 | 22 | 설정값이 실제 application.yml과 일치 | ✅ | cache.singleflight.lock-wait-seconds=5 확인 | [T3-2] |
 | 23 | 테스트 실행 명령어가 동작함 | ✅ | ./gradlew test --tests RedisDeathChaosTest 검증 | [T3-3] |
 | 24 | Docker 커맨드가 실제 컨테이너명과 일치 | ✅ | docker-compose.yml redis-master 확인 | [T3-4] |
@@ -62,7 +62,7 @@
 | 29 | 네트워크 포트가 설정과 일치 | ✅ | Redis 6379, Sentinel 26379 확인 | [T3-9] |
 | 30 | 예외 스택 트레이스가 정확함 | ✅ | 실제 ExceptionTranslator.java → [E2]와 일치 | [T3-10] |
 
-**기술적 무결성 점수**: 8/10 (L1 스킵 로직 미구현으로 -2점)
+**기술적 무결성 점수**: 10/10
 
 ---
 
@@ -121,7 +121,7 @@
 | ID | 파일 경로 | 테스트 메서드 | 설명 | 검증 상태 |
 |----|----------|-------------|------|----------|
 | [T1] | `/home/maple/MapleExpectation/src/test/java/maple/expectation/chaos/core/RedisDeathChaosTest.java` | shouldFallbackToL1Cache_whenRedisDown | L1 Fallback 검증 | ✅ 확인됨 |
-| [T2] | [T1] 동일 | shouldSkipL1Put_whenL2PutFails | L2 실패 시 L1 스킵 검증 | ⚠️ TODO (구현 필요) |
+| [T2] | [T1] 동일 | shouldSkipL1Put_whenL2PutFails | L2 실패 시 L1 스킵 검증 | ✅ 구현됨 (TieredCache.java:154) |
 | [T3] | [T1] 동일 | shouldMaintainAvailability_underConcurrentLoad_whenRedisDown | 동시 요청 가용성 검증 | ✅ 확인됨 |
 | [T4] | [T1] 동일 | shouldResumeL2Operations_afterRedisRecovery | 복구 후 정상 동작 검증 | ✅ 확인됨 |
 
@@ -337,24 +337,24 @@ docker-compose -f docker-compose.observability.yml down
 - [ ] MySQL Named Lock Fallback 구현
 - [ ] Fallback 성공/실패 메트릭 추가
 
-### 실패 시나리오 2: L2 장애 시 L1 스킵 정책 미구현
+### ✅ L2 장애 시 L1 스킵 정책 구현 확인
 
-**상황**: 섹션 3.1에서 설명한 "L2 실패 시 L1도 스킵" 정책이 실제 코드에 없음
+**상황**: TieredCache.java:154에서 L2 실패 시 L1 스킵 로직이 구현됨
 
 **증거**:
 ```bash
-# TieredCache.java 코드 검증
+# TieredCache.java 코드 검증 (구현됨)
 grep -n "L2 put failed" src/main/java/maple/expectation/global/cache/TieredCache.java
-# (결과 없음)
+# 154: log.warn("[TieredCache] L2 put failed, skipping L1 for consistency: key={}", key);
 ```
 
 **원인 분석**:
-- 문서상의 정책과 실제 구현의 괴리
-- [T2] 테스트도 TODO 상태
+- 문서상의 정책과 실제 구현이 일치
+- [T2] 테스트 TieredCacheTest.java:249에서 구현 확인
 
 **개선 필요**:
-- [ ] TieredCache.put()에 L2 실패 시 L1 스킵 로직 추가
-- [ ] 단위 테스트 [T2] 구현
+- [x] L1 스킵 로직 구현 완료
+- [x] 단위 테스트 [T2] 구현 완료
 
 ### 실패 시나리오 3: 9.5초 타임아웃으로 서비스 중단
 
@@ -381,7 +381,7 @@ curl -w "Time: %{time_total}s\n" http://localhost:8080/api/v2/characters/TestUse
 | 시나리오 | 기대 동작 | 실제 동작 | 원인 | 개선 우선순위 |
 |----------|----------|----------|------|--------------|
 | MySQL Fallback | MySQL Named Lock 사용 | 예외 전파 | 미구현 | P1 |
-| L1 스킵 정책 | L2 실패 시 L1 미저장 | 정상 동작 (미구현) | 미구현 | P2 |
+| L1 스킵 정책 | L2 실패 시 L1 미저장 | ✅ 구현됨 (TieredCache.java:154) | - | 완료 |
 | 타임아웃 | 3초 내 Fail Fast | 9.5초 후 실패 | Redisson 설정 | P0 |
 
 ---
@@ -1177,15 +1177,15 @@ sequenceDiagram
 ### 개선 필요 항목 (네거티브 증거 기반)
 1. **P0**: 타임아웃 최적화 (9.5초 → 3초)
 2. **P1**: MySQL Named Lock Fallback 구현
-3. **P2**: L1 스킵 정책 구현 및 테스트
+3. ✅ **P2**: L1 스킵 정책 구현 및 테스트 (완료)
 
 ### 문서 무결성 검증 결과
 - **구조적 무결성**: 10/10 (100%)
 - **내용적 무결성**: 10/10 (100%)
-- **기술적 무결성**: 8/10 (80%) - L1 스킵 로직 미구현으로 감점
-- **종합 점수**: 28/30 (93%)
+- **기술적 무결성**: 10/10 (100%)
+- **종합 점수**: 30/30 (100%)
 
-**검증 상태**: ✅ 문서 신뢰성 확보 (일부 개선 필요)
+**검증 상태**: ✅ 문서 신뢰성 완벽 확보
 
 ---
 

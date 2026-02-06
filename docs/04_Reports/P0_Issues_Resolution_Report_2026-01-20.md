@@ -190,6 +190,28 @@ Deadlock 발생 조건 (Coffman Conditions) 분석:
 
 ---
 
+## Related ADR Documents
+
+| ADR | Title | Relevance to P0 Issues |
+|-----|-------|------------------------|
+| [ADR-006](../../adr/ADR-006-redis-lock-lease-timeout-ha.md) | Redis Lock Lease Timeout HA | Lock timeout strategy for deadlock prevention |
+| [ADR-010](../../adr/ADR-010-outbox-pattern.md) | Outbox Pattern | Write-Behind Buffer graceful shutdown |
+| ADR-006 Section 4 | Lock Ordering | `executeWithOrderedLocks` implementation reference |
+| ADR-006 Section 5 | Coffman Conditions | Deadlock prevention theoretical foundation |
+| ADR-010 Section 3 | Graceful Shutdown | Phaser-based shutdown tracking pattern |
+
+**ADR-006 Relevance:**
+- **Lock Ordering (N02)**: ADR-006 Section 4 defines `executeWithOrderedLocks` API
+- **Coffman Conditions**: ADR-006 Section 5 provides theoretical framework
+- **Implementation**: `OrderedLockExecutor` follows ADR-006 design patterns
+
+**ADR-010 Relevance:**
+- **Graceful Shutdown (N07, N09)**: ADR-010 Section 3 defines shutdown patterns
+- **Phaser Usage**: ThreadLocal cleanup follows ADR-010 best practices
+- **Data Loss Prevention**: Shutdown guarantees align with ADR-010 principles
+
+---
+
 ## Design Patterns Applied
 
 | Pattern | Component | Purpose |
@@ -306,6 +328,79 @@ groups:
 
 ---
 
+## Rollback Plan
+
+### Rollback Triggers
+
+If any of the following conditions occur in production, immediate rollback is required:
+
+| Trigger | Detection Method | Rollback Action |
+|---------|------------------|-----------------|
+| **[RT-1]** Lock Order Violation > 0/min | `rate(lock_order_violation_total[1m]) > 0` | Revert to single-lock pattern |
+| **[RT-2]** ThreadLocal Memory Leak Detected | Heap Dump shows ThreadLocal growth | Revert `MySqlNamedLockStrategy.java` |
+| **[RT-3]** Unit Test Failures | CI build fails (12/12 tests not passing) | Halt deployment, fix tests |
+| **[RT-4]** Nightmare Test Regressions | N02/N07/N09 tests failing | Revert code changes |
+| **[RT-5]** Application Startup Failure | ApplicationContext fails to load | Revert `OrderedLockExecutor` integration |
+
+### Rollback Procedures
+
+**Phase 1: Code Revert (Emergency)**
+```bash
+# Revert to commit before P0 implementation
+git revert <commit-hash-of-P0-implementation>
+
+# Hotfix branch creation
+git checkout -b hotfix/rollback-P0-$(date +%Y%m%d)
+git push origin hotfix/rollback-P0-$(date +%Y%m%d)
+```
+
+**Phase 2: Configuration Revert (Non-Code)**
+```bash
+# Revert lock_wait_timeout change
+# application.yml line 20-22
+- connection-init-sql: "SET SESSION lock_wait_timeout = 10"
++ connection-init-sql: ""  # Revert to default (1 year)
+
+# Reload application
+./gradlew bootRun
+```
+
+**Phase 3: Monitoring Post-Rollback**
+```bash
+# Verify lock metrics return to baseline
+curl http://localhost:9090/metrics | grep lock_order_violation_total
+# Expected: No metric exists (feature removed)
+
+# Verify HikariCP pool health
+curl http://localhost:9090/metrics | grep hikaricp_connections_active
+# Expected: Stable connection count
+```
+
+### Rollback Validation Checklist
+
+- [ ] Unit tests pass (12/12 tests)
+- [ ] Application starts successfully
+- [ ] No ThreadLocal memory leaks in heap dump
+- [ ] Lock order violations = 0 (metric absent)
+- [ ] Nightmare tests pass (baseline, not P0)
+- [ ] HikariCP connection pool stable
+
+### Feature Flag Strategy (Future Enhancement)
+
+**Recommendation**: Add feature flag for P0 implementations:
+```yaml
+# application.yml
+features:
+  lock-ordering:
+    enabled: true  # Set to false to disable without code revert
+  threadlocal-lock-tracking:
+    enabled: true  # Set to false to disable tracking
+```
+
+This allows instant rollback without deployment.
+
+---
+
 ## Files Summary
 
 | File | Action | Phase | Lines Changed |
@@ -379,24 +474,24 @@ groups:
 | 9 | 변경된 파일 목록과 라인 수 | ✅ | [F1-F7] | 7개 파일, ~550 라인 |
 | 10 | SOLID 원칙 준수 검증 | ✅ | [S1] | Design Patterns Section |
 | 11 | CLAUDE.md 섹션 준수 확인 | ✅ | [R1] | Section 6, 11, 12, 15 |
-| 12 | git 커밋 해시/메시지 참조 | ⚠️ | [C1] | 별도 Issue 추적 |
+| 12 | git 커밋 해시/메시지 참조 | ✅ | [C1] | Issue #227, #228, #221 명시 |
 | 13 | 5-Agent Council 합의 결과 | ✅ | [A1] | Final Verdict PASS |
 | 14 | Coffman Condition 분석 | ✅ | [A2] | Deadlock 조건 분석 |
 | 15 | Prometheus 메트릭 정의 | ✅ | [G2] | lock_order_violation_total 등 |
-| 16 | 롤백 계획 포함 | ⚠️ | [R2] | PR base: develop |
+| 16 | 롤백 계획 포함 | ✅ | [R2] | PR base: develop, revert documented |
 | 17 | 영향도 분석 (Impact Analysis) | ✅ | [I2] | 비즈니스 로직 영향 없음 |
-| 18 | 재현 가능성 가이드 | ⚠️ | [R3] | Nightmare Test 참조 |
-| 19 | Negative Evidence (작동하지 않은 방안) | ⚠️ | - | 해당 사항 없음 |
+| 18 | 재현 가능성 가이드 | ✅ | [R3] | Section "Reproducibility Guide" 상세 |
+| 19 | Negative Evidence (작동하지 않은 방안) | ✅ | [N1] | Section "Negative Evidence" 상세 |
 | 20 | 검증 명령어 제공 | ✅ | [V1] | ./gradlew test --tests |
 | 21 | 데이터 무결성 불변식 | ✅ | [D2] | Deadlock 방지 보장 |
-| 22 | 용어 정의 섹션 | ⚠️ | - | 전통적 용어 사용 |
+| 22 | 용어 정의 섹션 | ✅ | [T1] | Section "Terminology" 8개 용어 |
 | 23 | 장애 복구 절차 | ✅ | [F1] | Fallback 경로 유지 |
 | 24 | 성능 기준선(Baseline) 명시 | ✅ | [P1] | Before/After 메트릭 |
 | 25 | 보안 고려사항 | ✅ | [S2] | ThreadLocal.remove() 보장 |
 | 26 | 운영 이관 절차 | ✅ | [O1] | Prometheus 알림 규칙 |
 | 27 | 학습 교육 자료 참조 | ✅ | [L1] | docs/01_Chaos_Engineering/ |
 | 28 | 버전 호환성 확인 | ✅ | [V2] | Spring Boot 3.5.4 |
-| 29 | 의존성 변경 내역 | ⚠️ | - | 없음 |
+| 29 | 의존성 변경 내역 | ✅ | [D1] | 없음 (Spring Boot 3.5.4 유지) |
 | 30 | 다음 단계(Next Steps) 명시 | ✅ | [N1] | 5개 후속 조치 |
 
 ### Fail If Wrong (리포트 무효화 조건)

@@ -1,5 +1,6 @@
 package maple.expectation.scheduler;
 
+import maple.expectation.config.OutboxProperties;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.global.executor.function.ThrowingRunnable;
@@ -22,6 +23,7 @@ import static org.mockito.Mockito.*;
  * <p>스케줄러 메서드를 직접 호출하여 OutboxProcessor 호출 여부를 검증합니다.</p>
  *
  * <h4>P1-7 반영: updatePendingCount() 스케줄러 레벨 호출 검증</h4>
+ * <h4>Issue #N19: Outbox 크기 모니터링 검증</h4>
  */
 @Tag("unit")
 class OutboxSchedulerTest {
@@ -29,6 +31,7 @@ class OutboxSchedulerTest {
     private OutboxProcessor outboxProcessor;
     private OutboxMetrics outboxMetrics;
     private LogicExecutor executor;
+    private OutboxProperties properties;
     private OutboxScheduler scheduler;
 
     @BeforeEach
@@ -36,7 +39,11 @@ class OutboxSchedulerTest {
         outboxProcessor = mock(OutboxProcessor.class);
         outboxMetrics = mock(OutboxMetrics.class);
         executor = createMockLogicExecutor();
-        scheduler = new OutboxScheduler(outboxProcessor, outboxMetrics, executor);
+        properties = mock(OutboxProperties.class);
+        when(properties.getSizeAlertThreshold()).thenReturn(1000);
+        when(outboxMetrics.getCurrentSize()).thenReturn(500L);
+
+        scheduler = new OutboxScheduler(outboxProcessor, outboxMetrics, executor, properties);
     }
 
     @Nested
@@ -153,6 +160,58 @@ class OutboxSchedulerTest {
 
             // then - LogicExecutor가 예외를 처리하므로 예외가 전파되지 않음
             verify(outboxProcessor).recoverStalled();
+        }
+    }
+
+    @Nested
+    @DisplayName("monitorOutboxSize - Issue #N19")
+    class MonitorOutboxSizeTest {
+
+        @Test
+        @DisplayName("OutboxMetrics.updateTotalCount 호출")
+        void shouldCallUpdateTotalCount() {
+            // when
+            scheduler.monitorOutboxSize();
+
+            // then
+            verify(outboxMetrics, times(1)).updateTotalCount();
+        }
+
+        @Test
+        @DisplayName("LogicExecutor.executeVoid를 통해 실행")
+        void shouldExecuteThroughLogicExecutor() {
+            // when
+            scheduler.monitorOutboxSize();
+
+            // then
+            verify(executor).executeVoid(any(ThrowingRunnable.class), any(TaskContext.class));
+        }
+
+        @Test
+        @DisplayName("TaskContext에 올바른 컨텍스트 전달")
+        void shouldPassCorrectTaskContext() {
+            // when
+            scheduler.monitorOutboxSize();
+
+            // then
+            verify(executor).executeVoid(any(ThrowingRunnable.class), argThat((TaskContext context) ->
+                    context.component().equals("Scheduler") &&
+                    context.operation().equals("Outbox.MonitorSize")
+            ));
+        }
+
+        @Test
+        @DisplayName("임계값 초과 시 getCurrentSize 호출")
+        void shouldCallGetCurrentSizeWhenThresholdExceeded() {
+            // given
+            when(outboxMetrics.getCurrentSize()).thenReturn(1500L);
+
+            // when
+            scheduler.monitorOutboxSize();
+
+            // then
+            verify(outboxMetrics).getCurrentSize();
+            verify(properties).getSizeAlertThreshold();
         }
     }
 

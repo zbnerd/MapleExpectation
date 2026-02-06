@@ -234,6 +234,88 @@ like_toggle_fallback_total{reason="redis_failed"}
 - **Atomic Toggle:** `src/main/java/maple/expectation/global/concurrency/atomic/AtomicLikeToggleExecutor.java`
 - **Redis Buffer:** `src/main/java/maple/expectation/service/v2/like/storage/RedisLikeBufferStorage.java`
 
+---
+
+## Verification Commands (검증 명령어)
+
+### 1. P1-1 Atomic Toggle 검증
+
+```bash
+# Atomic Toggle 동작 테스트
+./gradlew test --tests "maple.expectation.global.concurrency.atomic.AtomicLikeToggleExecutorTest"
+
+# Virtual Thread 스레드 효율 테스트
+./gradlew test --tests "maple.expectation.global.concurrency.virtual.VirtualThreadEfficiencyTest"
+
+# Redis Lua Script 성능 테스트
+./gradlew test --tests "maple.expectation.service.v2.like.storage.RedisLikeBufferStorageTest"
+```
+
+### 2. P1-9 Pub/Sub 메시지 검증
+
+```bash
+# Pub/Sub 메시지 유실 테스트
+./gradlew test --tests "maple.expectation.service.v2.like.event.RedisLikeEventPublisherTest"
+
+# Eventual Consistency 검증
+./gradlew test --tests "maple.expectation.service.v2.like.sync.LikeSyncSchedulerTest"
+
+# Caffeine TTL 만료 테스트
+./gradlew test --tests "maple.expectation.service.v2.like.cache.L1CacheExpiryTest"
+```
+
+### 3. P1-12 Circuit Breaker 대응 검증
+
+```bash
+# Redis 장애 시 Fallback 테스트
+./gradlew test --tests "maple.expectation.service.v2.like.storage.RedisLikeBufferStorageFailureTest"
+
+# LogicExecutor executeOrDefault 테스트
+./gradlew test --tests "maple.expectation.global.executor.LogicExecutorTest"
+
+# DB Fallback 경로 테스트
+./gradlew test --tests "maple.expectation.service.v2.auth.CharacterLikeServiceTest"
+```
+
+### 4. 성능 검증
+
+```bash
+# 좋아요 엔드포인트 부하테스트
+./gradlew loadTest --args="--rps 1000 --scenario=like-endpoint"
+
+# 응답 시간 검증
+curl -s http://localhost:8080/actuator/metrics/http.server.requests | jq '.measurements[] | {statistic: .statistic, value: .value}'
+
+# 메모리 사용량 검증
+./gradlew monitor --args="--memory --threads"
+```
+
+### 5. 장애 시나리오 검증
+
+```bash
+# Redis 장애 테스트
+./gradlew chaos --scenario="redis-failure"
+
+# DB 장애 테스트
+./gradlew chaos --scenario="database-failure"
+
+# 네트워크 장애 테스트
+./gradlew chaos --scenario="network-latency"
+```
+
+### 6. 메트릭 검증
+
+```bash
+# Prometheus 메트릭 확인
+curl -s http://localhost:8080/actuator/metrics | jq '.names[] | select(. | contains("like"))'
+
+# 처리량 메트릭
+curl -s http://localhost:8080/actuator/metrics | jq '.names[] | select(. | contains("http.server.requests"))'
+
+# 에러율 메트릭
+curl -s http://localhost:8080/actuator/metrics | jq '.names[] | select(. | contains("http.server.requests")) | .measurements[]'
+```
+
 ### 이슈
 - **[#285 V2 좋아요 엔드포인트 P0/P1 전수 분석](https://github.com/zbnerd/MapleExpectation/issues/285)**
 - **[#283 Scale-out 방해 요소 제거](https://github.com/zbnerd/MapleExpectation/issues/283)**

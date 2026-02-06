@@ -1,0 +1,117 @@
+global:
+  smtp_smarthost: 'localhost:587'
+  smtp_from: 'alerts@maple-expectation.com'
+  smtp_auth_username: 'alerts@maple-expectation.com'
+  smtp_auth_password: '${SMTP_PASSWORD}'
+
+# Resolve timeouts for looping alerts
+route:
+  group_by: ['alertname', 'severity', 'category']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1h
+  receiver: 'web.hook'
+
+  routes:
+    # Critical alerts
+    - match:
+        severity: critical
+      receiver: 'critical-alerts'
+      continue: true
+
+    # Warning alerts
+    - match:
+        severity: warning
+      receiver: 'warning-alerts'
+      continue: true
+
+    # Info alerts
+    - match:
+        severity: info
+      receiver: 'info-alerts'
+
+receivers:
+  # Critical alerts - multiple channels
+  - name: 'critical-alerts'
+    email_configs:
+      - to: 'admin@maple-expectation.com'
+        subject: '🚨 CRITICAL ALERT: {{ .GroupLabels.alertname }}'
+        body: |
+          Alert: {{ .GroupLabels.alertname }}
+
+          Severity: {{ .GroupLabels.severity }}
+          Category: {{ .GroupLabels.category }}
+
+          Description: {{ .Annotations.summary }}
+
+          Details: {{ .Annotations.description }}
+
+          Started at: {{ .StartsAt }}
+
+          [View in Grafana](http://localhost:3000/d/alerts)
+
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        title: '🚨 CRITICAL ALERT'
+        text: |
+          {{ .Annotations.summary }}
+
+          {{ .Annotations.description }}
+          ```
+          Alert: {{ .GroupLabels.alertname }}
+          Severity: {{ .GroupLabels.severity }}
+          Category: {{ .GroupLabels.category }}
+          ```
+        color: 'danger'
+
+  # Warning alerts - email only
+  - name: 'warning-alerts'
+    email_configs:
+      - to: 'dev-team@maple-expectation.com'
+        subject: '⚠️ WARNING ALERT: {{ .GroupLabels.alertname }}'
+        body: |
+          Alert: {{ .GroupLabels.alertname }}
+
+          Severity: {{ .GroupLabels.severity }}
+          Category: {{ .GroupLabels.category }}
+
+          Description: {{ .Annotations.summary }}
+
+          Details: {{ .Annotations.description }}
+
+          Started at: {{ .StartsAt }}
+
+  # Info alerts - log only
+  - name: 'info-alerts'
+    email_configs:
+      - to: 'observability@maple-expectation.com'
+        subject: 'ℹ️ INFO ALERT: {{ .GroupLabels.alertname }}'
+        body: |
+          Alert: {{ .GroupLabels.alertname }}
+
+          Description: {{ .Annotations.summary }}
+
+          Started at: {{ .StartsAt }}
+
+  # Default webhook
+  - name: 'web.hook'
+    webhook_configs:
+      - url: 'http://localhost:5001/'
+
+# Inhibit rules - suppress notifications for known issues
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'dev']
+
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'info'
+    equal: ['alertname', 'dev']
+
+# Templates
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'

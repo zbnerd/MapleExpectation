@@ -355,6 +355,62 @@ curl -s http://localhost:8080/actuator/metrics | jq '.names[] | select(. | conta
 
 ---
 
+## Verification Commands (검증 명령어)
+
+### 1. LogicExecutor 기능 검증
+
+```bash
+# LogicExecutor 예외 처리 테스트
+./gradlew test --tests "maple.expectation.global.executor.LogicExecutorTest"
+
+# TaskContext 전파 테스트
+./gradlew test --tests "maple.expectation.global.executor.TaskContextTest"
+
+# ExecutionPipeline 정책 테스트
+./gradlew test --tests "maple.expectation.global.executor.policy.ExecutionPipelineTest"
+```
+
+### 2. Policy Pipeline 검증
+
+```bash
+# Retry 정책 테스트
+./gradlew test --tests "maple.expectation.global.executor.policy.RetryPolicyTest"
+
+# Circuit Breaker 정책 테스트
+./gradlew test --tests "maple.expectation.global.executor.policy.CircuitBreakerPolicyTest"
+
+# Fallback 정책 테스트
+./gradlew test --tests "maple.expectation.global.executor.policy.FallbackPolicyTest"
+```
+
+### 3. 성능 및 부하 검증
+
+```bash
+# 부하테스트 (LogicExecutor 성능)
+./gradlew loadTest --args="--rps 700 --scenario=logic-executor"
+
+# 메트릭 확인
+curl -s http://localhost:8080/actuator/metrics | jq '.names[] | select(. | contains("executor"))'
+
+# 예외 처리 시간 측정
+./gradlew test --tests "maple.expectation.global.executor.PerformanceTest"
+```
+
+### 4. 장애 시나리오 검증
+
+```bash
+# 서버 장애 시 Fallback 테스트
+./gradlew chaos --scenario="server-failure"
+
+# Circuit Breaker 동작 테스트
+./gradlew chaos --scenario="circuit-breaker-trigger"
+
+# 예외 메시지 검증
+./gradlew test --tests "maple.expectation.global.executor.ExceptionHandlingTest"
+```
+
+---
+
 ## 관련 문서
 
 ### 연결된 ADR

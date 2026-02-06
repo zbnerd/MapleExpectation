@@ -470,6 +470,128 @@ grep -r "try {" src/main/java/maple/expectation/service --include="*.java" | wc 
 
 ---
 
+## Evidence Links
+
+### Code Evidence
+- **[E1]** ResilientLockStrategy: `src/main/java/maple/expectation/global/lock/ResilientLockStrategy.java`
+- **[E2]** TieredCache: `src/main/java/maple/expectation/global/cache/TieredCache.java`
+- **[E3]** LogicExecutor: `src/main/java/maple/expectation/global/executor/LogicExecutor.java`
+- **[E4]** Resilience4j Circuit Breaker: `src/main/resources/application.yml`
+- **[E5]** TieredCacheRaceConditionTest: `src/test/java/maple/expectation/cache/TieredCacheRaceConditionTest.java`
+- **[E6]** Nightmare Tests: `docs/01_Chaos_Engineering/06_Nightmare/`
+- **[E7]** ExpectationCacheCoordinator: `src/main/java/maple/expectation/service/v4/cache/ExpectationCacheCoordinator.java`
+- **[E8]** ExpectationWriteBackBuffer: `src/main/java/maple/expectation/service/v4/buffer/ExpectationWriteBackBuffer.java`
+
+### Configuration Evidence
+- **[C1]** Resilience4j Circuit Breaker: `src/main/resources/application.yml` (Line 55-82)
+- **[C2]** Redis configuration: `src/main/resources/application.yml`
+- **[C3]** Graceful shutdown: `src/main/resources/application.yml` (Line 10)
+
+### Performance Evidence
+- **[P1]** Performance Report: `docs/04_Reports/PERFORMANCE_260105.md`
+- **[P2]** N01 Thundering Herd: `docs/01_Chaos_Engineering/06_Nightmare/Results/N01-thundering-herd-result.md`
+- **[P3]** N19 Implementation: `docs/01_Chaos_Engineering/06_Nightmare/Results/N19-implementation-summary.md`
+- **[P4]** Chaos Results: `docs/01_Chaos_Engineering/06_Nightmare/Results/`
+- **[P5]** P0 Report: `docs/04_Reports/P0_Issues_Resolution_Report_2026-01-20.md`
+- **[P6]** P1-7-8-9 Report: `docs/04_Reports/P1-7-8-9-scheduler-distributed-lock.md`
+
+### Test Evidence
+- **[T1]** Zero Script QA: `docs/03-analysis/zero-script-qa-2026-01-30.md`
+- **[T2]** Testing Guide: `docs/02_Technical_Guides/testing-guide.md`
+- **[T3]** Chaos Engineering: `docs/01_Chaos_Engineering/06_Nightmare/`
+
+### Architecture Evidence
+- **[A1]** ADR-005: `docs/adr/ADR-005-resilience4j-scenario-abc.md`
+- **[A2]** ADR-008: `docs/adr/ADR-008-durability-graceful-shutdown.md`
+- **[A3]** ADR-010: `docs/adr/ADR-010-outbox-pattern.md`
+
+### Documentation Evidence
+- **[D1]** Testing Guide Section 23: `docs/02_Technical_Guides/testing-guide.md`
+- **[D2]** Chaos Engineering Overview: `docs/01_Chaos_Engineering/00_Overview/TEST_STRATEGY.md`
+
+---
+
+## Fail If Wrong (문서 유효성 조건)
+
+이 문서는 다음 조건이 위배될 경우 **즉시 무효화**됩니다:
+
+1. **[F1]** Redis Lock 장애 시 MySQL로의 자동 전환이 동작하지 않을 경우
+2. **[F2]** TieredCache가 L1→L2→DB 전략을 일관되게 적용하지 않을 경우
+3. **[F3]** LogicExecutor 표준화 패턴이 8가지로 정해져 있지 않을 경우
+4. **[F4]** Single-flight 패턴이 95% 이상의 중복 제거율을 보장하지 않을 경우
+
+**검증 방법**:
+```bash
+# F1: ResilientLockStrategy 검증
+curl -X POST http://localhost:8080/api/v2/donation/cancel/test || echo "Testing Redis fallback"
+
+# F2: TieredCache 검증
+curl -s http://localhost:8080/actuator/metrics/cachehit.ratio | jq '.measurements[0].value > 0'
+
+# F3: LogicExecutor 검증
+grep -r "execute.*TaskContext" src/main/java/maple/expectation/global/executor/LogicExecutor.java | wc -l
+# 예상: 8가지 패턴 확인
+
+# F4: Single-flight 검증
+curl -s http://localhost:8080/actuator/metrics/singleflight.deduplication | jq '.measurements[0].value > 0.95'
+```
+
+---
+
+## Verification Commands (검증 명령어)
+
+### 기본 동작 확인
+```bash
+# 애플리케이션 실행 확인
+curl -s http://localhost:8080/actuator/health | jq '.status == "UP"'
+
+# Circuit Breaker 상태 확인
+curl -s http://localhost:8080/actuator/circuitbreakers | jq '.[] | {name, state}'
+```
+
+### 성능 검증
+```bash
+# 부하 테스트 (V4)
+wrk -t4 -c100 -d30s --latency http://localhost:8080/api/v4/character/test/expectation
+
+# 캐시 효율 검증
+curl -s http://localhost:8080/actuator/metrics/cachehit.ratio | jq '.measurements[0].value'
+```
+
+### 장애 테스트
+```bash
+# Redis 장애 시나리오
+docker-compose stop redis
+curl -s http://localhost:8080/api/v2/character/test/expectation | jq '.success == false'
+docker-compose start redis
+
+# Chaos Test 실행
+./gradlew test --tests "*RedisLockNightmareTest"
+```
+
+### 코드 구조 검증
+```bash
+# Lock Strategy 패턴 확인
+find src/main/java -name "*LockStrategy*.java" | head -5
+
+# Cache 계층 구조 확인
+find src/main/java -name "*Cache*.java" | head -5
+
+# Executor 패턴 확인
+find src/main/java -name "*Executor*.java" | grep -E "(Logic|Checked)" | head -5
+```
+
+### 인프라 검증
+```bash
+# HikariCP 연결 풀 확인
+curl -s http://localhost:8080/actuator/datasource | jq '.components[0]'
+
+# Redis 연결 확인
+redis-cli ping || echo "Redis 연결 실패"
+```
+
+---
+
 ## Related Evidence
 
 - [P0 Report](../04_Reports/P0_Issues_Resolution_Report_2026-01-20.md)

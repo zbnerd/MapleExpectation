@@ -133,6 +133,75 @@ Spring 기본 빈                  | 0 (default)        | 일반 빈 정리
 
 ---
 
+## Verification Commands (검증 명령어)
+
+### 1. Graceful Shutdown 기능 검증
+
+```bash
+# Graceful Shutdown 테스트
+./gradlew test --tests "maple.expectation.lifecycle.GracefulShutdownTest"
+
+# SmartLifecycle Phase 순서 테스트
+./gradlew test --tests "maple.expectation.lifecycle.SmartLifecycleTest"
+
+# 버퍼 데이터 플러시 테스트
+./gradlew test --tests "maple.expectation.lifecycle.BufferFlushTest"
+```
+
+### 2. 장애 시나리오 검증
+
+```bash
+# 강제 종료 테스트
+./gradlew test --tests "maple.expectation.lifecycle.ForcedShutdownTest"
+
+# Rolling Update 시나리오 테스트
+./gradlew chaos --scenario="rolling-update"
+
+# 타임아웃 시나리오 테스트
+./gradlew test --tests "maple.expectation.lifecycle.ShutdownTimeoutTest"
+```
+
+### 3. 데이터 지속성 검증
+
+```bash
+# 버퍼 데이터 유실 테스트
+./gradlew test --tests "maple.expectation.lifecycle.DataDurabilityTest"
+
+# 미완료 작업 추적 테스트
+./gradlew test --tests "maple.expectation.lifecycle.IncompleteWorkTrackingTest"
+
+# DB 불일치 검증
+./gradlew test --tests "maple.expectation.lifecycle.DatabaseConsistencyTest"
+```
+
+### 4. 성능 검증
+
+```bash
+# 종료 시간 측정
+./gradlew test --tests "maple.expectation.lifecycle.ShutdownPerformanceTest"
+
+# 버퍼 플러시 속도 테스트
+./gradlew test --tests "maple.expectation.lifecycle.FlushPerformanceTest"
+
+# 메모리 누수 검증
+./gradlew test --tests "maple.expectation.lifecycle.MemoryLeakTest"
+```
+
+### 5. 메트릭 검증
+
+```bash
+# Prometheus 메트릭 확인
+curl -s http://localhost:8080/actuator/metrics | jq '.names[] | select(. | contains("shutdown"))'
+
+# 버퍼 크기 확인
+curl -s http://localhost:8080/actuator/metrics | jq '.names[] | select(. | contains("buffer"))'
+
+# 처리량 메트릭
+curl -s http://localhost:8080/actuator/metrics | jq '.names[] | select(. | contains("processed"))'
+```
+
+---
+
 ## 결과
 | 지표 | Before | After | Evidence ID |
 |------|--------|-------|-------------|

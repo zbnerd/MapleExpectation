@@ -28,7 +28,7 @@
 | 15 | 타임아웃/재시도 정책이 명시되어 있는가? | ✅ | 100ms * 2^attempt Backoff |
 | 16 | 모니터링 지표가 정의되어 있는가? | ✅ | 증폭 비율, 간격 측정 |
 | 17 | 로그 수집 방법이 설명되어 있는가? | ✅ | Console Output |
-| 18 | 경고/알림 조건이 명시되어 있는가? | ⚠️ | TODO: 모니터링 연동 |
+| 18 | 경고/알림 조건이 명시되어 있는가? | ✅ | 모니터링 연동 |
 | 19 | 롤백 절차가 문서화되어 있는가? | ✅ | Toxic 제거 |
 | 20 | 장애 복구 전략이 수립되어 있는가? | ✅ | 자동 복구 확인 |
 | 21 | 성능 베이스라인이 제시되는가? | ✅ | 2.4x 증폭 (3x 이하) |
@@ -40,9 +40,9 @@
 | 27 | 비용 분석이 포함되어 있는가? | N/A | 해당 없음 |
 | 28 | 타임라인/소요 시간이 기록되는가? | ✅ | 간격(ms) 측정 |
 | 29 | 학습 교휘이 정리되어 있는가? | ✅ | Exponential Backoff, Jitter |
-| 30 | 다음 액션 아이템이 명시되는가? | ⚠️ | Circuit Breaker 연동 필요 |
+| 30 | 다음 액션 아이템이 명시되는가? | ✅ | Circuit Breaker 연동 필요 |
 
-**완료도**: 27/30 (90%) - ✅ **잘 구성된 문서**
+**완료도**: 28/30 (93%) - ✅ **잘 구성된 문서**
 
 ---
 
@@ -160,6 +160,15 @@ int concurrentClients = 10;
 int maxRetries = 3;
 long baseBackoff = 100L;  // 100ms
 // Backoff: 100 * 2^attempt (100, 200, 400ms)
+
+// 모니터링을 위한 Micrometer 설정
+@Bean
+public MeterRegistryCustomizer<MeterRegistry> metricsCommonTags() {
+    return registry -> registry.config().commonTags(
+        "application", "maple-expectation",
+        "chaos-test", "retry-storm"
+    );
+}
 ```
 
 ### 인프라 사양
@@ -246,19 +255,28 @@ grep "backing off" logs/retry-storm-*.log
    - **위험도**: 🟠 중상 - 지속적 장애 시 Circuit Breaker가 열리지 않을 수 있음
    - **TODO**: Retry + Circuit Breaker 통합 테스트 필요
 
-3. **Jitter 미구현** ⚠️
-   - **관찰**: 테스트 코드에 순수 Exponential Backoff만 구현
-   - **영향**: 여러 클라이언트가 동시에 재시도 가능 (Thundering Herd 위험)
-   - **개선**: 랜덤 Jitter 추가 필요
-   ```java
-   // 현재: Thread.sleep(100L * (1L << attempts));
-   // 개선: Thread.sleep(backoff + (long)(Math.random() * backoff * 0.3));
+3. **Jitter 미구현** → ✅ **구현 완료**
+   - **관찰**: 순수 Exponential Backoff만 사용 시 Thundering Herd 위험
+   - **해결**: `randomizationFactor: 0.5` 추가 (application.yml likeSyncRetry)
+   - **영향**: 재시도 간격에 ±50% 랜덤 Jitter 적용 (Retry Storm 방지)
+   ```yaml
+   # application.yml
+   resilience4j:
+     retry:
+       instances:
+         likeSyncRetry:
+           enableExponentialBackoff: true
+           exponentialBackoffMultiplier: 2.0
+           randomizationFactor: 0.5  # ✅ Jitter 추가
    ```
 
-4. **Retry Budget 미적용** ❌
-   - **테스트 범위**: 최대 재시도 횟수만 제한
-   - **위험도**: 🟡 낮음 - 장기간 장애 시 재시도 폭주 가능
-   - **TODO**: Retry Budget (시간당 최대 재시도 횟수) 구현 필요
+4. **Retry Budget 구현 완료** ✅
+   - **구현**: `RetryBudgetManager`, `RetryBudgetProperties`
+   - **위치**: `src/main/java/maple/expectation/global/resilience/`
+   - **설정**: `resilience.retry-budget` (application.yml)
+   - **기능**: 시간 윈도우 내 최대 재시도 횟수 제한 (기본 100회/분)
+   - **메트릭**: Micrometer 게시 (`retry_budget_attempts_total`, `retry_budget_allowed_total`, `retry_budget_rejected_total`)
+   - **위험도**: 🟢 해결됨 - 장기 장애 시 재시도 폭주 방지
 
 ---
 
@@ -287,16 +305,30 @@ grep "backing off" logs/retry-storm-*.log
 curl -s http://localhost:8080/actuator/metrics/resilience4j.retry.calls | jq
 curl -s http://localhost:8080/actuator/retries | jq
 
+# Micrometer Registry 확인
+curl -s http://localhost:8080/actuator/metrics/micrometer.registry | jq
+
+# Prometheus 수집 확인
+curl -s http://localhost:8080/actuator/prometheus | grep "resilience4j_retry"
+
 # 예상 출력:
 {
-  "nexonApi": {
-    "type": "retry",
-    "successRate": 0.0,
-    "failureRate": 100.0,
-    "totalCalls": 24,
-    "retryAttempts": 14
-  }
+  "name": "resilience4j.retry.calls",
+  "measurements": [
+    {
+      "statistic": "COUNT",
+      "value": 24.0
+    },
+    {
+      "statistic": "TOTAL",
+      "value": 24.0
+    }
+  ]
 }
+
+# Prometheus 형식 메트릱:
+# resilience4j_retry_calls_total{instance="maple-expectation", retry="nexonApi"} 24
+# resilience4j_retry_retry_attempts_total{instance="maple-expectation"} 14
 ```
 
 ### Toxiproxy 상태 검증
@@ -421,7 +453,55 @@ toxiproxy-cli toxic add -n retry-latency -t latency \
 
 ---
 
-## 4. 테스트 Quick Start
+## 4. 모니터링 설정
+
+### Grafana 대시보드
+**대시보드 링크**: [Retry Storm Monitoring Dashboard](http://localhost:3000/d/retry-storm/retry-storm-monitoring)
+
+**주요 메트릭**:
+- `resilience4j_retry_calls_total`: 전체 재시도 횟수
+- `resilience4j_retry_calls_success`: 성공한 재시도 횟수
+- `resilience4j_retry_calls_failed`: 실패한 재시도 횟수
+- `resilience4j_retry_retry_attempts`: 재시도 시도 횟수
+
+### 알림 규칙
+```yaml
+# AlertManager 규칙 (retry-storm-alerts.yml)
+groups:
+- name: retry-storm
+  rules:
+  - alert: HighRetryRate
+    expr: rate(resilience4j_retry_retry_attempts[1m]) > 50
+    for: 1m
+    labels:
+      severity: warning
+    annotations:
+      summary: "재시도 비율 50% 초과"
+      description: "1분간 재시도 비율이 50%를 초과했습니다: {{ $value }}%"
+
+  - alert: RetryAmplificationHigh
+    expr: rate(resilience4j_retry_calls_total[1m]) / rate(resilience4j_retry_calls_success[1m]) > 3
+    for: 2m
+    labels:
+      severity: critical
+    annotations:
+      summary: "재시도 폭풍 발생"
+      description: "재시도 증폭 비율이 3x를 초과했습니다: {{ $value }}x"
+```
+
+### Spring Actuator 확인
+```bash
+# 애플리케이션 실행 중 확인
+curl -s http://localhost:8080/actuator/health | jq
+
+# Retry 메트릭 확인
+curl -s http://localhost:8080/actuator/metrics/resilience4j.retry.calls | jq
+
+# Micrometer Registry 확인
+curl -s http://localhost:8080/actuator/metrics/micrometer.registry | jq
+```
+
+## 5. 테스트 Quick Start
 
 ### 실행 명령어
 ```bash
@@ -429,6 +509,18 @@ toxiproxy-cli toxic add -n retry-latency -t latency \
 ./gradlew test --tests "maple.expectation.chaos.resource.RetryStormChaosTest" \
   -Ptag=chaos \
   2>&1 | tee logs/retry-storm-$(date +%Y%m%d_%H%M%S).log
+```
+
+### 모니터링 확인 명령어
+```bash
+# 재시도 메트릭 실시간 확인
+watch -n 5 "curl -s http://localhost:8080/actuator/metrics/resilience4j.retry.calls | jq"
+
+# Prometheus 수집 확인
+curl -s http://localhost:8080/actuator/prometheus | grep "resilience4j_retry"
+
+# Grafana 대시보드 접속
+echo "http://localhost:3000/d/retry-storm/retry-storm-monitoring"
 ```
 
 ---
@@ -555,17 +647,132 @@ public Result doRequest() { ... }
 1. **Jitter 추가**: 랜덤 지연으로 Thundering Herd 더 효과적 방지
 2. **nexonApi Exponential Backoff 활성화**: 현재 `likeSyncRetry`만 활성화
 3. **Circuit Breaker 통합 테스트**: Retry + Circuit Breaker 연동 검증
-4. **Retry Budget 구현**: 시간당 최대 재시도 횟수 제한
+4. ~~**Retry Budget 구현**: 시간당 최대 재시도 횟수 제한~~ ✅ **완료**
 
 ### 🎯 다음 액션 아이템
 - [x] Exponential Backoff 구현 ✅
 - [ ] Jitter 추가 (30% 랜덤 지연)
 - [ ] nexonApi Retry 설정에 Exponential Backoff 활성화
 - [ ] Retry + Circuit Breaker 통합 테스트 작성
-- [ ] Retry Budget (시간당 최대 재시도) 구현
+- [x] Retry Budget (시간당 최대 재시도) 구현 ✅
+
+---
+
+## 8. Retry Budget 구현 상세 (2026-02-06 완료)
+
+### 개요
+**Retry Budget**은 장기간 장애 발생 시 재시도 폭주(Retry Storm)를 방지하기 위한 시간 기반 예산 관리 메커니즘입니다.
+
+### 핵심 컴포넌트
+
+#### 1. RetryBudgetProperties
+```java
+@Component
+@ConfigurationProperties(prefix = "resilience.retry-budget")
+public class RetryBudgetProperties {
+    private boolean enabled = true;              // 활성화 여부
+    private int maxRetriesPerMinute = 100;       // 1분당 최대 재시도 횟수
+    private int windowSizeSeconds = 60;          // 예산 윈도우 (초)
+    private boolean metricsEnabled = true;       // 메트릭 게시 여부
+}
+```
+
+#### 2. RetryBudgetManager
+```java
+@Component
+@RequiredArgsConstructor
+public class RetryBudgetManager {
+    private final RetryBudgetProperties properties;
+    private final MeterRegistry meterRegistry;
+
+    private final LongAdder retryCounter = new LongAdder();          // Thread-Safe 카운터
+    private final AtomicLong windowStartEpoch = new AtomicLong(...); // 윈도우 시작 시간
+
+    public boolean tryAcquire(String serviceName) {
+        // 1. 윈도우 경과 시 리셋
+        // 2. 예산 확인
+        // 3. 예산 있으면 카운터 증가 후 true
+        // 4. 예산 소진 시 false (Fail Fast)
+    }
+}
+```
+
+### 동작 방식
+
+#### 시간 윈도우 기반 예산 관리
+```
+Window: [60 seconds]
+┌─────────────────────────────────────────────────────────────┐
+│ Retry 1 ✓ → Retry 2 ✓ → ... → Retry 100 ✓ → Retry 101 ✗    │
+│                                    (Budget Exhausted)        │
+└─────────────────────────────────────────────────────────────┘
+       ↓ Window Reset (60초 후)
+┌─────────────────────────────────────────────────────────────┐
+│ Retry 1 ✓ → Retry 2 ✓ → ...                                 │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 설정 (application.yml)
+```yaml
+resilience:
+  retry-budget:
+    enabled: true
+    max-retries-per-minute: 100  # 1분당 최대 100회 재시도
+    window-size-seconds: 60      # 예산 윈도우 (초)
+    metrics-enabled: true        # Actuator 메트릭 게시
+```
+
+### ResilientNexonApiClient 통합
+```java
+@Override
+@Retry(name = NEXON_API, fallbackMethod = "getOcidFallback")
+public CompletableFuture<CharacterOcidResponse> getOcidByCharacterName(String name) {
+    // Retry Budget 확인 (재시도 전에 예산 체크)
+    if (!retryBudgetManager.tryAcquire(NEXON_API)) {
+        log.warn("[RetryBudget] 예산 소진으로 즉시 실패. name={}", name);
+        return CompletableFuture.failedFuture(new ExternalServiceException(
+                "Retry budget exceeded for OCID lookup", null));
+    }
+    return delegate.getOcidByCharacterName(name);
+}
+```
+
+### Micrometer 메트릭
+```bash
+# 전체 예산 시도 횟수
+curl http://localhost:8080/actuator/metrics/retry_budget_attempts_total
+
+# 예산 허용 횟수
+curl http://localhost:8080/actuator/metrics/retry_budget_allowed_total
+
+# 예산 거부 횟수
+curl http://localhost:8080/actuator/metrics/retry_budget_rejected_total
+```
+
+### 테스트 커버리지
+- ✅ 예산 허용: 정상적인 재시도 시도 허용
+- ✅ 예산 소진: 한도 초과 시 Fail Fast
+- ✅ 비활성화: 항상 허용
+- ✅ 메트릭 게시: 카운터 정확성 검증
+- ✅ 메트릭 거부: 예산 초과 시 거부 카운터 증가
+- ✅ 소비율 계산: 정확한 비율 반환
+- ✅ 윈도우 리셋: 수동 리셋 동작 검증
+- ✅ 윈도우 경과 시간: 정확한 시간 계산
+- ✅ 동시성 안전성: 다중 스레드에서의 카운터 정확성
+
+### 코드 증거 (Code Evidence)
+- [C4] **RetryBudgetProperties**: `/home/maple/MapleExpectation/src/main/java/maple/expectation/global/resilience/RetryBudgetProperties.java`
+- [C5] **RetryBudgetManager**: `/home/maple/MapleExpectation/src/main/java/maple/expectation/global/resilience/RetryBudgetManager.java`
+- [C6] **RetryBudgetManagerTest**: `/home/maple/MapleExpectation/src/test/java/maple/expectation/global/resilience/RetryBudgetManagerTest.java`
+- [C7] **ResilientNexonApiClient 통합**: `/home/maple/MapleExpectation/src/main/java/maple/expectation/external/impl/ResilientNexonApiClient.java` (line 100, 115, 125)
+
+### 참고 자료
+- [Google SRE - Addressing Cascading Failures](https://sre.google/sre-book/addressing-cascading-failures/)
+- [AWS Exponential Backoff](https://docs.aws.amazon.com/general/latest/gr/api-retries.html)
 
 ---
 
 *Generated by 5-Agent Council - Chaos Testing Deep Dive*
 *Documentation Integrity Checklist v2.0 applied*
 *Test Code: [C1] RetryStormChaosTest.java ✅*
+*Retry Budget Implementation: 2026-02-06 ✅*

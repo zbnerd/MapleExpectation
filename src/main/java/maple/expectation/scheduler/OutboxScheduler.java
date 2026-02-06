@@ -2,6 +2,7 @@ package maple.expectation.scheduler;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.config.OutboxProperties;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.service.v2.donation.outbox.OutboxMetrics;
@@ -53,6 +54,7 @@ public class OutboxScheduler {
     private final OutboxProcessor outboxProcessor;
     private final OutboxMetrics outboxMetrics;
     private final LogicExecutor executor;
+    private final OutboxProperties properties;
 
     /**
      * Outbox 폴링 및 처리 (10초)
@@ -65,6 +67,28 @@ public class OutboxScheduler {
                     outboxMetrics.updatePendingCount();
                 },
                 TaskContext.of("Scheduler", "Outbox.Poll")
+        );
+    }
+
+    /**
+     * Outbox 크기 모니터링 (30초)
+     *
+     * <p>Issue #N19: 처리 지연 감지</p>
+     * <p>Outbox 크기가 임계값 초과 시 로그 기록</p>
+     */
+    @Scheduled(fixedRate = 30000)
+    public void monitorOutboxSize() {
+        executor.executeVoid(
+                () -> {
+                    outboxMetrics.updateTotalCount();
+                    long currentSize = outboxMetrics.getCurrentSize();
+                    int threshold = properties.getSizeAlertThreshold();
+
+                    if (currentSize > threshold) {
+                        log.warn("[Outbox] 백로그 감지: {}건 (임계값: {}건)", currentSize, threshold);
+                    }
+                },
+                TaskContext.of("Scheduler", "Outbox.MonitorSize")
         );
     }
 

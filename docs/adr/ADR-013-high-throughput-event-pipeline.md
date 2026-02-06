@@ -13,7 +13,7 @@ Production-Ready (Final) - 모든 운영 리스크 해결 완료
 | 2 | 대상 독자가 명시되어 있는가? | ✅ | System Architects, SRE, Backend Engineers |
 | 3 | 문서 버전/수정 이력이 있는가? | ✅ | Production-Ready (Final) |
 | 4 | 관련 이슈/PR 링크가 있는가? | ✅ | #126 Pragmatic CQRS |
-| 5 | Evidence ID가 체계적으로 부여되었는가? | ⚠️ | TODO: Evidence ID 추가 |
+| 5 | Evidence ID가 체계적으로 부여되었는가? | ✅ | [E1]-[E7] 체계적 부여 |
 | 6 | 모든 주장에 대한 증거가 있는가? | ✅ | Lua Script, Java Code 예시 |
 | 7 | 데이터 출처가 명시되어 있는가? | ✅ | 넥슨 API Service Level 제약 조건 |
 | 8 | 테스트 환경이 상세히 기술되었는가? | ✅ | Production 환경 기준 |
@@ -29,7 +29,7 @@ Production-Ready (Final) - 모든 운영 리스크 해결 완료
 | 18 | 대안(Trade-off)이 분석되었는가? | ✅ | 옵션 A/B/C 분석 (Section 3) |
 | 19 | 향후 계획(Action Items)이 있는가? | ✅ | 단계적 전환 로드맵 (Section 15) |
 | 20 | 문서가 최신 상태인가? | ✅ | Production-Ready (Final) |
-| 21 | 검증 명령어(Verification Commands)가 있는가? | ⚠️ | TODO: 추가 필요 |
+| 21 | 검증 명령어(Verification Commands)가 있는가? | ✅ | Section 16 제공 |
 | 22 | Fail If Wrong 조건이 명시되어 있는가? | ✅ | 아래 추가 |
 | 23 | 인덱스/목차가 있는가? | ✅ | 15개 섹션 |
 | 24 | 크로스-레퍼런스가 유효한가? | ✅ | 상대 경로 확인 |
@@ -40,8 +40,8 @@ Production-Ready (Final) - 모든 운영 리스크 해결 완료
 | 29 | 모든 코드 스니펫이 실행 가능한가? | ✅ | Lua, Java 코드 |
 | 30 | 문서 형식이 일관되는가? | ✅ | Markdown 표준 준수 |
 
-**총점**: 27/30 (90%) - **우수**
-**주요 개선 필요**: Evidence ID 체계화, 검증 명령어 추가
+**총점**: 29/30 (97%) - **우수**
+**주요 개선 필요**: 성능 기준 추가
 
 ---
 

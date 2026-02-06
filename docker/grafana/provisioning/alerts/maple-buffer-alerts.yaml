@@ -1,0 +1,61 @@
+apiVersion: 1
+
+alerting:
+  ruleGroups:
+    - name: maple-buffer-alerts
+      interval: 30s
+      rules:
+        - alert: MapleBufferHighUsage
+          expr: maple_buffer_usage_percentage > 80
+          for: 2m
+          labels:
+            severity: warning
+            service: maple-expectation
+            component: write-back-buffer
+          annotations:
+            summary: "Maple Buffer High Usage"
+            description: "Buffer usage is above 80% capacity. Current usage: {{ $value }}%"
+
+        - alert: MapleBufferCriticalUsage
+          expr: maple_buffer_usage_percentage > 95
+          for: 1m
+          labels:
+            severity: critical
+            service: maple-expectation
+            component: write-back-buffer
+          annotations:
+            summary: "Maple Buffer Critical Usage"
+            description: "Buffer usage is above 95% capacity. Risk of data loss. Current usage: {{ $value }}%"
+
+        - alert: MapleBufferLowFlushSuccessRate
+          expr: maple_buffer_flush_success_rate < 99
+          for: 5m
+          labels:
+            severity: warning
+            service: maple-expectation
+            component: write-back-buffer
+          annotations:
+            summary: "Low Flush Success Rate"
+            description: "Buffer flush success rate is below 99%. Current rate: {{ $value }}%"
+
+        - alert: MapleBufferFlushFailure
+          expr: rate(maple_buffer_flush_failures_total[5m]) > 0
+          for: 1m
+          labels:
+            severity: critical
+            service: maple-expectation
+            component: write-back-buffer
+          annotations:
+            summary: "Buffer Flush Failures"
+            description: "Buffer flush failures detected in the last 5 minutes. Failures: {{ $value }}"
+
+        - alert: MapleBufferFullEvent
+          expr: rate(maple_buffer_full_events_total[1m]) > 0
+          for: 1m
+          labels:
+            severity: warning
+            service: maple-expectation
+            component: write-back-buffer
+          annotations:
+            summary: "Buffer Full Event"
+            description: "Buffer full events detected. System may be experiencing high load."

@@ -246,6 +246,75 @@ rate(nexon_cache_l2_skipped_total[5m])
 
 ---
 
+## Verification Commands (검증 명령어)
+
+### 1. AOP 컨텍스트 관리 검증
+
+```bash
+# ThreadLocal 컨텍스트 보존 테스트
+./gradlew test --tests "maple.expectation.aop.aspect.NexonDataCacheAspectTest.testThreadLocalPreservation"
+
+# Leader/Follower 패턴 테스트
+./gradlew test --tests "maple.expectation.aop.aspect.NexonDataCacheAspectTest.testLeaderFollowerPattern"
+
+# Latch TTL 테스트
+./gradlew test --tests "maple.expectation.aop.aspect.NexonDataCacheAspectTest.testLatchTTL"
+```
+
+### 2. 캐시 전략 검증
+
+```bash
+# L1 Fast Path 테스트
+./gradlew test --tests "maple.expectation.aop.aspect.NexonDataCacheAspectTest.testL1FastPath"
+
+# L2 저장 분기 테스트 (Expectation 경로)
+./gradlew test --tests "maple.expectation.aop.aspect.NexonDataCacheAspectTest.testL2CacheSkip"
+
+# 캐시 HIT/MISS 테스트
+./gradlew test --tests "maple.expectation.aop.aspect.NexonDataCacheAspectTest.testCacheHitMiss"
+```
+
+### 3. 성능 검증
+
+```bash
+# 부하테스트 (L1 Fast Path)
+./gradlew loadTest --args="--rps 500 --scenario=l1-fast-path"
+
+# 응답 시간 확인
+curl -s http://localhost:8080/actuator/metrics/http.server.requests | jq '.measurements[] | {statistic: .statistic, value: .value}'
+
+# 캐시 메트릭 확인
+curl -s http://localhost:8080/actuator/metrics | jq '.names[] | select(. | contains("cache"))'
+```
+
+### 4. 장애 시나리오 검증
+
+```bash
+# AOP 예외 테스트
+./gradlew test --tests "maple.expectation.aop.aspect.NexonDataCacheAspectExceptionTest"
+
+# ConcurrentModificationException 테스트
+./gradlew test --tests "maple.expectation.aop.aspect.NexonDataCacheAspectTest.testConcurrentModification"
+
+# 비동기 컨텍스트 유실 테스트
+./gradlew test --tests "maple.expectation.aop.aspect.NexonDataCacheAspectTest.testAsyncContextLoss"
+```
+
+### 5. Prometheus 메트릭 검증
+
+```bash
+# L1 Cache Hit Rate
+curl -s http://localhost:8080/actuator/metrics | jq '.names[] | select(. | contains("cache_hits_total"))'
+
+# L2 저장 스킵 횟수
+curl -s http://localhost:8080/actuator/metrics | jq '.names[] | select(. | contains("nexon_cache_l2_skipped"))'
+
+# 처리량 메트릭
+curl -s http://localhost:8080/actuator/metrics | jq '.names[] | select(. | contains("http.server.requests"))'
+```
+
+---
+
 ## 관련 문서
 
 ### 연결된 ADR

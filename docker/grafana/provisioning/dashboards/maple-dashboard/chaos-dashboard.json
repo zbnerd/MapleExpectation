@@ -1,0 +1,178 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Maple Expectation Chaos Test Metrics",
+    "tags": ["maple", "chaos", "testing"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Chaos Test Status",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "chaos_test_runners_active",
+            "legendFormat": "Active Runners"
+          },
+          {
+            "expr": "chaos_test_scenarios_total",
+            "legendFormat": "Total Scenarios"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short"
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Chaos Test Failures",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(chaos_test_failures_total[5m])",
+            "legendFormat": "{{test_scenario}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "cps",
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 1},
+                {"color": "red", "value": 5}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Retry Storm Detection",
+        "type: "stat",
+        "targets": [
+          {
+            "expr": "chaos_retry_storm_rate",
+            "legendFormat": "Retry Rate"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 50},
+                {"color": "red", "value": 100}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Latency Injection",
+        "type: "timeseries",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(chaos_latency_injection_seconds_bucket[5m]))",
+            "legendFormat": "95th Percentile"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 1},
+                {"color": "red", "value": 5}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Network Partition Test",
+        "type: "stat",
+        "targets": [
+          {
+            "expr": "chaos_network_partition_active",
+            "legendFormat": "Active Partitions"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {"options": {"0": {"text": "None"}}, "type": "value"},
+              {"options": {"1": {"text": "Active"}}, "type": "value"}
+            ]
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "CPU Hog Test",
+        "type: "timeseries",
+        "targets": [
+          {
+            "expr": "rate(chaos_cpu_hog_duration_seconds_total[5m])",
+            "legendFormat": "CPU Hog Time"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "seconds"
+          }
+        }
+      },
+      {
+        "id": 7,
+        "title": "Memory Hog Test",
+        "type: "timeseries",
+        "targets": [
+          {
+            "expr": "chaos_memory_hog_bytes",
+            "legendFormat": "Memory Hog Size"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "bytes"
+          }
+        }
+      },
+      {
+        "id": 8,
+        "title": "Chaos Test Success Rate",
+        "type: "stat",
+        "targets": [
+          {
+            "expr": "rate(chaos_test_successes_total[10m]) / (rate(chaos_test_successes_total[10m]) + rate(chaos_test_failures_total[10m])) * 100",
+            "legendFormat": "Success Rate"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 70},
+                {"color": "green", "value": 0}
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "30s"
+  }
+}

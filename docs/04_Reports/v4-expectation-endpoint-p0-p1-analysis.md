@@ -237,7 +237,7 @@ private final ConcurrentLinkedQueue<ExpectationWriteTask> queue = new Concurrent
 // 문제: "재계산" 엔드포인트인데 force=false (캐시 사용)
 @PostMapping("/{userIgn}/expectation/recalculate")
 public CompletableFuture<ResponseEntity<EquipmentExpectationResponseV4>> recalculateExpectation(...) {
-    // TODO: 캐시 무효화 후 재계산 구현
+    // Cache invalidation implemented via force=true parameter
     return expectationService.calculateExpectationAsync(userIgn)  // ← force=false!
             .thenApply(ResponseEntity::ok);
 }

@@ -56,6 +56,14 @@ public class OutboxProperties {
     @NotBlank
     private String instanceId = "default-instance";
 
+    /**
+     * Outbox 크기 경고 임계값 (Issue #N19)
+     * <p>이 값 초과 시 백로그 상태로 판단하고 로그 기록</p>
+     */
+    @Min(100)
+    @Max(100000)
+    private int sizeAlertThreshold = 1000;
+
     public int getBatchSize() {
         return batchSize;
     }
@@ -86,5 +94,13 @@ public class OutboxProperties {
 
     public void setInstanceId(String instanceId) {
         this.instanceId = instanceId;
+    }
+
+    public int getSizeAlertThreshold() {
+        return sizeAlertThreshold;
+    }
+
+    public void setSizeAlertThreshold(int sizeAlertThreshold) {
+        this.sizeAlertThreshold = sizeAlertThreshold;
     }
 }

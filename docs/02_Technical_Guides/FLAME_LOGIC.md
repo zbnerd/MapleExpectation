@@ -407,6 +407,44 @@ HP:   [300, 600, 900, 1200, 1500, 1800, 2100]
 
 ---
 
+## Evidence Links
+
+### Code Evidence
+- **[E1]** FlameStatTable: `src/main/java/maple/expectation/service/v2/flame/config/FlameStatTable.java`
+- **[E2]** FlameStageProbability: `src/main/java/maple/expectation/service/v2/flame/config/FlameStageProbability.java`
+- **[E3]** FlameScoreCalculator: `src/main/java/maple/expectation/service/v2/flame/component/FlameScoreCalculator.java`
+- **[E4]** FlameDpCalculator: `src/main/java/maple/expectation/service/v2/flame/component/FlameDpCalculator.java`
+- **[E5]** FlameInputResolver: `src/main/java/maple/expectation/service/v2/flame/FlameInputResolver.java`
+- **[E6]** Weapon attack formula: `src/main/java/maple/expectation/service/v2/flame/component/FlameScoreCalculator.java`
+- **[E7]** Job weights: `src/main/java/maple/expectation/service/v2/flame/component/FlameScoreCalculator.java`
+- **[E8]** FlameScoreResolver: `src/main/java/maple/expectation/service/v2/flame/component/FlameScoreResolver.java`
+- **[E9]** FlameTrialsService: `src/main/java/maple/expectation/service/v2/flame/FlameTrialsService.java`
+- **[E10]** Monte Carlo simulation: `src/test/java/maple/expectation/service/v2/flame/FlameDpCalculatorTest.java`
+- **[E11]** Integration tests: `src/test/java/maple/expectation/service/v2/flame/FlameTrialsServiceTest.java`
+- **[E12]** Probability validation: `src/test/java/maple/expectation/service/v2/flame/FlameDpCalculatorTest.java`
+
+### Configuration Evidence
+- **[C1]** Flame option tables: `src/main/java/maple/expectation/service/v2/flame/config/FlameStatTable.java`
+- **[C2]** Stage probabilities: `src/main/java/maple/expectation/service/v2/flame/config/FlameStageProbability.java`
+- **[C3]** Job weight mappings: `src/main/java/maple/expectation/service/v2/flame/component/FlameScoreCalculator.java`
+
+### Performance Evidence
+- **[P1]** DP complexity: O(N·k·T·S) vs O(6^S) brute force (Section 4)
+- **[P2]** Memory optimization: Capped DP reduces from O(N·k·T·S) to O(N·k·T)
+- **[P3]** Scaling precision: 10x scaling eliminates floating point errors
+
+### Mathematical Evidence
+- **[M1]** Probability mass function (PMF) construction: Section 3.2
+- **[M2]** Combinatorial averaging: Section 3.3
+- **[M3]** Weapon attack formula: `floor(L/40) + 1` (Section 2.4)
+
+### Test Evidence
+- **[T1]** Monte Carlo validation: `src/test/java/maple/expectation/service/v2/flame/FlameDpCalculatorTest.dpProbabilityMatchesMonteCarlo`
+- **[T2]** Score resolution: `src/test/java/maple/expectation/service/v2/flame/FlameScoreResolverTest`
+- **[T3]** Integration test: `src/test/java/maple/expectation/service/v2/flame/FlameTrialsServiceTest`
+
+---
+
 ## 검증 명령어 (Verification Commands)
 
 ### 클래스 존재 검증
