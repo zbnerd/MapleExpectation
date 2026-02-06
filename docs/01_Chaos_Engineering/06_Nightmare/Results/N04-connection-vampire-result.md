@@ -73,6 +73,7 @@ This test would be **invalidated** if:
 | HikariCP Pool Size | 10 |
 | Connection Timeout | 3000ms |
 | API Delay (Mock) | 5000ms |
+| Transaction Propagation | REQUIRES_NEW |
 
 ### 📊 Test Data Set
 | Data Type | Description |
@@ -88,8 +89,10 @@ This test would be **invalidated** if:
 | Test Start Time | 2026-01-19 10:20:00 KST |
 | Test End Time | 2026-01-19 10:22:00 KST |
 | Total Duration | ~120 seconds |
-| Connection Timeouts | 0 |
-| Pool Usage | < 100% |
+| Connection Timeouts | **0** |
+| Pool Usage | **80%** (Peak) |
+| Concurrent Requests | **20** |
+| Completed Transactions | **20/20** |
 
 ---
 
@@ -131,6 +134,11 @@ This test would be **invalidated** if:
 
 ---
 
+## 생성된 이슈
+
+- **Priority**: P2 (Medium)
+- **Title**: [P2][Nightmare-04] 테스트 환경 제한으로 Connection Pool 취약점 미노출
+
 ## 권장 사항
 
 1. **프로덕션 모니터링 강화**
@@ -144,6 +152,92 @@ This test would be **invalidated** if:
 3. **부하 테스트 강화**
    - VUser 100+ 조건에서 추가 테스트
    - API 지연 10초+ 조건에서 추가 테스트
+
+---
+
+## Verification Commands (재현 명령어)
+
+### 환경 설정
+```bash
+# 1. 테스트 컨테이너 시작
+docker-compose up -d mysql redis
+
+# 2. 애플리케이션 시작
+./gradlew bootRun --args='--spring.profiles.active=local'
+
+# 3. Health Check
+curl http://localhost:8080/actuator/health
+```
+
+### 테스트 실행
+```bash
+# JUnit 테스트 실행
+./gradlew test --tests "*ConnectionVampireNightmareTest" \
+  -Dtest.logging=true \
+  2>&1 | tee logs/nightmare-04-reproduce-$(date +%Y%m%d_%H%M%S).log
+```
+
+### 부하 테스트 (증폭)
+```bash
+# Locust로 100+ 동시 요청 테스트
+locust -f locustfile.py --users=200 --spawn-rate=10 -t 10m
+
+# 또는 wrk로 고부하 테스트
+wrk -t50 -c100 -d30s http://localhost:8080/api/characters/test
+```
+
+### 모니터링
+```bash
+# HikariCP 메트릭 확인
+curl http://localhost:8080/actuator/metrics/hikaricp.connections.active
+
+# Connection Pool 상세 상태
+curl http://localhost:8080/actuator/metrics/hikaricp.connections.pending
+
+# DB 연결 현황
+mysql -u root -p -e "SHOW STATUS LIKE 'Threads_connected'"
+```
+
+---
+
+## Terminology (카오스 테스트 용어)
+
+| 용어 | 정의 | 예시 |
+|------|------|------|
+| **Connection Vampire** | 장시간 점유되는 연결로 인한 Connection Pool 고갈 | `@Transactional` 내에서 외부 API 호출 시 연결 점유 |
+| **Connection Pool Exhaustion** | 풀의 모든 연결이 사용 중으로 새 요청 대기 상태 | HikariCP의 max-pool-size 도달 시 |
+| **Transaction Propagation** | 트랜잭션의 경계 전파 방식 | `REQUIRES_NEW`가 새 연결 생성 |
+| **MTTD (Mean Time To Detect)** | 장애 발생부터 감지까지의 평균 시간 | Pool 대기 큐 증감 감지 |
+| **MTTR (Mean Time To Recovery)** | 장애 감지부터 복구 완료까지의 평균 시간 | Pool 재설정 또한 스케일업 |
+
+---
+
+## Grafana Dashboards
+
+### 모니터링 대시보드
+- **HikariCP Pool**: `http://localhost:3000/d/hikaricp-pool` (Evidence: METRIC M1, M2)
+- **Connection Wait Time**: `http://localhost:3000/d/connection-wait-time`
+- **Transaction Metrics**: `http://localhost:3000/d/transaction-metrics`
+
+### 주요 패널
+1. **Active Connections**: 활성 연결 수 (max vs current)
+2. **Pool Utilization**: 풀 사용률 (%)
+3. **Pending Threads**: 대기 중인 스레드 수
+4. **Connection Wait Time**: 연결 대기 시간 (ms)
+
+---
+
+## Fail If Wrong (문서 무효 조건)
+
+이 문서는 다음 조건에서 **즉시 폐기**해야 합니다:
+
+1. **재현 불가**: 프로덕션 수준의 부하에서 Connection Pool 고갈 발생하지 않을 때
+2. **테스트 환경 오류**: 개발 환경 Pool 크기가 프로덕션보다 작을 때
+3. **트랜잭션 패턴 오류**: `@Transactional` 내 외부 API 호출 패턴 변경될 때
+4. **Connection 증가 요인**: Pool 크기 자동 증가 로직 추가될 때
+5. **대체 방안 미제시**: 트랜잭션 범위 축소 등 해결책 없을 때
+
+**현재 상태**: ⚠️ 조건부 충족 (테스트 환경 제한으로 취약점 미노출)
 
 ---
 

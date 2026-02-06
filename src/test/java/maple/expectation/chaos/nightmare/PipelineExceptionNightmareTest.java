@@ -133,14 +133,14 @@ class PipelineExceptionNightmareTest extends AbstractContainerBaseTest {
                 executor.execute(
                         () -> {
                             log.info("[Blue] Throwing RuntimeException in execute()...");
-                            throw new RuntimeException("This should propagate");
+                            throw new RuntimeException("propagate");
                         },
                         context
                 )
         )
                 .isInstanceOf(InternalSystemException.class)
                 .hasCauseInstanceOf(RuntimeException.class)
-                .hasRootCauseMessage("This should propagate");
+                .hasRootCauseMessage("propagate");
 
         log.info("┌────────────────────────────────────────────────────────────┐");
         log.info("│         execute() Exception Propagation (#230 Fixed)       │");
