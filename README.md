@@ -16,6 +16,11 @@
 | **Solution** | 7대 핵심모듈 아키텍처로 14만 RPS급 등가 처리량 달성 |
 | **Result** | **RPS 965**, p50 95ms, p99 214ms, **0% Failure** (로컬 벤치마크 #266 ADR) |
 
+## System Architecture
+
+<img width="1512" height="1112" alt="image" src="https://github.com/user-attachments/assets/e77f3f78-f57b-47a8-91f9-40843fdd4cb6" />
+
+
 ### 🔬 The Dialectical Framework (변증법적 의사결정 구조)
 
 이 프로젝트는 상충하는 목표들 사이에서 균형점을 찾기 위해 **변증법(Dialectic)** 접근을 취합니다:
@@ -201,9 +206,6 @@
 
 ---
 
-## System Architecture
-
-<img width="5556" height="4528" alt="architecture" src="https://github.com/user-attachments/assets/6a4daa9d-b4f5-4a49-8e51-5311cb816014" />
 
 **범례**
 - ──── (Solid): Implemented (Current)
