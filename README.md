@@ -4,8 +4,8 @@
 
 <div align="center">
 
-![CI Pipeline](https://github.com/zbnerd/MapleExpectation/actions/workflows/ci.yml/badge.svg)
-![Nightly Tests](https://github.com/zbnerd/MapleExpectation/actions/workflows/nightly.yml/badge.svg)
+![CI Pipeline](https://github.com/zbnerd/probabilistic-valuation-engine/actions/workflows/ci.yml/badge.svg)
+![Nightly Tests](https://github.com/zbnerd/probabilistic-valuation-engine/actions/workflows/nightly.yml/badge.svg)
 ![Java](https://img.shields.io/badge/Java-21-007396?logo=openjdk)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.4-6DB33F?logo=springboot)
 ![License](https://img.shields.io/badge/License-MIT-blue)
@@ -26,11 +26,12 @@
 
 ## TL;DR (30 seconds)
 
-| **Goal** | **How** | **Result** |
-|----------|---------|------------|
-| p99 < 100ms | TieredCache(L1→L2→DB), Singleflight, Circuit Breaker | **RPS 965**, p50 95ms, p99 214ms, **0% Failure** |
-| 저비용(t3.small급) | Outbox, Graceful shutdown, Chaos(Nightmare) tests | **1,000+ 동시 사용자**, 240 RPS on $15/month instance |
-| 장애 시 데이터 생존 | Discord 기반 **Policy-guarded SRE Copilot** | **MTTD 30s, MTTR 2m**, audit trail, auto rollback |
+| **Target** | **How** | **Measured (Evidence-backed)** |
+|-----------|---------|---------------------------------|
+| p99 latency optimization (target < 100ms) | TieredCache(L1→L2→DB), Singleflight, Circuit Breaker | **RPS 965**, p50 95ms, p99 214ms, **0% failure** (Bench #266) |
+| low-cost instance class (t3.small-equivalent) | Outbox, Graceful shutdown, Chaos(Nightmare) tests | **1,000+ concurrent users** (Load test) + cost/perf report linked |
+| incident survivability & fast mitigation | Discord **policy-guarded SRE Copilot** | **MTTD 30s**, **mitigation 2m**, full stabilization 4m (N21) |
+| data safety (prevent loss / enable replay) | Transactional Outbox + replay worker | **2.16M events preserved**, replay 47m, auto-replay 99.98% (N19) |
 
 **Key Differentiator:** LLM은 요약/후보 제안만, 실행은 **whitelist/RBAC/audit/rollback**이 담당 → 감사 가능
 
@@ -38,7 +39,7 @@
 
 ## Evidence Pack (Recruiter-Friendly)
 
-> **"주장"이 아니라 클릭 가능한 �거**로 확인할 수 있는 운영 성과들
+> **"주장"이 아니라 클릭 가능한 증거**로 확인할 수 있는 운영 성과들
 
 ### 1) **Incident N19 — Outbox Replay / Data Survival**
 
@@ -50,9 +51,9 @@
 - 📄 [Report](docs/04_Reports/Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md)
 - 🔎 Evidence: SQL reconciliation results, replay logs, metrics
 
-### 2) **Incident N21 — Auto Mitigation (MTTD 30s / MTTR 2m)**
+### 2) **Incident N21 — Auto Mitigation (MTTD 30s / Mitigation 2m)**
 
-**Circuit Breaker 자동 오픈** → p99 급등(3초→21초) 감지 → 4분 만에 자동 복구
+**Circuit Breaker 자동 오픈** → p99 급등(3초→21초) 감지 → **2분 내 완화 조치**, **4분 내 완전 안정화**
 
 - **Detection:** Prometheus 기반 규칙/통계 (LLM 비의존)
 - **Action:** 서킷브레이커 자동 차단, 수동 개입 불필요
@@ -77,7 +78,7 @@ Discord 알림(증거 포함) → 버튼 기반 완화 실행(Whitelist/RBAC/서
 - **Workflow:** Detection → AI Summary → Discord Alert → [🔧 AUTO-MITIGATE] → Policy Execution → Audit
 - **Safety:** LLM은 요약/후보만, 실행은 **Policy Engine(whitelist/bounds/RBAC)**이 담당
 - 🧾 [Claim-Evidence Matrix](docs/CLAIM_EVIDENCE_MATRIX.md) (C-OPS-01 ~ C-OPS-08)
-- 🔗 GitHub Issues: [#310](https://github.com/zbnerd/MapleExpectation/issues/310), [#311](https://github.com/zbnerd/MapleExpectation/issues/311), [#312](https://github.com/zbnerd/MapleExpectation/issues/312)
+- 🔗 GitHub Issues: [#310](https://github.com/zbnerd/probabilistic-valuation-engine/issues/310), [#311](https://github.com/zbnerd/probabilistic-valuation-engine/issues/311), [#312](https://github.com/zbnerd/probabilistic-valuation-engine/issues/312)
 
 ---
 
@@ -85,13 +86,9 @@ Discord 알림(증거 포함) → 버튼 기반 완화 실행(Whitelist/RBAC/서
 
 <img width="1512" height="1112" alt="architecture" src="https://github.com/user-attachments/assets/e77f3f78-f57b-47a8-91f9-40843fdd4cb6" />
 
-**범례:**
-- ──── (Solid): Implemented (Current)
-- --- --- --- (Dashed): Planned (Future Roadmap)
-
-## System Architecture
-
-<img width="1512" height="1112" alt="image" src="https://github.com/user-attachments/assets/e77f3f78-f57b-47a8-91f9-40843fdd4cb6" />
+**Legend**
+- Solid: Implemented (Current)
+- Dashed: Planned (Future Roadmap)
 
 
 ### 🔬 The Dialectical Framework (변증법적 의사결정 구조)
@@ -232,8 +229,8 @@ hikaricp_connections_pending = 41 (TH=10)
 - Evidence: [Grafana] [Loki] [PromQL]
 
 **Follow-up:**
-- GitHub issue [#310](https://github.com/zbnerd/MapleExpectation/issues/310): Redis Lock migration (장기적 해결)
-- GitHub issue [#311](https://github.com/zbnerd/MapleExpectation/issues/311): Discord Auto-Mitigation (자동화)
+- GitHub issue [#310](https://github.com/zbnerd/probabilistic-valuation-engine/issues/310): Redis Lock migration (장기적 해결)
+- GitHub issue [#311](https://github.com/zbnerd/probabilistic-valuation-engine/issues/311): Discord Auto-Mitigation (자동화)
 
 ### 차별성
 
@@ -248,9 +245,9 @@ hikaricp_connections_pending = 41 (TH=10)
 | 문서 | 설명 |
 |------|------|
 | [Claim-Evidence Matrix](docs/CLAIM_EVIDENCE_MATRIX.md) | 주장 ↔ 코드 ↔ 증거 매핑 (C-OPS-01 ~ C-OPS-08) |
-| [#310: Redis Lock Migration](https://github.com/zbnerd/MapleExpectation/issues/310) | MySQL Lock Pool 병목 완화 (Evidence 포함) |
-| [#311: Discord Auto-Mitigation](https://github.com/zbnerd/MapleExpectation/issues/311) | Policy-Guarded 실행 (Security/Safety/Audit) |
-| [#312: Discord 알림 포맷 강화](https://github.com/zbnerd/MapleExpectation/issues/312) | Dedup, evaluated evidence, symptom vs RCA |
+| [#310: Redis Lock Migration](https://github.com/zbnerd/probabilistic-valuation-engine/issues/310) | MySQL Lock Pool 병목 완화 (Evidence 포함) |
+| [#311: Discord Auto-Mitigation](https://github.com/zbnerd/probabilistic-valuation-engine/issues/311) | Policy-Guarded 실행 (Security/Safety/Audit) |
+| [#312: Discord 알림 포맷 강화](https://github.com/zbnerd/probabilistic-valuation-engine/issues/312) | Dedup, evaluated evidence, symptom vs RCA |
 
 ---
 
@@ -308,6 +305,7 @@ hikaricp_connections_pending = 41 (TH=10)
 #### 📊 Strategy & Planning (NEW)
 | Document | Description |
 |----------|-------------|
+| [**Score Improvement Summary**](SCORE_IMPROVEMENT_SUMMARY.md) | **49/100 → 90/100 점수 개선 종합 보고서** (+41 points) ✨ |
 | [**Score Improvement Summary**](SCORE_IMPROVEMENT_SUMMARY.md) | **49/100 → 90/100 점수 개선 종합 보고서** (+41 points) ✨ |
 | [**Claim-Evidence Matrix**](docs/CLAIM_EVIDENCE_MATRIX.md) | **AI SRE 주장 ↔ 코드 ↔ 증거 매핑 (C-OPS-01 ~ C-OPS-08)** ✨ NEW |
 | [**Balanced Scorecard KPIs**](docs/02_Technical_Guides/balanced-scorecard-kpis.md) | **BSC 프레임워크: 22 KPIs, 4개 관점, 14/25 → 25/25** |
@@ -393,12 +391,6 @@ hikaricp_connections_pending = 41 (TH=10)
 
 ---
 
-
-**범례**
-- ──── (Solid): Implemented (Current)
-- --- --- --- (Dashed): Planned (Future Roadmap)
-
----
 
 ## 7대 핵심모듈 아키텍처
 
