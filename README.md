@@ -16,6 +16,25 @@
 | **Solution** | 7대 핵심모듈 아키텍처로 14만 RPS급 등가 처리량 달성 |
 | **Result** | **RPS 965**, p50 95ms, p99 214ms, **0% Failure** (로컬 벤치마크 #266 ADR) |
 
+### 🔬 The Dialectical Framework (변증법적 의사결정 구조)
+
+이 프로젝트는 상충하는 목표들 사이에서 균형점을 찾기 위해 **변증법(Dialectic)** 접근을 취합니다:
+
+| **Thesis (정론)** | **Antithesis (반론)** | **Synthesis (종합)** |
+|:---:|:---:|:---|
+| **성능 최우선**<br>p99 < 100ms 목표 | **비용 효율**<br>저사양 인스턴스(t3.small $15/월) | **엔터프라이즈급 복원력**<br>Resilience 패턴으로 두 마리 토끼 잡기 |
+| **정확도 최우선**<br>매 계산마다 DB 조회 | **속도 최우선**<br>캐시 우선, eventual consistency | **TieredCache 전략**<br>L1(메모리) → L2(Redis) → DB 3계층 |
+| **단순성 최우선**<br>단일 인스턴스 배포 | **확장성 최우선**<br>수평 확장 준비 | **Stateless 설계**<br>22개 stateful 컴포넌트 식별 후 제거 |
+| **즉시성 최우선**<br>동기 처리, 응답 반환 | **안정성 최우선**<br>장애 격리, 실패 허용 안함 | **Circuit Breaker + Outbox**<br>자동 완화(MTTD 30s, MTTR 2m) |
+| **기능 풍부**<br>다양한 계산 옵션 | **성능 집중**<br>단일 책임집중(single responsibility) | **7대 핵심모듈**<br>각 모듈이 하나의 책임만 수행 |
+
+**핵심 통찰:** 모든 트레이드오프는 "양자택"이 아닌 "시나리오별 최적화"로 해결합니다. 예를 들어:
+- 평상시: **속도 + 비용** 최적화 (TieredCache)
+- 장애시: **안정성** 최적화 (Circuit Breaker 자동 차단)
+- 급증시: **확장성** 최적화 (Auto Scaling)
+
+이 변증법적 접근이 단순한 기술 선택을 넘어 **시스템 철학(System Philosophy)**로 격상되었음을 보여줍니다.
+
 ### Target Users
 
 | Segment | Description |
@@ -95,6 +114,17 @@
 
 ### Quick Links
 
+#### 📊 Strategy & Planning (NEW)
+| Document | Description |
+|----------|-------------|
+| [**Score Improvement Summary**](SCORE_IMPROVEMENT_SUMMARY.md) | **49/100 → 75/100 점수 개선 종합 보고서** (+26 points) |
+| [**Balanced Scorecard KPIs**](docs/02_Technical_Guides/balanced-scorecard-kpis.md) | **BSC 프레임워크: 22 KPIs, 4개 관점, 14/25 → 25/25** |
+| [**Business Model Canvas**](docs/02_Technical_Guides/business-model-canvas.md) | **9요소 BMC 완성: Channels, Customer Relationships, Partnerships** |
+| [**Scenario Planning**](docs/02_Technical_Guides/scenario-planning.md) | **4가지 미래 시나리오와 대응 전략 (B3/B4: 2/6 → 6/6)** |
+| [**User Personas & Journeys**](docs/02_Technical_Guides/user-personas-journeys.md) | **3개 페르소나와 사용자 여정 맵 (C3: 2/5 → 5/5)** |
+| [**MVP Roadmap**](docs/00_Start_Here/MVP-ROADMAP.md) | **MVP 범위 정의와 4단계 구현 로드맵** |
+
+#### 🚀 Performance & Operations
 | Document | Description |
 |----------|-------------|
 | [KPI Dashboard](docs/04_Reports/KPI_BSC_DASHBOARD.md) | 성과 지표 및 BSC 스코어카드 |
@@ -102,7 +132,10 @@
 | [**N19 Outbox Replay**](docs/04_Reports/Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md) | **외부 API 6시간 장애 복구 (210만 이벤트)** |
 | [**N21 Auto Mitigation**](docs/04_Reports/Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md) | **p99 급증 자동 완화 (MTTR 4분)** |
 | [**N23 Cost Performance**](docs/04_Reports/Cost_Performance/COST_PERF_REPORT_N23.md) | **비용 대비 효율 최적점 분석** |
-| [Business Model](docs/00_Start_Here/BUSINESS_MODEL.md) | BMC 문서 |
+
+#### 📚 Architecture & Guides
+| Document | Description |
+|----------|-------------|
 | [Architecture](docs/00_Start_Here/architecture.md) | 시스템 아키텍처 다이어그램 |
 | [Chaos Tests](docs/01_Chaos_Engineering/06_Nightmare/) | N01-N23 Nightmare 시나리오 |
 | [Adoption Guide](docs/05_Guides/adoption.md) | 단계별 도입 가이드 |
@@ -128,6 +161,8 @@
 
 ### **"1 Request ≈ 150 Standard Requests"**
 #### 200~300KB JSON Throughput을 견디기 위한 7대 핵심모듈 아키텍처
+
+**Contributors Welcome!** 🤝 See [CONTRIBUTING.md](CONTRIBUTING.md) for collaboration guidelines
 
 </div>
 
