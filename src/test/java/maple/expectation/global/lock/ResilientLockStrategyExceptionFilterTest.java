@@ -60,6 +60,9 @@ class ResilientLockStrategyExceptionFilterTest {
     @Mock
     private LogicExecutor executor;
 
+    @Mock
+    private LockFallbackMetrics fallbackMetrics;
+
     private ResilientLockStrategy resilientLockStrategy;
 
     private static final String TEST_KEY = "test-key";
@@ -76,7 +79,8 @@ class ResilientLockStrategyExceptionFilterTest {
                 redisLockStrategy,
                 mysqlLockStrategy,
                 circuitBreakerRegistry,
-                executor
+                executor,
+                fallbackMetrics
         );
     }
 
