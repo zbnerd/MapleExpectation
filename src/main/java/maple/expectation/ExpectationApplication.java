@@ -23,6 +23,10 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  * <p>
  * <b>참고:</b> {@code application.yml}의 {@code spring.threads.virtual.enabled=true}
  * 설정은 Java 17에서는 무시됩니다 (Java 21+부터 지원).
+ * <p>
+ * <b>LangChain4j Auto-Configuration Exclusion:</b>
+ * OpenAI/Z.ai auto-configuration은 {@code ai.sre.enabled=true}일 때만
+ * 활성화되도록 설정에서 제어합니다. 기본적으로 비활성화됩니다.
  */
 @EnableAsync
 @EnableScheduling

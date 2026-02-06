@@ -13,6 +13,7 @@ import maple.expectation.global.util.ExceptionUtils;
 import org.redisson.client.RedisException;
 import org.redisson.client.RedisTimeoutException;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Primary;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
@@ -60,23 +61,27 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 @Primary
 @Component
+@ConditionalOnProperty(name = "lock.impl", havingValue = "redis", matchIfMissing = true)
 public class ResilientLockStrategy extends AbstractLockStrategy {
 
     private final LockStrategy redisLockStrategy;
     @Nullable
     private final LockStrategy mysqlLockStrategy;
     private final CircuitBreaker circuitBreaker;
+    private final LockFallbackMetrics fallbackMetrics;
 
     public ResilientLockStrategy(
             @Qualifier("redisDistributedLockStrategy") LockStrategy redisLockStrategy,
             @Nullable MySqlNamedLockStrategy mysqlLockStrategy,
             CircuitBreakerRegistry circuitBreakerRegistry,
-            LogicExecutor executor
+            LogicExecutor executor,
+            LockFallbackMetrics fallbackMetrics
     ) {
         super(executor);
         this.redisLockStrategy = redisLockStrategy;
         this.mysqlLockStrategy = mysqlLockStrategy;
         this.circuitBreaker = circuitBreakerRegistry.circuitBreaker("redisLock");
+        this.fallbackMetrics = fallbackMetrics;
 
         if (mysqlLockStrategy == null) {
             log.warn("⚠️ [ResilientLockStrategy] MySQL Fallback 비활성화: lockJdbcTemplate 빈 없음. Redis-only 모드로 동작합니다.");

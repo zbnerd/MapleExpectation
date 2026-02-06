@@ -32,7 +32,7 @@ import org.springframework.context.annotation.Primary;
  */
 @Slf4j
 @Configuration
-@ConditionalOnProperty(name = "ai.sre.enabled", havingValue = "true")
+@ConditionalOnProperty(name = "langchain4j.glm-4.chat-model.api-key")
 public class ZAiConfiguration {
 
     @Value("${langchain4j.glm-4.chat-model.base-url}")
@@ -64,8 +64,7 @@ public class ZAiConfiguration {
      * @return Z.ai GLM-4.7 ChatLanguageModel
      */
     @Bean
-    @Primary
-    @ConditionalOnProperty(name = "langchain4j.glm-4.chat-model.api-key", matchIfMissing = false)
+    @ConditionalOnProperty(name = "langchain4j.glm-4.chat-model.api-key")
     public ChatLanguageModel zAiChatModel() {
         log.info("[Z.ai] GLM-4.7 모델 초기화: baseUrl={}, model={}", baseUrl, modelName);
 
@@ -76,28 +75,6 @@ public class ZAiConfiguration {
                 .timeout(java.time.Duration.parse("PT" + timeout))
                 .logRequests(logRequests)
                 .logResponses(logResponses)
-                .build();
-    }
-
-    /**
-     * Fallback: OpenAI GPT-4o-mini (Z.ai 미설정 시)
-     *
-     * <p>Z.ai API 키가 미설정이거나 실패 시 사용합니다.</p>
-     */
-    @Bean
-    @ConditionalOnProperty(name = "langchain4j.glm-4.chat-model.api-key", matchIfMissing = false)
-    public ChatLanguageModel openAiFallbackModel(
-            @Value("${langchain4j.open-ai.chat-model.api-key:}") String openAiKey,
-            @Value("${langchain4j.open-ai.chat-model.model-name:gpt-4o-mini}") String openAiModel
-    ) {
-        log.info("[Z.ai] Fallback: OpenAI 모델 설정됨: model={}", openAiModel);
-
-        return OpenAiChatModel.builder()
-                .apiKey(openAiKey)
-                .modelName(openAiModel)
-                .timeout(java.time.Duration.parse("PT30s"))
-                .logRequests(false)
-                .logResponses(false)
                 .build();
     }
 }

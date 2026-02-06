@@ -34,10 +34,12 @@ import java.util.concurrent.TimeUnit;
 public class RedisDistributedLockStrategy extends AbstractLockStrategy {
 
     private final RedissonClient redissonClient;
+    private final LockMetrics lockMetrics;
 
-    public RedisDistributedLockStrategy(RedissonClient redissonClient, LogicExecutor executor) {
+    public RedisDistributedLockStrategy(RedissonClient redissonClient, LogicExecutor executor, LockMetrics lockMetrics) {
         super(executor);
         this.redissonClient = redissonClient;
+        this.lockMetrics = lockMetrics;
     }
 
     /**
@@ -55,9 +57,19 @@ public class RedisDistributedLockStrategy extends AbstractLockStrategy {
     @Override
     protected boolean tryLock(String lockKey, long waitTime, long leaseTime) throws Throwable {
         RLock lock = redissonClient.getLock(lockKey);
+        long startTime = System.currentTimeMillis();
+
         // ✅ Watchdog 모드: leaseTime 생략 → 30초마다 자동 갱신
         // ❌ 이전: lock.tryLock(waitTime, leaseTime, TimeUnit.SECONDS) → 작업 초과 시 락 해제됨
-        return lock.tryLock(waitTime, TimeUnit.SECONDS);
+        boolean acquired = lock.tryLock(waitTime, TimeUnit.SECONDS);
+
+        // [Issue #310] 락 대기 시간 기록
+        if (acquired) {
+            long waitTimeMs = System.currentTimeMillis() - startTime;
+            lockMetrics.recordWaitTime(waitTimeMs, "redis");
+        }
+
+        return acquired;
     }
 
     @Override
@@ -65,6 +77,8 @@ public class RedisDistributedLockStrategy extends AbstractLockStrategy {
         RLock lock = redissonClient.getLock(lockKey);
         if (lock.isHeldByCurrentThread()) {
             lock.unlock();
+            // [Issue #310] 락 해제 기록
+            lockMetrics.recordLockReleased("redis");
         }
     }
 
@@ -86,5 +100,19 @@ public class RedisDistributedLockStrategy extends AbstractLockStrategy {
 
     private boolean attemptImmediateLock(String lockKey, long leaseTime) throws Throwable {
         return tryLock(lockKey, 0, leaseTime);
+    }
+
+    @Override
+    protected void onLockAcquired(String lockKey) {
+        // [Issue #310] 락 획득 성공 기록
+        lockMetrics.recordLockAcquired("redis");
+        log.debug("🔓 [Lock] '{}' 획득 성공", lockKey);
+    }
+
+    @Override
+    protected void onLockFailed(String lockKey) {
+        // [Issue #310] 락 획득 실패 기록
+        lockMetrics.recordFailure("redis");
+        log.warn("⏭️ [Lock] '{}' 획득 실패", lockKey);
     }
 }

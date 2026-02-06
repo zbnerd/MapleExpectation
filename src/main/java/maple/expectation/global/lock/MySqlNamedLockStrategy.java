@@ -30,6 +30,7 @@ import java.util.Deque;
  *   <li>Section 12: Zero Try-Catch Policy - LogicExecutor 패턴 사용</li>
  *   <li>P0-BLUE-01: ThreadLocal.remove() 반드시 호출 (메모리 누수 방지)</li>
  *   <li>P1-BLUE-03: LockOrderMetrics 의존성 주입</li>
+ *   <li>Issue #310: LockMetrics 의존성 주입 (락 대기 시간, 실패율, 활성 락 수)</li>
  * </ul>
  *
  * <h3>Conditional Bean Loading</h3>
@@ -39,6 +40,7 @@ import java.util.Deque;
  * ResilientLockStrategy는 Optional로 주입받아 Redis-only 모드로 동작합니다.</p>
  *
  * @see LockOrderMetrics
+ * @see LockMetrics
  */
 @Slf4j
 @Component
@@ -48,6 +50,7 @@ public class MySqlNamedLockStrategy implements LockStrategy {
     private final JdbcTemplate lockJdbcTemplate;
     private final LogicExecutor executor;
     private final LockOrderMetrics lockOrderMetrics;
+    private final LockMetrics lockMetrics;
 
     /**
      * [P0-BLUE-01] ThreadLocal 메모리 누수 방지
@@ -71,11 +74,13 @@ public class MySqlNamedLockStrategy implements LockStrategy {
     public MySqlNamedLockStrategy(
             @Qualifier("lockJdbcTemplate") JdbcTemplate lockJdbcTemplate,
             LogicExecutor executor,
-            LockOrderMetrics lockOrderMetrics
+            LockOrderMetrics lockOrderMetrics,
+            LockMetrics lockMetrics
     ) {
         this.lockJdbcTemplate = lockJdbcTemplate;
         this.executor = executor;
         this.lockOrderMetrics = lockOrderMetrics;
+        this.lockMetrics = lockMetrics;
     }
 
     @Override
