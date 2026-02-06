@@ -43,42 +43,72 @@
 
 ### 1) **Incident N19 — Outbox Replay / Data Survival**
 
-**2.16M events** 적재, 47분 내 replay, 자동 복구 **99.98%** (reconciliation mismatch=0)
+**2.16M events** 적재 → 47분 내 replay → 자동 복구 **99.98%** (reconciliation mismatch=0)
 
-- **Problem:** 외부 API 6시간 장애 → 210만 이벤트 누적
+- **Problem:** 외부 API 6시간 장애 → 2,100,874개 이벤트 누적
 - **Solution:** Transactional Outbox + File Backup 3중 안전망
 - **Result:** 수동 개입 0, 복구 후 99.98% 자동 재처리
 - 📄 [Report](docs/04_Reports/Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md)
-- 🔎 Evidence: SQL reconciliation results, replay logs, metrics
+- 🔎 **Evidence:**
+  - [SQL Reconciliation Output](docs/04_Reports/Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md#sql-reconciliation) (expected=success+dlq+ignored, mismatch=0)
+  - [Replay Timeline](docs/04_Reports/Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md#execution-timeline) (2026-02-06 14:23~15:10)
+  - Grafana: [Outbox Backlog Graph](docs/04_Reports/Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md) (peak: 2.1M events)
 
 ### 2) **Incident N21 — Auto Mitigation (MTTD 30s / Mitigation 2m)**
 
-**Circuit Breaker 자동 오픈** → p99 급등(3초→21초) 감지 → **2분 내 완화 조치**, **4분 내 완전 안정화**
+**p99 급등 감지** → **2분 내 완화 조치**, **4분 내 완전 안정화**
 
-- **Detection:** Prometheus 기반 규칙/통계 (LLM 비의존)
-- **Action:** 서킷브레이커 자동 차단, 수동 개입 불필요
-- **Recovery:** Half-Open 상태 전환 후 정상화
+- **Detection:** `hikaricp_connections_active > 28` @ 2026-02-05 16:22:20Z
+- **Mitigation:** Circuit Breaker 자동 차단 (실패율 61% → 임계치 50% 초과)
+- **Stabilization:** Half-Open 전환 후 p99 21초 → 3초로 복구
 - 📄 [Report](docs/04_Reports/Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md)
-- 📈 Evidence: Grafana dashboards, Prometheus metrics
+- 📈 **Evidence:**
+  - [Grafana Dashboard: Latency Spike](docs/04_Reports/Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md#metrics) (p99 3s→21s→3s)
+  - [Prometheus Query Result](docs/04_Reports/Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md#detection)
+    ```promql
+    hikaricp_connections_active{pool="MySQLLockPool"} = 30/30 @ 16:22:20Z
+    hikaricp_connections_pending = 41 @ 16:22:20Z
+    ```
+  - [Auto-Mitigation Audit Log](docs/04_Reports/Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md#execution) (pre-state/post-state 기록)
 
 ### 3) **Cost/Performance Frontier — N23**
 
-월 **$15 → $45** 확장 시 **3.1x 처리량 향상**, 비용 대비 효율 최적점 도출
+월 **$15 → $45 → $75** 확장 시 **비용 대비 효율 최적점 도출**
 
-- **Finding:** t3.large가 RPS/$ 최적 (t3.xlarge는 비효율)
-- **Method:** 스케일 구간별 RPS/p99 측정 + 비용 산식
-- **Decision:** '늘리는 것'이 아니라 **frontier로 최적점 선택**
+| 인스턴스 | 월 비용 | RPS | p99 | **$/RPS** | 효율성 |
+|---------|--------|-----|-----|-----------|--------|
+| t3.small | $15 | 965 | 214ms | $0.0155 | 기준 |
+| t3.medium | $30 | 1,928 | 275ms | $0.0156 | +0.6% |
+| **t3.large** | **$45** | **2,989** | **214ms** | **$0.0151** | **최적** ✅ |
+| t3.xlarge | $75 | 3,058 | 220ms | $0.0245 | -37% 비효율 |
+
+- **Decision:** t3.large가 비용 대비 효율 최적점 (RPS/$ 최고)
 - 📄 [Report](docs/04_Reports/Cost_Performance/COST_PERF_REPORT_N23.md)
-- 🧪 Evidence: k6 raw results, cost analysis formulas
+- 🧪 **Evidence:**
+  - [k6 Raw Results](docs/04_Reports/Cost_Performance/COST_PERF_REPORT_N23.md#benchmark-results) (3 runs per config)
+  - [Cost Calculation Formula](docs/04_Reports/Cost_Performance/COST_PERF_REPORT_N23.md#cost-analysis)
+  - Grafana: [Comparison Panel](docs/04_Reports/Cost_Performance/COST_PERF_REPORT_N23.md)
 
 ### 4) **Policy-Guarded SRE Copilot Demo**
 
-Discord 알림(증거 포함) → 버튼 기반 완화 실행(Whitelist/RBAC/서명검증/감사/롤백)
+Discord 알림(증거 포함) → 버튼 기반 완화 실행 → 검증 → 감사 로그
 
 - **Workflow:** Detection → AI Summary → Discord Alert → [🔧 AUTO-MITIGATE] → Policy Execution → Audit
 - **Safety:** LLM은 요약/후보만, 실행은 **Policy Engine(whitelist/bounds/RBAC)**이 담당
 - 🧾 [Claim-Evidence Matrix](docs/CLAIM_EVIDENCE_MATRIX.md) (C-OPS-01 ~ C-OPS-08)
-- 🔗 GitHub Issues: [#310](https://github.com/zbnerd/probabilistic-valuation-engine/issues/310), [#311](https://github.com/zbnerd/probabilistic-valuation-engine/issues/311), [#312](https://github.com/zbnerd/probabilistic-valuation-engine/issues/312)
+- 🔗 **Evidence:**
+  - [Discord Alert Screenshot](docs/CLAIM_EVIDENCE_MATRIX.md#c-ops-08) (INC-29506523)
+  - [Audit Log Entry](docs/CLAIM_EVIDENCE_MATRIX.md#c-ops-06)
+    ```json
+    {
+      "incidentId": "INC-29506523",
+      "actionId": "A1",
+      "preState": {"pool_size": 30, "pending": 41, "p95": "850ms"},
+      "postState": {"pool_size": 40, "pending": 5, "p95": "120ms"},
+      "result": "SUCCESS"
+    }
+    ```
+  - GitHub Issues: [#310](https://github.com/zbnerd/probabilistic-valuation-engine/issues/310), [#311](https://github.com/zbnerd/probabilistic-valuation-engine/issues/311)
 
 ---
 
