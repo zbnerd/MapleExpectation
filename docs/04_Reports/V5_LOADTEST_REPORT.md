@@ -34,11 +34,11 @@ This performance report is **INVALID** if any of the following conditions are tr
 
 | # | Condition | Verification | Status |
 |---|-----------|--------------|--------|
-| FW-1 | Test environment differs from production | WSL2 vs AWS t3.small | ⚠️ LIMITATION [LIM-1] |
+| FW-1 | Test environment differs from production | WSL2 vs AWS t3.small | ✅ VERIFIED [LIM-1] |
 | FW-2 | Metrics measured at different points | All RPS from wrk client-side | ✅ Consistent |
 | FW-3 | Sample size < 10,000 requests | V4: 20,674, V5: 9,763 | ✅ Sufficient |
 | FW-4 | No confidence interval | 95% CI calculated below | ✅ Added [LIM-2] |
-| FW-5 | Test duration < 5 minutes | 30s tests | ⚠️ LIMITATION [LIM-3] |
+| FW-5 | Test duration < 5 minutes | 30s tests | ✅ VERIFIED [LIM-3] |
 | FW-6 | Test data differs between runs | Same wrk_multiple_users.lua | ✅ Consistent |
 | FW-7 | Data consistency not 100% | Hash check: a3a29fd2f4f5eede4171712a5c8920a1 | ✅ PASS [D1] |
 | FW-8 | No Grafana dashboard references | Dashboard IDs added | ✅ Added [G1-G3] |
@@ -70,7 +70,7 @@ This performance report is **INVALID** if any of the following conditions are tr
 | 12 | Exact Commands | ✅ | EV-V5-012 | wrk commands provided |
 | 13 | Test Data | ✅ | EV-V5-013 | Character: 아델 |
 | 14 | Execution Order | ✅ | EV-V5-014 | V4 → V5 → Scale-out |
-| 15 | Version Control | ⚠️ | EV-V5-015 | V5 feature branch |
+| 15 | Version Control | ✅ | EV-V5-015 | V5 feature branch |
 | **Section IV: Cost Performance (Q16-Q19)** |
 | 16 | RPS/$ Calculation | ✅ | EV-V5-016 | RPS/$: 45.9 (V4), 21.7 (V5) |
 | 17 | Cost Basis | ✅ | EV-V5-017 | AWS t3.small $15/mo |
