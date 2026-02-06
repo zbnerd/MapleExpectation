@@ -18,6 +18,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Discord Webhook Notifier for Monitoring Copilot
@@ -26,10 +27,9 @@ import java.util.Map;
  * <ul>
  *   <li>Severity-based emoji prefix (🚨 for CRIT, ⚠️ for WARN)</li>
  *   <li>Incident ID and severity level</li>
- *   <li>Top 3 anomalous signals with values</li>
- *   <li>LLM-generated hypotheses (top 2)</li>
- *   <li>Proposed remediation actions (top 2)</li>
- *   <li>Evidence section with PromQL queries</li>
+ *   <li>Top 3 anomalous signals with values (SYMPTOMS)</li>
+ *   <li>LLM-generated hypotheses (top 2) (ROOT CAUSE ANALYSIS)</li>
+ *   <li>Proposed remediation actions (top 2) (REMEDIATION)</li>
  * </ul>
  *
  * <h3>Rate Limit Handling</h3>
@@ -70,15 +70,20 @@ public class DiscordNotifier {
      * @param content Pre-formatted incident message content
      */
     public void send(String content) {
-        executor.executeVoid(
-                () -> sendInternal(content),
+        executor.executeWithTranslation(
+                () -> {
+                    sendInternal(content);
+                    return null; // Void operation
+                },
+                (e, ctx) -> new InternalSystemException(
+                        String.format("Discord webhook send failed [%s]: %s", ctx.toTaskName(), e.getMessage()), e),
                 TaskContext.of("DiscordNotifier", "SendWebhook")
         );
     }
 
     /**
      * Internal send implementation with checked exceptions.
-     * Wrapped by LogicExecutor for proper exception handling.
+     * Wrapped by LogicExecutor.executeWithTranslation() for proper exception handling.
      */
     private void sendInternal(String content) throws Exception {
         DiscordWebhookPayload payload = new DiscordWebhookPayload(content);
@@ -111,8 +116,9 @@ public class DiscordNotifier {
      * @param request HTTP request to send
      * @param attempt Current attempt number
      * @return HTTP response
+     * @throws Exception if HTTP request fails or is interrupted
      */
-    private HttpResponse<String> sendWithRetry(HttpRequest request, int attempt) {
+    private HttpResponse<String> sendWithRetry(HttpRequest request, int attempt) throws Exception {
         HttpResponse<String> response = sendHttpRequest(request);
 
         // Handle rate limit (429) - retry once
@@ -131,52 +137,44 @@ public class DiscordNotifier {
 
     /**
      * Send HTTP request with exception translation.
+     *
+     * @throws Exception if HTTP request fails or is interrupted
+     * @throws InterruptedException if HTTP request is interrupted
      */
-    private HttpResponse<String> sendHttpRequest(HttpRequest request) {
-        try {
-            return httpClient.send(
-                    request,
-                    HttpResponse.BodyHandlers.ofString()
-            );
-        } catch (Exception e) {
-            if (e instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-                throw new InternalSystemException("Discord webhook request interrupted", e);
-            }
-            throw new InternalSystemException(
-                    String.format("Discord webhook HTTP request failed: %s", e.getMessage()), e);
-        }
+    private HttpResponse<String> sendHttpRequest(HttpRequest request) throws Exception, InterruptedException {
+        return httpClient.send(
+                request,
+                HttpResponse.BodyHandlers.ofString()
+        );
     }
 
     /**
-     * Extract retry delay from Retry-After header
+     * Extract retry delay from Retry-After header.
+     * Uses Optional to safely parse and default to 1 second.
      *
      * @param response HTTP response with 429 status
-     * @return Delay in milliseconds
+     * @return Delay in milliseconds (default 1000ms if header missing/invalid)
      */
     private long extractRetryAfter(HttpResponse<String> response) {
-        String retryAfter = response.headers().firstValue("Retry-After").orElse(null);
-        if (retryAfter != null) {
-            try {
-                int seconds = Integer.parseInt(retryAfter);
-                return seconds * 1000L;
-            } catch (NumberFormatException e) {
-                log.debug("[DiscordNotifier] Invalid Retry-After header: {}", retryAfter);
-            }
-        }
-        return 1000L; // Default 1 second
+        return response.headers().firstValue("Retry-After")
+                .flatMap(retryAfter -> {
+                    try {
+                        return Optional.of(Integer.parseInt(retryAfter) * 1000L);
+                    } catch (NumberFormatException e) {
+                        log.debug("[DiscordNotifier] Invalid Retry-After header: {}", retryAfter);
+                        return Optional.empty();
+                    }
+                })
+                .orElse(1000L);
     }
 
     /**
      * Sleep with interrupt handling.
+     *
+     * @throws InterruptedException if sleep is interrupted
      */
-    private void sleep(long millis) {
-        try {
-            Thread.sleep(millis);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new InternalSystemException("Sleep interrupted", e);
-        }
+    private void sleep(long millis) throws InterruptedException {
+        Thread.sleep(millis);
     }
 
     /**
@@ -202,8 +200,8 @@ public class DiscordNotifier {
         String emoji = "CRIT".equals(severity) ? "🚨" : "⚠️";
         sb.append(String.format("%s **INCIDENT ALERT** `%s` [%s]\n\n", emoji, incidentId, severity));
 
-        // Section 1: Top 3 Anomalous Signals
-        sb.append("**📊 Top Anomalous Signals**\n");
+        // Section 1: SYMPTOMS - Top 3 Anomalous Signals
+        sb.append("**📊 SYMPTOMS**\n");
         int signalCount = Math.min(3, signals.size());
         for (int i = 0; i < signalCount; i++) {
             AnnotatedSignal signal = signals.get(i);
@@ -215,9 +213,9 @@ public class DiscordNotifier {
         }
         sb.append("\n");
 
-        // Section 2: LLM Hypotheses (Top 2)
+        // Section 2: ROOT CAUSE ANALYSIS - LLM Hypotheses (Top 2)
         if (!hypotheses.isEmpty()) {
-            sb.append("**🤖 AI Hypotheses**\n");
+            sb.append("**🤖 ROOT CAUSE ANALYSIS**\n");
             int hypCount = Math.min(2, hypotheses.size());
             for (int i = 0; i < hypCount; i++) {
                 sb.append(String.format("%d. %s\n", i + 1, hypotheses.get(i)));
@@ -225,26 +223,12 @@ public class DiscordNotifier {
             sb.append("\n");
         }
 
-        // Section 3: Proposed Actions (Top 2)
+        // Section 3: REMEDIATION - Proposed Actions (Top 2)
         if (!actions.isEmpty()) {
-            sb.append("**🔧 Proposed Actions**\n");
+            sb.append("**🔧 REMEDIATION**\n");
             int actionCount = Math.min(2, actions.size());
             for (int i = 0; i < actionCount; i++) {
                 sb.append(String.format("%d. %s\n", i + 1, actions.get(i)));
-            }
-            sb.append("\n");
-        }
-
-        // Section 4: Evidence (PromQL)
-        sb.append("**📋 Evidence (PromQL)**\n");
-        for (int i = 0; i < signalCount; i++) {
-            AnnotatedSignal signal = signals.get(i);
-            String query = signal.signal().query();
-            if (query != null && !query.isBlank()) {
-                String truncatedQuery = query.length() > 100
-                        ? query.substring(0, 97) + "..."
-                        : query;
-                sb.append(String.format("- `%s`\n", truncatedQuery));
             }
         }
 

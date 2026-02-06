@@ -583,23 +583,41 @@ public class AiSreService {
     /**
      * 증거 항목 포맷팅
      */
-    private String formatEvidence(List<EvidenceItem> evidence) {
+    private String formatEvidence(List<?> evidence) {
         if (evidence == null || evidence.isEmpty()) {
             return "증거 없음";
         }
 
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < evidence.size(); i++) {
-            EvidenceItem item = evidence.get(i);
-            sb.append(String.format("""
-                    [%d] %s (%s)
-                        %s
-                    """,
-                    i + 1,
-                    item.title(),
-                    item.type(),
-                    item.body()
-            ));
+            Object item = evidence.get(i);
+            if (item instanceof EvidenceItem evidenceItem) {
+                sb.append(String.format("""
+                        [%d] %s (%s)
+                            %s
+                        """,
+                        i + 1,
+                        evidenceItem.title(),
+                        evidenceItem.type(),
+                        evidenceItem.body()
+                ));
+            } else if (item instanceof maple.expectation.monitoring.copilot.model.RichEvidence richEvidence) {
+                // Phase 3: Handle RichEvidence with PromQL evaluation
+                sb.append(String.format("""
+                        [%d] %s (PromQL Evidence)
+                            Current: %.4f, Baseline: %.4f, Deviation: %s
+                            Query: %s
+                        """,
+                        i + 1,
+                        richEvidence.signalName(),
+                        richEvidence.currentValue(),
+                        richEvidence.baselineValue(),
+                        richEvidence.formattedDeviation(),
+                        richEvidence.promql()
+                ));
+            } else {
+                sb.append(String.format("[%d] %s\n", i + 1, item.toString()));
+            }
         }
         return sb.toString();
     }

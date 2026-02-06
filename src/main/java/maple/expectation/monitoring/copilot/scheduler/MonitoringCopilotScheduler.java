@@ -7,6 +7,7 @@ import maple.expectation.global.executor.TaskContext;
 import maple.expectation.monitoring.ai.AiSreService;
 import maple.expectation.monitoring.copilot.client.PrometheusClient;
 import maple.expectation.monitoring.copilot.detector.AnomalyDetector;
+import maple.expectation.monitoring.copilot.dedup.SignalDeduplicationStrategy;
 import maple.expectation.monitoring.copilot.ingestor.GrafanaJsonIngestor;
 import maple.expectation.monitoring.copilot.model.AnomalyEvent;
 import maple.expectation.monitoring.copilot.model.IncidentContext;
@@ -33,11 +34,15 @@ import java.util.concurrent.ConcurrentHashMap;
  *   <li>Run detector on each signal</li>
  *   <li>Compose IncidentContext and call AI analysis</li>
  *   <li>Send Discord notification</li>
- *   <li>Deduplication: skip same incident within 10min window</li>
+ *   <li>Deduplication: stateless using PromQL re-query (Issue #312 Phase 4)</li>
  * </ul>
  *
  * <h3>Execution Interval</h3>
  * <p>Runs every 15 seconds via {@code @Scheduled(fixedRate = 15000)}</p>
+ *
+ * <h3>Stateless Design</h3>
+ * <p>Deduplication uses {@link SignalDeduplicationStrategy} with PromQL re-query instead of in-memory state,
+ * enabling horizontal scale-out without server-bound data.</p>
  *
  * <h3>LogicExecutor Pattern</h3>
  * <p>All operations wrapped in executor.executeOrDefault() for resilience and observability</p>
@@ -47,6 +52,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * @see AnomalyDetector
  * @see DiscordNotifier
  * @see AiSreService
+ * @see SignalDeduplicationStrategy
  */
 @Slf4j
 @Component
@@ -60,6 +66,7 @@ public class MonitoringCopilotScheduler {
     private final DiscordNotifier discordNotifier;
     private final AiSreService aiSreService;
     private final LogicExecutor executor;
+    private final SignalDeduplicationStrategy dedupStrategy;
 
     @Value("${monitoring.copilot.grafana.dashboard-dir:./dashboards}")
     private String dashboardDir;
@@ -67,14 +74,8 @@ public class MonitoringCopilotScheduler {
     @Value("${monitoring.copilot.prometheus.step:1m}")
     private String prometheusQueryStep;
 
-    @Value("${monitoring.copilot.dedup-window-minutes:10}")
-    private long dedupWindowMinutes;
-
     @Value("${monitoring.copilot.top-signals:10}")
     private int topSignalsCount;
-
-    // Deduplication cache: signalId -> last detected timestamp
-    private final Map<String, Long> recentDetections = new ConcurrentHashMap<>();
 
     // Signal catalog cache: updated every 5 minutes
     private volatile List<SignalDefinition> signalCatalogCache = List.of();
@@ -116,8 +117,8 @@ public class MonitoringCopilotScheduler {
             // 4. Compose incident context and analyze
             processIncident(detectedAnomalies, now);
 
-            // 5. Cleanup stale dedup entries
-            cleanupDedupCache(now);
+            // 5. Cleanup stale dedup entries (stateless strategy may have internal cleanup)
+            dedupStrategy.cleanup(now);
 
         }, context);
     }
@@ -195,10 +196,8 @@ public class MonitoringCopilotScheduler {
             Instant endTime,
             long now) {
 
-        // Deduplication check
-        String dedupKey = signal.id().toString();
-        Long lastDetected = recentDetections.get(dedupKey);
-        if (lastDetected != null && (now - lastDetected) < dedupWindowMinutes * 60 * 1000) {
+        // Deduplication check using stateless strategy (PromQL re-query)
+        if (dedupStrategy.shouldSkip(null, signal, now)) {
             log.debug("[MonitoringCopilot] Skipping recent signal: {}", signal.panelTitle());
             return List.of();
         }
@@ -228,8 +227,8 @@ public class MonitoringCopilotScheduler {
         );
 
         if (anomaly.isPresent()) {
-            // Update dedup cache
-            recentDetections.put(dedupKey, now);
+            // Record detection using stateless strategy
+            dedupStrategy.recordDetection(anomaly.get(), now);
             return List.of(anomaly.get());
         }
 
@@ -362,20 +361,5 @@ public class MonitoringCopilotScheduler {
     private String determineOverallSeverity(List<AnomalyEvent> anomalies) {
         boolean hasCritical = anomalies.stream().anyMatch(a -> "CRITICAL".equals(a.severity()));
         return hasCritical ? "CRITICAL" : "WARNING";
-    }
-
-    /**
-     * Cleanup stale dedup cache entries
-     */
-    private void cleanupDedupCache(long now) {
-        long cutoff = now - dedupWindowMinutes * 60 * 1000;
-
-        recentDetections.entrySet().removeIf(entry -> {
-            boolean isStale = entry.getValue() < cutoff;
-            if (isStale) {
-                log.debug("[MonitoringCopilot] Cleaning up stale dedup entry: {}", entry.getKey());
-            }
-            return isStale;
-        });
     }
 }
