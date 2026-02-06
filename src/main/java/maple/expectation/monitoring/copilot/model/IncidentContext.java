@@ -11,6 +11,6 @@ public record IncidentContext(
     String incidentId,
     String summary,
     List<AnomalyEvent> anomalies,
-    List<EvidenceItem> evidence,
+    List<?> evidence, // Supports both EvidenceItem and RichEvidence
     Map<String, Object> metadata
 ) {}
