@@ -623,8 +623,25 @@ public class AiSreService {
      * JSON 응답 파싱 (간단 구현)
      */
     private MitigationPlan parseMitigationPlanJson(String jsonResponse, String incidentId) {
-        // 실제 구현에서는 Jackson ObjectMapper 사용 권장
-        // 여기서는 간단한 텍스트 파싱으로 대체
+        // Markdown 코드 블록 제거 (ChatGPT가 ```json ... ```으로 감싼는 경우 대응)
+        String cleanedResponse = jsonResponse;
+        if (cleanedResponse.contains("```")) {
+            // 첫 번째 ``` 이후부터 마지막 ``` 이전까지 추출
+            int firstBacktick = cleanedResponse.indexOf("```");
+            if (firstBacktick != -1) {
+                // 첫 번째 라인 끝나는 개행 문자 찾기
+                int newlineAfterFirstBlock = cleanedResponse.indexOf("\n", firstBacktick);
+                if (newlineAfterFirstBlock != -1) {
+                    cleanedResponse = cleanedResponse.substring(newlineAfterFirstBlock + 1);
+                }
+
+                // 마지막 ``` 제거
+                int lastBacktick = cleanedResponse.lastIndexOf("```");
+                if (lastBacktick != -1) {
+                    cleanedResponse = cleanedResponse.substring(0, lastBacktick);
+                }
+            }
+        }
 
         try {
             // Jackson ObjectMapper로 파싱 (가장 안전한 방식)
@@ -632,7 +649,7 @@ public class AiSreService {
                     new com.fasterxml.jackson.databind.ObjectMapper();
 
             // JSON에서 레코드로 변환을 위한 TypeReference
-            var planNode = mapper.readTree(jsonResponse);
+            var planNode = mapper.readTree(cleanedResponse);
 
             // hypotheses 파싱
             List<Hypothesis> hypotheses = mapper.convertValue(
