@@ -16,6 +16,30 @@
 | **Solution** | 7대 핵심모듈 아키텍처로 14만 RPS급 등가 처리량 달성 |
 | **Result** | **RPS 965**, p50 95ms, p99 214ms, **0% Failure** (로컬 벤치마크 #266 ADR) |
 
+## System Architecture
+
+<img width="1512" height="1112" alt="image" src="https://github.com/user-attachments/assets/e77f3f78-f57b-47a8-91f9-40843fdd4cb6" />
+
+
+### 🔬 The Dialectical Framework (변증법적 의사결정 구조)
+
+이 프로젝트는 상충하는 목표들 사이에서 균형점을 찾기 위해 **변증법(Dialectic)** 접근을 취합니다:
+
+| **Thesis (정론)** | **Antithesis (반론)** | **Synthesis (종합)** |
+|:---:|:---:|:---|
+| **성능 최우선**<br>p99 < 100ms 목표 | **비용 효율**<br>저사양 인스턴스(t3.small $15/월) | **엔터프라이즈급 복원력**<br>Resilience 패턴으로 두 마리 토끼 잡기 |
+| **정확도 최우선**<br>매 계산마다 DB 조회 | **속도 최우선**<br>캐시 우선, eventual consistency | **TieredCache 전략**<br>L1(메모리) → L2(Redis) → DB 3계층 |
+| **단순성 최우선**<br>단일 인스턴스 배포 | **확장성 최우선**<br>수평 확장 준비 | **Stateless 설계**<br>22개 stateful 컴포넌트 식별 후 제거 |
+| **즉시성 최우선**<br>동기 처리, 응답 반환 | **안정성 최우선**<br>장애 격리, 실패 허용 안함 | **Circuit Breaker + Outbox**<br>자동 완화(MTTD 30s, MTTR 2m) |
+| **기능 풍부**<br>다양한 계산 옵션 | **성능 집중**<br>단일 책임집중(single responsibility) | **7대 핵심모듈**<br>각 모듈이 하나의 책임만 수행 |
+
+**핵심 통찰:** 모든 트레이드오프는 "양자택"이 아닌 "시나리오별 최적화"로 해결합니다. 예를 들어:
+- 평상시: **속도 + 비용** 최적화 (TieredCache)
+- 장애시: **안정성** 최적화 (Circuit Breaker 자동 차단)
+- 급증시: **확장성** 최적화 (Auto Scaling)
+
+이 변증법적 접근이 단순한 기술 선택을 넘어 **시스템 철학(System Philosophy)**로 격상되었음을 보여줍니다.
+
 ### Target Users
 
 | Segment | Description |
@@ -41,6 +65,119 @@
 - **Zero data loss**: 2.16M events preserved; replay 99.98% in 47m ([N19 Outbox Replay](docs/04_Reports/Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md))
 - **Policy-driven auto mitigation**: MTTD 30s, MTTR 2m with audit log ([N21 Auto Mitigation](docs/04_Reports/Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md))
 - **Cost frontier**: $30 config delivers best RPS/$ with p99 < 100ms ([N23 Cost Performance](docs/04_Reports/Cost_Performance/COST_PERF_REPORT_N23.md))
+
+---
+
+## AI SRE: Policy-Guarded Autonomous Loop
+
+> **"누가/어떻게/무엇을 근거로/어떤 변경을 했는지"가 감사 가능하게 재현됩니다**
+
+### 개요
+
+Grafana/Prometheus 시그널을 규칙/통계 기반으로 이상 탐지하고, 인시던트별로 **증거(PromQL 결과값/링크)**를 포함한 리포트를 Discord로 전송합니다.
+
+LLM은 *요약 및 원인 후보/조치 후보*만 생성하며, 실제 실행은 **화이트리스트·RBAC·서명 검증·사전조건(metric gating)·감사로그·롤백**을 갖춘 Policy Engine이 담당합니다.
+
+### 작동 방식
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 1. Detection (규칙/통계 기반, LLM 비의존)                    │
+│    Prometheus: hikaricp_connections_active > TH             │
+└─────────────────┬───────────────────────────────────────────┘
+                  │
+┌─────────────────▼───────────────────────────────────────────┐
+│ 2. AI Analysis (요약/후보 제안만)                           │
+│    LLM: 증상 기반 가설 + 원인 후보 + 조치 후보              │
+└─────────────────┬───────────────────────────────────────────┘
+                  │
+┌─────────────────▼───────────────────────────────────────────┐
+│ 3. Discord Alert (증거 포함)                                │
+│    • Top Signals (deduped, evaluated values)                │
+│    • Hypotheses (symptom-level vs RCA)                      │
+│    • Actions (precondition/rollback)                        │
+│    • Evidence (PromQL + Grafana/Loki links)                 │
+└─────────────────┬───────────────────────────────────────────┘
+                  │
+┌─────────────────▼───────────────────────────────────────────┐
+│ 4. Operator Decision (Discord Button Click)                │
+│    [🔧 AUTO-MITIGATE A1] → Policy Engine 검증              │
+└─────────────────┬───────────────────────────────────────────┘
+                  │
+┌─────────────────▼───────────────────────────────────────────┐
+│ 5. Execution (Policy-Guarded)                               │
+│    • validate(RBAC, signature, whitelist, preconditions)    │
+│    • execute (config change)                                │
+│    • verify (SLO recovery 2-5m)                             │
+│    • audit (pre/post state + evidence)                      │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 안전 장치 (Safety Rails)
+
+**Security (Must)**
+- ✅ Discord signature verification (Ed25519)
+- ✅ RBAC: @sre role만 실행 가능
+- ✅ Idempotency: (incidentId, actionId) unique
+- ✅ Rate limit: 1 execution/minute
+
+**Safety Rails (Must)**
+- ✅ Action whitelist + bounds (예: pool size 20~50)
+- ✅ Preconditions (metric gating)
+- ✅ Auto verification (SLO 회복 확인)
+- ✅ Rollback (실패 시 자동/수동 복원)
+
+**Auditability (Must)**
+- ✅ MitigationAudit entity (pre/post state)
+- ✅ Evidence links (PromQL, Grafana, Loki)
+- ✅ Complete decision loop 재현 가능
+
+### 실제 인시던트 사례
+
+**INC-29506523: MySQL Lock Pool 포화 (2026-02-06)**
+
+**Detection:**
+```
+hikaricp_connections_active{pool="MySQLLockPool"} = 30/30 (100%)
+hikaricp_connections_pending = 41 (TH=10)
+```
+
+**AI Analysis (confidence: HIGH):**
+- Symptom: Pool utilization near 100% → lock acquisition blocks threads
+- RCA: MySQL named lock contention + JVM thread surge
+- Action A1: Increase lock pool 30→40 (precondition: pending>TH 2m)
+
+**Execution:**
+- Operator clicked [🔧 AUTO-MITIGATE A1]
+- Policy Engine validated (whitelist + preconditions ✓)
+- Config changed: `lock.datasource.pool-size: 40`
+- SLO recovered: p95 850ms → 120ms
+
+**Audit Trail:**
+- Pre-state: {pool_size: 30, pending: 41, p95: 850ms}
+- Post-state: {pool_size: 40, pending: 5, p95: 120ms}
+- Evidence: [Grafana] [Loki] [PromQL]
+
+**Follow-up:**
+- GitHub issue [#310](https://github.com/zbnerd/MapleExpectation/issues/310): Redis Lock migration (장기적 해결)
+- GitHub issue [#311](https://github.com/zbnerd/MapleExpectation/issues/311): Discord Auto-Mitigation (자동화)
+
+### 차별성
+
+| 기존 모니터링 | AI SRE (Policy-Guarded) |
+|-------------|----------------------|
+| 알림만 전송 → 수동 대응 | 증거 포함 알림 → 반자동 실행 |
+| 증거 부족 → 감사 불가 | 완전한 감사 로그 → 재현 가능 |
+| 운영자 경험 의존 | Policy Engine → 안전장치 강제 |
+
+### 관련 문서
+
+| 문서 | 설명 |
+|------|------|
+| [Claim-Evidence Matrix](docs/CLAIM_EVIDENCE_MATRIX.md) | 주장 ↔ 코드 ↔ 증거 매핑 (C-OPS-01 ~ C-OPS-08) |
+| [#310: Redis Lock Migration](https://github.com/zbnerd/MapleExpectation/issues/310) | MySQL Lock Pool 병목 완화 (Evidence 포함) |
+| [#311: Discord Auto-Mitigation](https://github.com/zbnerd/MapleExpectation/issues/311) | Policy-Guarded 실행 (Security/Safety/Audit) |
+| [#312: Discord 알림 포맷 강화](https://github.com/zbnerd/MapleExpectation/issues/312) | Dedup, evaluated evidence, symptom vs RCA |
 
 ---
 
@@ -95,6 +232,18 @@
 
 ### Quick Links
 
+#### 📊 Strategy & Planning (NEW)
+| Document | Description |
+|----------|-------------|
+| [**Score Improvement Summary**](SCORE_IMPROVEMENT_SUMMARY.md) | **49/100 → 90/100 점수 개선 종합 보고서** (+41 points) ✨ |
+| [**Claim-Evidence Matrix**](docs/CLAIM_EVIDENCE_MATRIX.md) | **AI SRE 주장 ↔ 코드 ↔ 증거 매핑 (C-OPS-01 ~ C-OPS-08)** ✨ NEW |
+| [**Balanced Scorecard KPIs**](docs/02_Technical_Guides/balanced-scorecard-kpis.md) | **BSC 프레임워크: 22 KPIs, 4개 관점, 14/25 → 25/25** |
+| [**Business Model Canvas**](docs/02_Technical_Guides/business-model-canvas.md) | **9요소 BMC 완성: Channels, Customer Relationships, Partnerships** |
+| [**Scenario Planning**](docs/02_Technical_Guides/scenario-planning.md) | **4가지 미래 시나리오와 대응 전략 (B3/B4: 2/6 → 6/6)** |
+| [**User Personas & Journeys**](docs/02_Technical_Guides/user-personas-journeys.md) | **3개 페르소나와 사용자 여정 맵 (C3: 2/5 → 5/5)** |
+| [**MVP Roadmap**](docs/00_Start_Here/MVP-ROADMAP.md) | **MVP 범위 정의와 4단계 구현 로드맵** |
+
+#### 🚀 Performance & Operations
 | Document | Description |
 |----------|-------------|
 | [KPI Dashboard](docs/04_Reports/KPI_BSC_DASHBOARD.md) | 성과 지표 및 BSC 스코어카드 |
@@ -102,7 +251,10 @@
 | [**N19 Outbox Replay**](docs/04_Reports/Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md) | **외부 API 6시간 장애 복구 (210만 이벤트)** |
 | [**N21 Auto Mitigation**](docs/04_Reports/Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md) | **p99 급증 자동 완화 (MTTR 4분)** |
 | [**N23 Cost Performance**](docs/04_Reports/Cost_Performance/COST_PERF_REPORT_N23.md) | **비용 대비 효율 최적점 분석** |
-| [Business Model](docs/00_Start_Here/BUSINESS_MODEL.md) | BMC 문서 |
+
+#### 📚 Architecture & Guides
+| Document | Description |
+|----------|-------------|
 | [Architecture](docs/00_Start_Here/architecture.md) | 시스템 아키텍처 다이어그램 |
 | [Chaos Tests](docs/01_Chaos_Engineering/06_Nightmare/) | N01-N23 Nightmare 시나리오 |
 | [Adoption Guide](docs/05_Guides/adoption.md) | 단계별 도입 가이드 |
@@ -128,6 +280,8 @@
 
 ### **"1 Request ≈ 150 Standard Requests"**
 #### 200~300KB JSON Throughput을 견디기 위한 7대 핵심모듈 아키텍처
+
+**Contributors Welcome!** 🤝 See [CONTRIBUTING.md](CONTRIBUTING.md) for collaboration guidelines
 
 </div>
 
@@ -166,9 +320,6 @@
 
 ---
 
-## System Architecture
-
-<img width="5556" height="4528" alt="architecture" src="https://github.com/user-attachments/assets/6a4daa9d-b4f5-4a49-8e51-5311cb816014" />
 
 **범례**
 - ──── (Solid): Implemented (Current)

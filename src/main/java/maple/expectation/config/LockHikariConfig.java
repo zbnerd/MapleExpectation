@@ -44,8 +44,9 @@ public class LockHikariConfig {
     @Autowired
     private MeterRegistry meterRegistry;
 
-    // Issue #284 DoD: Pool Size 외부화 (기본 30, prod에서 150으로 오버라이드)
-    @Value("${lock.datasource.pool-size:30}")
+    // Issue #284 DoD: Pool Size 외부화 (기본 40, prod에서 150으로 오버라이드)
+    // AI SRE 제안 (INC-29506518): Lock Pool 병목 방지를 위해 최댓값 증가
+    @Value("${lock.datasource.pool-size:40}")
     private int poolSize;
 
     @Bean(name = "lockDataSource")
