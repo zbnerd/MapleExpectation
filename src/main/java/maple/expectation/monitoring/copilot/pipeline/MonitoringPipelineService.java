@@ -139,6 +139,9 @@ public class MonitoringPipelineService {
             return;
         }
 
+        // 6.1 Track incident IMMEDIATELY to prevent race conditions
+        trackIncident(context.incidentId(), now);
+
         // 7. AI SRE analysis
         AiSreService.MitigationPlan plan = aiSreService
                 .map(service -> service.analyzeIncident(context))
@@ -146,9 +149,6 @@ public class MonitoringPipelineService {
 
         // 8. Send Discord alert
         sendDiscordAlert(context, plan);
-
-        // 9. Track incident
-        trackIncident(context.incidentId(), now);
     }
 
     /**
@@ -400,6 +400,7 @@ public class MonitoringPipelineService {
 
     /**
      * De-duplication: Check if incident is recent
+     * 5-minute window to prevent duplicate alerts (AI SRE recommendation)
      */
     private boolean isRecentIncident(String incidentId) {
         Long timestamp = recentIncidents.get(incidentId);
@@ -407,9 +408,9 @@ public class MonitoringPipelineService {
             return false;
         }
 
-        // Consider recent if within 1 hour
+        // Consider recent if within 5 minutes
         long age = System.currentTimeMillis() - timestamp;
-        return age < 3_600_000; // 1 hour in milliseconds
+        return age < 300_000; // 5 minutes in milliseconds
     }
 
     /**
@@ -421,10 +422,11 @@ public class MonitoringPipelineService {
     }
 
     /**
-     * Clean old incidents (older than 1 hour)
+     * Clean old incidents (older than 5 minutes)
+     * 5-minute dedup window (AI SRE recommendation)
      */
     private void cleanOldIncidents(long now) {
-        long threshold = now - 3_600_000; // 1 hour ago
+        long threshold = now - 300_000; // 5 minutes ago
 
         recentIncidents.entrySet().removeIf(entry -> {
             boolean isOld = entry.getValue() < threshold;
