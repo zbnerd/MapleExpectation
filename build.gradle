@@ -77,9 +77,9 @@ dependencies {
     // Issue #251: AI SRE + OpenTelemetry
     // ========================================
 
-    // LangChain4j - AI SRE 분석 (Context7 Best Practice: 1.9.1 버전)
-    implementation 'dev.langchain4j:langchain4j-spring-boot-starter:1.9.1-beta17'
-    implementation 'dev.langchain4j:langchain4j-open-ai-spring-boot-starter:1.9.1-beta17'
+    // LangChain4j - AI SRE 분석 (Z.ai compatibility: 0.29.0 버전)
+    implementation 'dev.langchain4j:langchain4j-spring-boot-starter:0.29.0'
+    implementation 'dev.langchain4j:langchain4j-open-ai-spring-boot-starter:0.29.0'
 
     // OpenTelemetry - 분산 추적 (Context7 Best Practice)
     implementation 'io.micrometer:micrometer-tracing-bridge-otel'

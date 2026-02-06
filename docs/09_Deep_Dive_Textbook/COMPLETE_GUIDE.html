@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MapleExpectation Deep Dive Textbook - Complete Guide</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            line-height: 1.8;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            background: #f8f9fa;
+        }
+        .container {
+            background: white;
+            padding: 60px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 4px solid #3498db;
+            padding-bottom: 20px;
+            margin-bottom: 40px;
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 60px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #ecf0f1;
+        }
+        h3 {
+            color: #7f8c8d;
+            margin-top: 40px;
+        }
+        h4 {
+            color: #95a5a6;
+            margin-top: 30px;
+        }
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Fira Code', 'Consolas', monospace;
+            font-size: 0.9em;
+        }
+        pre {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 20px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-family: 'Fira Code', 'Consolas', monospace;
+            line-height: 1.5;
+        }
+        pre code {
+            background: none;
+            padding: 0;
+        }
+        blockquote {
+            border-left: 4px solid #3498db;
+            margin: 20px 0;
+            padding-left: 20px;
+            color: #7f8c8d;
+            font-style: italic;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 30px 0;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ecf0f1;
+        }
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+        }
+        .chapter-nav {
+            background: #3498db;
+            color: white;
+            padding: 20px;
+            border-radius: 6px;
+            margin: 40px 0;
+        }
+        .chapter-nav a {
+            color: white;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .toc {
+            background: #ecf0f1;
+            padding: 30px;
+            border-radius: 6px;
+            margin: 40px 0;
+        }
+        .toc ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        .toc li {
+            margin: 10px 0;
+        }
+        .toc a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        .toc a:hover {
+            text-decoration: underline;
+        }
+        .chapter-section {
+            margin: 40px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 6px;
+        }
+        @media print {
+            body { background: white; }
+            .container { box-shadow: none; padding: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📚 MapleExpectation Deep Dive Textbook</h1>
+        <p style="font-size: 1.2em; color: #7f8c8d; margin-bottom: 40px;">
+            <strong>Computer Science Professor & Principal Software Engineer</strong><br>
+            7대 핵심 모듈에 대한 CS 원칙, 내부 동작, 설계 Trade-off, 면접 방어 전략
+        </p>
+
+        <div class="chapter-nav">
+            <h2 style="color: white; border: none; margin-top: 0;">📖 목차 (Table of Contents)</h2>
+            <div class="toc">
+                <ul>
+                    <li><a href="#chapter-01">01. Concurrency and Lock - 분산 락의 심화 학습</a></li>
+                    <li><a href="#chapter-02">02. Memory Hierarchy and Cache - 계층형 캐시의 심화 학습</a></li>
+                    <li><a href="#chapter-03">03. Resilience Engineering - 서킷 브레이커의 심화 학습</a></li>
+                    <li><a href="#chapter-04">04. Database Internals and Batch - 배치 INSERT의 심화 학습</a></li>
+                    <li><a href="#chapter-05">05. Asynchronous Programming - 비동기 프로그래밍의 심화 학습</a></li>
+                    <li><a href="#chapter-06">06. Design Patterns and Proxy - AOP와 LogicExecutor의 심화 학습</a></li>
+                    <li><a href="#chapter-07">07. High Precision Computing - 정밀 계산의 심화 학습</a></li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="chapter-section">
+            <h2 id="chapter-01">01. Concurrency and Lock (분산 락)</h2>
+            <h3>핵심 주제</h3>
+            <ul>
+                <li><strong>Redis Distributed Lock vs MySQL Named Lock</strong></li>
+                <li><strong>Spin Lock vs Blocking Lock</strong></li>
+                <li><strong>Lock Ordering으로 Deadlock 방지</strong></li>
+            </ul>
+            <h3>CS 원칙</h3>
+            <ul>
+                <li>Coffman Conditions (교착상태 4가지 필요조건)</li>
+                <li>Amdahl's Law (병렬화 한계)</li>
+            </ul>
+            <p><a href="file://docs/09_Deep_Dive_Textbook/01_Concurrency_and_Lock.md">전체 문서 보기</a></p>
+        </div>
+
+        <div class="chapter-section">
+            <h2 id="chapter-02">02. Memory Hierarchy and Cache (계층형 캐시)</h2>
+            <h3>핵심 주제</h3>
+            <ul>
+                <li><strong>Tiered Cache (L1: Caffeine, L2: Redis)</strong></li>
+                <li><strong>Cache Coherence (일관성 문제)</strong></li>
+                <li><strong>Cache Stampede 방지</strong></li>
+            </ul>
+            <h3>CS 원칙</h3>
+            <ul>
+                <li>Locality of Reference (참조의 지역성)</li>
+                <li>Belady's Optimal Algorithm</li>
+                <li>W-TinyLFU (Caffeine의 Eviction 정책)</li>
+            </ul>
+            <p><a href="file://docs/09_Deep_Dive_Textbook/02_Memory_Hierarchy_and_Cache.md">전체 문서 보기</a></p>
+        </div>
+
+        <div class="chapter-section">
+            <h2 id="chapter-03">03. Resilience Engineering (회복 탄력성)</h2>
+            <h3>핵심 주제</h3>
+            <ul>
+                <li><strong>Circuit Breaker (서킷 브레이커)</strong></li>
+                <li><strong>Bulkhead Pattern (자원 격리)</strong></li>
+                <li><strong>Fail-Fast 원칙</strong></li>
+            </ul>
+            <h3>CS 원칙</h3>
+            <ul>
+                <li>State Machine (CLOSED → OPEN → HALF_OPEN)</li>
+                <li>Resilience4j의 Sliding Window</li>
+            </ul>
+            <p><a href="file://docs/09_Deep_Dive_Textbook/03_Resilience_Engineering.md">전체 문서 보기</a></p>
+        </div>
+
+        <div class="chapter-section">
+            <h2 id="chapter-04">04. Database Internals and Batch (배치 INSERT)</h2>
+            <h3>핵심 주제</h3>
+            <ul>
+                <li><strong>JDBC Batch vs 단건 INSERT</strong></li>
+                <li><strong>TCP 패킷 크기와 MSS</strong></li>
+                <li><strong>Transactional Outbox Pattern</strong></li>
+            </ul>
+            <h3>CS 원칙</h3>
+            <ul>
+                <li>B-Tree Index와 페이지 단위 I/O</li>
+                <li>WAL (Write-Ahead Logging)</li>
+                <li>Undo/Redo Log와 트랜잭션 원자성</li>
+            </ul>
+            <p><a href="file://docs/09_Deep_Dive_Textbook/04_Database_Internals_and_Batch.md">전체 문서 보기</a></p>
+        </div>
+
+        <div class="chapter-section">
+            <h2 id="chapter-05">05. Asynchronous Programming (비동기 프로그래밍)</h2>
+            <h3>핵심 주제</h3>
+            <ul>
+                <li><strong>@Async vs Virtual Threads</strong></li>
+                <li><strong>ForkJoinPool Work-Stealing</strong></li>
+                <li><strong>CompletableFuture 조합</strong></li>
+            </ul>
+            <h3>CS 원칙</h3>
+            <ul>
+                <li>Context Switching 비용</li>
+                <li>Non-blocking I/O vs Blocking I/O</li>
+            </ul>
+            <p><a href="file://docs/09_Deep_Dive_Textbook/05_Asynchronous_Programming.md">전체 문서 보기</a></p>
+        </div>
+
+        <div class="chapter-section">
+            <h2 id="chapter-06">06. Design Patterns and Proxy (AOP & LogicExecutor)</h2>
+            <h3>핵심 주제</h3>
+            <ul>
+                <li><strong>Spring AOP의 Proxy 생성</strong></li>
+                <li><strong>LogicExecutor Template Method</strong></li>
+                <li><strong>Method Interceptor Chain</strong></li>
+            </ul>
+            <h3>CS 원칙</h3>
+            <ul>
+                <li>Proxy Pattern (JDK Dynamic Proxy vs CGLIB)</li>
+                <li>Template Method Pattern</li>
+                <li>Lambda와 익명 클래스의 메모리 차이</li>
+            </ul>
+            <p><a href="file://docs/09_Deep_Dive_Textbook/06_Design_Patterns_and_Proxy.md">전체 문서 보기</a></p>
+        </div>
+
+        <div class="chapter-section">
+            <h2 id="chapter-07">07. High Precision Computing (정밀 계산)</h2>
+            <h3>핵심 주제</h3>
+            <ul>
+                <li><strong>IEEE 754 부동소수점의 한계</strong></li>
+                <li><strong>Kahan Summation Algorithm</strong></li>
+                <li><strong>DP Table 메모리 최적화</strong></li>
+            </ul>
+            <h3>CS 원칙</h3>
+            <ul>
+                <li>Machine Epsilon (기계 엡실론)</li>
+                <li>Catastrophic Cancellation (재앙적 상쇄)</li>
+                <li>BigDecimal vs Double Trade-off</li>
+            </ul>
+            <p><a href="file://docs/09_Deep_Dive_Textbook/07_High_Precision_Computing.md">전체 문서 보기</a></p>
+        </div>
+
+        <div class="chapter-nav" style="background: #27ae60; margin-top: 60px;">
+            <h2 style="color: white; border: none; margin-top: 0;">🎉 Deep Dive Textbook 완성!</h2>
+            <p style="color: white; font-size: 1.1em;">
+                이 7권의 교재는 MapleExpectation의 핵심 모듈을 CS Professor와 Principal Engineer의 시각에서 분석한 것입니다.<br>
+                각 챕터는 5단계 Deep Dive를 수행하여, <strong>면접관 앞에서 1시간 동안 떠들 수 있는 수준</strong>의 깊이를 제공합니다.
+            </p>
+            <h3 style="color: white; margin-top: 20px;">📚 각 챕터의 5단계 구조</h3>
+            <ol style="color: white;">
+                <li><strong>The Problem (본질)</strong>: 우리는 무엇과 싸우고 있는가?</li>
+                <li><strong>The CS Principle (원리)</strong>: 이 코드는 무엇에 기반하는가?</li>
+                <li><strong>Internal Mechanics (내부)</strong>: Spring & Redis는 어떻게 동작하는가?</li>
+                <li><strong>Alternative & Trade-off (비판)</strong>: 왜 이 방법을 선택했는가?</li>
+                <li><strong>The Interview Defense (방어)</strong>: 100배 트래픽에서 어디가 먼저 터지는가?</li>
+            </ol>
+            <p style="color: white; margin-top: 20px;">
+                💡 <strong>팁</strong>: 이 문서들을 읽으면서 <strong>"아, 내가 짠 코드가 OS의 스케줄링 때문에 이런 문제가 생길 수도 있었구나"</strong>라고 깨닫는 순간,<br>
+                회원님은 '취준생'이 아니라 '주니어 엔지니어'를 넘어선 시야를 갖게 될 것입니다! 🔥
+            </p>
+        </div>
+    </div>
+</body>
+</html>
