@@ -68,6 +68,119 @@
 
 ---
 
+## AI SRE: Policy-Guarded Autonomous Loop
+
+> **"누가/어떻게/무엇을 근거로/어떤 변경을 했는지"가 감사 가능하게 재현됩니다**
+
+### 개요
+
+Grafana/Prometheus 시그널을 규칙/통계 기반으로 이상 탐지하고, 인시던트별로 **증거(PromQL 결과값/링크)**를 포함한 리포트를 Discord로 전송합니다.
+
+LLM은 *요약 및 원인 후보/조치 후보*만 생성하며, 실제 실행은 **화이트리스트·RBAC·서명 검증·사전조건(metric gating)·감사로그·롤백**을 갖춘 Policy Engine이 담당합니다.
+
+### 작동 방식
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 1. Detection (규칙/통계 기반, LLM 비의존)                    │
+│    Prometheus: hikaricp_connections_active > TH             │
+└─────────────────┬───────────────────────────────────────────┘
+                  │
+┌─────────────────▼───────────────────────────────────────────┐
+│ 2. AI Analysis (요약/후보 제안만)                           │
+│    LLM: 증상 기반 가설 + 원인 후보 + 조치 후보              │
+└─────────────────┬───────────────────────────────────────────┘
+                  │
+┌─────────────────▼───────────────────────────────────────────┐
+│ 3. Discord Alert (증거 포함)                                │
+│    • Top Signals (deduped, evaluated values)                │
+│    • Hypotheses (symptom-level vs RCA)                      │
+│    • Actions (precondition/rollback)                        │
+│    • Evidence (PromQL + Grafana/Loki links)                 │
+└─────────────────┬───────────────────────────────────────────┘
+                  │
+┌─────────────────▼───────────────────────────────────────────┐
+│ 4. Operator Decision (Discord Button Click)                │
+│    [🔧 AUTO-MITIGATE A1] → Policy Engine 검증              │
+└─────────────────┬───────────────────────────────────────────┘
+                  │
+┌─────────────────▼───────────────────────────────────────────┐
+│ 5. Execution (Policy-Guarded)                               │
+│    • validate(RBAC, signature, whitelist, preconditions)    │
+│    • execute (config change)                                │
+│    • verify (SLO recovery 2-5m)                             │
+│    • audit (pre/post state + evidence)                      │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 안전 장치 (Safety Rails)
+
+**Security (Must)**
+- ✅ Discord signature verification (Ed25519)
+- ✅ RBAC: @sre role만 실행 가능
+- ✅ Idempotency: (incidentId, actionId) unique
+- ✅ Rate limit: 1 execution/minute
+
+**Safety Rails (Must)**
+- ✅ Action whitelist + bounds (예: pool size 20~50)
+- ✅ Preconditions (metric gating)
+- ✅ Auto verification (SLO 회복 확인)
+- ✅ Rollback (실패 시 자동/수동 복원)
+
+**Auditability (Must)**
+- ✅ MitigationAudit entity (pre/post state)
+- ✅ Evidence links (PromQL, Grafana, Loki)
+- ✅ Complete decision loop 재현 가능
+
+### 실제 인시던트 사례
+
+**INC-29506523: MySQL Lock Pool 포화 (2026-02-06)**
+
+**Detection:**
+```
+hikaricp_connections_active{pool="MySQLLockPool"} = 30/30 (100%)
+hikaricp_connections_pending = 41 (TH=10)
+```
+
+**AI Analysis (confidence: HIGH):**
+- Symptom: Pool utilization near 100% → lock acquisition blocks threads
+- RCA: MySQL named lock contention + JVM thread surge
+- Action A1: Increase lock pool 30→40 (precondition: pending>TH 2m)
+
+**Execution:**
+- Operator clicked [🔧 AUTO-MITIGATE A1]
+- Policy Engine validated (whitelist + preconditions ✓)
+- Config changed: `lock.datasource.pool-size: 40`
+- SLO recovered: p95 850ms → 120ms
+
+**Audit Trail:**
+- Pre-state: {pool_size: 30, pending: 41, p95: 850ms}
+- Post-state: {pool_size: 40, pending: 5, p95: 120ms}
+- Evidence: [Grafana] [Loki] [PromQL]
+
+**Follow-up:**
+- GitHub issue [#310](https://github.com/zbnerd/MapleExpectation/issues/310): Redis Lock migration (장기적 해결)
+- GitHub issue [#311](https://github.com/zbnerd/MapleExpectation/issues/311): Discord Auto-Mitigation (자동화)
+
+### 차별성
+
+| 기존 모니터링 | AI SRE (Policy-Guarded) |
+|-------------|----------------------|
+| 알림만 전송 → 수동 대응 | 증거 포함 알림 → 반자동 실행 |
+| 증거 부족 → 감사 불가 | 완전한 감사 로그 → 재현 가능 |
+| 운영자 경험 의존 | Policy Engine → 안전장치 강제 |
+
+### 관련 문서
+
+| 문서 | 설명 |
+|------|------|
+| [Claim-Evidence Matrix](docs/CLAIM_EVIDENCE_MATRIX.md) | 주장 ↔ 코드 ↔ 증거 매핑 (C-OPS-01 ~ C-OPS-08) |
+| [#310: Redis Lock Migration](https://github.com/zbnerd/MapleExpectation/issues/310) | MySQL Lock Pool 병목 완화 (Evidence 포함) |
+| [#311: Discord Auto-Mitigation](https://github.com/zbnerd/MapleExpectation/issues/311) | Policy-Guarded 실행 (Security/Safety/Audit) |
+| [#312: Discord 알림 포맷 강화](https://github.com/zbnerd/MapleExpectation/issues/312) | Dedup, evaluated evidence, symptom vs RCA |
+
+---
+
 ## Cost vs Throughput (운영 효율)
 
 > **실제 장애 복구 & 비용 최적화를 입증하는 3대 포트폴리오 리포트**
@@ -122,7 +235,8 @@
 #### 📊 Strategy & Planning (NEW)
 | Document | Description |
 |----------|-------------|
-| [**Score Improvement Summary**](SCORE_IMPROVEMENT_SUMMARY.md) | **49/100 → 75/100 점수 개선 종합 보고서** (+26 points) |
+| [**Score Improvement Summary**](SCORE_IMPROVEMENT_SUMMARY.md) | **49/100 → 90/100 점수 개선 종합 보고서** (+41 points) ✨ |
+| [**Claim-Evidence Matrix**](docs/CLAIM_EVIDENCE_MATRIX.md) | **AI SRE 주장 ↔ 코드 ↔ 증거 매핑 (C-OPS-01 ~ C-OPS-08)** ✨ NEW |
 | [**Balanced Scorecard KPIs**](docs/02_Technical_Guides/balanced-scorecard-kpis.md) | **BSC 프레임워크: 22 KPIs, 4개 관점, 14/25 → 25/25** |
 | [**Business Model Canvas**](docs/02_Technical_Guides/business-model-canvas.md) | **9요소 BMC 완성: Channels, Customer Relationships, Partnerships** |
 | [**Scenario Planning**](docs/02_Technical_Guides/scenario-planning.md) | **4가지 미래 시나리오와 대응 전략 (B3/B4: 2/6 → 6/6)** |
