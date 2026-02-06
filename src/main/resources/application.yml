@@ -346,6 +346,14 @@ langchain4j:
       timeout: 30s
       log-requests: false
       log-responses: false
+  # Z.ai GLM-4.7 설정
+  glm-4:
+    chat-model:
+      base-url: https://api.z.ai/api/paas/v4
+      api-key: ${Z_AI_API_KEY}
+      model-name: glm-4.7
+      timeout: 60s
+      log-requests: true
 
 # AI SRE 설정
 ai:
@@ -354,6 +362,22 @@ ai:
     daily-limit: 100  # [P0-Green] 일일 LLM 호출 한도
     throttle-seconds: 60  # 동일 에러 패턴 스로틀링 간격
     max-concurrent-threads: 10  # Issue #283 P0-5: 동시 LLM 호출 최대 개수
+
+# 애플리케이션 모니터링 설정
+app:
+  monitoring:
+    grafana:
+      dashboards-path: ./grafana/dashboards
+    prometheus:
+      base-url: http://localhost:9090
+    discord:
+      webhook-url: ${DISCORD_WEBHOOK_URL}
+    interval-seconds: 15
+    query-range-seconds: 300
+    z-score:
+      enabled: true
+      window-points: 60
+      threshold: 3.0
 
 # Spring Batch 설정 - spring.batch는 상단 spring: 블록에 병합됨
 
