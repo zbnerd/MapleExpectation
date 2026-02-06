@@ -182,10 +182,70 @@ public class ResilientLockStrategy extends AbstractLockStrategy {
 - [x] Redis 장애 시 MySQL fallback 유지
   - `ResilientLockStrategy`: Tiered Fallback 구현 완료
 
-### Phase 3: Decommission MySQLLockPool (7일) 🔄 IN PROGRESS
-- [ ] MySQL Lock 관련 코드 제거 (7일 관찰 후 진행)
-- [ ] LockHikariConfig ConfigBean 제거
-- [ ] 관련 메트릭, 대시보드 정리
+### Phase 3: Decommission MySQLLockPool (7일) ⏸️ PENDING (7일 관찰 필요)
+
+#### 사전 조건 (Pre-Conditions)
+모든 항목 충족 시 진행:
+- [ ] **7일간 안정 운영 확인**
+  - [ ] Redis 장애 시 Fallback 정상 동작 (테스트 완료)
+  - [ ] MySQLLockPool utilization < 60% 유지 (p95)
+  - [ ] Lock 관련 장애 0건
+  - [ ] 데이터 일관성 위반 0건
+
+#### 제거 항목 (Decommission Checklist)
+- [ ] **MySQL Lock 코드 제거**
+  - [ ] `MySqlNamedLockStrategy.java` 제거
+  - [ ] `LockHikariConfig.java` 제거
+  - [ ] `LockOrderMetrics.java` 제거 (MySQL 전용)
+  - [ ] `@ConditionalOnBean(name = "lockJdbcTemplate")` 제거
+
+- [ ] **ConfigBean 정리**
+  - [ ] `LockHikariConfig` Bean 제거
+  - [ ] `lockJdbcTemplate` Bean 제거
+  - [ ] `lock.datasource.pool-size` 설정 제거
+
+- [ ] **메트릭 및 대시보드 정리**
+  - [ ] `lock.acquisition.failure.total{implementation=mysql}` 제거
+  - [ ] `lock.active.current{implementation=mysql}` 제거
+  - [ ] MySQLLockPool HikariCP MBean 제거
+  - [ ] Prometheus Alert 규칙에서 MySQL Lock 관련 항목 제거
+
+- [ ] **테스트 코드 정리**
+  - [ ] MySQL Lock 관련 테스트 케이스 제거
+  - [ ] `ResilientLockStrategyExceptionFilterTest`에서 MySQL mock 제거
+
+- [ ] **문서 업데이트**
+  - [ ] ADR-310 상태를 "Decommissioned"로 변경
+  - [ ] `lock-strategy.md`에서 MySQL Lock 섹션 제거 또는 보관
+  - [ ] Migration 완료 리포트 작성
+
+#### 운영 관찰 항목 (7일간 Monitoring)
+| 항목 | 기준 | 검증 방법 |
+|------|------|----------|
+| Redis Lock latency p95 | < 10ms | `lock.wait.time` 메트릭 |
+| Fallback 발생 횟수 | < 10회/일 | `lock.mysql.fallback.total` |
+| MySQLLockPool utilization | < 60% | `hikaricp_connections.active` |
+| Redis 장애 복구 | < 1분 | Chaos Test N02 |
+| 데이터 일관성 | 0건 위반 | Chaos Test N18 |
+
+#### 롤백 트리거 (Rollback Triggers)
+다음 조건 중 하나라도 발생 시 즉시 롤백:
+1. **성능 저하**: Redis Lock latency p95 > 100ms (1시간 지속)
+2. **Fallback 과다**: Fallback 발생률 > 10% (1시간 지속)
+3. **데이터 오염**: 데이터 일관성 위반 발생 (1건 이상)
+4. **리소스 포화**: MySQLLockPool utilization > 90% (30분 지속)
+
+#### 롤백 절차 (Emergency Rollback)
+```bash
+# 1분 내 MySQL로 전환
+kubectl set configmap global-config --from-literal=lock.impl=mysql
+
+# 서비스 상태 확인
+kubectl rollout status deployment/maple-expectation
+
+# 메트릭 확인
+curl -s http://localhost:8080/actuator/health | jq '.status'
+```
 
 ## 구현 완료 항목 (Implementation Summary)
 

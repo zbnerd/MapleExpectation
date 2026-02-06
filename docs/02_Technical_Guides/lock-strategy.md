@@ -2,10 +2,11 @@
 
 > **Issue #28**: Pessimistic Lock vs Atomic Update 선택 근거 및 도메인별 적용 기준
 >
-> **Last Updated:** 2026-02-05
+> **Last Updated:** 2026-02-06
 > **Applicable Versions:** Redisson 3.27.0, MySQL 8.0
-> **Documentation Version:** 1.0
+> **Documentation Version:** 1.1
 > **Production Status:** Active (Validated through P1 distributed lock issues)
+> **Migration Status**: Redis lock primary with feature flags (Phase 5 Complete)
 
 ## Executive Summary
 
@@ -29,12 +30,14 @@ This guide is based on **production lock contention analysis** and distributed s
 | **Pessimistic Lock** | JPA PESSIMISTIC_WRITE 기반 비관적 락 |
 
 ```
+```
 ┌─────────────────────────────────────────────────┐
 │           3-Tier Lock Architecture              │
 ├─────────────────────────────────────────────────┤
 │  Tier 1: Redis Distributed Lock (Redisson)      │
 │  ├─ 고성능, 저지연 (< 1ms)                      │
 │  ├─ Watchdog 모드 (자동 갱신)                   │
+│  ├─ Feature Flag 제어 (Toggling)                │
 │  └─ Circuit Breaker 보호                        │
 ├─────────────────────────────────────────────────┤
 │  Tier 2: MySQL Named Lock (Fallback)            │
@@ -47,6 +50,32 @@ This guide is based on **production lock contention analysis** and distributed s
 │  ├─ SKIP LOCKED: 분산 배치 처리                 │
 │  └─ @Version: 낙관적 락                         │
 └─────────────────────────────────────────────────┘
+```
+
+### Feature Flag 제어 시스템
+
+Redis lock 전략을 안전하게 제어하기 위한 Feature Flag 시스템을 도입했습니다.
+
+| Feature Flag | 기본값 | 제어 대상 | 목적 |
+|--------------|--------|----------|------|
+| `feature.lock.redis.enabled` | `true` | Redis 분산 락 | Redis lock 활성화/비활성화 |
+| `feature.lock.redis.circuit-breaker.enabled` | `true` | 서킷브레이커 | Redis 장애 자동 감지 |
+| `feature.lock.mysql-fallback.enabled` | `true` | MySQL Fallback | Redis 장애 시 자동 전환 |
+| `feature.lock.least-strict.enabled` | `false` | 완화된 락 | 장애 시 성능 우선 |
+
+**Configuration (`application.yml`):**
+```yaml
+feature:
+  lock:
+    redis:
+      enabled: true
+      circuit-breaker:
+        enabled: true
+    mysql-fallback:
+      enabled: true
+    least-strict:
+      enabled: false
+```
 ```
 
 ---
@@ -135,6 +164,32 @@ void incrementLikeCount(@Param("userIgn") String userIgn, @Param("count") Long c
 │  2. 스케줄러 → SKIP LOCKED으로 병렬 처리              │
 │  3. 실패 → DLQ 이동, 재처리 대기                      │
 └───────────────────────────────────────────────────────┘
+
+**Feature Flag 기반 분산 락 전환:**
+```java
+// ResilientLockStrategy.java
+public <T> T executeWithLock(String lockName, long waitTime, long leaseTime, Supplier<T> task) {
+    // Feature Flag 확인
+    boolean redisEnabled = featureFlagClient.isEnabled("feature.lock.redis.enabled");
+    boolean fallbackEnabled = featureFlagClient.isEnabled("feature.lock.mysql-fallback.enabled");
+
+    if (redisEnabled) {
+        // Redis 락 시도 (Circuit Breaker 보호)
+        try {
+            return redisStrategy.executeWithLock(lockName, waitTime, leaseTime, task);
+        } catch (CircuitBreakerOpenException e) {
+            if (fallbackEnabled) {
+                log.info("Redis lock circuit breaker open, falling back to MySQL: {}", lockName);
+                return mysqlStrategy.executeWithLock(lockName, waitTime, leaseTime, task);
+            }
+            throw new LockException("Redis lock unavailable and fallback disabled", e);
+        }
+    } else {
+        // Feature Flag 비활성화 시 MySQL로 직접 전환
+        return mysqlStrategy.executeWithLock(lockName, waitTime, leaseTime, task);
+    }
+}
+```
 ```
 
 **구현 코드**:
@@ -213,6 +268,26 @@ lockStrategy.executeWithLock("like-db-sync-lock", 0, 30, () -> {
 │ Redis Lock      │ ──────────> │ MySQL Named Lock│
 │ (Redisson RLock)│             │ (GET_LOCK)      │
 └─────────────────┘             └─────────────────┘
+```
+
+**Feature Flag 제어 추가:**
+```yaml
+# Redis lock 비활성화 시 MySQL로 전환
+feature:
+  lock:
+    redis:
+      enabled: false  # Redis 락 비활성화
+    mysql-fallback:
+      enabled: true   # MySQL Fallback 활성화
+```
+
+**Migration Metrics 확인:**
+```bash
+# Redis → MySQL 전환 비율 확인
+curl -s http://localhost:8080/actuator/metrics/lock.redis.fallback | jq '.measurements[].value'
+
+# Feature Flag 상태 확인
+curl -s http://localhost:8080/actuator/feature-flags | jq '.[].name, .[].enabled'
 ```
 
 **선택 사유**:
@@ -298,11 +373,70 @@ lockStrategy.executeWithLock("like-db-sync-lock", 0, 30, () -> {
 
 ---
 
+## Migration Guide
+
+### Redis Lock Migration Phase 5 (Completed)
+
+**Phase 5 목표**: Redis lock을 기본 구현으로 전환하고 Feature Flag 제어 시스템 도입
+
+**Migration 절차**:
+1. **사전 준비**:
+   - Feature Flag 시스템 검증
+   - Redis Fallback 메커니즘 검증
+   - 백업 프로시저 수립
+
+2. **단계별 전환**:
+   ```bash
+   # 1. Feature Flag로 점진적 전환
+   feature flag set feature.lock.redis.enabled true --percent 10
+
+   # 2. 24시간 모니터링
+   curl -s http://localhost:8080/actuator/metrics/lock.acquired | jq
+
+   # 3. 50% 트래픽 전환
+   feature flag set feature.lock.redis.enabled true --percent 50
+
+   # 4. 성능 검증
+   jmeter -n -t lock_performance_test.jmx -l results.jtl
+
+   # 5. 100% 전환
+   feature flag set feature.lock.redis.enabled true --percent 100
+   ```
+
+3. **검증 항목**:
+   - Lock 성능: < 1ms 지연시간
+   - Fallback 횟수: < 0.1%
+   - 중복 실행: 0 건
+
+**Verification Commands**:
+```bash
+# Migration 진행률 확인
+curl -s http://localhost:8080/actuator/feature-flags | jq
+
+# Redis lock 성능 모니터링
+curl -s http://localhost:8080/actuator/metrics/lock.acquired | jq
+curl -s http://localhost:8080/actuator/metrics/lock.latency | jq
+
+# Fallback 이벤트 모니터링
+curl -s http://localhost:8080/actuator/metrics/lock.fallback | jq
+```
+
+**Rollback Procedure**:
+```bash
+# Emergency rollback
+feature flag set feature.lock.redis.enabled false --percent 0
+feature flag set feature.lock.mysql-fallback.enabled true
+
+# 확인
+curl -s http://localhost:8080/actuator/metrics/lock.strategy | jq '.[] | select(.tag("strategy") == "mysql")'
+```
+
 ## 변경 이력
 
 | 일자 | 이슈 | 변경 내용 |
 |------|------|----------|
 | 2026-01-27 | #28 | 초기 문서 작성 |
+| 2026-02-06 | #310 Phase 5 | Redis lock primary + Feature Flag 시스템 도입 |
 
 ## Evidence Links
 - **LockStrategy Interface:** `src/main/java/maple/expectation/global/lock/LockStrategy.java` (Evidence: [CODE-LOCK-IFACE-001])
@@ -325,6 +459,9 @@ This guide would be invalidated if:
 # Lock Strategy 구현 확인
 find src/main/java -name "*LockStrategy.java"
 
+# Feature Flag 구현 확인
+find src/main/java -name "*FeatureFlag*.java"
+
 # SKIP LOCKED 사용 확인
 grep -r "SKIP LOCKED\|skipLocked" src/main/java --include="*.java"
 
@@ -333,6 +470,10 @@ grep -r "@Lock.*PESSIMISTIC" src/main/java --include="*.java"
 
 # Redis Lock Metrics 확인
 curl -s http://localhost:8080/actuator/metrics/lock.acquired | jq
+curl -s http://localhost:8080/actuator/metrics/lock.redis.fallback | jq
+
+# Circuit Breaker 상태 확인
+curl -s http://localhost:8080/actuator/circuitbreakers | jq
 ```
 
 ### Related Evidence
