@@ -27,7 +27,7 @@ scrape_configs:
         labels:
           application: 'maple-expectation'
           environment: '${ENVIRONMENT:local}'
-    scrape_timeout: 10s
+    scrape_timeout: 3s
 
   # ============================================
   # Spring Boot Actuator
@@ -37,7 +37,7 @@ scrape_configs:
     metrics_path: '/actuator'
     static_configs:
       - targets: ['maple-expectation:8080']
-    scrape_timeout: 10s
+    scrape_timeout: 3s
 
   # ============================================
   # Node Exporter - System Metrics
