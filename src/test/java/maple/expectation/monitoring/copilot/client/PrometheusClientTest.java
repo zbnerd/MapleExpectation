@@ -44,6 +44,7 @@ class PrometheusClientTest {
         assertEquals(now.getEpochSecond(), valuePoint.timestamp());
         assertEquals("1.0", valuePoint.value());
         assertEquals(1.0, valuePoint.getValueAsDouble(), 0.001);
-        assertEquals(now, valuePoint.getTimestampAsInstant());
+        // ValuePoint only stores epoch seconds, so compare with second precision
+        assertEquals(Instant.ofEpochSecond(now.getEpochSecond()), valuePoint.getTimestampAsInstant());
     }
 }

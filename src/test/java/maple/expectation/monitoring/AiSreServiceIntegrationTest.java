@@ -3,6 +3,7 @@ package maple.expectation.monitoring;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.ExpectationApplication;
 import maple.expectation.monitoring.ai.AiSreService;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -18,6 +19,7 @@ import java.util.concurrent.CompletableFuture;
  * <p>실제 디스코드 웹훅과 Z.ai API를 사용하는 통합 테스트</p>
  */
 @Slf4j
+@Tag("integration")
 @SpringBootTest(classes = ExpectationApplication.class)
 @ActiveProfiles("local")
 public class AiSreServiceIntegrationTest {
