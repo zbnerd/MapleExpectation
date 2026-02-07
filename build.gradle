@@ -131,6 +131,14 @@ bootRun {
 boolean isCiServer = System.getenv().containsKey("CI")
 
 test {
+    // 테스트 힙 크기 설정 (Issue #312: OutOfMemoryError 방지)
+    jvmArgs = [
+        '-Xms512m',
+        '-Xmx2048m',
+        '-XX:+UseG1GC',
+        '-XX:MaxMetaspaceSize=512m'
+    ]
+
     useJUnitPlatform {
         // @Tag 기반 테스트 필터링
         // ./gradlew test -PfastTest → CI Gate (chaos, nightmare, slow 제외 → 1-2분)
