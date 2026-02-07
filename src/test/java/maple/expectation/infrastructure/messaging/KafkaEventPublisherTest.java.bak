@@ -1,0 +1,147 @@
+package maple.expectation.infrastructure.messaging;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import maple.expectation.domain.event.IntegrationEvent;
+import maple.expectation.global.error.exception.QueuePublishException;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.support.SendResult;
+import org.springframework.util.concurrent.SettableListenableFuture;
+
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+
+/**
+ * Unit tests for {@link KafkaEventPublisher}.
+ *
+ * <p><strong>Test Coverage:</strong>
+ * <ul>
+ *   <li>Successful synchronous publish</li>
+ *   <li>Successful asynchronous publish with CompletableFuture</li>
+ *   <li>Publish failure throws QueuePublishException</li>
+ *   <li>Serialization failure throws QueuePublishException</li>
+ * </ul>
+ */
+@ExtendWith(MockitoExtension.class)
+@DisplayName("KafkaEventPublisher Tests")
+class KafkaEventPublisherTest {
+
+  @Mock
+  private KafkaTemplate<String, String> kafkaTemplate;
+
+  private ObjectMapper objectMapper;
+  private KafkaEventPublisher publisher;
+
+  @BeforeEach
+  void setUp() {
+    objectMapper = new ObjectMapper();
+    publisher = new KafkaEventPublisher(kafkaTemplate, objectMapper);
+  }
+
+  @Test
+  @DisplayName("publish() should serialize event and send to Kafka")
+  void testPublish_Success() {
+    // Given
+    String topic = "test-topic";
+    IntegrationEvent<String> event = IntegrationEvent.of("TEST_EVENT", "payload");
+
+    SettableListenableFuture<SendResult<String, String>> future = new SettableListenableFuture<>();
+    future.set(new SendResult<>(null, null, null));  // Mock success
+    when(kafkaTemplate.send(anyString(), anyString(), anyString()))
+        .thenReturn(future);
+
+    // When
+    publisher.publish(topic, event);
+
+    // Then
+    verify(kafkaTemplate).send(eq(topic), eq(event.getEventId()), anyString());
+  }
+
+  @Test
+  @DisplayName("publish() should throw QueuePublishException on Kafka failure")
+  void testPublish_KafkaFailure() {
+    // Given
+    String topic = "test-topic";
+    IntegrationEvent<String> event = IntegrationEvent.of("TEST_EVENT", "payload");
+
+    SettableListenableFuture<SendResult<String, String>> future = new SettableListenableFuture<>();
+    future.setException(new RuntimeException("Kafka broker unavailable"));
+
+    when(kafkaTemplate.send(anyString(), anyString(), anyString()))
+        .thenReturn(future);
+
+    // When & Then
+    assertThrows(QueuePublishException.class, () -> publisher.publish(topic, event));
+  }
+
+  @Test
+  @DisplayName("publishAsync() should use KafkaTemplate's CompletableFuture")
+  void testPublishAsync_Success() throws Exception {
+    // Given
+    String topic = "test-topic";
+    IntegrationEvent<String> event = IntegrationEvent.of("TEST_EVENT", "payload");
+
+    SettableListenableFuture<SendResult<String, String>> future = new SettableListenableFuture<>();
+    future.set(new SendResult<>(null, null, null));
+
+    when(kafkaTemplate.send(anyString(), anyString(), anyString()))
+        .thenReturn(future);
+
+    // When
+    var result = publisher.publishAsync(topic, event);
+
+    // Then
+    assertNotNull(result);
+    result.join();  // Should complete successfully
+    verify(kafkaTemplate).send(eq(topic), eq(event.getEventId()), anyString());
+  }
+
+  @Test
+  @DisplayName("publishAsync() should complete exceptionally on failure")
+  void testPublishAsync_Failure() {
+    // Given
+    String topic = "test-topic";
+    IntegrationEvent<String> event = IntegrationEvent.of("TEST_EVENT", "payload");
+
+    SettableListenableFuture<SendResult<String, String>> future = new SettableListenableFuture<>();
+    future.setException(new RuntimeException("Kafka broker unavailable"));
+
+    when(kafkaTemplate.send(anyString(), anyString(), anyString()))
+        .thenReturn(future);
+
+    // When
+    var result = publisher.publishAsync(topic, event);
+
+    // Then
+    assertThrows(QueuePublishException.class, result::join);
+  }
+
+  @Test
+  @DisplayName("publish() should throw QueuePublishException on serialization failure")
+  void testPublish_SerializationFailure() {
+    // Given
+    String topic = "test-topic";
+
+    // Create event with payload that can't be serialized (e.g., cyclic dependency)
+    class CyclicPayload {
+      CyclicPayload self;
+      CyclicPayload() { this.self = this; }
+    }
+    IntegrationEvent<CyclicPayload> event = IntegrationEvent.of(
+        "TEST_EVENT",
+        new CyclicPayload()
+    );
+
+    // When & Then
+    assertThrows(QueuePublishException.class, () -> publisher.publish(topic, event));
+    // KafkaTemplate.send should not be called
+    verify(kafkaTemplate, never()).send(anyString(), anyString(), anyString());
+  }
+}
