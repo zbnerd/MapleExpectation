@@ -5,6 +5,7 @@ import io.micrometer.core.instrument.Counter.Builder;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
+import jakarta.annotation.PostConstruct;
 import java.util.concurrent.atomic.AtomicLong;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -63,6 +64,7 @@ public class AclPipelineMetrics {
    * Initialize metrics on component startup.
    * Called by Spring after dependency injection.
    */
+  @PostConstruct
   public void init() {
     // NexonDataCollector metrics
     this.apiCallCounter = Counter.builder("acl_collector_api_calls_total")
