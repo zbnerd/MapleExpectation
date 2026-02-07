@@ -2,21 +2,21 @@ package maple.expectation.monitoring.collector;
 
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 /**
  * Database 메트릭 수집기 (Issue #251)
  *
  * <h3>수집 항목</h3>
+ *
  * <ul>
- *   <li>HikariCP 커넥션 풀 상태</li>
- *   <li>커넥션 획득 대기 시간</li>
- *   <li>활성/유휴 커넥션 수</li>
+ *   <li>HikariCP 커넥션 풀 상태
+ *   <li>커넥션 획득 대기 시간
+ *   <li>활성/유휴 커넥션 수
  * </ul>
  *
  * @see MetricsCollectorStrategy
@@ -26,96 +26,96 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class DatabaseMetricsCollector implements MetricsCollectorStrategy {
 
-    private final MeterRegistry meterRegistry;
+  private final MeterRegistry meterRegistry;
 
-    @Override
-    public String getCategoryName() {
-        return MetricCategory.DATABASE.getKey();
+  @Override
+  public String getCategoryName() {
+    return MetricCategory.DATABASE.getKey();
+  }
+
+  @Override
+  public Map<String, Object> collect() {
+    Map<String, Object> metrics = new LinkedHashMap<>();
+
+    // HikariCP Connection Pool
+    collectHikariMetrics(metrics);
+
+    return metrics;
+  }
+
+  @Override
+  public boolean supports(MetricCategory category) {
+    return MetricCategory.DATABASE == category;
+  }
+
+  @Override
+  public int getOrder() {
+    return 4;
+  }
+
+  private void collectHikariMetrics(Map<String, Object> metrics) {
+    // 활성 커넥션
+    Gauge active = meterRegistry.find("hikaricp.connections.active").gauge();
+    if (active != null) {
+      metrics.put("connections_active", (int) active.value());
     }
 
-    @Override
-    public Map<String, Object> collect() {
-        Map<String, Object> metrics = new LinkedHashMap<>();
-
-        // HikariCP Connection Pool
-        collectHikariMetrics(metrics);
-
-        return metrics;
+    // 유휴 커넥션
+    Gauge idle = meterRegistry.find("hikaricp.connections.idle").gauge();
+    if (idle != null) {
+      metrics.put("connections_idle", (int) idle.value());
     }
 
-    @Override
-    public boolean supports(MetricCategory category) {
-        return MetricCategory.DATABASE == category;
+    // 최대 커넥션
+    Gauge max = meterRegistry.find("hikaricp.connections.max").gauge();
+    if (max != null) {
+      metrics.put("connections_max", (int) max.value());
     }
 
-    @Override
-    public int getOrder() {
-        return 4;
+    // 대기 중인 스레드
+    Gauge pending = meterRegistry.find("hikaricp.connections.pending").gauge();
+    if (pending != null) {
+      metrics.put("connections_pending", (int) pending.value());
     }
 
-    private void collectHikariMetrics(Map<String, Object> metrics) {
-        // 활성 커넥션
-        Gauge active = meterRegistry.find("hikaricp.connections.active")
-                .gauge();
-        if (active != null) {
-            metrics.put("connections_active", (int) active.value());
-        }
-
-        // 유휴 커넥션
-        Gauge idle = meterRegistry.find("hikaricp.connections.idle")
-                .gauge();
-        if (idle != null) {
-            metrics.put("connections_idle", (int) idle.value());
-        }
-
-        // 최대 커넥션
-        Gauge max = meterRegistry.find("hikaricp.connections.max")
-                .gauge();
-        if (max != null) {
-            metrics.put("connections_max", (int) max.value());
-        }
-
-        // 대기 중인 스레드
-        Gauge pending = meterRegistry.find("hikaricp.connections.pending")
-                .gauge();
-        if (pending != null) {
-            metrics.put("connections_pending", (int) pending.value());
-        }
-
-        // 커넥션 획득 시간
-        var acquireTimer = meterRegistry.find("hikaricp.connections.acquire")
-                .timer();
-        if (acquireTimer != null) {
-            metrics.put("acquire_mean_ms", formatDouble(acquireTimer.mean(java.util.concurrent.TimeUnit.MILLISECONDS)));
-            metrics.put("acquire_max_ms", formatDouble(acquireTimer.max(java.util.concurrent.TimeUnit.MILLISECONDS)));
-        }
-
-        // 커넥션 사용 시간
-        var usageTimer = meterRegistry.find("hikaricp.connections.usage")
-                .timer();
-        if (usageTimer != null) {
-            metrics.put("usage_mean_ms", formatDouble(usageTimer.mean(java.util.concurrent.TimeUnit.MILLISECONDS)));
-            metrics.put("usage_max_ms", formatDouble(usageTimer.max(java.util.concurrent.TimeUnit.MILLISECONDS)));
-        }
-
-        // 타임아웃 카운트
-        var timeoutCounter = meterRegistry.find("hikaricp.connections.timeout")
-                .counter();
-        if (timeoutCounter != null) {
-            metrics.put("timeout_count", (long) timeoutCounter.count());
-        }
-
-        // 포화도 계산
-        if (active != null && max != null && max.value() > 0) {
-            double saturation = (active.value() / max.value()) * 100;
-            metrics.put("saturation_percent", formatDouble(saturation));
-        }
+    // 커넥션 획득 시간
+    var acquireTimer = meterRegistry.find("hikaricp.connections.acquire").timer();
+    if (acquireTimer != null) {
+      metrics.put(
+          "acquire_mean_ms",
+          formatDouble(acquireTimer.mean(java.util.concurrent.TimeUnit.MILLISECONDS)));
+      metrics.put(
+          "acquire_max_ms",
+          formatDouble(acquireTimer.max(java.util.concurrent.TimeUnit.MILLISECONDS)));
     }
 
-    private double formatDouble(double value) {
-        if (Double.isNaN(value) || Double.isInfinite(value)) {
-            return 0.0;
-        }
-        return Math.round(value * 100.0) / 100.0;
+    // 커넥션 사용 시간
+    var usageTimer = meterRegistry.find("hikaricp.connections.usage").timer();
+    if (usageTimer != null) {
+      metrics.put(
+          "usage_mean_ms",
+          formatDouble(usageTimer.mean(java.util.concurrent.TimeUnit.MILLISECONDS)));
+      metrics.put(
+          "usage_max_ms", formatDouble(usageTimer.max(java.util.concurrent.TimeUnit.MILLISECONDS)));
     }
+
+    // 타임아웃 카운트
+    var timeoutCounter = meterRegistry.find("hikaricp.connections.timeout").counter();
+    if (timeoutCounter != null) {
+      metrics.put("timeout_count", (long) timeoutCounter.count());
+    }
+
+    // 포화도 계산
+    if (active != null && max != null && max.value() > 0) {
+      double saturation = (active.value() / max.value()) * 100;
+      metrics.put("saturation_percent", formatDouble(saturation));
+    }
+  }
+
+  private double formatDouble(double value) {
+    if (Double.isNaN(value) || Double.isInfinite(value)) {
+      return 0.0;
+    }
+    return Math.round(value * 100.0) / 100.0;
+  }
 }

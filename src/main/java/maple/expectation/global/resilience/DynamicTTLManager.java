@@ -3,6 +3,10 @@ package maple.expectation.global.resilience;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import jakarta.annotation.PostConstruct;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.event.MySQLDownEvent;
@@ -22,27 +26,24 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-
 /**
  * Dynamic TTL Manager (Issue #218)
  *
- * <p>MySQL 장애 시 Redis 캐시 TTL을 동적으로 관리합니다.</p>
+ * <p>MySQL 장애 시 Redis 캐시 TTL을 동적으로 관리합니다.
  *
  * <h4>동작 흐름</h4>
+ *
  * <ol>
- *   <li>MySQL DOWN 감지 → 분산 락 획득 → 대상 캐시 TTL 제거 (PERSIST)</li>
- *   <li>MySQL UP 감지 → 분산 락 획득 → CacheConfig 기반 TTL 복원 (EXPIRE)</li>
+ *   <li>MySQL DOWN 감지 → 분산 락 획득 → 대상 캐시 TTL 제거 (PERSIST)
+ *   <li>MySQL UP 감지 → 분산 락 획득 → CacheConfig 기반 TTL 복원 (EXPIRE)
  * </ol>
  *
  * <h4>Stateless 설계 (P1-3)</h4>
+ *
  * <ul>
- *   <li>TTL 백업은 Redis Hash 대신 CacheConfig 설정 기반 복원</li>
- *   <li>equipment:* → 10분 (CacheConfig L2 설정)</li>
- *   <li>ocidCache:* → 60분 (CacheConfig L2 설정)</li>
+ *   <li>TTL 백업은 Redis Hash 대신 CacheConfig 설정 기반 복원
+ *   <li>equipment:* → 10분 (CacheConfig L2 설정)
+ *   <li>ocidCache:* → 60분 (CacheConfig L2 설정)
  * </ul>
  */
 @Slf4j
@@ -50,227 +51,240 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class DynamicTTLManager {
 
-    /**
-     * CacheConfig 기반 TTL 설정 (P1-3: 메모리 절약)
-     *
-     * <p>Redis Hash 백업 대신 설정 기반 복원으로 메모리 사용량 감소</p>
-     */
-    private static final Map<String, Duration> CACHE_TTL_CONFIG = Map.of(
-            "equipment", Duration.ofMinutes(10),
-            "ocidCache", Duration.ofMinutes(60)
-    );
+  /**
+   * CacheConfig 기반 TTL 설정 (P1-3: 메모리 절약)
+   *
+   * <p>Redis Hash 백업 대신 설정 기반 복원으로 메모리 사용량 감소
+   */
+  private static final Map<String, Duration> CACHE_TTL_CONFIG =
+      Map.of(
+          "equipment", Duration.ofMinutes(10),
+          "ocidCache", Duration.ofMinutes(60));
 
-    private final RedissonClient redissonClient;
-    private final StringRedisTemplate redisTemplate;
-    private final MySQLFallbackProperties properties;
-    private final LogicExecutor executor;
-    private final MeterRegistry meterRegistry;
-    private final LockStrategy lockStrategy;
+  private final RedissonClient redissonClient;
+  private final StringRedisTemplate redisTemplate;
+  private final MySQLFallbackProperties properties;
+  private final LogicExecutor executor;
+  private final MeterRegistry meterRegistry;
+  private final LockStrategy lockStrategy;
 
-    @PostConstruct
-    public void init() {
-        log.info("[DynamicTTL] 초기화 완료. 대상 캐시 패턴: {}", properties.getTargetCachePatterns());
+  @PostConstruct
+  public void init() {
+    log.info("[DynamicTTL] 초기화 완료. 대상 캐시 패턴: {}", properties.getTargetCachePatterns());
+  }
+
+  /**
+   * MySQL DOWN 이벤트 처리 (P0-N4: @Async + @EventListener)
+   *
+   * <p>분산 락을 획득한 후 대상 캐시의 TTL을 제거합니다.
+   */
+  @Async
+  @EventListener
+  public void onMySQLDown(MySQLDownEvent event) {
+    TaskContext context = TaskContext.of("Resilience", "OnMySQLDown", event.circuitBreakerName());
+    executor.executeOrDefault(
+        () -> {
+          log.warn("[DynamicTTL] MySQL DOWN 이벤트 수신: {}", event);
+
+          return lockStrategy.executeWithLock(
+              properties.getTtlLockKey(),
+              0,
+              properties.getLockLeaseSeconds(),
+              () -> {
+                extendAllCacheTTL();
+                return null;
+              });
+        },
+        null,
+        context);
+  }
+
+  /**
+   * MySQL UP 이벤트 처리 (P0-N4: @Async + @EventListener)
+   *
+   * <p>분산 락을 획득한 후 대상 캐시의 TTL을 복원합니다.
+   */
+  @Async
+  @EventListener
+  public void onMySQLUp(MySQLUpEvent event) {
+    TaskContext context = TaskContext.of("Resilience", "OnMySQLUp", event.circuitBreakerName());
+    executor.executeOrDefault(
+        () -> {
+          log.info("[DynamicTTL] MySQL UP 이벤트 수신: {}", event);
+
+          return lockStrategy.executeWithLock(
+              properties.getTtlLockKey(),
+              0,
+              properties.getLockLeaseSeconds(),
+              () -> {
+                restoreAllCacheTTL();
+                return null;
+              });
+        },
+        null,
+        context);
+  }
+
+  /**
+   * 대상 캐시 TTL 제거 (PERSIST)
+   *
+   * <p>MySQL 장애 시 캐시가 만료되지 않도록 TTL을 제거합니다.
+   */
+  private void extendAllCacheTTL() {
+    int totalKeys = 0;
+    for (String pattern : properties.getTargetCachePatterns()) {
+      List<String> keys = scanKeys(pattern);
+      log.info("[DynamicTTL] TTL 제거 대상 키 수: {} (패턴: {})", keys.size(), pattern);
+
+      // 메트릭 기록 (P1-N4)
+      meterRegistry.gauge(
+          "mysql.ttl.scan.keys",
+          Tags.of("action", "persist", "pattern", extractCacheName(pattern)),
+          keys.size());
+
+      if (keys.isEmpty()) {
+        continue;
+      }
+
+      totalKeys += keys.size();
+      // RBatch로 비동기 일괄 처리 (P0-1: Fire-and-Forget)
+      executePersistBatch(keys);
     }
 
-    /**
-     * MySQL DOWN 이벤트 처리 (P0-N4: @Async + @EventListener)
-     *
-     * <p>분산 락을 획득한 후 대상 캐시의 TTL을 제거합니다.</p>
-     */
-    @Async
-    @EventListener
-    public void onMySQLDown(MySQLDownEvent event) {
-        TaskContext context = TaskContext.of("Resilience", "OnMySQLDown", event.circuitBreakerName());
-        executor.executeOrDefault(() -> {
-            log.warn("[DynamicTTL] MySQL DOWN 이벤트 수신: {}", event);
+    meterRegistry.counter("mysql.ttl.extended").increment(totalKeys);
+    log.info("[DynamicTTL] 모든 대상 캐시 TTL 제거 완료: {} 키", totalKeys);
+  }
 
-            return lockStrategy.executeWithLock(
-                    properties.getTtlLockKey(),
-                    0,
-                    properties.getLockLeaseSeconds(),
-                    () -> {
-                        extendAllCacheTTL();
-                        return null;
-                    }
-            );
-        }, null, context);
+  /**
+   * 대상 캐시 TTL 복원 (EXPIRE)
+   *
+   * <p>MySQL 복구 시 CacheConfig 기반으로 TTL을 복원합니다.
+   */
+  private void restoreAllCacheTTL() {
+    int totalKeys = 0;
+    for (String pattern : properties.getTargetCachePatterns()) {
+      List<String> keys = scanKeys(pattern);
+      log.info("[DynamicTTL] TTL 복원 대상 키 수: {} (패턴: {})", keys.size(), pattern);
+
+      // 메트릭 기록 (P1-N4)
+      String cacheName = extractCacheName(pattern);
+      meterRegistry.gauge(
+          "mysql.ttl.scan.keys", Tags.of("action", "restore", "pattern", cacheName), keys.size());
+
+      if (keys.isEmpty()) {
+        continue;
+      }
+
+      totalKeys += keys.size();
+      Duration ttl = CACHE_TTL_CONFIG.getOrDefault(cacheName, Duration.ofMinutes(15));
+
+      // RBatch로 비동기 일괄 처리
+      executeExpireBatch(keys, ttl);
     }
 
-    /**
-     * MySQL UP 이벤트 처리 (P0-N4: @Async + @EventListener)
-     *
-     * <p>분산 락을 획득한 후 대상 캐시의 TTL을 복원합니다.</p>
-     */
-    @Async
-    @EventListener
-    public void onMySQLUp(MySQLUpEvent event) {
-        TaskContext context = TaskContext.of("Resilience", "OnMySQLUp", event.circuitBreakerName());
-        executor.executeOrDefault(() -> {
-            log.info("[DynamicTTL] MySQL UP 이벤트 수신: {}", event);
+    meterRegistry.counter("mysql.ttl.restored").increment(totalKeys);
+    log.info("[DynamicTTL] 모든 대상 캐시 TTL 복원 완료: {} 키", totalKeys);
+  }
 
-            return lockStrategy.executeWithLock(
-                    properties.getTtlLockKey(),
-                    0,
-                    properties.getLockLeaseSeconds(),
-                    () -> {
-                        restoreAllCacheTTL();
-                        return null;
-                    }
-            );
-        }, null, context);
-    }
+  /**
+   * SCAN 명령으로 키 조회 (P0-N2: COUNT 1000 필수)
+   *
+   * <p>KEYS 명령 대신 SCAN을 사용하여 Redis 블로킹을 방지합니다.
+   */
+  private List<String> scanKeys(String pattern) {
+    List<String> keys = new ArrayList<>();
 
+    redisTemplate.execute(
+        (RedisCallback<Void>)
+            connection -> {
+              ScanOptions options =
+                  ScanOptions.scanOptions().match(pattern).count(properties.getScanCount()).build();
 
-    /**
-     * 대상 캐시 TTL 제거 (PERSIST)
-     *
-     * <p>MySQL 장애 시 캐시가 만료되지 않도록 TTL을 제거합니다.</p>
-     */
-    private void extendAllCacheTTL() {
-        int totalKeys = 0;
-        for (String pattern : properties.getTargetCachePatterns()) {
-            List<String> keys = scanKeys(pattern);
-            log.info("[DynamicTTL] TTL 제거 대상 키 수: {} (패턴: {})", keys.size(), pattern);
-
-            // 메트릭 기록 (P1-N4)
-            meterRegistry.gauge("mysql.ttl.scan.keys",
-                    Tags.of("action", "persist", "pattern", extractCacheName(pattern)),
-                    keys.size());
-
-            if (keys.isEmpty()) {
-                continue;
-            }
-
-            totalKeys += keys.size();
-            // RBatch로 비동기 일괄 처리 (P0-1: Fire-and-Forget)
-            executePersistBatch(keys);
-        }
-
-        meterRegistry.counter("mysql.ttl.extended").increment(totalKeys);
-        log.info("[DynamicTTL] 모든 대상 캐시 TTL 제거 완료: {} 키", totalKeys);
-    }
-
-    /**
-     * 대상 캐시 TTL 복원 (EXPIRE)
-     *
-     * <p>MySQL 복구 시 CacheConfig 기반으로 TTL을 복원합니다.</p>
-     */
-    private void restoreAllCacheTTL() {
-        int totalKeys = 0;
-        for (String pattern : properties.getTargetCachePatterns()) {
-            List<String> keys = scanKeys(pattern);
-            log.info("[DynamicTTL] TTL 복원 대상 키 수: {} (패턴: {})", keys.size(), pattern);
-
-            // 메트릭 기록 (P1-N4)
-            String cacheName = extractCacheName(pattern);
-            meterRegistry.gauge("mysql.ttl.scan.keys",
-                    Tags.of("action", "restore", "pattern", cacheName),
-                    keys.size());
-
-            if (keys.isEmpty()) {
-                continue;
-            }
-
-            totalKeys += keys.size();
-            Duration ttl = CACHE_TTL_CONFIG.getOrDefault(cacheName, Duration.ofMinutes(15));
-
-            // RBatch로 비동기 일괄 처리
-            executeExpireBatch(keys, ttl);
-        }
-
-        meterRegistry.counter("mysql.ttl.restored").increment(totalKeys);
-        log.info("[DynamicTTL] 모든 대상 캐시 TTL 복원 완료: {} 키", totalKeys);
-    }
-
-    /**
-     * SCAN 명령으로 키 조회 (P0-N2: COUNT 1000 필수)
-     *
-     * <p>KEYS 명령 대신 SCAN을 사용하여 Redis 블로킹을 방지합니다.</p>
-     */
-    private List<String> scanKeys(String pattern) {
-        List<String> keys = new ArrayList<>();
-
-        redisTemplate.execute((RedisCallback<Void>) connection -> {
-            ScanOptions options = ScanOptions.scanOptions()
-                    .match(pattern)
-                    .count(properties.getScanCount())
-                    .build();
-
-            try (Cursor<byte[]> cursor = connection.keyCommands().scan(options)) {
+              try (Cursor<byte[]> cursor = connection.keyCommands().scan(options)) {
                 while (cursor.hasNext()) {
-                    keys.add(new String(cursor.next()));
+                  keys.add(new String(cursor.next()));
                 }
-            }
-            return null;
-        });
+              }
+              return null;
+            });
 
-        return keys;
+    return keys;
+  }
+
+  /**
+   * RBatch PERSIST 실행 (TTL 제거)
+   *
+   * <p>P0-N3: Double Failure (Redis 장애) 시 Graceful Degradation
+   */
+  private void executePersistBatch(List<String> keys) {
+    RBatch batch = redissonClient.createBatch(BatchOptions.defaults());
+
+    for (String key : keys) {
+      batch.getBucket(key, StringCodec.INSTANCE).remainTimeToLiveAsync();
+      // PERSIST 명령 (TTL 제거)
+      batch.getKeys().clearExpireAsync(key);
     }
 
-    /**
-     * RBatch PERSIST 실행 (TTL 제거)
-     *
-     * <p>P0-N3: Double Failure (Redis 장애) 시 Graceful Degradation</p>
-     */
-    private void executePersistBatch(List<String> keys) {
-        RBatch batch = redissonClient.createBatch(BatchOptions.defaults());
+    // 비동기 실행 (Fire-and-Forget 패턴)
+    batch
+        .executeAsync()
+        .thenAccept(
+            results -> {
+              log.debug("[DynamicTTL] PERSIST 배치 완료: {} 키", keys.size());
+              meterRegistry
+                  .counter("mysql.ttl.batch.success", Tags.of("action", "persist"))
+                  .increment();
+            })
+        .exceptionally(
+            ex -> {
+              log.error("[DynamicTTL] PERSIST 배치 실패 (P0-N3: Double Failure 가능성)", ex);
+              meterRegistry
+                  .counter("mysql.ttl.batch.failures", Tags.of("action", "persist"))
+                  .increment(keys.size());
+              meterRegistry.counter("mysql.double_failure.count").increment();
+              return null;
+            });
+  }
 
-        for (String key : keys) {
-            batch.getBucket(key, StringCodec.INSTANCE).remainTimeToLiveAsync();
-            // PERSIST 명령 (TTL 제거)
-            batch.getKeys().clearExpireAsync(key);
-        }
+  /**
+   * RBatch EXPIRE 실행 (TTL 복원)
+   *
+   * <p>P0-N3: Double Failure (Redis 장애) 시 Graceful Degradation
+   */
+  private void executeExpireBatch(List<String> keys, Duration ttl) {
+    RBatch batch = redissonClient.createBatch(BatchOptions.defaults());
 
-        // 비동기 실행 (Fire-and-Forget 패턴)
-        batch.executeAsync()
-                .thenAccept(results -> {
-                    log.debug("[DynamicTTL] PERSIST 배치 완료: {} 키", keys.size());
-                    meterRegistry.counter("mysql.ttl.batch.success", Tags.of("action", "persist"))
-                            .increment();
-                })
-                .exceptionally(ex -> {
-                    log.error("[DynamicTTL] PERSIST 배치 실패 (P0-N3: Double Failure 가능성)", ex);
-                    meterRegistry.counter("mysql.ttl.batch.failures", Tags.of("action", "persist"))
-                            .increment(keys.size());
-                    meterRegistry.counter("mysql.double_failure.count").increment();
-                    return null;
-                });
+    for (String key : keys) {
+      batch.getBucket(key, StringCodec.INSTANCE).expireAsync(ttl);
     }
 
-    /**
-     * RBatch EXPIRE 실행 (TTL 복원)
-     *
-     * <p>P0-N3: Double Failure (Redis 장애) 시 Graceful Degradation</p>
-     */
-    private void executeExpireBatch(List<String> keys, Duration ttl) {
-        RBatch batch = redissonClient.createBatch(BatchOptions.defaults());
+    // 비동기 실행
+    batch
+        .executeAsync()
+        .thenAccept(
+            results -> {
+              log.debug("[DynamicTTL] EXPIRE 배치 완료: {} 키, TTL: {}", keys.size(), ttl);
+              meterRegistry
+                  .counter("mysql.ttl.batch.success", Tags.of("action", "restore"))
+                  .increment();
+            })
+        .exceptionally(
+            ex -> {
+              log.error("[DynamicTTL] EXPIRE 배치 실패 (P0-N3: Double Failure 가능성)", ex);
+              meterRegistry
+                  .counter("mysql.ttl.batch.failures", Tags.of("action", "restore"))
+                  .increment(keys.size());
+              return null;
+            });
+  }
 
-        for (String key : keys) {
-            batch.getBucket(key, StringCodec.INSTANCE).expireAsync(ttl);
-        }
-
-        // 비동기 실행
-        batch.executeAsync()
-                .thenAccept(results -> {
-                    log.debug("[DynamicTTL] EXPIRE 배치 완료: {} 키, TTL: {}", keys.size(), ttl);
-                    meterRegistry.counter("mysql.ttl.batch.success", Tags.of("action", "restore"))
-                            .increment();
-                })
-                .exceptionally(ex -> {
-                    log.error("[DynamicTTL] EXPIRE 배치 실패 (P0-N3: Double Failure 가능성)", ex);
-                    meterRegistry.counter("mysql.ttl.batch.failures", Tags.of("action", "restore"))
-                            .increment(keys.size());
-                    return null;
-                });
-    }
-
-    /**
-     * 패턴에서 캐시 이름 추출
-     *
-     * @param pattern "equipment:*" → "equipment"
-     */
-    private String extractCacheName(String pattern) {
-        int colonIndex = pattern.indexOf(':');
-        return colonIndex > 0 ? pattern.substring(0, colonIndex) : pattern.replace("*", "");
-    }
+  /**
+   * 패턴에서 캐시 이름 추출
+   *
+   * @param pattern "equipment:*" → "equipment"
+   */
+  private String extractCacheName(String pattern) {
+    int colonIndex = pattern.indexOf(':');
+    return colonIndex > 0 ? pattern.substring(0, colonIndex) : pattern.replace("*", "");
+  }
 }

@@ -4,6 +4,9 @@ spring:
       enabled: true
   application:
     name: maple-expectation
+  autoconfigure:
+    exclude:
+      - dev.langchain4j.openai.spring.AutoConfig
   profiles:
     active: local # [Safety Guard] 별도 설정 없으면 무조건 로컬 모드
   lifecycle:
@@ -214,6 +217,38 @@ app:
   buffer:
     redis:
       enabled: true  # V5 Stateless (#271): Redis Only 모드 활성화
+  monitoring:
+    grafana:
+      dashboards-path: ./grafana/dashboards
+    prometheus:
+      base-url: http://localhost:9090
+    discord:
+      webhook-url: ${DISCORD_WEBHOOK_URL:}
+    interval-seconds: 15
+    query-range-seconds: 300
+    z-score:
+      enabled: true
+      window-points: 60
+      threshold: 3.0
+
+# AI SRE (LangChain4j) - Issue #251
+ai:
+  sre:
+    enabled: ${AI_SRE_ENABLED:false}
+
+langchain4j:
+  glm-4:
+    chat-model:
+      base-url: ${GLM_4_BASE_URL:https://api.z.ai/api/paas/v4}
+      api-key: ${GLM_4_API_KEY:}
+      model-name: ${GLM_4_MODEL_NAME:glm-4.7}
+      timeout: 60s
+      log-requests: false
+      log-responses: false
+  open-ai:
+    chat-model:
+      api-key: ${OPENAI_API_KEY:}
+      model-name: ${OPENAI_MODEL_NAME:gpt-4o-mini}
 
 # SpringDoc OpenAPI (Swagger UI) - Context7 Best Practice
 springdoc:
@@ -314,6 +349,10 @@ scheduler:
     enabled: false  # #275 Auto Warmup: 인기 캐릭터 자동 웜업 (prod에서 활성화)
     top-count: 50   # 웜업할 상위 캐릭터 수
     delay-between-ms: 100  # 요청 간 지연 (Thundering Herd 방지)
+  nexon-data-collection:
+    enabled: false  # ACL Pipeline: Nexon API 데이터 수집 (Issue #300)
+    rate: 600000     # 10분마다 실행 (밀리초)
+    initial-delay: 30000  # 시작 30초 후 첫 실행
 
 # CORS 설정 (Issue #172: 환경별 분리)
 # 주의: 반드시 환경별 프로필(local/prod)에서 allowed-origins 오버라이드 필요
@@ -361,49 +400,7 @@ resilience:
 # ========================================
 # Issue #251: AI SRE + OpenTelemetry
 # ========================================
-
-# LangChain4j OpenAI 설정 (Context7 Best Practice)
-langchain4j:
-  open-ai:
-    chat-model:
-      api-key: ${OPENAI_API_KEY:}
-      model-name: gpt-4o-mini  # 비용 효율적인 모델
-      temperature: 0.3  # 결정론적 응답 선호
-      timeout: 30s
-      log-requests: false
-      log-responses: false
-  # Z.ai GLM-4.7 설정
-  glm-4:
-    chat-model:
-      base-url: https://api.z.ai/api/paas/v4
-      api-key: ${Z_AI_API_KEY}
-      model-name: glm-4.7
-      timeout: 60s
-      log-requests: true
-
-# AI SRE 설정
-ai:
-  sre:
-    enabled: ${AI_SRE_ENABLED:false}  # 기본 비활성화 (prod에서 true)
-    daily-limit: 100  # [P0-Green] 일일 LLM 호출 한도
-    throttle-seconds: 60  # 동일 에러 패턴 스로틀링 간격
-    max-concurrent-threads: 10  # Issue #283 P0-5: 동시 LLM 호출 최대 개수
-
-# 애플리케이션 모니터링 설정
-app:
-  monitoring:
-    grafana:
-      dashboards-path: ./grafana/dashboards
-    prometheus:
-      base-url: http://localhost:9090
-    discord:
-      webhook-url: ${DISCORD_WEBHOOK_URL}
-    interval-seconds: 15
-    query-range-seconds: 300
-    z-score:
-      enabled: true
-      window-points: 60
-      threshold: 3.0
+# (AI SRE and LangChain4j settings moved to top-level configuration above)
 
 # Spring Batch 설정 - spring.batch는 상단 spring: 블록에 병합됨
 
@@ -440,9 +437,15 @@ chaos:
 
 # Thread Pool 설정 외부화 (P1-1)
 # Lock DataSource Pool Size 외부화 (Issue #284 DoD)
+# Issue #310: MySQL → Redis Lock Migration
 lock:
+  impl: redis  # 분산 락 구현체 (redis | mysql, default: redis)
   datasource:
     pool-size: 30  # 기본값 (prod에서 150으로 오버라이드)
+  migration:
+    enabled: true  # 마이그레이션 활성화 여부
+    dual-run-duration: 7d  # Dual-Run 기간 (Phase 1)
+    monitoring-enabled: true  # 마이그레이션 메트릭 활성화
 
 executor:
   equipment:

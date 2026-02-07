@@ -8,15 +8,15 @@ import maple.expectation.global.error.exception.marker.CircuitBreakerIgnoreMarke
  * Refresh Token 만료 예외 (Issue #279)
  *
  * <p>발생 조건:
+ *
  * <ul>
- *   <li>Refresh Token TTL(7일) 초과</li>
+ *   <li>Refresh Token TTL(7일) 초과
  * </ul>
- * </p>
  */
 public class RefreshTokenExpiredException extends ClientBaseException
-        implements CircuitBreakerIgnoreMarker {
+    implements CircuitBreakerIgnoreMarker {
 
-    public RefreshTokenExpiredException() {
-        super(CommonErrorCode.REFRESH_TOKEN_EXPIRED);
-    }
+  public RefreshTokenExpiredException() {
+    super(CommonErrorCode.REFRESH_TOKEN_EXPIRED);
+  }
 }

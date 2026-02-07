@@ -8,14 +8,13 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class DonationEventListener {
-    private final DiscordAlertService discordAlertService;
+  private final DiscordAlertService discordAlertService;
 
-    @EventListener
-    public void handleDonationFailed(DonationFailedEvent event) {
-        discordAlertService.sendCriticalAlert(
-            "DONATION TRANSACTION FAILED", 
-            "RequestId: " + event.requestId() + " | Guest: " + event.guestUuid(), 
-            event.exception()
-        );
-    }
+  @EventListener
+  public void handleDonationFailed(DonationFailedEvent event) {
+    discordAlertService.sendCriticalAlert(
+        "DONATION TRANSACTION FAILED",
+        "RequestId: " + event.requestId() + " | Guest: " + event.guestUuid(),
+        event.exception());
+  }
 }

@@ -1,12 +1,7 @@
 package maple.expectation.monitoring.copilot.model;
 
+import java.util.List;
 import lombok.Builder;
 
-import java.util.List;
-
 @Builder
-public record TimeSeries(
-
-    String label,
-    List<MetricPoint> points
-) {}
+public record TimeSeries(String label, List<MetricPoint> points) {}
