@@ -3,7 +3,6 @@ package maple.expectation.infrastructure.messaging;
 import maple.expectation.application.port.MessageQueue;
 import org.redisson.api.RBlockingQueue;
 import org.redisson.api.RedissonClient;
-import org.springframework.stereotype.Component;
 
 /**
  * Redis-backed message queue implementation.
@@ -11,9 +10,11 @@ import org.springframework.stereotype.Component;
  * <p>Infrastructure adapter for MessageQueue port. Implements queue using Redisson
  * RBlockingQueue.
  *
+ * <p>NOTE: This is a generic class - do NOT annotate with @Component.
+ * Create specific bean instances via @Configuration classes.
+ *
  * @param <T> message type
  */
-@Component
 public class RedisMessageQueue<T> implements MessageQueue<T> {
 
   private final RBlockingQueue<T> queue;

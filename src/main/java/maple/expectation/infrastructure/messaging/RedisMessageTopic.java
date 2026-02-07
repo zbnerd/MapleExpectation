@@ -4,16 +4,17 @@ import java.util.function.BiConsumer;
 import maple.expectation.application.port.MessageTopic;
 import org.redisson.api.RTopic;
 import org.redisson.api.RedissonClient;
-import org.springframework.stereotype.Component;
 
 /**
  * Redis-backed message topic implementation.
  *
  * <p>Infrastructure adapter for MessageTopic port. Implements pub/sub using Redisson RTopic.
  *
+ * <p>NOTE: This is a generic class - do NOT annotate with @Component.
+ * Create specific bean instances via @Configuration classes.
+ *
  * @param <T> message type
  */
-@Component
 public class RedisMessageTopic<T> implements MessageTopic<T> {
 
   private final RedissonClient redissonClient;

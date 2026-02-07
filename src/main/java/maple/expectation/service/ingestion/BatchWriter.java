@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.type.TypeReference;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.application.port.MessageQueue;
 import maple.expectation.domain.event.IntegrationEvent;
@@ -12,6 +11,8 @@ import maple.expectation.domain.nexon.NexonApiCharacterData;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.repository.v2.NexonCharacterRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -71,13 +72,24 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class BatchWriter {
 
   private final MessageQueue<String> messageQueue;
   private final NexonCharacterRepository repository;
   private final LogicExecutor executor;
   private final ObjectMapper objectMapper;
+
+  @Autowired
+  public BatchWriter(
+      @Qualifier("nexonDataQueue") MessageQueue<String> messageQueue,
+      NexonCharacterRepository repository,
+      LogicExecutor executor,
+      ObjectMapper objectMapper) {
+    this.messageQueue = messageQueue;
+    this.repository = repository;
+    this.executor = executor;
+    this.objectMapper = objectMapper;
+  }
 
   /**
    * Batch size for database operations.

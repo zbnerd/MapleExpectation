@@ -33,6 +33,7 @@ spring:
           batch_size: 1000
         format_sql: false
         show_sql: false
+        ddl-auto: update  # 자동 테이블 생성 및 업데이트 (개발/테스트 환경)
 
   # Spring Batch 설정 (Issue #251 Phase 4)
   batch:
