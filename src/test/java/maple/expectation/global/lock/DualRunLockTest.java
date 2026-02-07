@@ -3,6 +3,7 @@ package maple.expectation.global.lock;
 import io.micrometer.core.instrument.MeterRegistry;
 import maple.expectation.global.executor.LogicExecutor;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.redisson.Redisson;
@@ -45,6 +46,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * @since 2026-02-06
  */
+@Tag("integration")
 @SpringBootTest
 @ActiveProfiles("test")
 class DualRunLockTest {
