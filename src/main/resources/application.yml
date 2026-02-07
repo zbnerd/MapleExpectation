@@ -349,6 +349,10 @@ scheduler:
     enabled: false  # #275 Auto Warmup: 인기 캐릭터 자동 웜업 (prod에서 활성화)
     top-count: 50   # 웜업할 상위 캐릭터 수
     delay-between-ms: 100  # 요청 간 지연 (Thundering Herd 방지)
+  nexon-data-collection:
+    enabled: false  # ACL Pipeline: Nexon API 데이터 수집 (Issue #300)
+    rate: 600000     # 10분마다 실행 (밀리초)
+    initial-delay: 30000  # 시작 30초 후 첫 실행
 
 # CORS 설정 (Issue #172: 환경별 분리)
 # 주의: 반드시 환경별 프로필(local/prod)에서 allowed-origins 오버라이드 필요
