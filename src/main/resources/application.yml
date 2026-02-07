@@ -64,6 +64,7 @@ management:
   metrics:
     tags:
       application: ${spring.application.name} # 모든 메트릭에 앱 이름 태그 부여
+      chaos.test: ${CHAOS_TEST:false}
     export:
       prometheus:
         enabled: true
@@ -72,9 +73,6 @@ management:
         http.server.requests: [0.5, 0.95, 0.99]
       percentiles:
         http.server.requests: [0.5, 0.95, 0.99]
-    tags:
-      application: ${spring.application.name}
-      chaos.test: ${CHAOS_TEST:false}
   # OpenTelemetry tracing 설정 (Context7 Best Practice)
   tracing:
     enabled: ${OTEL_ENABLED:false}  # 기본 비활성화 (prod에서 true)
