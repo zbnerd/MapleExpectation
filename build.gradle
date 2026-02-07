@@ -182,10 +182,9 @@ test {
     systemProperty 'flaky.log.dir', "${buildDir}/flaky"
 
     // 병렬 실행 설정
-    // - CI 환경 (2 vCPU): 최소 2로 강제하여 병렬 실행 보장
-    // - 로컬 환경: CPU 코어 수의 절반 (기존 로직 유지)
-    maxParallelForks = isCiServer ? Math.max(2, Runtime.runtime.availableProcessors())
-                                  : (Runtime.runtime.availableProcessors().intdiv(2) ?: 1)
+    // - Testcontainers 사용 시 Docker 컨테이너 리소스 경합 방지를 위해 직렬 실행 (Issue #320)
+    // - 병렬 실행 시 MySQL/Redis 컨테이너 시작 타임아웃 발생
+    maxParallelForks = 1
 
     // WSL에서 확인된 Docker Engine API 소켓
     environment "DOCKER_HOST", "unix:///var/run/docker.sock"
