@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 /**
  * Nexon API 캐릭터 기본 정보 응답 DTO
  *
- * <p>Endpoint: GET /maplestory/v1/character/basic</p>
+ * <p>Endpoint: GET /maplestory/v1/character/basic
  *
  * @see <a href="https://openapi.nexon.com/ko/game/maplestory/?id=22">Nexon Open API</a>
  */
@@ -15,21 +15,21 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class CharacterBasicResponse {
 
-    @JsonProperty("character_name")
-    private String characterName;
+  @JsonProperty("character_name")
+  private String characterName;
 
-    @JsonProperty("world_name")
-    private String worldName;
+  @JsonProperty("world_name")
+  private String worldName;
 
-    @JsonProperty("character_class")
-    private String characterClass;
+  @JsonProperty("character_class")
+  private String characterClass;
 
-    @JsonProperty("character_level")
-    private int characterLevel;
+  @JsonProperty("character_level")
+  private int characterLevel;
 
-    @JsonProperty("character_image")
-    private String characterImage;
+  @JsonProperty("character_image")
+  private String characterImage;
 
-    @JsonProperty("character_guild_name")
-    private String guildName;
+  @JsonProperty("character_guild_name")
+  private String guildName;
 }

@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 /**
  * 좋아요 버퍼링 AOP (Issue #285: P1-13 구체 의존 제거)
  *
- * <p>LikeBufferStrategy 인터페이스에 의존하여 In-Memory/Redis 모드 모두 지원</p>
+ * <p>LikeBufferStrategy 인터페이스에 의존하여 In-Memory/Redis 모드 모두 지원
  */
 @Slf4j
 @Aspect
@@ -19,12 +19,12 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class BufferedLikeAspect {
 
-    private final LikeBufferStrategy likeBufferStrategy;
+  private final LikeBufferStrategy likeBufferStrategy;
 
-    @Around("@annotation(maple.expectation.aop.annotation.BufferedLike) && args(userIgn, ..)")
-    public Object doBuffer(ProceedingJoinPoint joinPoint, String userIgn) throws Throwable {
-        likeBufferStrategy.increment(userIgn, 1);
-        log.debug("[AOP Buffering] Like request buffered: {}", userIgn);
-        return null;
-    }
+  @Around("@annotation(maple.expectation.aop.annotation.BufferedLike) && args(userIgn, ..)")
+  public Object doBuffer(ProceedingJoinPoint joinPoint, String userIgn) throws Throwable {
+    likeBufferStrategy.increment(userIgn, 1);
+    log.debug("[AOP Buffering] Like request buffered: {}", userIgn);
+    return null;
+  }
 }

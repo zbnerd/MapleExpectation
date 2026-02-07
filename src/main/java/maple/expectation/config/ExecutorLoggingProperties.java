@@ -10,6 +10,7 @@ import org.springframework.validation.annotation.Validated;
  * ExecutionPolicy 로깅 관련 설정 프로퍼티
  *
  * <p>application.yml에서 다음과 같이 설정:
+ *
  * <pre>
  * executor:
  *   logging:
@@ -21,7 +22,4 @@ import org.springframework.validation.annotation.Validated;
  */
 @Validated
 @ConfigurationProperties(prefix = "executor.logging")
-public record ExecutorLoggingProperties(
-        @Min(0) @Max(60_000) @DefaultValue("200") long slowMs
-) {
-}
+public record ExecutorLoggingProperties(@Min(0) @Max(60_000) @DefaultValue("200") long slowMs) {}

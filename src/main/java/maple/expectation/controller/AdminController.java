@@ -1,102 +1,101 @@
 package maple.expectation.controller;
 
 import jakarta.validation.Valid;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import maple.expectation.controller.dto.admin.AddAdminRequest;
 import maple.expectation.global.response.ApiResponse;
-import maple.expectation.global.util.StringMaskingUtils;
 import maple.expectation.global.security.AuthenticatedUser;
+import maple.expectation.global.util.StringMaskingUtils;
 import maple.expectation.service.v2.auth.AdminService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Set;
-
 /**
  * Admin 관리 API
  *
- * <p>권한: ADMIN만 접근 가능 (SecurityConfig에서 설정)</p>
+ * <p>권한: ADMIN만 접근 가능 (SecurityConfig에서 설정)
  *
  * <h4>Issue #151: Bean Validation 적용</h4>
+ *
  * <ul>
- *   <li>@Validated: 클래스 레벨 검증 활성화 (@PathVariable 검증)</li>
- *   <li>@Valid: @RequestBody DTO 검증</li>
- *   <li>AddAdminRequest: 별도 파일로 분리 (SRP 준수)</li>
+ *   <li>@Validated: 클래스 레벨 검증 활성화 (@PathVariable 검증)
+ *   <li>@Valid: @RequestBody DTO 검증
+ *   <li>AddAdminRequest: 별도 파일로 분리 (SRP 준수)
  * </ul>
  *
  * <p>엔드포인트:
+ *
  * <ul>
- *   <li>GET /api/admin/admins - Admin 목록 조회</li>
- *   <li>POST /api/admin/admins - 새 Admin 추가</li>
- *   <li>DELETE /api/admin/admins/{fingerprint} - Admin 제거</li>
+ *   <li>GET /api/admin/admins - Admin 목록 조회
+ *   <li>POST /api/admin/admins - 새 Admin 추가
+ *   <li>DELETE /api/admin/admins/{fingerprint} - Admin 제거
  * </ul>
- * </p>
  */
-@Validated  // ✅ Issue #151: @PathVariable 검증 활성화
+@Validated // ✅ Issue #151: @PathVariable 검증 활성화
 @RestController
 @RequestMapping("/api/admin")
 @RequiredArgsConstructor
 public class AdminController {
 
-    private final AdminService adminService;
+  private final AdminService adminService;
 
-    /**
-     * 전체 Admin 목록 조회
-     */
-    @GetMapping("/admins")
-    public ResponseEntity<ApiResponse<Set<String>>> getAdmins() {
-        Set<String> admins = adminService.getAllAdmins();
-        return ResponseEntity.ok(ApiResponse.success(admins));
+  /** 전체 Admin 목록 조회 */
+  @GetMapping("/admins")
+  public ResponseEntity<ApiResponse<Set<String>>> getAdmins() {
+    Set<String> admins = adminService.getAllAdmins();
+    return ResponseEntity.ok(ApiResponse.success(admins));
+  }
+
+  /**
+   * 새 Admin 추가
+   *
+   * <h4>Issue #151: @Valid 적용</h4>
+   *
+   * <p>AddAdminRequest에 @NotBlank, @Size, @Pattern 검증 적용
+   *
+   * @param request fingerprint가 담긴 요청 (검증됨)
+   */
+  @PostMapping("/admins")
+  public ResponseEntity<ApiResponse<String>> addAdmin(
+      @Valid @RequestBody AddAdminRequest request, // ✅ @Valid 추가
+      @AuthenticationPrincipal AuthenticatedUser currentUser) {
+
+    adminService.addAdmin(request.fingerprint());
+
+    return ResponseEntity.ok(
+        ApiResponse.success(
+            "Admin added successfully: " + request.maskedFingerprint() // DTO의 마스킹 메서드 사용
+            ));
+  }
+
+  /**
+   * Admin 제거
+   *
+   * @param fingerprint 제거할 Admin의 fingerprint
+   */
+  @DeleteMapping("/admins/{fingerprint}")
+  public ResponseEntity<ApiResponse<String>> removeAdmin(
+      @PathVariable String fingerprint, @AuthenticationPrincipal AuthenticatedUser currentUser) {
+
+    // 자기 자신은 제거 불가
+    if (fingerprint.equals(currentUser.fingerprint())) {
+      return ResponseEntity.badRequest()
+          .body(ApiResponse.error("SELF_REMOVAL_NOT_ALLOWED", "자기 자신의 Admin 권한은 제거할 수 없습니다."));
     }
 
-    /**
-     * 새 Admin 추가
-     *
-     * <h4>Issue #151: @Valid 적용</h4>
-     * <p>AddAdminRequest에 @NotBlank, @Size, @Pattern 검증 적용</p>
-     *
-     * @param request fingerprint가 담긴 요청 (검증됨)
-     */
-    @PostMapping("/admins")
-    public ResponseEntity<ApiResponse<String>> addAdmin(
-            @Valid @RequestBody AddAdminRequest request,  // ✅ @Valid 추가
-            @AuthenticationPrincipal AuthenticatedUser currentUser) {
+    boolean removed = adminService.removeAdmin(fingerprint);
 
-        adminService.addAdmin(request.fingerprint());
-
-        return ResponseEntity.ok(ApiResponse.success(
-            "Admin added successfully: " + request.maskedFingerprint()  // DTO의 마스킹 메서드 사용
-        ));
+    if (!removed) {
+      return ResponseEntity.badRequest()
+          .body(ApiResponse.error("BOOTSTRAP_ADMIN", "Bootstrap Admin은 제거할 수 없습니다."));
     }
 
-    /**
-     * Admin 제거
-     *
-     * @param fingerprint 제거할 Admin의 fingerprint
-     */
-    @DeleteMapping("/admins/{fingerprint}")
-    public ResponseEntity<ApiResponse<String>> removeAdmin(
-            @PathVariable String fingerprint,
-            @AuthenticationPrincipal AuthenticatedUser currentUser) {
-
-        // 자기 자신은 제거 불가
-        if (fingerprint.equals(currentUser.fingerprint())) {
-            return ResponseEntity.badRequest()
-                .body(ApiResponse.error("SELF_REMOVAL_NOT_ALLOWED", "자기 자신의 Admin 권한은 제거할 수 없습니다."));
-        }
-
-        boolean removed = adminService.removeAdmin(fingerprint);
-
-        if (!removed) {
-            return ResponseEntity.badRequest()
-                .body(ApiResponse.error("BOOTSTRAP_ADMIN", "Bootstrap Admin은 제거할 수 없습니다."));
-        }
-
-        return ResponseEntity.ok(ApiResponse.success(
-            "Admin removed successfully: " + StringMaskingUtils.maskFingerprintWithSuffix(fingerprint)
-        ));
-    }
-
+    return ResponseEntity.ok(
+        ApiResponse.success(
+            "Admin removed successfully: "
+                + StringMaskingUtils.maskFingerprintWithSuffix(fingerprint)));
+  }
 }

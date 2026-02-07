@@ -8,5 +8,5 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class CharacterOcidResponse {
-    private String ocid;
+  private String ocid;
 }
