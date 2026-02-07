@@ -42,7 +42,7 @@ import reactor.core.publisher.Mono;
  * <pre>{@code
  * public Mono<NexonApiCharacterData> fetchAndPublish(String ocid) {
  *   return webClient.get()
- *       .uri("/maplestory/v1/character/{ocid}", ocid)
+ *       .uri("/maplestory/v1/character/basic?ocid={ocid}", ocid)
  *       .retrieve()
  *       .bodyToMono(NexonApiCharacterData.class)
  *       .doOnNext(data -> eventPublisher.publishAsync("nexon-data", IntegrationEvent.of("NEXON_DATA_COLLECTED", data)));
@@ -122,12 +122,15 @@ public class NexonDataCollector {
    * This is acceptable for Phase 1 but should be refactored to fully reactive
    * in Phase 8 (Kafka migration).
    *
+   * <p><strong>API Endpoint:</strong> Uses Nexon Open API {@code /character/basic} endpoint
+   * which returns lightweight character data (~1-2 KB) instead of full profile (300 KB).
+   *
    * @param ocid Character OCID
    * @return Parsed character data
    */
   private NexonApiCharacterData fetchFromNexonApi(String ocid) {
     return nexonWebClient.get()
-        .uri("/maplestory/v1/character/{ocid}", ocid)
+        .uri("/maplestory/v1/character/basic?ocid={ocid}", ocid)
         .retrieve()
         .bodyToMono(NexonApiCharacterData.class)
         .block();  // TODO: Phase 8 - Remove block(), return Mono instead
