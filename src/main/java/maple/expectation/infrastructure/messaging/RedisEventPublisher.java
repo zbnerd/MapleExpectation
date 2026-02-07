@@ -1,20 +1,20 @@
 package maple.expectation.infrastructure.messaging;
 
 import maple.expectation.application.port.EventPublisher;
-import maple.expectation.application.port.MessageTopic;
+import maple.expectation.application.port.MessageQueue;
 import maple.expectation.domain.event.IntegrationEvent;
 import maple.expectation.global.error.exception.QueuePublishException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
  * Redis-based event publisher implementation.
  *
- * <p><strong>Concrete Strategy A:</strong> Uses existing {@link MessageTopic}
- * for pub/sub messaging. This is the default implementation for Phase 1.
+ * <p><strong>Concrete Strategy A:</strong> Uses {@link MessageQueue}
+ * for queue-based messaging. This is the default implementation for Phase 1.
  *
  * <p><strong>Configuration:</strong> Activated when {@code app.event-publisher.type=redis}
  * (default: true). To switch to Kafka in Phase 8, change to {@code type=kafka}.
@@ -45,13 +45,12 @@ import org.springframework.stereotype.Component;
  * </ol>
  *
  * @see EventPublisher
- * @see MessageTopic
- * @see maple.expectation.infrastructure.messaging.RedisMessageTopic
+ * @see MessageQueue
+ * @see maple.expectation.infrastructure.messaging.RedisMessageQueue
  * @see ADR-018 Strategy Pattern for ACL
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 @ConditionalOnProperty(
     name = "app.event-publisher.type",
     havingValue = "redis",
@@ -59,8 +58,15 @@ import org.springframework.stereotype.Component;
 )
 public class RedisEventPublisher implements EventPublisher {
 
-  private final MessageTopic<String> messageTopic;
+  private final MessageQueue<String> messageQueue;
   private final ObjectMapper objectMapper;
+
+  public RedisEventPublisher(
+      @Qualifier("nexonDataQueue") MessageQueue<String> messageQueue,
+      ObjectMapper objectMapper) {
+    this.messageQueue = messageQueue;
+    this.objectMapper = objectMapper;
+  }
 
   @Override
   public void publish(String topic, IntegrationEvent<?> event) {
@@ -68,14 +74,22 @@ public class RedisEventPublisher implements EventPublisher {
       // Serialize IntegrationEvent to JSON
       String jsonPayload = objectMapper.writeValueAsString(event);
 
-      // Publish to Redis topic
-      messageTopic.publish(topic, jsonPayload);
+      // Offer to Redis queue
+      boolean offered = messageQueue.offer(jsonPayload);
 
-      log.debug("[RedisEventPublisher] Published to topic {}: eventId={}, eventType={}",
+      if (!offered) {
+        log.warn("[RedisEventPublisher] Queue full, could not publish to topic {}: eventId={}, eventType={}",
+            topic, event.getEventId(), event.getEventType());
+        throw new QueuePublishException(
+            String.format("Redis queue full: topic=%s, eventType=%s", topic, event.getEventType())
+        );
+      }
+
+      log.debug("[RedisEventPublisher] Published to queue {}: eventId={}, eventType={}",
           topic, event.getEventId(), event.getEventType());
 
     } catch (Exception e) {
-      log.error("[RedisEventPublisher] Failed to publish to topic {}: eventId={}, eventType={}",
+      log.error("[RedisEventPublisher] Failed to publish to queue {}: eventId={}, eventType={}",
           topic, event.getEventId(), event.getEventType(), e);
 
       throw new QueuePublishException(

@@ -5,7 +5,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import maple.expectation.application.port.MessageTopic;
+import maple.expectation.application.port.MessageQueue;
 import maple.expectation.domain.event.IntegrationEvent;
 import maple.expectation.global.error.exception.QueuePublishException;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,8 +20,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
  *
  * <p><strong>Test Coverage:</strong>
  * <ul>
- *   <li>Successful publish serializes event and calls MessageTopic</li>
- *   <li>Publish failure throws QueuePublishException</li>
+ *   <li>Successful publish serializes event and calls MessageQueue.offer()</li>
+ *   <li>Publish failure throws QueuePublishException when queue is full</li>
  *   <li>Async publish completes successfully</li>
  * </ul>
  */
@@ -30,7 +30,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class RedisEventPublisherTest {
 
   @Mock
-  private MessageTopic<String> messageTopic;
+  private MessageQueue<String> messageQueue;
 
   private ObjectMapper objectMapper;
   private RedisEventPublisher publisher;
@@ -40,11 +40,11 @@ class RedisEventPublisherTest {
     objectMapper = new ObjectMapper();
     // Configure ObjectMapper to handle empty beans
     objectMapper.disable(com.fasterxml.jackson.databind.SerializationFeature.FAIL_ON_EMPTY_BEANS);
-    publisher = new RedisEventPublisher(messageTopic, objectMapper);
+    publisher = new RedisEventPublisher(messageQueue, objectMapper);
   }
 
   @Test
-  @DisplayName("publish() should serialize event and call MessageTopic")
+  @DisplayName("publish() should serialize event and call MessageQueue.offer()")
   void testPublish_Success() throws Exception {
     // Given
     String topic = "test-topic";
@@ -52,23 +52,36 @@ class RedisEventPublisherTest {
         "TEST_EVENT",
         new TestPayload("test-data", 123)
     );
+    when(messageQueue.offer(anyString())).thenReturn(true);
 
     // When
     publisher.publish(topic, event);
 
     // Then
-    verify(messageTopic).publish(eq(topic), anyString());
+    verify(messageQueue).offer(anyString());
   }
 
   @Test
-  @DisplayName("publish() should throw QueuePublishException on MessageTopic failure")
-  void testPublish_MessageTopicFailure() {
+  @DisplayName("publish() should throw QueuePublishException when queue is full")
+  void testPublish_QueueFull() {
+    // Given
+    String topic = "test-topic";
+    IntegrationEvent<String> event = IntegrationEvent.of("TEST_EVENT", "payload");
+    when(messageQueue.offer(anyString())).thenReturn(false);
+
+    // When & Then
+    assertThrows(QueuePublishException.class, () -> publisher.publish(topic, event));
+  }
+
+  @Test
+  @DisplayName("publish() should throw QueuePublishException on MessageQueue failure")
+  void testPublish_MessageQueueFailure() {
     // Given
     String topic = "test-topic";
     IntegrationEvent<String> event = IntegrationEvent.of("TEST_EVENT", "payload");
 
     doThrow(new RuntimeException("Redis connection failed"))
-        .when(messageTopic).publish(anyString(), anyString());
+        .when(messageQueue).offer(anyString());
 
     // When & Then
     assertThrows(QueuePublishException.class, () -> publisher.publish(topic, event));
@@ -82,7 +95,7 @@ class RedisEventPublisherTest {
     when(failingMapper.writeValueAsString(any()))
         .thenThrow(new com.fasterxml.jackson.core.JsonGenerationException("Serialization failed"));
 
-    RedisEventPublisher failingPublisher = new RedisEventPublisher(messageTopic, failingMapper);
+    RedisEventPublisher failingPublisher = new RedisEventPublisher(messageQueue, failingMapper);
 
     String topic = "test-topic";
     IntegrationEvent<String> event = IntegrationEvent.of("TEST_EVENT", "payload");
@@ -97,6 +110,7 @@ class RedisEventPublisherTest {
     // Given
     String topic = "test-topic";
     IntegrationEvent<String> event = IntegrationEvent.of("TEST_EVENT", "payload");
+    when(messageQueue.offer(anyString())).thenReturn(true);
 
     // When
     var future = publisher.publishAsync(topic, event);
@@ -104,7 +118,7 @@ class RedisEventPublisherTest {
     // Then
     assertNotNull(future);
     future.join();  // Should complete without exception
-    verify(messageTopic).publish(eq(topic), anyString());
+    verify(messageQueue).offer(anyString());
   }
 
   @Test
@@ -115,7 +129,7 @@ class RedisEventPublisherTest {
     IntegrationEvent<String> event = IntegrationEvent.of("TEST_EVENT", "payload");
 
     doThrow(new RuntimeException("Redis connection failed"))
-        .when(messageTopic).publish(anyString(), anyString());
+        .when(messageQueue).offer(anyString());
 
     // When
     var future = publisher.publishAsync(topic, event);

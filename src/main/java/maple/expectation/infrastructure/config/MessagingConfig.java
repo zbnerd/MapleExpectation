@@ -25,4 +25,9 @@ public class MessagingConfig {
   public MessageQueue<String> characterJobQueue(RedissonClient redissonClient) {
     return new RedisMessageQueue<>(redissonClient, "character_job_queue");
   }
+
+  @Bean
+  public MessageQueue<String> nexonDataQueue(RedissonClient redissonClient) {
+    return new RedisMessageQueue<>(redissonClient, "nexon-data");
+  }
 }

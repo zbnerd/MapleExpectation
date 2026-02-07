@@ -2,6 +2,8 @@ package maple.expectation.service.ingestion;
 
 import java.util.ArrayList;
 import java.util.List;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.application.port.MessageQueue;
@@ -72,9 +74,10 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class BatchWriter {
 
-  private final MessageQueue<IntegrationEvent<NexonApiCharacterData>> messageQueue;
+  private final MessageQueue<String> messageQueue;
   private final NexonCharacterRepository repository;
   private final LogicExecutor executor;
+  private final ObjectMapper objectMapper;
 
   /**
    * Batch size for database operations.
@@ -108,13 +111,24 @@ public class BatchWriter {
           List<IntegrationEvent<NexonApiCharacterData>> batch =
               new ArrayList<>(BATCH_SIZE);
 
-          // Accumulate batch from queue
+          // Accumulate batch from queue (JSON strings)
           for (int i = 0; i < BATCH_SIZE; i++) {
-            IntegrationEvent<NexonApiCharacterData> event = messageQueue.poll();
-            if (event == null) {
+            String jsonPayload = messageQueue.poll();
+            if (jsonPayload == null) {
               break;  // Queue empty
             }
-            batch.add(event);
+
+            try {
+              // Deserialize JSON back to IntegrationEvent
+              IntegrationEvent<NexonApiCharacterData> event = objectMapper.readValue(
+                  jsonPayload,
+                  new TypeReference<IntegrationEvent<NexonApiCharacterData>>() {}
+              );
+              batch.add(event);
+            } catch (Exception e) {
+              log.error("[BatchWriter] Failed to deserialize event: {}", jsonPayload, e);
+              // Skip invalid message and continue
+            }
           }
 
           if (batch.isEmpty()) {
