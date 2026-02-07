@@ -1,12 +1,10 @@
 package maple.expectation.monitoring.copilot.model;
 
-import lombok.Builder;
-
 import java.util.Map;
+import lombok.Builder;
 
 @Builder
 public record SignalDefinition(
-
     String id,
     String dashboardUid,
     String panelTitle,
@@ -16,5 +14,4 @@ public record SignalDefinition(
     String unit,
     SeverityMapping severityMapping,
     String sloTag,
-    Map<String, String> metadata
-) {}
+    Map<String, String> metadata) {}

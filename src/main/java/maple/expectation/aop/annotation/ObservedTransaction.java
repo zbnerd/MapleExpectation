@@ -8,5 +8,5 @@ import java.lang.annotation.Target;
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
 public @interface ObservedTransaction {
-    String value(); // 메트릭의 기본 이름 (예: "donation.transaction")
+  String value(); // 메트릭의 기본 이름 (예: "donation.transaction")
 }

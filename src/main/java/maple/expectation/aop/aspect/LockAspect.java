@@ -23,52 +23,51 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class LockAspect {
 
-    private final LockStrategy lockStrategy;
-    private final LogicExecutor executor;
-    private final CustomSpelParser spelParser;
+  private final LockStrategy lockStrategy;
+  private final LogicExecutor executor;
+  private final CustomSpelParser spelParser;
 
-    @Around("@annotation(locked)")
-    public Object applyLock(ProceedingJoinPoint joinPoint, Locked locked) {
-        String key = getDynamicKey(joinPoint, locked.key());
-        long waitSeconds = locked.timeUnit().toSeconds(locked.waitTime());
-        long leaseSeconds = locked.timeUnit().toSeconds(locked.leaseTime());
+  @Around("@annotation(locked)")
+  public Object applyLock(ProceedingJoinPoint joinPoint, Locked locked) {
+    String key = getDynamicKey(joinPoint, locked.key());
+    long waitSeconds = locked.timeUnit().toSeconds(locked.waitTime());
+    long leaseSeconds = locked.timeUnit().toSeconds(locked.leaseTime());
 
-        // ✅ TaskContext 적용: Component="Lock", Operation="Apply"
-        return executor.executeOrCatch(
-                () -> this.executeLockProtectedTask(joinPoint, key, waitSeconds, leaseSeconds),
-                e -> this.handleLockFailure(joinPoint, key, e),
-                TaskContext.of("Lock", "Apply", key)
-        );
+    // ✅ TaskContext 적용: Component="Lock", Operation="Apply"
+    return executor.executeOrCatch(
+        () -> this.executeLockProtectedTask(joinPoint, key, waitSeconds, leaseSeconds),
+        e -> this.handleLockFailure(joinPoint, key, e),
+        TaskContext.of("Lock", "Apply", key));
+  }
+
+  private Object executeLockProtectedTask(
+      ProceedingJoinPoint joinPoint, String key, long waitSeconds, long leaseSeconds)
+      throws Throwable {
+    return lockStrategy.executeWithLock(
+        key, waitSeconds, leaseSeconds, this.createLockedTask(joinPoint, key));
+  }
+
+  private ThrowingSupplier<Object> createLockedTask(ProceedingJoinPoint joinPoint, String key) {
+    return () -> {
+      log.debug("🔑 [Locked Aspect] 락 획득 성공: {}", key);
+      return joinPoint.proceed();
+    };
+  }
+
+  private Object handleLockFailure(ProceedingJoinPoint joinPoint, String key, Throwable e) {
+    if (e instanceof DistributedLockException) {
+      log.warn("⏭️ [Locked Timeout] {} - 락 획득 실패. 직접 조회를 시도합니다.", key);
+      return proceedWithoutLock(joinPoint, key);
     }
+    throw new InternalSystemException("DistributedLockExecution:" + key, e);
+  }
 
-    private Object executeLockProtectedTask(ProceedingJoinPoint joinPoint, String key, long waitSeconds, long leaseSeconds) throws Throwable {
-        return lockStrategy.executeWithLock(key, waitSeconds, leaseSeconds, this.createLockedTask(joinPoint, key));
-    }
+  private Object proceedWithoutLock(ProceedingJoinPoint joinPoint, String key) {
+    // ✅ TaskContext 적용: Component="Lock", Operation="Fallback"
+    return executor.execute(joinPoint::proceed, TaskContext.of("Lock", "Fallback", key));
+  }
 
-    private ThrowingSupplier<Object> createLockedTask(ProceedingJoinPoint joinPoint, String key) {
-        return () -> {
-            log.debug("🔑 [Locked Aspect] 락 획득 성공: {}", key);
-            return joinPoint.proceed();
-        };
-    }
-
-    private Object handleLockFailure(ProceedingJoinPoint joinPoint, String key, Throwable e) {
-        if (e instanceof DistributedLockException) {
-            log.warn("⏭️ [Locked Timeout] {} - 락 획득 실패. 직접 조회를 시도합니다.", key);
-            return proceedWithoutLock(joinPoint, key);
-        }
-        throw new InternalSystemException("DistributedLockExecution:" + key, e);
-    }
-
-    private Object proceedWithoutLock(ProceedingJoinPoint joinPoint, String key) {
-        // ✅ TaskContext 적용: Component="Lock", Operation="Fallback"
-        return executor.execute(
-                joinPoint::proceed,
-                TaskContext.of("Lock", "Fallback", key)
-        );
-    }
-
-    private String getDynamicKey(ProceedingJoinPoint joinPoint, String keyExpression) {
-        return spelParser.parse(joinPoint, keyExpression);
-    }
+  private String getDynamicKey(ProceedingJoinPoint joinPoint, String keyExpression) {
+    return spelParser.parse(joinPoint, keyExpression);
+  }
 }

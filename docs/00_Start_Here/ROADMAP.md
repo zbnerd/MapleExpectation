@@ -251,6 +251,282 @@ P0/P1 Stateful 컴포넌트를 분산 환경에서 안전하게 동작하도록 
 
 ---
 
+## Phase 8: Event-Driven Architecture (EDA) & MSA 전환 (Planned)
+
+> **목표**: 대규모 트래픽 처리를 위한 이벤트 기반 아키텍처와 마이크로서비스 분리
+>
+> **전제 조건**: Phase 7 완료 (Stateful 제거 + CQRS 분리)
+
+### 비전 (Vision)
+
+현재 **Modular Monolith** 아키텍처를 기반으로, 트래픽 급증 시 특정 모듈을 독립적으로 배포/확장할 수 있는 **MSA (Microservices Architecture)**로 진화합니다.
+
+**핵심 철학:**
+> "MSA는 처음부터 하는 것이 아니라, **Modular Monolith에서 필요한 만큼만 찢어가는 것**"
+
+현재 아키텍처는 이미 MSA로 전환할 준비가 되어 있습니다:
+- ✅ **Transactional Outbox**: 이벤트 기반 통신 패턴 구현 완료
+- ✅ **Async Pipeline**: CompletableFuture + Executor 비동기 처리
+- ✅ **Clean Architecture**: 도메인/인프라스트럭처 분리 (Phase 0-3 완료)
+- ✅ **CQRS**: 조회/처리 서버 분리 계획 (Phase 7 Step 3)
+
+---
+
+### Phase 8-A: Kafka 기반 이벤트 버스 확장
+
+> **시점**: 트래픽이 현재 대비 5배 이상 증가하고, DB Outbox Polling이 병목이 될 때
+
+**목표**: DB 기반 Outbox Polling을 Kafka 기반 이벤트 버스로 전환하여 처리량(Throughput) 개선
+
+#### 현재 (DB Polling 방식)
+```
+┌─────────────┐    Polling    ┌──────────────┐
+│   Service   │──────────────>│ Outbox Table │
+│             │   (1초마다)   │              │
+└─────────────┘              └──────────────┘
+                                      │
+                                      ▼
+                               ┌──────────────┐
+                               │   Publisher  │
+                               └──────────────┘
+```
+
+**문제점:**
+- DB Table Lock 경합 발생 (대량 이벤트 시)
+- Polling 주기 조절 trade-off (빠르면 DB 부하, 느리면 지연)
+- 확장성 한계 (단일 DB)
+
+#### 전환 (Kafka + Debezium CDC 방식)
+```
+┌─────────────┐    CDC     ┌──────────────┐    Kafka    ┌─────────────┐
+│   Service   │───────────>│  Debezium    │────────────>│   Kafka     │
+│             │  Binlog   │   Connector  │   Topic     │   Broker    │
+└─────────────┘           └──────────────┘             └─────────────┘
+                                                                │
+                                              ┌─────────────────────┤
+                                              ▼                     ▼
+                                     ┌─────────────┐       ┌─────────────┐
+                                     │  Consumer 1 │       │  Consumer 2 │
+                                     │  (Worker)   │       │  (Notifier) │
+                                     └─────────────┘       └─────────────┘
+```
+
+**장점:**
+- ✅ Real-time 이벤트 전송 (CDC 기반)
+- ✅ DB 부하 제로 (Binlog only 읽기)
+- ✅ Consumer 독립 확장 가능
+- ✅ Exactly-Once 처리 보장 (Kafka Transactions)
+
+**구현 계획:**
+1. **Debebium Connector 설정** (1주)
+   - MySQL Binlog → Kafka Connect
+   - Outbox 테이블 CDC 활성화
+   - Kafka Topic 자동 생성
+
+2. **Kafka Consumer 마이그레이션** (1주)
+   - 기존 Outbox Poller → Kafka Consumer
+   - Idempotent 처리 보장 (중복 방지)
+   - 재시도 및 DLQ 전략
+
+3. **운영 메트릭** (1주)
+   - Kafka Consumer Lag 모니터링
+   - Throughput/Latency Grafana 대시보드
+   - 장애 상황 Runbook
+
+**완료 기준:**
+- [ ] Debezium → Kafka Pipeline 구축 완료
+- [ ] 기존 Outbox Poller 제거 후 Kafka Consumer 전환
+- [ ] Throughput 5배 이상 개선 (측정: 1000 TPS → 5000+ TPS)
+- [ ] P99 Latency 50ms 이하 유지
+
+**관련 문서:**
+- [Transactional Outbox 패턴 ADR](../adr/ADR-XXX-outbox-pattern.md) (TBD)
+- [Debebium 공식 문서](https://debezium.io/documentation/reference/stable/)
+
+---
+
+### Phase 8-B: 결제/정산 모듈 독립적 배포
+
+> **시점**: 특정 도메인에 부하가 쏠리는 현상 발생 시 (예: 장비 강화 도플 강화 이벤트)
+
+**목표**: 부하가 집중되는 모듈을 독립 서비스로 분리하여 개별 확장
+
+#### 분리 후보 모듈
+
+| 우선순위 | 모듈 | 분리 트리거 | 예상 부하 |
+|:---:|------|--------------|----------|
+| **P0** | **Calculation Engine** | 장비 강화 도플 계산 | CPU 80%+ |
+| P1 | Donation Service | 후원 금액 집계 | DB Write 500+/s |
+| P2 | Like Sync Service | 좋아요 동기화 | Redis OPs 10K/s |
+
+#### Calculation Engine 분리 예시
+
+**현재 (Monolith):**
+```
+┌─────────────────────────────────────────┐
+│         MapleExpectation App           │
+│  ┌──────────┐  ┌──────────┐  ┌───────┐ │
+│  │  Query   │  │ Worker   │  │ Calc  │ │
+│  │  Server  │  │  Server  │  │Engine │ │
+│  └──────────┘  └──────────┘  └───────┘ │
+│          공통 JVM, 공통 DB              │
+└─────────────────────────────────────────┘
+```
+
+**분리 후 (MSA):**
+```
+┌──────────────────┐          ┌──────────────────┐
+│  maple-api       │          │  maple-calc      │
+│  (Query Server)  │  Kafka   │  (Independent)   │
+│                  │─────────>│                  │
+│  • Character     │  Topic   │  • Calculator    │
+│  • Equipment     │         │  • Cube Logic     │
+│  • Like          │         │  • DP Engine      │
+│                  │         │                  │
+│  독립 확장 가능   │         │  독립 확장 가능   │
+└──────────────────┘          └──────────────────┘
+```
+
+**이점:**
+- ✅ CPU 집중적인 계산 서버만 독립적 scale-out
+- ✅ Query Server에 계산 부하 전파 방지
+- ✅ 장애 격리 (Calculation 장애 시 조회 서비스 생존)
+
+**기술 스택:**
+- **Spring Boot 3.x** (기존과 동일)
+- **Kafka Producer/Consumer** (이벤트 버스)
+- **Redisson** (분산 락, 캐시)
+- **MySQL** (독립 DB 스키마)
+
+**API 게이트웨이 전략:**
+- Spring Cloud Gateway 또는 Nginx 리버스 프록시
+- 라우팅: `/api/v2/calc/*` → `maple-calc` 서비스
+- 서비스 디스커버리: Consul 또는 Eureka (선택사항)
+
+**완료 기준:**
+- [ ] `maple-calc` 모듈 독립 빌드/배포
+- [ ] Kafka 이벤트 기반 통신 검증
+- [ ] 부하 테스트: Calculation 서버 3배 확장 시 Throughput 선형 증가
+- [ ] 장애 주입: Calculation 서버 다운 시 Query Server 정상 응답
+
+---
+
+### Phase 8-C: 완전 MSA 아키텍처 (Long-term Vision)
+
+> **시점**: 트래픽이 현재 대비 10배 이상, 여러 팀이 협업하는 규모
+
+**최종 목표:** 도메인별 독립 서비스 + 이벤트 기능 통합
+
+```
+                    ┌─────────────────────────────────────┐
+                    │      API Gateway (Spring Cloud)     │
+                    └─────────────────────────────────────┘
+                                      │
+            ┌─────────────────────────┼─────────────────────────┐
+            │                         │                         │
+    ┌───────▼────────┐      ┌────────▼────────┐    ┌───────▼────────┐
+    │  maple-api     │      │  maple-worker   │    │  maple-calc    │
+    │  (Query Only)  │      │  (Processing)   │    │  (Computation) │
+    │                │      │                 │    │                │
+    │  • Character   │      │  • Equipment     │    │  • Calculator  │
+    │  • Like        │      │  • Donation      │    │  • Cube        │
+    │  • Member      │      │  • Like Sync     │    │  • DP Engine   │
+    └────────────────┘      └─────────────────┘    └────────────────┘
+            │                         │                         │
+            └─────────────────────────┼─────────────────────────┘
+                                      │
+                               ┌──────▼─────────────┐
+                               │   Kafka Cluster    │
+                               │   (Event Bus)      │
+                               └────────────────────┘
+                                      │
+            ┌─────────────────────────┼─────────────────────────┐
+            │                         │                         │
+    ┌───────▼────────┐      ┌────────▼────────┐    ┌───────▼────────┐
+    │   MySQL        │      │    Redis         │    │  Loki/Jaeger   │
+    │   (Per DB)     │      │  (Distributed)   │    │  (Observability)│
+    └────────────────┘      └─────────────────┘    └────────────────┘
+```
+
+**서비스별 책임:**
+1. **maple-api**: 조회 전용, 빠른 응답 (P99 < 100ms)
+2. **maple-worker**: 쓰기/계산 전용, 처리량 위주
+3. **maple-calc**: CPU 집중 계산, 독립 확장
+
+**공통 인프라:**
+- **Kafka**: 이벤트 버스 (pub/sub)
+- **Redis**: 분산 캐시 + 락
+- **MySQL**: Per-Service 스키마 (데이터 격리)
+- **Consul**: 서비스 디스커버리 (선택)
+
+**데이터 일관성 전략:**
+- **Saga Pattern**: 장애 복구 (보상 트랜잭션)
+- **CQRS**: 조회/처리 DB 분리
+- **Eventual Consistency**: 최종적 일관성 허용
+
+---
+
+### Kafka Topic 설계 (초안)
+
+| Topic Name | 파티션 수 | 목적 | Producer | Consumer |
+|------------|----------|------|----------|----------|
+| `character.equipment` | 3 | 장비 데이터 변경 | maple-worker | maple-calc |
+| `character.enrich` | 3 | 캐릭터 보강 완료 | maple-worker | maple-api |
+| `like.toggle` | 3 | 좋아요 토글 | maple-api | maple-worker |
+| `donation.received` | 1 | 후원 입금 | maple-worker | maple-api |
+| `calculation.completed` | 3 | 계산 완료 | maple-calc | maple-api |
+
+**메시지 포맷 (JSON 예시):**
+```json
+{
+  "eventId": "uuid-1234",
+  "eventType": "EquipmentUpdated",
+  "occurredAt": "2026-02-07T12:00:00Z",
+  "aggregateId": "ocid-abc",
+  "payload": {
+    "ocid": "ocid-abc",
+    "equipmentHash": "md5-hash"
+  }
+}
+```
+
+---
+
+### 타임라인
+
+| 단계 | 기간 | 목표 | 선행 조건 |
+|------|------|------|----------|
+| **Phase 7** | 2-3개월 | Stateful 제거 + CQRS | 없음 |
+| **Phase 8-A** | 1개월 | Kafka + Debezium 도입 | Phase 7 완료 |
+| **Phase 8-B** | 1개월 | Calculation Engine 분리 | Phase 8-A 완료 |
+| **Phase 8-C** | 2-3개월 | 완전 MSA 전환 (필요시) | Phase 8-B 완료 |
+
+**총 소요 시간:** 6-8개월 (Phase 7 포함)
+
+---
+
+### 토스 면접 활용 전략
+
+**Q: "Kafka 경험 있으신가요?"**
+
+**A:**
+> "현재 프로젝트는 **Modular Monolith** 아키텍처로, **Transactional Outbox** 패턴과 **Async Pipeline**을 통해 이벤트 기반 통신을 이미 구현했습니다.
+>
+> 현재는 DB 기반 Outbox Polling 방식을 사용하지만, 트래픽이 5배 증가할 시 **Kafka + Debezium CDC**로 전환하는 설계를 완료했습니다 (ROADMAP.md Phase 8).
+>
+> 제 경험은 **Kafka를 '도입한 경험'**이 아니라, **'언제/왜 도입해야 하는지 아는 경험'**입니다. 현재 아키텍처는 **어떤 모듈이 분리되어야 효율적인지** 이미 설계되어 있습니다."
+
+**Q: "MSA 경험 있으신가요?"**
+
+**A:**
+> "MSA는 처음부터 하는 것이 아니라, **잘 정리된 Monolith를 필요한 만큼만 찢어가는 것**이라고 생각합니다.
+>
+> 저는 이미 **7대 모듈**을 분리했고, **Clean Architecture** 적용으로 모듈 간 결합도를 최소화했습니다. 또한 **CQRS** 패턴으로 조회/처리 서버 분리 계획도 세워두었습니다.
+>
+> 이렇게 **'찢을 준비가 된 Monolith'**가, 섣불리 MSA로 나눈 것보다 훨씬 안정적이고 확장 가능하다고 생각합니다."
+
+---
+
 ## 마일스톤 요약
 
 ```

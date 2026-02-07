@@ -6,9 +6,9 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum CubeType {
-    BLACK("블랙큐브"),
-    RED("레드큐브"),
-    ADDITIONAL("에디셔널큐브");
+  BLACK("블랙큐브"),
+  RED("레드큐브"),
+  ADDITIONAL("에디셔널큐브");
 
-    private final String description;
+  private final String description;
 }

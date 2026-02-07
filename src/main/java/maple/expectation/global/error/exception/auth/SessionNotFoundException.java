@@ -8,22 +8,22 @@ import maple.expectation.global.error.exception.marker.CircuitBreakerIgnoreMarke
  * 세션 없음 예외 (Issue #279)
  *
  * <p>발생 조건:
+ *
  * <ul>
- *   <li>Refresh Token은 유효하나 연결된 세션이 만료됨</li>
- *   <li>세션 TTL(30분) 초과 후 Refresh 시도</li>
+ *   <li>Refresh Token은 유효하나 연결된 세션이 만료됨
+ *   <li>세션 TTL(30분) 초과 후 Refresh 시도
  * </ul>
- * </p>
  *
  * <p>처리 방안:
+ *
  * <ul>
- *   <li>사용자에게 재로그인 안내</li>
+ *   <li>사용자에게 재로그인 안내
  * </ul>
- * </p>
  */
 public class SessionNotFoundException extends ClientBaseException
-        implements CircuitBreakerIgnoreMarker {
+    implements CircuitBreakerIgnoreMarker {
 
-    public SessionNotFoundException() {
-        super(CommonErrorCode.SESSION_NOT_FOUND);
-    }
+  public SessionNotFoundException() {
+    super(CommonErrorCode.SESSION_NOT_FOUND);
+  }
 }

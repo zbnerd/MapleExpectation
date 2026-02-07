@@ -17,70 +17,73 @@ import org.springframework.context.annotation.Primary;
  * Redis 기반 버퍼 설정 (#271 V5 Stateless Architecture)
  *
  * <h3>역할</h3>
- * <p>V5 Stateless 전환을 위한 Redis 기반 버퍼 빈을 등록합니다.</p>
+ *
+ * <p>V5 Stateless 전환을 위한 Redis 기반 버퍼 빈을 등록합니다.
  *
  * <h3>활성화 조건</h3>
- * <p>{@code app.buffer.redis.enabled=true} 설정 시 활성화됩니다.
- * 기본값은 true이며, Redis 기반 버퍼가 사용됩니다. In-Memory는 local/test 전용.</p>
+ *
+ * <p>{@code app.buffer.redis.enabled=true} 설정 시 활성화됩니다. 기본값은 true이며, Redis 기반 버퍼가 사용됩니다. In-Memory는
+ * local/test 전용.
  *
  * <h3>5-Agent Council 합의</h3>
+ *
  * <ul>
- *   <li>Blue (Architect): Feature Flag로 점진적 마이그레이션</li>
- *   <li>Red (SRE): @Primary로 기존 빈 대체</li>
- *   <li>Yellow (QA): 테스트에서 In-Memory 버퍼 사용 가능</li>
+ *   <li>Blue (Architect): Feature Flag로 점진적 마이그레이션
+ *   <li>Red (SRE): @Primary로 기존 빈 대체
+ *   <li>Yellow (QA): 테스트에서 In-Memory 버퍼 사용 가능
  * </ul>
  */
 @Configuration
-@ConditionalOnProperty(name = "app.buffer.redis.enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(
+    name = "app.buffer.redis.enabled",
+    havingValue = "true",
+    matchIfMissing = true)
 public class RedisBufferConfig {
 
-    private static final int DEFAULT_MAX_RETRIES = 3;
+  private static final int DEFAULT_MAX_RETRIES = 3;
 
-    /**
-     * Expectation Write Task용 Redis 버퍼 전략
-     *
-     * <h4>Reliable Queue 패턴</h4>
-     * <ul>
-     *   <li>Main Queue: {expectation}:buffer</li>
-     *   <li>INFLIGHT + DLQ 지원</li>
-     *   <li>At-Least-Once 전달 보장</li>
-     * </ul>
-     */
-    @Bean
-    public RedisBufferStrategy<ExpectationWriteTask> expectationRedisBufferStrategy(
-            RedissonClient redissonClient,
-            BufferLuaScriptProvider scriptProvider,
-            ObjectMapper objectMapper,
-            LogicExecutor executor,
-            MeterRegistry meterRegistry) {
+  /**
+   * Expectation Write Task용 Redis 버퍼 전략
+   *
+   * <h4>Reliable Queue 패턴</h4>
+   *
+   * <ul>
+   *   <li>Main Queue: {expectation}:buffer
+   *   <li>INFLIGHT + DLQ 지원
+   *   <li>At-Least-Once 전달 보장
+   * </ul>
+   */
+  @Bean
+  public RedisBufferStrategy<ExpectationWriteTask> expectationRedisBufferStrategy(
+      RedissonClient redissonClient,
+      BufferLuaScriptProvider scriptProvider,
+      ObjectMapper objectMapper,
+      LogicExecutor executor,
+      MeterRegistry meterRegistry) {
 
-        return new RedisBufferStrategy<>(
-                redissonClient,
-                scriptProvider,
-                objectMapper,
-                executor,
-                meterRegistry,
-                ExpectationWriteTask.class,
-                DEFAULT_MAX_RETRIES
-        );
-    }
+    return new RedisBufferStrategy<>(
+        redissonClient,
+        scriptProvider,
+        objectMapper,
+        executor,
+        meterRegistry,
+        ExpectationWriteTask.class,
+        DEFAULT_MAX_RETRIES);
+  }
 
-    /**
-     * Redis 기반 Expectation Write-Behind 버퍼
-     *
-     * <h4>기존 ExpectationWriteBackBuffer 대체</h4>
-     * <p>@Primary 어노테이션으로 기존 In-Memory 버퍼를 대체합니다.
-     * 동일한 인터페이스를 제공하여 호출자 코드 변경 없이 전환됩니다.</p>
-     */
-    @Bean
-    @Primary
-    public RedisExpectationWriteBackBuffer redisExpectationWriteBackBuffer(
-            RedisBufferStrategy<ExpectationWriteTask> expectationRedisBufferStrategy,
-            MeterRegistry meterRegistry) {
+  /**
+   * Redis 기반 Expectation Write-Behind 버퍼
+   *
+   * <h4>기존 ExpectationWriteBackBuffer 대체</h4>
+   *
+   * <p>@Primary 어노테이션으로 기존 In-Memory 버퍼를 대체합니다. 동일한 인터페이스를 제공하여 호출자 코드 변경 없이 전환됩니다.
+   */
+  @Bean
+  @Primary
+  public RedisExpectationWriteBackBuffer redisExpectationWriteBackBuffer(
+      RedisBufferStrategy<ExpectationWriteTask> expectationRedisBufferStrategy,
+      MeterRegistry meterRegistry) {
 
-        return new RedisExpectationWriteBackBuffer(
-                expectationRedisBufferStrategy,
-                meterRegistry
-        );
-    }
+    return new RedisExpectationWriteBackBuffer(expectationRedisBufferStrategy, meterRegistry);
+  }
 }
