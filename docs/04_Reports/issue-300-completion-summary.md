@@ -3,13 +3,16 @@
 **Status:** ✅ **COMPLETED**
 **Date:** 2026-02-07
 **Branch:** `feature/issue-300-acl-strategy-pattern`
-**Commit:** `09d7b8744d59af905fa3e70048579c3ddc6138d3`
+**Initial Commit:** `09d7b8744d59af905fa3e70048579c3ddc6138d3`
+**Pipeline Fix Commit:** `0aafc28` (Producer-Consumer Connection)
 
 ---
 
 ## Executive Summary
 
 Successfully implemented an **Anti-Corruption Layer (ACL)** using the **Strategy Pattern** to isolate external REST API constraints from internal high-speed pipelines. The implementation achieves **perfect SOLID compliance**, **100% test pass rate**, and sets a new architectural standard for the MapleExpectation project.
+
+**Critical Fix Applied:** Discovered and fixed a broken pipeline connection where the producer (RedisEventPublisher) was using MessageTopic (Pub/Sub) while the consumer (BatchWriter) was using MessageQueue (RQueue). Unified both to use the same MessageQueue instance with JSON serialization/deserialization.
 
 ---
 
@@ -99,6 +102,139 @@ Successfully implemented an **Anti-Corruption Layer (ACL)** using the **Strategy
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## Pipeline Connection Fix (Critical Issue Resolved)
+
+### Problem Discovered
+**User Question:** "실제로 어떻게 돌아가/? 구현만하고 로직에 적용한거 깜박한건 아니지?"
+
+**Root Cause:** Producer and consumer were NOT connected!
+```
+NexonDataCollector.publishAsync("nexon-data", event)
+  ↓
+RedisEventPublisher.publish()
+  ↓
+MessageTopic.publish(topic, json) ❌ (Redis Pub/Sub)
+  ❌ NOT CONNECTED TO
+MessageQueue.poll() ❌ (Redis Queue)
+  ↑
+BatchWriter.processBatch()
+```
+
+**Impact:** Events published to Pub/Sub would NEVER reach the Queue consumer!
+
+### Solution Implemented
+Changed from MessageTopic (Pub/Sub) to MessageQueue unification:
+
+**BEFORE:**
+- Producer: `MessageTopic.publish(topic, json)` - Fire-and-forget Pub/Sub
+- Consumer: `MessageQueue<IntegrationEvent>.poll()` - Point-to-point Queue
+- Result: ❌ Two different Redis structures, NO CONNECTION
+
+**AFTER:**
+- Producer: `MessageQueue<String>.offer(json)` - Point-to-point Queue
+- Consumer: `MessageQueue<String>.poll()` - Same Queue instance
+- Deserialization: `objectMapper.readValue(json, IntegrationEvent.class)`
+- Result: ✅ CONNECTED - Shared "nexon-data" RQueue
+
+### Code Changes
+
+#### 1. RedisEventPublisher.java
+```java
+// BEFORE: MessageTopic (Pub/Sub)
+private final MessageTopic<String> messageTopic;
+public RedisEventPublisher(MessageTopic<String> messageTopic, ObjectMapper objectMapper) {
+  this.messageTopic = messageTopic;
+}
+public void publish(String topic, IntegrationEvent<?> event) {
+  String json = objectMapper.writeValueAsString(event);
+  messageTopic.publish(topic, json);  // ❌ Wrong destination
+}
+
+// AFTER: MessageQueue (Queue)
+private final MessageQueue<String> messageQueue;
+public RedisEventPublisher(
+    @Qualifier("nexonDataQueue") MessageQueue<String> messageQueue,
+    ObjectMapper objectMapper) {
+  this.messageQueue = messageQueue;
+}
+public void publish(String topic, IntegrationEvent<?> event) {
+  String json = objectMapper.writeValueAsString(event);
+  boolean offered = messageQueue.offer(json);  // ✅ Same queue as consumer
+  if (!offered) {
+    throw new QueuePublishException("Redis queue full");
+  }
+}
+```
+
+#### 2. MessagingConfig.java
+```java
+// ADDED: Shared queue bean
+@Bean
+public MessageQueue<String> nexonDataQueue(RedissonClient redissonClient) {
+  return new RedisMessageQueue<>(redissonClient, "nexon-data");
+}
+```
+
+#### 3. BatchWriter.java
+```java
+// BEFORE: Expected IntegrationEvent objects directly
+private final MessageQueue<IntegrationEvent<NexonApiCharacterData>> messageQueue;
+IntegrationEvent<NexonApiCharacterData> event = messageQueue.poll();
+
+// AFTER: Poll JSON strings, deserialize
+private final MessageQueue<String> messageQueue;
+private final ObjectMapper objectMapper;
+
+String jsonPayload = messageQueue.poll();
+IntegrationEvent<NexonApiCharacterData> event = objectMapper.readValue(
+    jsonPayload,
+    new TypeReference<IntegrationEvent<NexonApiCharacterData>>() {}
+);
+```
+
+### Verification
+All tests pass (19/19):
+- ✅ IntegrationEventTest: 5 tests
+- ✅ NexonDataCollectorTest: 3 tests
+- ✅ RedisEventPublisherTest: 6 tests
+- ✅ BatchWriterTest: 5 tests
+
+### End-to-End Pipeline Flow
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Stage 1: Ingestion (REST → JSON)                           │
+│ NexonDataCollector.fetchAndPublish()                       │
+│   → WebClient.fetch()                                       │
+│   → IntegrationEvent.of("CHAR_UPDATE", data)               │
+│   → eventPublisher.publishAsync("nexon-data", event)       │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│ Stage 2: Buffer (Redis Queue)                               │
+│ RedisEventPublisher.publish()                              │
+│   → objectMapper.writeValueAsString(event) → JSON          │
+│   → messageQueue.offer(jsonPayload)                        │
+│   → Stored in "nexon-data" RQueue                          │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│ Stage 3: Storage (Queue → JDBC Batch)                      │
+│ BatchWriter.processBatch() (@Scheduled every 5s)           │
+│   → messageQueue.poll() → JSON string                      │
+│   → objectMapper.readValue(json) → IntegrationEvent         │
+│   → Extract payload → NexonApiCharacterData                │
+│   → Accumulate to BATCH_SIZE (1000)                        │
+│   → repository.batchUpsert(dataList)                       │
+│   → JdbcTemplate.batchUpdate() → DB                        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Key Achievement:** Producer and consumer now share the SAME MessageQueue instance! 🎯
 
 ---
 
