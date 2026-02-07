@@ -23,7 +23,7 @@ scrape_configs:
     scrape_interval: 5s
     metrics_path: '/actuator/prometheus'
     static_configs:
-      - targets: ['maple-expectation:8080']
+      - targets: ['host.docker.internal:8080']
         labels:
           application: 'maple-expectation'
           environment: '${ENVIRONMENT:local}'
@@ -36,7 +36,7 @@ scrape_configs:
     scrape_interval: 5s
     metrics_path: '/actuator'
     static_configs:
-      - targets: ['maple-expectation:8080']
+      - targets: ['host.docker.internal:8080']
     scrape_timeout: 3s
 
   # ============================================
@@ -97,7 +97,7 @@ scrape_configs:
     scrape_interval: 5s
     metrics_path: '/chaos/metrics'
     static_configs:
-      - targets: ['maple-expectation:8080']
+      - targets: ['host.docker.internal:8080']
         labels:
           test_type: 'chaos'
 
@@ -108,6 +108,6 @@ scrape_configs:
     scrape_interval: 5s
     metrics_path: '/actuator/resilience4j'
     static_configs:
-      - targets: ['maple-expectation:8080']
+      - targets: ['host.docker.internal:8080']
         labels:
           component: 'circuit-breaker'
