@@ -2,6 +2,8 @@
 
 > **High-throughput valuation backend with audit-grade resilience and policy-guarded SRE automation**
 
+
+
 <div align="center">
 
 ![CI Pipeline](https://github.com/zbnerd/probabilistic-valuation-engine/actions/workflows/ci.yml/badge.svg)
@@ -11,6 +13,29 @@
 ![License](https://img.shields.io/badge/License-MIT-blue)
 
 </div>
+
+<div align="center">
+
+![System Status](https://img.shields.io/badge/System-Self__Healing-brightgreen?style=for-the-badge&logo=prometheus)
+![AI Ops](https://img.shields.io/badge/Ops-AI__SRE__Agent-blueviolet?style=for-the-badge&logo=openai)
+![Architecture](https://img.shields.io/badge/Architecture-Async__Pipeline-blue?style=for-the-badge&logo=spring)
+![Decision](https://img.shields.io/badge/Design-ADR__Driven-orange?style=for-the-badge&logo=confluence)
+
+> **"비즈니스 로직은 거들 뿐, 본질은 '자율 운영(Autonomous Operations)'과 '근거 기반 설계(ADR)'입니다."**
+> 
+> 고부하 트래픽(300KB/req) 환경에서 **데이터 무결성**과 **운영 효율**을 극대화하기 위해 설계된 엔터프라이즈급 백엔드 시스템입니다.
+
+</div>
+
+## 🚀 Engineering Case Study (Core Problem & Solution)
+
+| Challenge (문제) | Hypothesis & Strategy (가설 및 전략) | Implementation (해결) | Impact (성과) |
+|:---:|:---|:---|:---:|
+| **Operational Limit**<br>(운영의 한계) | "장애 대응 속도(MTTR)는 사람의 인지 속도가 아닌, **시스템의 판단 속도**에 달려있다." | **[AI SRE Auto-Mitigation](docs/04_Reports/Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md)**<br>LangChain4j + Prometheus 기반의<br>장애 원인 분석 및 Discord 원클릭 복구 | **MTTR 2분 → 30초**<br>(75% 단축) |
+| **Consistency**<br>(데이터 정합성) | "분산 환경에서 데이터 유실은 **'확률'이 아니라 '설계'의 문제**다." | **[Transactional Outbox + Triple Net](docs/04_Reports/Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md)**<br>DB(1차) → File(2차) → Alert(3차)의<br>3중 안전망 및 Replay 메커니즘 구축 | **Zero Data Loss**<br>(장애 시 210만 건 전량 복구) |
+| **Scalability**<br>(확장성 병목) | "MySQL 락은 확장의 한계다.<br>**아키텍처 변경도 데이터에 근거**해야 한다." | **[ADR-006: Redis Lock Conversion](docs/adr/ADR-006-redis-lock-lease-timeout-ha.md)**<br>AI SRE의 병목 진단(Connection Full)에 따라<br>Global Lock 전략을 Redis로 전환 | **Throughput 3.1x**<br>(동시성 병목 해소) |
+
+---
 
 ---
 
