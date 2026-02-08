@@ -126,7 +126,7 @@ class EquipmentCacheServiceTest {
       assertThatThrownBy(
               () -> new EquipmentCacheService(cacheManager, l1CacheManager, dbWorker, executor))
           .isInstanceOf(NullPointerException.class)
-          .hasMessageContaining("Tiered equipment cache must not be null");
+          .hasMessageContaining("Tiered cache 'equipment' must not be null");
     }
   }
 
@@ -271,7 +271,7 @@ class EquipmentCacheServiceTest {
       assertThatThrownBy(
               () -> new EquipmentCacheService(cacheManager, l1CacheManager, dbWorker, executor))
           .isInstanceOf(NullPointerException.class)
-          .hasMessageContaining("L1-only equipment cache must not be null");
+          .hasMessageContaining("L1-only cache 'equipment' must not be null");
     }
   }
 
