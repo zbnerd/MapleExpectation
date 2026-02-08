@@ -112,7 +112,10 @@ class LikeSyncCompensationIntegrationTest extends IntegrationTestSupport {
     redisTemplate.opsForHash().put(SOURCE_KEY, testUser, String.valueOf(initialCount));
 
     // [When] 동기화 실행 (성공)
-    likeSyncService.syncRedisToDatabase();
+    boolean syncResult = likeSyncService.syncRedisToDatabase();
+
+    // [Then] 동기화 성공 확인
+    assertThat(syncResult).as("동기화는 성공해야 함").isTrue();
 
     // [Then] 원본 키에 데이터 없음 (동기화 완료)
     assertThat(redisTemplate.hasKey(SOURCE_KEY)).as("동기화 성공 후 원본 키는 비어있어야 함").isFalse();
