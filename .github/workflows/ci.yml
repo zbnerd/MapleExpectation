@@ -43,7 +43,7 @@ jobs:
 
     # CI에서는 service로 Redis 직접 실행 (Testcontainers 대안)
     services:
-      - name: redis
+      redis:
         image: redis:7-alpine
         ports:
           - 6379:6379
