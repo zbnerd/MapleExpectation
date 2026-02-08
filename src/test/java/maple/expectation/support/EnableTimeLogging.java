@@ -8,11 +8,11 @@ import java.lang.annotation.Target;
 /**
  * Annotation to enable time logging for test execution.
  *
- * <p>When applied to a test class, this annotation enables timing information
- * to be logged for each test method. Useful for performance monitoring and
- * identifying slow tests.
+ * <p>When applied to a test class, this annotation enables timing information to be logged for each
+ * test method. Useful for performance monitoring and identifying slow tests.
  *
  * <p>Usage:
+ *
  * <pre>
  * &#64;EnableTimeLogging
  * &#64;SpringBootTest

@@ -17,31 +17,28 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.reactive.function.client.WebClient;
-import reactor.core.publisher.Mono;
 
 /**
  * Unit tests for {@link NexonDataCollector}.
  *
  * <p><strong>Test Coverage:</strong>
+ *
  * <ul>
- *   <li>Successful fetch and publish workflow</li>
- *   <li>Event is wrapped in IntegrationEvent with correct metadata</li>
- *   <li>EventPublisher is called asynchronously</li>
- *   <li>LogicExecutor is used for execution context</li>
+ *   <li>Successful fetch and publish workflow
+ *   <li>Event is wrapped in IntegrationEvent with correct metadata
+ *   <li>EventPublisher is called asynchronously
+ *   <li>LogicExecutor is used for execution context
  * </ul>
  */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("NexonDataCollector Tests")
 class NexonDataCollectorTest {
 
-  @Mock
-  private WebClient webClient;
+  @Mock private WebClient webClient;
 
-  @Mock
-  private EventPublisher eventPublisher;
+  @Mock private EventPublisher eventPublisher;
 
-  @Mock
-  private LogicExecutor executor;
+  @Mock private LogicExecutor executor;
 
   private NexonDataCollector collector;
 
@@ -55,24 +52,29 @@ class NexonDataCollectorTest {
   void testFetchAndPublish_Success() {
     // Given
     String ocid = "test-ocid-123";
-    NexonApiCharacterData expectedData = NexonApiCharacterData.builder()
-        .ocid(ocid)
-        .characterName("TestCharacter")
-        .worldName("Scania")
-        .characterClass("Night Lord")
-        .characterLevel(250)
-        .build();
+    NexonApiCharacterData expectedData =
+        NexonApiCharacterData.builder()
+            .ocid(ocid)
+            .characterName("TestCharacter")
+            .worldName("Scania")
+            .characterClass("Night Lord")
+            .characterLevel(250)
+            .build();
 
     // Mock LogicExecutor to return expected data directly
     // (in real execution, executor.execute() runs the fetchFromNexonApi lambda,
     //  but for testing we bypass the WebClient complexity)
-    doAnswer(invocation -> {
-      return expectedData;  // WebClient fetch would return this
-    }).when(executor).execute(any(), any(TaskContext.class));
+    doAnswer(
+            invocation -> {
+              return expectedData; // WebClient fetch would return this
+            })
+        .when(executor)
+        .execute(any(), any(TaskContext.class));
 
     // Mock EventPublisher publishAsync (async fire-and-forget)
     doReturn(CompletableFuture.completedFuture(null))
-        .when(eventPublisher).publishAsync(eq("nexon-data"), any(IntegrationEvent.class));
+        .when(eventPublisher)
+        .publishAsync(eq("nexon-data"), any(IntegrationEvent.class));
 
     // When
     CompletableFuture<NexonApiCharacterData> result = collector.fetchAndPublish(ocid);
@@ -108,23 +110,26 @@ class NexonDataCollectorTest {
   }
 
   @Test
-  @DisplayName("fetchAndPublish() should publish event even if publishAsync fails (fire-and-forget)")
+  @DisplayName(
+      "fetchAndPublish() should publish event even if publishAsync fails (fire-and-forget)")
   void testFetchAndPublish_PublishFailure() {
     // Given
     String ocid = "test-ocid-123";
-    NexonApiCharacterData expectedData = NexonApiCharacterData.builder()
-        .ocid(ocid)
-        .characterName("TestCharacter")
-        .build();
+    NexonApiCharacterData expectedData =
+        NexonApiCharacterData.builder().ocid(ocid).characterName("TestCharacter").build();
 
     // Mock LogicExecutor to return data
-    doAnswer(invocation -> {
-      return expectedData;
-    }).when(executor).execute(any(), any(TaskContext.class));
+    doAnswer(
+            invocation -> {
+              return expectedData;
+            })
+        .when(executor)
+        .execute(any(), any(TaskContext.class));
 
     // Mock EventPublisher to fail
     doReturn(CompletableFuture.failedFuture(new RuntimeException("Queue unavailable")))
-        .when(eventPublisher).publishAsync(eq("nexon-data"), any(IntegrationEvent.class));
+        .when(eventPublisher)
+        .publishAsync(eq("nexon-data"), any(IntegrationEvent.class));
 
     // When
     CompletableFuture<NexonApiCharacterData> result = collector.fetchAndPublish(ocid);

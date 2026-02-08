@@ -7,14 +7,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.application.port.MessageQueue;
+import maple.expectation.application.port.MessageTopic;
 import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.global.error.exception.CharacterNotFoundException;
 import maple.expectation.global.error.exception.InternalSystemException;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.service.v2.GameCharacterService;
-import maple.expectation.application.port.MessageQueue;
-import maple.expectation.application.port.MessageTopic;
 import org.springframework.stereotype.Component;
 
 @Slf4j

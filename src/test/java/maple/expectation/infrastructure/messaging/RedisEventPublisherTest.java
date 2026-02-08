@@ -19,18 +19,18 @@ import org.mockito.junit.jupiter.MockitoExtension;
  * Unit tests for {@link RedisEventPublisher}.
  *
  * <p><strong>Test Coverage:</strong>
+ *
  * <ul>
- *   <li>Successful publish serializes event and calls MessageQueue.offer()</li>
- *   <li>Publish failure throws QueuePublishException when queue is full</li>
- *   <li>Async publish completes successfully</li>
+ *   <li>Successful publish serializes event and calls MessageQueue.offer()
+ *   <li>Publish failure throws QueuePublishException when queue is full
+ *   <li>Async publish completes successfully
  * </ul>
  */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("RedisEventPublisher Tests")
 class RedisEventPublisherTest {
 
-  @Mock
-  private MessageQueue<String> messageQueue;
+  @Mock private MessageQueue<String> messageQueue;
 
   private ObjectMapper objectMapper;
   private RedisEventPublisher publisher;
@@ -48,10 +48,8 @@ class RedisEventPublisherTest {
   void testPublish_Success() throws Exception {
     // Given
     String topic = "test-topic";
-    IntegrationEvent<TestPayload> event = IntegrationEvent.of(
-        "TEST_EVENT",
-        new TestPayload("test-data", 123)
-    );
+    IntegrationEvent<TestPayload> event =
+        IntegrationEvent.of("TEST_EVENT", new TestPayload("test-data", 123));
     when(messageQueue.offer(anyString())).thenReturn(true);
 
     // When
@@ -80,8 +78,7 @@ class RedisEventPublisherTest {
     String topic = "test-topic";
     IntegrationEvent<String> event = IntegrationEvent.of("TEST_EVENT", "payload");
 
-    doThrow(new RuntimeException("Redis connection failed"))
-        .when(messageQueue).offer(anyString());
+    doThrow(new RuntimeException("Redis connection failed")).when(messageQueue).offer(anyString());
 
     // When & Then
     assertThrows(QueuePublishException.class, () -> publisher.publish(topic, event));
@@ -117,7 +114,7 @@ class RedisEventPublisherTest {
 
     // Then
     assertNotNull(future);
-    future.join();  // Should complete without exception
+    future.join(); // Should complete without exception
     verify(messageQueue).offer(anyString());
   }
 
@@ -128,14 +125,14 @@ class RedisEventPublisherTest {
     String topic = "test-topic";
     IntegrationEvent<String> event = IntegrationEvent.of("TEST_EVENT", "payload");
 
-    doThrow(new RuntimeException("Redis connection failed"))
-        .when(messageQueue).offer(anyString());
+    doThrow(new RuntimeException("Redis connection failed")).when(messageQueue).offer(anyString());
 
     // When
     var future = publisher.publishAsync(topic, event);
 
     // Then - CompletableFuture wraps exceptions in CompletionException
-    Exception exception = assertThrows(java.util.concurrent.CompletionException.class, future::join);
+    Exception exception =
+        assertThrows(java.util.concurrent.CompletionException.class, future::join);
     assertInstanceOf(QueuePublishException.class, exception.getCause());
   }
 
@@ -149,7 +146,12 @@ class RedisEventPublisherTest {
       this.value = value;
     }
 
-    String getName() { return name; }
-    int getValue() { return value; }
+    String getName() {
+      return name;
+    }
+
+    int getValue() {
+      return value;
+    }
   }
 }

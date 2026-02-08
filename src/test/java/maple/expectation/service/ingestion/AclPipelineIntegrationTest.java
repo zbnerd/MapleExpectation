@@ -2,15 +2,14 @@ package maple.expectation.service.ingestion;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.util.List;
 import maple.expectation.application.port.MessageQueue;
 import maple.expectation.domain.event.IntegrationEvent;
 import maple.expectation.domain.nexon.NexonApiCharacterData;
 import maple.expectation.global.executor.LogicExecutor;
-import maple.expectation.global.executor.TaskContext;
 import maple.expectation.repository.v2.NexonCharacterRepository;
 import maple.expectation.support.AbstractContainerBaseTest;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,17 +25,19 @@ import org.testcontainers.shaded.org.awaitility.Awaitility;
  * End-to-End integration tests for ACL Pipeline (Issue #300).
  *
  * <h4>Test Scope</h4>
+ *
  * <ul>
- *   <li>MessageQueue (Redis) → BatchWriter → MySQL flow</li>
- *   <li>IntegrationEvent JSON serialization/deserialization</li>
- *   <li>Database persistence via JDBC batch upsert</li>
+ *   <li>MessageQueue (Redis) → BatchWriter → MySQL flow
+ *   <li>IntegrationEvent JSON serialization/deserialization
+ *   <li>Database persistence via JDBC batch upsert
  * </ul>
  *
  * <h4>Test Infrastructure</h4>
+ *
  * <ul>
- *   <li>Testcontainers for MySQL and Redis</li>
- *   <li>Real MessageQueue, BatchWriter, Repository components</li>
- *   <li>Direct IntegrationEvent creation (no NexonDataCollector)</li>
+ *   <li>Testcontainers for MySQL and Redis
+ *   <li>Real MessageQueue, BatchWriter, Repository components
+ *   <li>Direct IntegrationEvent creation (no NexonDataCollector)
  * </ul>
  *
  * @see BatchWriter
@@ -47,21 +48,16 @@ import org.testcontainers.shaded.org.awaitility.Awaitility;
 @DisplayName("ACL Pipeline Integration Tests")
 class AclPipelineIntegrationTest extends AbstractContainerBaseTest {
 
-  @Autowired
-  private BatchWriter batchWriter;
+  @Autowired private BatchWriter batchWriter;
 
   @Autowired
-  @Qualifier("nexonDataQueue")
-  private MessageQueue<String> nexonDataQueue;
+  @Qualifier("nexonDataQueue") private MessageQueue<String> nexonDataQueue;
 
-  @Autowired
-  private NexonCharacterRepository repository;
+  @Autowired private NexonCharacterRepository repository;
 
-  @Autowired
-  private ObjectMapper objectMapper;
+  @Autowired private ObjectMapper objectMapper;
 
-  @Autowired
-  private LogicExecutor executor;
+  @Autowired private LogicExecutor executor;
 
   @BeforeEach
   void setUp() {
@@ -80,13 +76,14 @@ class AclPipelineIntegrationTest extends AbstractContainerBaseTest {
     @DisplayName("IntegrationEvent JSON 직렬화 후 큐에 저장")
     void eventSerialization_JsonToQueue() throws Exception {
       // Given
-      NexonApiCharacterData testData = NexonApiCharacterData.builder()
-          .ocid("test-ocid-001")
-          .characterName("TestChar")
-          .characterLevel(250)
-          .worldName("스카니아")
-          .characterClass("제로")
-          .build();
+      NexonApiCharacterData testData =
+          NexonApiCharacterData.builder()
+              .ocid("test-ocid-001")
+              .characterName("TestChar")
+              .characterLevel(250)
+              .worldName("스카니아")
+              .characterClass("제로")
+              .build();
 
       IntegrationEvent<NexonApiCharacterData> event =
           IntegrationEvent.of("NEXON_DATA_COLLECTED", testData);
@@ -103,10 +100,9 @@ class AclPipelineIntegrationTest extends AbstractContainerBaseTest {
       assertThat(polledJson).isNotNull();
 
       // And - JSON 역직렬화 검증
-      IntegrationEvent<NexonApiCharacterData> deserializedEvent = objectMapper.readValue(
-          polledJson,
-          new TypeReference<IntegrationEvent<NexonApiCharacterData>>() {}
-      );
+      IntegrationEvent<NexonApiCharacterData> deserializedEvent =
+          objectMapper.readValue(
+              polledJson, new TypeReference<IntegrationEvent<NexonApiCharacterData>>() {});
 
       assertThat(deserializedEvent.getEventType()).isEqualTo("NEXON_DATA_COLLECTED");
       assertThat(deserializedEvent.getPayload().getOcid()).isEqualTo("test-ocid-001");
@@ -117,24 +113,28 @@ class AclPipelineIntegrationTest extends AbstractContainerBaseTest {
     @DisplayName("큐 → BatchWriter → Database 전체 흐름")
     void queueToBatchWriterToDatabase() throws Exception {
       // Given - 3개의 IntegrationEvent를 JSON으로 변환하여 큐에 저장
-      NexonApiCharacterData data1 = NexonApiCharacterData.builder()
-          .ocid("flow-test-001")
-          .characterName("FlowTestChar1")
-          .characterLevel(200)
-          .worldName("스카니아")
-          .characterClass("제로")
-          .build();
+      NexonApiCharacterData data1 =
+          NexonApiCharacterData.builder()
+              .ocid("flow-test-001")
+              .characterName("FlowTestChar1")
+              .characterLevel(200)
+              .worldName("스카니아")
+              .characterClass("제로")
+              .build();
 
-      NexonApiCharacterData data2 = NexonApiCharacterData.builder()
-          .ocid("flow-test-002")
-          .characterName("FlowTestChar2")
-          .characterLevel(250)
-          .worldName("스카니아")
-          .characterClass("제로")
-          .build();
+      NexonApiCharacterData data2 =
+          NexonApiCharacterData.builder()
+              .ocid("flow-test-002")
+              .characterName("FlowTestChar2")
+              .characterLevel(250)
+              .worldName("스카니아")
+              .characterClass("제로")
+              .build();
 
-      IntegrationEvent<NexonApiCharacterData> event1 = IntegrationEvent.of("NEXON_DATA_COLLECTED", data1);
-      IntegrationEvent<NexonApiCharacterData> event2 = IntegrationEvent.of("NEXON_DATA_COLLECTED", data2);
+      IntegrationEvent<NexonApiCharacterData> event1 =
+          IntegrationEvent.of("NEXON_DATA_COLLECTED", data1);
+      IntegrationEvent<NexonApiCharacterData> event2 =
+          IntegrationEvent.of("NEXON_DATA_COLLECTED", data2);
 
       String json1 = objectMapper.writeValueAsString(event1);
       String json2 = objectMapper.writeValueAsString(event2);
@@ -146,13 +146,15 @@ class AclPipelineIntegrationTest extends AbstractContainerBaseTest {
       batchWriter.processBatch();
 
       // Then - 데이터베이스에 저장 확인
-      Awaitility.await().atMost(Duration.ofSeconds(5))
-          .untilAsserted(() -> {
-            List<NexonApiCharacterData> allData = repository.findAll();
-            assertThat(allData).hasSizeGreaterThanOrEqualTo(2);
-            assertThat(allData).anyMatch(d -> "flow-test-001".equals(d.getOcid()));
-            assertThat(allData).anyMatch(d -> "flow-test-002".equals(d.getOcid()));
-          });
+      Awaitility.await()
+          .atMost(Duration.ofSeconds(5))
+          .untilAsserted(
+              () -> {
+                List<NexonApiCharacterData> allData = repository.findAll();
+                assertThat(allData).hasSizeGreaterThanOrEqualTo(2);
+                assertThat(allData).anyMatch(d -> "flow-test-001".equals(d.getOcid()));
+                assertThat(allData).anyMatch(d -> "flow-test-002".equals(d.getOcid()));
+              });
     }
   }
 
@@ -178,20 +180,24 @@ class AclPipelineIntegrationTest extends AbstractContainerBaseTest {
     @DisplayName("배치 크기 미만의 메시지 처리")
     void lessThanBatchSize_ProcessAllMessages() throws Exception {
       // Given - 2개의 메시지만 있는 경우 (BATCH_SIZE = 1000)
-      NexonApiCharacterData data1 = NexonApiCharacterData.builder()
-          .ocid("small-batch-001")
-          .characterName("SmallBatchChar1")
-          .characterLevel(200)
-          .build();
+      NexonApiCharacterData data1 =
+          NexonApiCharacterData.builder()
+              .ocid("small-batch-001")
+              .characterName("SmallBatchChar1")
+              .characterLevel(200)
+              .build();
 
-      NexonApiCharacterData data2 = NexonApiCharacterData.builder()
-          .ocid("small-batch-002")
-          .characterName("SmallBatchChar2")
-          .characterLevel(200)
-          .build();
+      NexonApiCharacterData data2 =
+          NexonApiCharacterData.builder()
+              .ocid("small-batch-002")
+              .characterName("SmallBatchChar2")
+              .characterLevel(200)
+              .build();
 
-      IntegrationEvent<NexonApiCharacterData> event1 = IntegrationEvent.of("NEXON_DATA_COLLECTED", data1);
-      IntegrationEvent<NexonApiCharacterData> event2 = IntegrationEvent.of("NEXON_DATA_COLLECTED", data2);
+      IntegrationEvent<NexonApiCharacterData> event1 =
+          IntegrationEvent.of("NEXON_DATA_COLLECTED", data1);
+      IntegrationEvent<NexonApiCharacterData> event2 =
+          IntegrationEvent.of("NEXON_DATA_COLLECTED", data2);
 
       nexonDataQueue.offer(objectMapper.writeValueAsString(event1));
       nexonDataQueue.offer(objectMapper.writeValueAsString(event2));
@@ -200,12 +206,14 @@ class AclPipelineIntegrationTest extends AbstractContainerBaseTest {
       batchWriter.processBatch();
 
       // Then - 2개 모두 처리됨
-      Awaitility.await().atMost(Duration.ofSeconds(5))
-          .untilAsserted(() -> {
-            List<NexonApiCharacterData> allData = repository.findAll();
-            assertThat(allData).anyMatch(d -> "small-batch-001".equals(d.getOcid()));
-            assertThat(allData).anyMatch(d -> "small-batch-002".equals(d.getOcid()));
-          });
+      Awaitility.await()
+          .atMost(Duration.ofSeconds(5))
+          .untilAsserted(
+              () -> {
+                List<NexonApiCharacterData> allData = repository.findAll();
+                assertThat(allData).anyMatch(d -> "small-batch-001".equals(d.getOcid()));
+                assertThat(allData).anyMatch(d -> "small-batch-002".equals(d.getOcid()));
+              });
     }
 
     @Test
@@ -214,49 +222,59 @@ class AclPipelineIntegrationTest extends AbstractContainerBaseTest {
       // Given - 같은 OCID로 2번 수집
       String ocid = "duplicate-test-ocid";
 
-      NexonApiCharacterData data1 = NexonApiCharacterData.builder()
-          .ocid(ocid)
-          .characterName("DuplicateCharV1")
-          .characterLevel(200)
-          .build();
+      NexonApiCharacterData data1 =
+          NexonApiCharacterData.builder()
+              .ocid(ocid)
+              .characterName("DuplicateCharV1")
+              .characterLevel(200)
+              .build();
 
-      IntegrationEvent<NexonApiCharacterData> event1 = IntegrationEvent.of("NEXON_DATA_COLLECTED", data1);
+      IntegrationEvent<NexonApiCharacterData> event1 =
+          IntegrationEvent.of("NEXON_DATA_COLLECTED", data1);
       nexonDataQueue.offer(objectMapper.writeValueAsString(event1));
 
       // When - 첫 번째 배치 처리
       batchWriter.processBatch();
 
-      Awaitility.await().atMost(Duration.ofSeconds(5))
-          .untilAsserted(() -> {
-            List<NexonApiCharacterData> allData = repository.findAll();
-            assertThat(allData).anyMatch(d -> ocid.equals(d.getOcid()));
-          });
+      Awaitility.await()
+          .atMost(Duration.ofSeconds(5))
+          .untilAsserted(
+              () -> {
+                List<NexonApiCharacterData> allData = repository.findAll();
+                assertThat(allData).anyMatch(d -> ocid.equals(d.getOcid()));
+              });
 
       // Given - 같은 OCID로 업데이트된 데이터
-      NexonApiCharacterData data2 = NexonApiCharacterData.builder()
-          .ocid(ocid)
-          .characterName("DuplicateCharV2")
-          .characterLevel(250)
-          .build();
+      NexonApiCharacterData data2 =
+          NexonApiCharacterData.builder()
+              .ocid(ocid)
+              .characterName("DuplicateCharV2")
+              .characterLevel(250)
+              .build();
 
-      IntegrationEvent<NexonApiCharacterData> event2 = IntegrationEvent.of("NEXON_DATA_COLLECTED", data2);
+      IntegrationEvent<NexonApiCharacterData> event2 =
+          IntegrationEvent.of("NEXON_DATA_COLLECTED", data2);
       nexonDataQueue.offer(objectMapper.writeValueAsString(event2));
 
       // When - 두 번째 배치 처리
       batchWriter.processBatch();
 
       // Then - 1개의 레코드만 존재 (upsert)
-      Awaitility.await().atMost(Duration.ofSeconds(5))
-          .untilAsserted(() -> {
-            List<NexonApiCharacterData> allData = repository.findAll();
-            long count = allData.stream().filter(d -> ocid.equals(d.getOcid())).count();
-            assertThat(count).isEqualTo(1);
+      Awaitility.await()
+          .atMost(Duration.ofSeconds(5))
+          .untilAsserted(
+              () -> {
+                List<NexonApiCharacterData> allData = repository.findAll();
+                long count = allData.stream().filter(d -> ocid.equals(d.getOcid())).count();
+                assertThat(count).isEqualTo(1);
 
-            // Verify it was updated
-            assertThat(allData).anyMatch(d ->
-                ocid.equals(d.getOcid()) && "DuplicateCharV2".equals(d.getCharacterName())
-            );
-          });
+                // Verify it was updated
+                assertThat(allData)
+                    .anyMatch(
+                        d ->
+                            ocid.equals(d.getOcid())
+                                && "DuplicateCharV2".equals(d.getCharacterName()));
+              });
     }
   }
 
@@ -268,13 +286,14 @@ class AclPipelineIntegrationTest extends AbstractContainerBaseTest {
     @DisplayName("IntegrationEvent JSON 직렬화/역직렬화 검증")
     void eventSerialization_JsonRoundTrip() throws Exception {
       // Given
-      NexonApiCharacterData data = NexonApiCharacterData.builder()
-          .ocid("serialize-test-ocid")
-          .characterName("SerializeTest")
-          .characterLevel(200)
-          .worldName("스카니아")
-          .characterClass("제로")
-          .build();
+      NexonApiCharacterData data =
+          NexonApiCharacterData.builder()
+              .ocid("serialize-test-ocid")
+              .characterName("SerializeTest")
+              .characterLevel(200)
+              .worldName("스카니아")
+              .characterClass("제로")
+              .build();
 
       IntegrationEvent<NexonApiCharacterData> originalEvent =
           IntegrationEvent.of("NEXON_DATA_COLLECTED", data);
@@ -289,10 +308,9 @@ class AclPipelineIntegrationTest extends AbstractContainerBaseTest {
       assertThat(json).contains("\"ocid\":\"serialize-test-ocid\"");
 
       // When - JSON 역직렬화
-      IntegrationEvent<NexonApiCharacterData> deserializedEvent = objectMapper.readValue(
-          json,
-          new TypeReference<IntegrationEvent<NexonApiCharacterData>>() {}
-      );
+      IntegrationEvent<NexonApiCharacterData> deserializedEvent =
+          objectMapper.readValue(
+              json, new TypeReference<IntegrationEvent<NexonApiCharacterData>>() {});
 
       // Then - 데이터 무결성 검증
       assertThat(deserializedEvent.getEventId()).isEqualTo(originalEvent.getEventId());

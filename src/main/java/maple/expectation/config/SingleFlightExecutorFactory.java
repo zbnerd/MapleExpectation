@@ -8,8 +8,8 @@ import org.springframework.stereotype.Component;
 /**
  * Factory for creating SingleFlightExecutor instances.
  *
- * <p>Supports DIP (Dependency Inversion Principle) by allowing injection instead of
- * direct instantiation with {@code new}.
+ * <p>Supports DIP (Dependency Inversion Principle) by allowing injection instead of direct
+ * instantiation with {@code new}.
  *
  * @param <T> the response type
  * @see maple.expectation.service.v2.EquipmentService

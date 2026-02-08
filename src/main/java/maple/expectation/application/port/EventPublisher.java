@@ -5,14 +5,15 @@ import maple.expectation.domain.event.IntegrationEvent;
 /**
  * Strategy interface for event publishing.
  *
- * <p><strong>Strategy Pattern:</strong> Concrete implementations (Redis, Kafka) are
- * interchangeable via configuration. This enables OCP compliance - open for extension
- * (new publishers), closed for modification (existing code unchanged).
+ * <p><strong>Strategy Pattern:</strong> Concrete implementations (Redis, Kafka) are interchangeable
+ * via configuration. This enables OCP compliance - open for extension (new publishers), closed for
+ * modification (existing code unchanged).
  *
- * <p><strong>DIP Compliance:</strong> Business logic depends on this abstraction,
- * not concrete Redis/Kafka implementations.
+ * <p><strong>DIP Compliance:</strong> Business logic depends on this abstraction, not concrete
+ * Redis/Kafka implementations.
  *
  * <p><strong>Usage Example:</strong>
+ *
  * <pre>{@code
  * // Business code (depends on abstraction)
  * @Service
@@ -43,10 +44,11 @@ import maple.expectation.domain.event.IntegrationEvent;
  * }</pre>
  *
  * <h3>Migration Path (Redis → Kafka):</h3>
+ *
  * <ol>
- *   <li>Current: {@code app.event-publisher.type=redis} (default)</li>
- *   <li>Future (Phase 8): Change to {@code app.event-publisher.type=kafka}</li>
- *   <li>Result: Zero code changes in business logic</li>
+ *   <li>Current: {@code app.event-publisher.type=redis} (default)
+ *   <li>Future (Phase 8): Change to {@code app.event-publisher.type=kafka}
+ *   <li>Result: Zero code changes in business logic
  * </ol>
  *
  * @see maple.expectation.infrastructure.messaging.RedisEventPublisher
@@ -70,15 +72,15 @@ public interface EventPublisher {
   /**
    * Publish an event asynchronously (non-blocking).
    *
-   * <p><strong>Fire-and-forget semantics:</strong> Returns immediately without waiting
-   * for publish confirmation. The CompletableFuture completes when the publish
-   * operation succeeds or fails.
+   * <p><strong>Fire-and-forget semantics:</strong> Returns immediately without waiting for publish
+   * confirmation. The CompletableFuture completes when the publish operation succeeds or fails.
    *
-   * <p><strong>Use case:</strong> High-throughput scenarios where blocking on publish
-   * would cause performance degradation (e.g., REST ingestion layer).
+   * <p><strong>Use case:</strong> High-throughput scenarios where blocking on publish would cause
+   * performance degradation (e.g., REST ingestion layer).
    *
-   * <p><strong>Error handling:</strong> Exceptions are delivered via CompletableFuture.
-   * Callers should handle exceptionally() if needed:
+   * <p><strong>Error handling:</strong> Exceptions are delivered via CompletableFuture. Callers
+   * should handle exceptionally() if needed:
+   *
    * <pre>{@code
    * eventPublisher.publishAsync(topic, event)
    *     .exceptionally(ex -> {
@@ -92,8 +94,7 @@ public interface EventPublisher {
    * @return CompletableFuture that completes when published
    */
   default java.util.concurrent.CompletableFuture<Void> publishAsync(
-      String topic,
-      IntegrationEvent<?> event) {
+      String topic, IntegrationEvent<?> event) {
     return java.util.concurrent.CompletableFuture.runAsync(() -> publish(topic, event));
   }
 }

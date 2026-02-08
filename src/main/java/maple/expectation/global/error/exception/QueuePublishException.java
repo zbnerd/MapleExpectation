@@ -6,23 +6,25 @@ import maple.expectation.global.error.exception.base.ServerBaseException;
 /**
  * Exception thrown when message publishing to queue fails.
  *
- * <p><strong>ServerBaseException (5xx):</strong> Queue publish failure is considered
- * a system/infrastructure error, not a business logic error. This triggers circuit
- * breaker recording to prevent cascading failures.
+ * <p><strong>ServerBaseException (5xx):</strong> Queue publish failure is considered a
+ * system/infrastructure error, not a business logic error. This triggers circuit breaker recording
+ * to prevent cascading failures.
  *
  * <p><strong>Use Cases:</strong>
+ *
  * <ul>
- *   <li>Redis connection failure during publish</li>
- *   <li>Kafka broker unavailable</li>
- *   <li>JSON serialization error</li>
- *   <li>Topic/queue capacity exceeded</li>
+ *   <li>Redis connection failure during publish
+ *   <li>Kafka broker unavailable
+ *   <li>JSON serialization error
+ *   <li>Topic/queue capacity exceeded
  * </ul>
  *
  * <p><strong>Recovery Strategy:</strong>
+ *
  * <ul>
- *   <li>Transient failures (connection timeout): Retry with exponential backoff</li>
- *   <li>Persistent failures (queue down): Circuit breaker opens, fallback to local storage</li>
- *   <li>Serialization errors: Fail-fast (indicates data corruption)</li>
+ *   <li>Transient failures (connection timeout): Retry with exponential backoff
+ *   <li>Persistent failures (queue down): Circuit breaker opens, fallback to local storage
+ *   <li>Serialization errors: Fail-fast (indicates data corruption)
  * </ul>
  *
  * @see ServerBaseException

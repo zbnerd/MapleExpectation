@@ -8,37 +8,42 @@ import maple.expectation.domain.event.IntegrationEvent;
 import maple.expectation.domain.nexon.NexonApiCharacterData;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
-import reactor.core.publisher.Mono;
 
 /**
  * Non-blocking Nexon API data collector.
  *
  * <p><strong>Stage 1 (Ingestion) - Anti-Corruption Layer:</strong>
+ *
  * <ul>
- *   <li>Uses WebClient for non-blocking HTTP calls (prevents thread pool exhaustion)</li>
- *   <li>Parses JSON to {@link NexonApiCharacterData} domain object</li>
- *   <li>Publishes to Queue via {@link EventPublisher} (fire-and-forget)</li>
+ *   <li>Uses WebClient for non-blocking HTTP calls (prevents thread pool exhaustion)
+ *   <li>Parses JSON to {@link NexonApiCharacterData} domain object
+ *   <li>Publishes to Queue via {@link EventPublisher} (fire-and-forget)
  * </ul>
  *
  * <p><strong>Anti-Corruption Layer Benefits:</strong>
+ *
  * <ul>
- *   <li><b>Isolation:</b> External REST latency is contained here</li>
- *   <li><b>Translation:</b> Converts external API format to internal domain model</li>
- *   <li><b>Decoupling:</b> Internal pipeline doesn't depend on external API structure</li>
+ *   <li><b>Isolation:</b> External REST latency is contained here
+ *   <li><b>Translation:</b> Converts external API format to internal domain model
+ *   <li><b>Decoupling:</b> Internal pipeline doesn't depend on external API structure
  * </ul>
  *
  * <p><strong>SOLID Compliance:</strong>
+ *
  * <ul>
- *   <li><b>SRP:</b> Single responsibility - data collection only</li>
- *   <li><b>DIP:</b> Depends on {@link EventPublisher} abstraction</li>
- *   <li><b>OCP:</b> Open for extension (new API endpoints), closed for modification</li>
+ *   <li><b>SRP:</b> Single responsibility - data collection only
+ *   <li><b>DIP:</b> Depends on {@link EventPublisher} abstraction
+ *   <li><b>OCP:</b> Open for extension (new API endpoints), closed for modification
  * </ul>
  *
  * <h3>Migration to Fully Non-Blocking (Phase 8):</h3>
- * Current implementation uses {@code WebClient.block()} which is not ideal.
- * In Phase 8, this should be refactored to fully reactive:
+ *
+ * Current implementation uses {@code WebClient.block()} which is not ideal. In Phase 8, this should
+ * be refactored to fully reactive:
+ *
  * <pre>{@code
  * public Mono<NexonApiCharacterData> fetchAndPublish(String ocid) {
  *   return webClient.get()
@@ -63,18 +68,22 @@ public class NexonDataCollector {
   private final EventPublisher eventPublisher;
   private final LogicExecutor executor;
 
+  @Value("${nexon.api.key}")
+  private String apiKey;
+
   private static final String NEXON_DATA_COLLECTED = "NEXON_DATA_COLLECTED";
 
   /**
    * Fetch character data from Nexon API and publish to queue.
    *
    * <p><strong>Workflow:</strong>
+   *
    * <ol>
-   *   <li>Call Nexon API (HTTP GET)</li>
-   *   <li>Parse JSON response to {@link NexonApiCharacterData}</li>
-   *   <li>Wrap in {@link IntegrationEvent}</li>
-   *   <li>Publish to queue (fire-and-forget)</li>
-   *   <li>Return character data to caller</li>
+   *   <li>Call Nexon API (HTTP GET)
+   *   <li>Parse JSON response to {@link NexonApiCharacterData}
+   *   <li>Wrap in {@link IntegrationEvent}
+   *   <li>Publish to queue (fire-and-forget)
+   *   <li>Return character data to caller
    * </ol>
    *
    * @param ocid Character OCID
@@ -87,24 +96,25 @@ public class NexonDataCollector {
       log.debug("[NexonDataCollector] Fetching character data: ocid={}", ocid);
 
       // Execute fetch logic with LogicExecutor
-      NexonApiCharacterData data = executor.execute(
-          () -> fetchFromNexonApi(ocid),
-          context
-      );
+      NexonApiCharacterData data = executor.execute(() -> fetchFromNexonApi(ocid), context);
 
       // Wrap in IntegrationEvent with metadata
       IntegrationEvent<NexonApiCharacterData> event =
           IntegrationEvent.of(NEXON_DATA_COLLECTED, data);
 
       // Publish to queue (fire-and-forget async publish)
-      eventPublisher.publishAsync("nexon-data", event)
-          .exceptionally(ex -> {
-            log.error("[NexonDataCollector] Failed to publish event: ocid={}", ocid, ex);
-            return null;  // Async error handling
-          });
+      eventPublisher
+          .publishAsync("nexon-data", event)
+          .exceptionally(
+              ex -> {
+                log.error("[NexonDataCollector] Failed to publish event: ocid={}", ocid, ex);
+                return null; // Async error handling
+              });
 
-      log.info("[NexonDataCollector] Fetched and queued: ocid={}, characterName={}",
-          ocid, data.getCharacterName());
+      log.info(
+          "[NexonDataCollector] Fetched and queued: ocid={}, characterName={}",
+          ocid,
+          data.getCharacterName());
 
       // Return completed future
       return CompletableFuture.completedFuture(data);
@@ -118,21 +128,22 @@ public class NexonDataCollector {
   /**
    * Non-blocking HTTP call to Nexon API.
    *
-   * <p><strong>Note:</strong> Currently uses {@code block()} which ties up a thread.
-   * This is acceptable for Phase 1 but should be refactored to fully reactive
-   * in Phase 8 (Kafka migration).
+   * <p><strong>Note:</strong> Currently uses {@code block()} which ties up a thread. This is
+   * acceptable for Phase 1 but should be refactored to fully reactive in Phase 8 (Kafka migration).
    *
-   * <p><strong>API Endpoint:</strong> Uses Nexon Open API {@code /character/basic} endpoint
-   * which returns lightweight character data (~1-2 KB) instead of full profile (300 KB).
+   * <p><strong>API Endpoint:</strong> Uses Nexon Open API {@code /character/basic} endpoint which
+   * returns lightweight character data (~1-2 KB) instead of full profile (300 KB).
    *
    * @param ocid Character OCID
    * @return Parsed character data
    */
   private NexonApiCharacterData fetchFromNexonApi(String ocid) {
-    return nexonWebClient.get()
+    return nexonWebClient
+        .get()
         .uri("/maplestory/v1/character/basic?ocid={ocid}", ocid)
+        .header("x-nxopen-api-key", apiKey)
         .retrieve()
         .bodyToMono(NexonApiCharacterData.class)
-        .block();  // TODO: Phase 8 - Remove block(), return Mono instead
+        .block(); // TODO: Phase 8 - Remove block(), return Mono instead
   }
 }

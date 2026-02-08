@@ -11,21 +11,18 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 /**
  * Base class for integration tests requiring Testcontainers.
  *
- * <p>Manages Docker containers for MySQL and Redis lifecycle. Containers are shared across
- * all test classes to reduce startup time.
+ * <p>Manages Docker containers for MySQL and Redis lifecycle. Containers are shared across all test
+ * classes to reduce startup time.
  *
- * <p>Note: ToxiProxy integration is currently disabled. Chaos tests that require
- * network fault injection will need to be re-enabled with proper ToxiProxy setup.
+ * <p>Note: ToxiProxy integration is currently disabled. Chaos tests that require network fault
+ * injection will need to be re-enabled with proper ToxiProxy setup.
  */
 @Testcontainers
 @SpringBootTest(classes = maple.expectation.ExpectationApplication.class)
 @ActiveProfiles("test")
 public abstract class AbstractContainerBaseTest {
 
-  /**
-   * Shared MySQL container for all tests.
-   * Uses testcontainers/MySQL 8.0 image.
-   */
+  /** Shared MySQL container for all tests. Uses testcontainers/MySQL 8.0 image. */
   protected static final MySQLContainer<?> MYSQL_CONTAINER =
       new MySQLContainer<>("mysql:8.0")
           .withDatabaseName("testdb")
@@ -33,19 +30,12 @@ public abstract class AbstractContainerBaseTest {
           .withPassword("test")
           .withReuse(true);
 
-  /**
-   * Shared Redis container for all tests.
-   * Uses testcontainers/Redis 7-alpine image.
-   */
+  /** Shared Redis container for all tests. Uses testcontainers/Redis 7-alpine image. */
   @SuppressWarnings("resource")
   protected static final GenericContainer<?> REDIS_CONTAINER =
-      new GenericContainer<>("redis:7-alpine")
-          .withExposedPorts(6379)
-          .withReuse(true);
+      new GenericContainer<>("redis:7-alpine").withExposedPorts(6379).withReuse(true);
 
-  /**
-   * Start containers before any tests run.
-   */
+  /** Start containers before any tests run. */
   @BeforeAll
   static void startContainers() {
     MYSQL_CONTAINER.start();
@@ -59,9 +49,7 @@ public abstract class AbstractContainerBaseTest {
     System.setProperty("spring.data.redis.port", REDIS_CONTAINER.getMappedPort(6379).toString());
   }
 
-  /**
-   * Stop containers after all tests complete.
-   */
+  /** Stop containers after all tests complete. */
   @AfterAll
   static void stopContainers() {
     MYSQL_CONTAINER.stop();

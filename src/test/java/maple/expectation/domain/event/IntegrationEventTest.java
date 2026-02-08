@@ -11,10 +11,11 @@ import org.junit.jupiter.api.Test;
  * Unit tests for {@link IntegrationEvent}.
  *
  * <p><strong>Test Coverage:</strong>
+ *
  * <ul>
- *   <li>Factory method creates event with generated metadata</li>
- *   <li>Explicit constructor allows custom metadata (for testing/replay)</li>
- *   <li>Getter methods return correct values</li>
+ *   <li>Factory method creates event with generated metadata
+ *   <li>Explicit constructor allows custom metadata (for testing/replay)
+ *   <li>Getter methods return correct values
  * </ul>
  */
 @DisplayName("IntegrationEvent Tests")
@@ -38,7 +39,9 @@ class IntegrationEventTest {
 
     assertNotNull(event.getTimestamp());
     assertTrue(event.getTimestamp() > 0, "timestamp should be positive");
-    assertTrue(event.getTimestamp() <= Instant.now().toEpochMilli(), "timestamp should be current or past");
+    assertTrue(
+        event.getTimestamp() <= Instant.now().toEpochMilli(),
+        "timestamp should be current or past");
 
     assertEquals(payload, event.getPayload());
   }
@@ -74,8 +77,7 @@ class IntegrationEventTest {
     IntegrationEvent<String> event2 = IntegrationEvent.of(eventType, payload);
 
     // Then
-    assertNotEquals(event1.getEventId(), event2.getEventId(),
-        "Each event should have unique UUID");
+    assertNotEquals(event1.getEventId(), event2.getEventId(), "Each event should have unique UUID");
   }
 
   @Test
@@ -90,7 +92,8 @@ class IntegrationEventTest {
     IntegrationEvent<String> event2 = IntegrationEvent.of(eventType, payload);
 
     // Then
-    assertTrue(event2.getTimestamp() >= event1.getTimestamp(),
+    assertTrue(
+        event2.getTimestamp() >= event1.getTimestamp(),
         "Timestamps should be monotonically increasing");
   }
 
@@ -107,8 +110,13 @@ class IntegrationEventTest {
         this.value = value;
       }
 
-      String getName() { return name; }
-      int getValue() { return value; }
+      String getName() {
+        return name;
+      }
+
+      int getValue() {
+        return value;
+      }
     }
 
     TestPayload payload = new TestPayload("test", 123);

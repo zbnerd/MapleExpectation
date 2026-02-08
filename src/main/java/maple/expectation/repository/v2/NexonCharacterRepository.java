@@ -11,17 +11,14 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Repository for Nexon API character data.
  *
- * <p><strong>Purpose:</strong>
- * Stores character data fetched from Nexon Open API. This is the write side
- * of the ingestion pipeline (Stage 3: Storage).
+ * <p><strong>Purpose:</strong> Stores character data fetched from Nexon Open API. This is the write
+ * side of the ingestion pipeline (Stage 3: Storage).
  *
- * <p><strong>Batch Operations:</strong>
- * Provides {@link #batchUpsert(List)} for efficient bulk inserts.
- * Uses JDBC batch updates for 90% reduction in DB I/O.
+ * <p><strong>Batch Operations:</strong> Provides {@link #batchUpsert(List)} for efficient bulk
+ * inserts. Uses JDBC batch updates for 90% reduction in DB I/O.
  *
- * <p><strong>Idempotency:</strong>
- * Upsert operation (INSERT or UPDATE) ensures data integrity even if
- * the same character is processed multiple times.
+ * <p><strong>Idempotency:</strong> Upsert operation (INSERT or UPDATE) ensures data integrity even
+ * if the same character is processed multiple times.
  *
  * @see NexonApiCharacterData
  * @see maple.expectation.service.ingestion.BatchWriter
@@ -32,14 +29,12 @@ public interface NexonCharacterRepository extends JpaRepository<NexonApiCharacte
   /**
    * Batch upsert operation for efficient bulk inserts.
    *
-   * <p><strong>Performance:</strong>
-   * Uses JDBC batch updates to insert/update multiple records in a single
-   * transaction. This provides 90% reduction in DB I/O compared to
-   * individual saves.
+   * <p><strong>Performance:</strong> Uses JDBC batch updates to insert/update multiple records in a
+   * single transaction. This provides 90% reduction in DB I/O compared to individual saves.
    *
-   * <p><strong>Usage:</strong>
-   * Called by {@link maple.expectation.service.ingestion.BatchWriter#processBatch()}
-   * with batch size of 1000 records.
+   * <p><strong>Usage:</strong> Called by {@link
+   * maple.expectation.service.ingestion.BatchWriter#processBatch()} with batch size of 1000
+   * records.
    *
    * @param dataList List of character data to upsert
    * @return Number of affected rows
@@ -47,7 +42,8 @@ public interface NexonCharacterRepository extends JpaRepository<NexonApiCharacte
   @Modifying
   @Transactional
   @Query(
-      value = """
+      value =
+          """
           INSERT INTO nexon_api_character_data (
               ocid, character_name, world_name, character_class, character_level,
               guild_name, character_image_url, date
@@ -64,7 +60,6 @@ public interface NexonCharacterRepository extends JpaRepository<NexonApiCharacte
               character_image_url = VALUES(character_image_url),
               date = VALUES(date)
           """,
-      nativeQuery = true
-  )
+      nativeQuery = true)
   int batchUpsert(@Param("dataList") List<NexonApiCharacterData> dataList);
 }

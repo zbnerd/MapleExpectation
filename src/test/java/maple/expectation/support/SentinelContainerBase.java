@@ -10,17 +10,15 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 /**
  * Base class for Redis Sentinel tests requiring Testcontainers.
  *
- * <p>Manages Docker containers for Redis master, slaves, and sentinels lifecycle.
- * Containers are shared across all test classes to reduce startup time.
+ * <p>Manages Docker containers for Redis master, slaves, and sentinels lifecycle. Containers are
+ * shared across all test classes to reduce startup time.
  */
 @Testcontainers
 @SpringBootTest(classes = maple.expectation.ExpectationApplication.class)
 @ActiveProfiles("test")
 public abstract class SentinelContainerBase {
 
-  /**
-   * Shared Redis master container for all tests.
-   */
+  /** Shared Redis master container for all tests. */
   @SuppressWarnings("resource")
   protected static final GenericContainer<?> REDIS_MASTER =
       new GenericContainer<>("redis:7-alpine")
@@ -28,9 +26,7 @@ public abstract class SentinelContainerBase {
           .withCommand("redis-server", "--save", "")
           .withReuse(true);
 
-  /**
-   * Shared Redis slave container for all tests.
-   */
+  /** Shared Redis slave container for all tests. */
   @SuppressWarnings("resource")
   protected static final GenericContainer<?> REDIS_SLAVE =
       new GenericContainer<>("redis:7-alpine")
@@ -38,9 +34,7 @@ public abstract class SentinelContainerBase {
           .withCommand("redis-server", "--save", "", "--slaveof", "redis-master", "6379")
           .withReuse(true);
 
-  /**
-   * Shared Redis sentinel container for all tests.
-   */
+  /** Shared Redis sentinel container for all tests. */
   @SuppressWarnings("resource")
   protected static final GenericContainer<?> REDIS_SENTINEL =
       new GenericContainer<>("redis:7-alpine")
@@ -48,9 +42,7 @@ public abstract class SentinelContainerBase {
           .withCommand("redis-sentinel", "/etc/redis/sentinel.conf")
           .withReuse(true);
 
-  /**
-   * Start containers before any tests run.
-   */
+  /** Start containers before any tests run. */
   @BeforeAll
   static void startContainers() {
     REDIS_MASTER.start();
@@ -63,13 +55,12 @@ public abstract class SentinelContainerBase {
 
     // Set system properties for Spring Boot to use Testcontainers URLs
     System.setProperty("spring.data.redis.sentinel.master", "mymaster");
-    System.setProperty("spring.data.redis.sentinel.nodes",
+    System.setProperty(
+        "spring.data.redis.sentinel.nodes",
         REDIS_SENTINEL.getHost() + ":" + REDIS_SENTINEL.getMappedPort(26379));
   }
 
-  /**
-   * Stop containers after all tests complete.
-   */
+  /** Stop containers after all tests complete. */
   @AfterAll
   static void stopContainers() {
     REDIS_SENTINEL.stop();

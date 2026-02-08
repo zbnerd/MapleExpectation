@@ -2,7 +2,13 @@ package maple.expectation.monitoring.copilot.client;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -174,8 +180,8 @@ public class PrometheusClient {
   }
 
   /** Single value point with timestamp and value. */
-  public record ValuePoint(
-      @JsonProperty("timestamp") long timestamp, @JsonProperty("value") String value) {
+  @JsonDeserialize(using = ValuePointDeserializer.class)
+  public record ValuePoint(long timestamp, String value) {
 
     /** Parse value as Double. Returns 0.0 on parse failure (safe default). */
     public double getValueAsDouble() {
@@ -191,11 +197,21 @@ public class PrometheusClient {
     public Instant getTimestampAsInstant() {
       return Instant.ofEpochSecond(timestamp);
     }
+  }
 
-    @JsonCreator
-    public static ValuePoint create(
-        @JsonProperty("0") long timestamp, @JsonProperty("1") String value) {
-      return new ValuePoint(timestamp, value);
+  /** Custom deserializer for ValuePoint to handle Prometheus array format [[timestamp, value]]. */
+  public static class ValuePointDeserializer extends JsonDeserializer<ValuePoint> {
+
+    @Override
+    public ValuePoint deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
+      JsonNode node = p.getCodec().readTree(p);
+      if (node.isArray() && node.size() == 2) {
+        long timestamp = node.get(0).asLong();
+        String value = node.get(1).asText();
+        return new ValuePoint(timestamp, value);
+      }
+      throw new IOException(
+          "Invalid ValuePoint format: expected [timestamp, value] array, got: " + node);
     }
   }
 }

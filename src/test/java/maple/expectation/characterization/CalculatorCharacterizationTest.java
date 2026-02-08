@@ -26,10 +26,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
  *
  * <p><b>PURPOSE:</b> Capture CURRENT behavior of probability calculation before domain extraction.
  *
- * <p><b>NOTE:</b> These tests document WHAT the system DOES, not what it SHOULD do.
- * They serve as a safety net during refactoring to prevent unintended behavior changes.
+ * <p><b>NOTE:</b> These tests document WHAT the system DOES, not what it SHOULD do. They serve as a
+ * safety net during refactoring to prevent unintended behavior changes.
  *
  * <h3>Target Classes (Phase 3 Calculator Domain):</h3>
+ *
  * <ul>
  *   <li>{@link ProbabilityConvolver} - DP convolution probability calculator
  *   <li>{@link DensePmf} - Dense Probability Mass Function

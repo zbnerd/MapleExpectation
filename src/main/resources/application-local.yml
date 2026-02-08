@@ -51,7 +51,25 @@ cors:
 
 # Issue #283 P0-2: 로컬 환경에서만 In-Memory 버퍼 사용
 # prod/default에서는 Redis 버퍼가 기본 활성화 (Scale-out 지원)
+# Issue #300: ACL Phase 2 - Nexon Data Collection Scheduler
 app:
   buffer:
     redis:
       enabled: false
+  event-publisher:
+    type: redis  # Use Redis (default)
+
+# ACL Phase 2: Scheduler Configuration
+scheduler:
+  nexon-data-collection:
+    enabled: true
+    rate: 600000  # 10 minutes (default)
+    initial-delay: 30000  # 30 seconds
+
+# Disable other schedulers to prevent MySQLLockPool exhaustion during ACL testing
+  like-sync:
+    enabled: false
+  expectation-sync:
+    enabled: false
+  popular-character-warmup:
+    enabled: false

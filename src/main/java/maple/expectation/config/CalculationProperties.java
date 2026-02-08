@@ -6,8 +6,8 @@ import org.springframework.stereotype.Component;
 /**
  * Calculation engine configuration properties.
  *
- * <p>Externalizes calculation logic versioning to support OCP (Open/Closed Principle).
- * Version bumps can be done via configuration without code modification.
+ * <p>Externalizes calculation logic versioning to support OCP (Open/Closed Principle). Version
+ * bumps can be done via configuration without code modification.
  *
  * @see maple.expectation.service.v2.EquipmentService
  */
