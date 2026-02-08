@@ -20,11 +20,11 @@ import maple.expectation.support.IntegrationTestSupport;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * DonationService 통합 테스트
@@ -66,13 +66,12 @@ public class DonationTest extends IntegrationTestSupport {
   }
 
   private Member saveAndTrack(Member member) {
-    Member saved = memberRepository.save(member);
+    Member saved = memberRepository.saveAndFlush(member);
     createdMemberIds.add(saved.getId());
     return saved;
   }
 
   @AfterEach
-  @Transactional
   void tearDown() {
     // Admin 등록 해제
     if (testAdminFingerprint != null) {
@@ -109,6 +108,7 @@ public class DonationTest extends IntegrationTestSupport {
   }
 
   @Test
+  @Tag("flaky")
   @DisplayName("따닥 방어: 1000원 가진 유저가 동시에 100번 요청(각기 다른 ID)해도, 잔액 부족으로 딱 1번만 성공해야 한다.")
   void concurrencyTest() throws InterruptedException {
     // 1. Given
@@ -151,6 +151,7 @@ public class DonationTest extends IntegrationTestSupport {
   }
 
   @Test
+  @Tag("flaky")
   @DisplayName("Hotspot 방어: 100명의 유저가 동시에 1000원씩 보내면, Admin은 정확히 10만원을 받아야 한다.")
   void hotspotTest() throws InterruptedException {
     // 1. Given

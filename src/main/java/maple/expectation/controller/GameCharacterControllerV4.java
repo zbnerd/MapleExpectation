@@ -3,6 +3,7 @@ package maple.expectation.controller;
 import java.util.concurrent.CompletableFuture;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.controller.util.AsyncResponseUtils;
 import maple.expectation.dto.v4.EquipmentExpectationResponseV4;
 import maple.expectation.service.v4.EquipmentExpectationServiceV4;
 import maple.expectation.service.v4.warmup.PopularCharacterTracker;
@@ -43,6 +44,8 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 @RequestMapping("/api/v4/characters")
 public class GameCharacterControllerV4 {
+
+  private static final int FIRST_PRESET_INDEX = 0;
 
   private final EquipmentExpectationServiceV4 expectationService;
   private final PopularCharacterTracker popularCharacterTracker;
@@ -151,10 +154,9 @@ public class GameCharacterControllerV4 {
     log.info("[V4] Calculating expectation for {} preset {}", maskIgn(userIgn), presetNo);
 
     // 현재는 전체 계산 후 프리셋 필터링 (추후 최적화 가능)
-    return expectationService
-        .calculateExpectationAsync(userIgn)
-        .thenApply(response -> filterByPreset(response, presetNo))
-        .thenApply(ResponseEntity::ok);
+    return AsyncResponseUtils.map(
+        expectationService.calculateExpectationAsync(userIgn),
+        response -> filterByPreset(response, presetNo));
   }
 
   /**
@@ -169,9 +171,7 @@ public class GameCharacterControllerV4 {
 
     log.info("[V4] Force recalculating expectation for: {}", maskIgn(userIgn));
 
-    return expectationService
-        .calculateExpectationAsync(userIgn, true)
-        .thenApply(ResponseEntity::ok);
+    return AsyncResponseUtils.ok(expectationService.calculateExpectationAsync(userIgn, true));
   }
 
   // ==================== 유틸리티 ====================
@@ -188,11 +188,11 @@ public class GameCharacterControllerV4 {
         .totalExpectedCost(
             filteredPresets.isEmpty()
                 ? java.math.BigDecimal.ZERO
-                : filteredPresets.get(0).getTotalExpectedCost())
+                : filteredPresets.get(FIRST_PRESET_INDEX).getTotalExpectedCost())
         .totalCostBreakdown(
             filteredPresets.isEmpty()
                 ? EquipmentExpectationResponseV4.CostBreakdownDto.empty()
-                : filteredPresets.get(0).getCostBreakdown())
+                : filteredPresets.get(FIRST_PRESET_INDEX).getCostBreakdown())
         .presets(filteredPresets)
         .build();
   }

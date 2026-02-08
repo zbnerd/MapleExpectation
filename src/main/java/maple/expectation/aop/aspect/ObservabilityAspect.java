@@ -5,6 +5,7 @@ import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.aop.annotation.ObservedTransaction;
+import maple.expectation.global.error.exception.ObservabilityException;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -82,6 +83,6 @@ public class ObservabilityAspect {
     if (e instanceof RuntimeException) {
       throw (RuntimeException) e;
     }
-    throw new RuntimeException("Observability tracking failed", e);
+    throw new ObservabilityException("Observability tracking failed", e);
   }
 }

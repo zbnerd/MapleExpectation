@@ -6,8 +6,8 @@ import org.springframework.test.context.ActiveProfiles;
 /**
  * Base class for chaos engineering tests.
  *
- * <p>Provides common Spring Boot test configuration with active profile set to "test".
- * Chaos tests validate system resilience under failure conditions.
+ * <p>Provides common Spring Boot test configuration with active profile set to "test". Chaos tests
+ * validate system resilience under failure conditions.
  *
  * @see SpringBootTest
  * @see ActiveProfiles

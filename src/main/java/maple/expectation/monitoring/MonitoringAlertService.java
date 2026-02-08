@@ -21,6 +21,7 @@ public class MonitoringAlertService {
   private final DiscordAlertService discordAlertService;
   private final LockStrategy lockStrategy;
   private final LogicExecutor executor; // ✅ 지능형 실행 엔진 주입
+  private final maple.expectation.config.MonitoringThresholdProperties thresholdProperties;
 
   /**
    * ✅ 버퍼 포화도 체크 로직 (Leader Election 패턴)
@@ -53,7 +54,7 @@ public class MonitoringAlertService {
   private void performBufferCheck() {
     long globalPending = redisBufferRepository.getTotalPendingCount();
 
-    if (globalPending > 5000) {
+    if (globalPending > thresholdProperties.bufferSaturationCount()) {
       MonitoringException exception =
           new MonitoringException(CommonErrorCode.SYSTEM_CAPACITY_EXCEEDED, globalPending);
 

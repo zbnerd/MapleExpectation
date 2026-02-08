@@ -11,12 +11,11 @@ import lombok.NoArgsConstructor;
 /**
  * Nexon API character data response.
  *
- * <p>This is a simplified version of the actual Nexon API response.
- * In production, this should match the actual Nexon Open API schema.
+ * <p>This is a simplified version of the actual Nexon API response. In production, this should
+ * match the actual Nexon Open API schema.
  *
- * <p><strong>Anti-Corruption Layer:</strong>
- * This DTO isolates the external API structure from internal domain models.
- * Changes in Nexon API should not propagate to internal business logic.
+ * <p><strong>Anti-Corruption Layer:</strong> This DTO isolates the external API structure from
+ * internal domain models. Changes in Nexon API should not propagate to internal business logic.
  *
  * @see <a href="https://openapi.nexon.com/maplestory">Nexon Open API Documentation</a>
  */

@@ -29,7 +29,6 @@ public class EquipmentFingerprintGenerator {
 
   private final CheckedLogicExecutor checkedExecutor;
 
-  // P1-6 Fix: 메트릭 카운터 (TODO 코멘트 제거)
   private final Counter fingerprintNullCounter;
 
   public EquipmentFingerprintGenerator(

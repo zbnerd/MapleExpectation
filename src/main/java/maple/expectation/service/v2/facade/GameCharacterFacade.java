@@ -2,19 +2,19 @@ package maple.expectation.service.v2.facade;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.application.port.MessageQueue;
+import maple.expectation.application.port.MessageTopic;
 import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.global.error.exception.CharacterNotFoundException;
 import maple.expectation.global.error.exception.InternalSystemException;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.service.v2.GameCharacterService;
-import maple.expectation.application.port.MessageQueue;
-import maple.expectation.application.port.MessageTopic;
+import maple.expectation.util.AsyncUtils;
 import org.springframework.stereotype.Component;
 
 @Slf4j
@@ -118,9 +118,7 @@ public class GameCharacterFacade {
         // 🚀 2. 번역: 발생한 Throwable을 여기서 요리합니다.
         (e, ctx) -> {
           // 비동기 실행 중 발생한 실제 원인(cause)을 추출합니다.
-          // Purple Agent: null 체크 추가 (방어적 코딩)
-          Throwable cause =
-              (e instanceof ExecutionException && e.getCause() != null) ? e.getCause() : e;
+          Throwable cause = AsyncUtils.unwrapCompletionException(e);
 
           // 이미 도메인 예외(404 등)라면 그대로 던집니다.
           if (cause instanceof CharacterNotFoundException cnfe) {

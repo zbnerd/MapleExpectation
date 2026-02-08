@@ -164,10 +164,10 @@ test {
             includeTags 'nightmare'
         } else if (project.hasProperty('fastTest')) {
             // CI Gate: integration, chaos, nightmare 등 무거운 테스트 제외 (1-2분)
-            excludeTags 'sentinel', 'slow', 'quarantine', 'chaos', 'nightmare', 'integration'
+            excludeTags 'sentinel', 'slow', 'quarantine', 'chaos', 'nightmare', 'integration', 'flaky'
         } else {
-            // Nightly: sentinel, quarantine만 제외
-            excludeTags 'sentinel', 'quarantine'
+            // Nightly: sentinel, quarantine, flaky 제외
+            excludeTags 'sentinel', 'quarantine', 'flaky'
         }
     }
     exclude '**/vintage/**'

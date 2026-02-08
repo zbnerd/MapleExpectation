@@ -7,8 +7,8 @@ import maple.expectation.global.executor.strategy.ExceptionTranslator;
 /**
  * Resilient execution pattern interface.
  *
- * <p>Provides advanced error handling with translation and fallback capabilities. Part of
- * Interface Segregation Principle (ISP) compliance - clients only depend on methods they use.
+ * <p>Provides advanced error handling with translation and fallback capabilities. Part of Interface
+ * Segregation Principle (ISP) compliance - clients only depend on methods they use.
  */
 public interface ResilientExecutor {
 

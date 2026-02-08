@@ -41,7 +41,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10  # Unit tests only - 10분이면 충분
 
-    # Services 제거: Unit 테스트는 Mock 사용, Integration은 Nightly에서 실행
+    # CI에서는 service로 Redis 직접 실행 (Testcontainers 대안)
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
 
     steps:
       # ------------------------------------------------------------------
@@ -53,7 +63,19 @@ jobs:
           fetch-depth: 0  # Full history for accurate diff
 
       # ------------------------------------------------------------------
-      # Step 2: Setup Java 17
+      # Step 1.5: Configure Redis Connection
+      # ------------------------------------------------------------------
+      - name: Configure Redis Connection
+        run: |
+          echo "🔗 Configuring Redis connection for tests..."
+          echo "Redis host: localhost"
+          echo "Redis port: 6379"
+        env:
+          SPRING_DATA_REDIS_HOST: localhost
+          SPRING_DATA_REDIS_PORT: 6379
+
+      # ------------------------------------------------------------------
+      # Step 2: Setup Java 21
       # ------------------------------------------------------------------
       - name: Setup JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
@@ -80,7 +102,7 @@ jobs:
       # ------------------------------------------------------------------
       # Step 5: Run Tests (Gate - Must Pass)
       # ------------------------------------------------------------------
-      # PR/Push: -PfastTest (slow, sentinel, quarantine, nightmare 제외 → 3-5분)
+      # PR/Push: -PfastTest (slow, sentinel, quarantine, nightmare, flaky 제외 → 3-5분)
       # Nightly: 전체 테스트 (별도 워크플로우)
       - name: Run Tests
         id: test
@@ -89,9 +111,6 @@ jobs:
           ./gradlew clean test -PfastTest --no-daemon --stacktrace
         env:
           SPRING_PROFILES_ACTIVE: test
-          DOCKER_HOST: unix:///var/run/docker.sock
-          # Testcontainers configuration
-          TESTCONTAINERS_RYUK_DISABLED: true
         continue-on-error: false  # CRITICAL: Block merge on failure
 
       # ------------------------------------------------------------------

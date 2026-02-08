@@ -5,7 +5,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -33,6 +32,7 @@ import maple.expectation.service.v2.calculator.ExpectationCalculator;
 import maple.expectation.service.v2.calculator.ExpectationCalculatorFactory;
 import maple.expectation.service.v2.facade.GameCharacterFacade;
 import maple.expectation.service.v2.mapper.EquipmentMapper;
+import maple.expectation.util.AsyncUtils;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -232,7 +232,8 @@ public class EquipmentService {
 
   private String buildExpectationCacheKey(CharacterSnapshot snapshot) {
     String fingerprint = fingerprintGenerator.generate(snapshot.equipmentUpdatedAt());
-    String tableVersionHash = fingerprintGenerator.hashTableVersion(calculationProperties.getTableVersion());
+    String tableVersionHash =
+        fingerprintGenerator.hashTableVersion(calculationProperties.getTableVersion());
     return expectationCacheService.buildCacheKey(
         snapshot.ocid(), fingerprint, tableVersionHash, calculationProperties.getLogicVersion());
   }
@@ -287,7 +288,7 @@ public class EquipmentService {
   // ==================== 예외 처리 ====================
 
   private TotalExpectationResponse handleAsyncException(Throwable e, String userIgn) {
-    Throwable cause = (e instanceof CompletionException) ? e.getCause() : e;
+    Throwable cause = AsyncUtils.unwrapCompletionException(e);
 
     if (cause instanceof TimeoutException) {
       throw new ExpectationCalculationUnavailableException(userIgn, cause);
@@ -380,7 +381,7 @@ public class EquipmentService {
   // ==================== 예외 처리 (Issue #118) ====================
 
   private EquipmentResponse handleEquipmentException(Throwable e, String userIgn) {
-    Throwable cause = (e instanceof CompletionException) ? e.getCause() : e;
+    Throwable cause = AsyncUtils.unwrapCompletionException(e);
 
     if (cause instanceof TimeoutException) {
       throw new ExpectationCalculationUnavailableException(userIgn, cause);

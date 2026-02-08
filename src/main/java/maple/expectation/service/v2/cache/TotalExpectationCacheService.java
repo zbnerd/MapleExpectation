@@ -15,7 +15,7 @@ import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.stereotype.Service;
 
 /**
- * TotalExpectationResponse 전용 캐시 서비스 (Issue #158)
+ * TotalExpectationResponse 전용 캐시 서비스 (Issue #158, #24)
  *
  * <h4>P0-2 정책 (L2 장애 시에도 응답 정상 반환)</h4>
  *
@@ -28,6 +28,13 @@ import org.springframework.stereotype.Service;
  * <h4>불변식 1: 5KB 기준 = serialized bytes</h4>
  *
  * <p>{@code redisSerializer.serialize(response).length} 기준 (ObjectMapper 직접 사용 금지)
+ *
+ * <h4>Issue #24: AbstractTieredCacheService 리팩토링</h4>
+ *
+ * <p>이 클래스는 AbstractTieredCacheService를 상속받지 않고 독립 구현을 유지합니다.
+ *
+ * <p>이유: TotalExpectationCacheService는 L1/L2를 별도의 CacheManager로 관리하며, 5KB 제한 직렬화 체크, 복잡한 저장
+ * 순서(L2→L1) 등 특수한 로직이 있어 템플릿과 호환되지 않습니다.
  *
  * @see <a href="https://github.com/issue/158">Issue #158: Expectation API 캐시 타겟 전환</a>
  */
@@ -44,7 +51,6 @@ public class TotalExpectationCacheService {
   private final RedisSerializer<Object> redisSerializer;
   private final LogicExecutor executor;
 
-  // P1-6 Fix: 메트릭 카운터 (TODO 코멘트 제거)
   private final Counter oversizeSkipCounter;
   private final Counter serializeFailCounter;
 

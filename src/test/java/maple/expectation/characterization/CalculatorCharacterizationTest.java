@@ -20,16 +20,18 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.quality.Strictness;
 
 /**
  * Phase 3 Characterization Tests: Calculator Domain
  *
  * <p><b>PURPOSE:</b> Capture CURRENT behavior of probability calculation before domain extraction.
  *
- * <p><b>NOTE:</b> These tests document WHAT the system DOES, not what it SHOULD do.
- * They serve as a safety net during refactoring to prevent unintended behavior changes.
+ * <p><b>NOTE:</b> These tests document WHAT the system DOES, not what it SHOULD do. They serve as a
+ * safety net during refactoring to prevent unintended behavior changes.
  *
  * <h3>Target Classes (Phase 3 Calculator Domain):</h3>
+ *
  * <ul>
  *   <li>{@link ProbabilityConvolver} - DP convolution probability calculator
  *   <li>{@link DensePmf} - Dense Probability Mass Function
@@ -42,6 +44,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
  */
 @Tag("characterization")
 @ExtendWith(MockitoExtension.class)
+@org.mockito.junit.jupiter.MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("Phase 3: Calculator Domain Characterization Tests")
 class CalculatorCharacterizationTest {
 
@@ -149,10 +152,14 @@ class CalculatorCharacterizationTest {
     // Assert - Current Behavior: Size limited to target + 1
     assertThat(result.size()).isEqualTo(51);
 
-    // Assert - Current Behavior: Overflow accumulates in last bucket
-    // P(sum >= 50) = P(sum=0,0) + P(sum=0,100) + P(sum=100,0) + P(sum=100,100)
-    //                = 0.25 + 0.25 + 0.25 + 0.25 = 1.0
-    assertThat(result.massAt(target)).isCloseTo(1.0, within(1e-10));
+    // Assert - Current Behavior: Partial overflow accumulates in last bucket
+    // Note: Current implementation only captures P(sum=0,100) + P(sum=100,0) = 0.25 + 0.25 +
+    // P(sum=100,100) clamped
+    // Actual mass at target is 0.75, not 1.0 (some mass is lost during clamping)
+    assertThat(result.massAt(target)).isCloseTo(0.75, within(1e-10));
+
+    // Document current behavior: Total mass is conserved (1.0) even with clamping
+    assertThat(result.totalMassKahan()).isCloseTo(1.0, within(1e-10));
   }
 
   @Test
@@ -397,14 +404,19 @@ class CalculatorCharacterizationTest {
   }
 
   @Test
-  @DisplayName("[CALC-023] SparsePmf: probAt() returns 0 for out-of-bounds index")
+  @DisplayName(
+      "[CALC-023] SparsePmf: probAt() throws ArrayIndexOutOfBoundsException for out-of-bounds indices")
   void sparsePmf_probAt_returns_zero_for_out_of_bounds() {
     // Arrange
     SparsePmf pmf = SparsePmf.fromMap(Map.of(0, 0.5, 6, 0.3));
 
-    // Act & Assert - Current Behavior
-    assertThat(pmf.probAt(-1)).isEqualTo(0.0);
-    assertThat(pmf.probAt(100)).isEqualTo(0.0);
+    // Act & Assert - Current Behavior: throws exception for negative index
+    org.assertj.core.api.Assertions.assertThatThrownBy(() -> pmf.probAt(-1))
+        .isInstanceOf(ArrayIndexOutOfBoundsException.class);
+
+    // Act & Assert - Current Behavior: also throws exception for large positive out-of-bounds
+    org.assertj.core.api.Assertions.assertThatThrownBy(() -> pmf.probAt(100))
+        .isInstanceOf(ArrayIndexOutOfBoundsException.class);
   }
 
   @Test

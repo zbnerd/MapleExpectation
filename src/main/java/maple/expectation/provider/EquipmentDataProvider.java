@@ -45,35 +45,6 @@ public class EquipmentDataProvider {
   }
 
   /**
-   * 데이터 스트리밍 (압축 해제 후 전송)
-   *
-   * <p><b>Issue #195 ADR:</b> .join()은 StreamingResponseBody 컨텍스트에서 허용됨. 이 메서드는
-   * GameCharacterControllerV3에서 StreamingResponseBody 람다 내에서 호출되므로 Tomcat 스레드는 이미 즉시 반환되고, Spring의
-   * async 스레드 풀에서 실행됨. OutputStream 쓰기는 본질적으로 블로킹이므로 .join()이 적절함.
-   *
-   * @deprecated Issue #63: streamRaw() 사용 권장 (Zero-Copy 스트리밍)
-   */
-  @Deprecated(since = "v3.1", forRemoval = true)
-  public void streamAndDecompress(String ocid, OutputStream os) {
-    TaskContext context = TaskContext.of("EquipmentProvider", "StreamData", ocid);
-
-    executor.executeVoid(
-        () -> {
-          byte[] rawData = getRawEquipmentData(ocid).join();
-
-          executor.executeWithTranslation(
-              () -> {
-                os.write(GzipUtils.decompress(rawData).getBytes(StandardCharsets.UTF_8));
-                os.flush();
-                return null;
-              },
-              ExceptionTranslator.forFileIO(),
-              context);
-        },
-        context);
-  }
-
-  /**
    * Zero-Copy 스트리밍 (Issue #63)
    *
    * <p>GZIP 압축된 데이터를 그대로 전송합니다. Controller에서 Content-Encoding: gzip 헤더를 설정해야 합니다.

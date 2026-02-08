@@ -2,11 +2,8 @@ package maple.expectation.config;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
-import com.zaxxer.hikari.metrics.micrometer.MicrometerMetricsTrackerFactory;
-import io.micrometer.core.instrument.MeterRegistry;
 import javax.sql.DataSource;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -22,6 +19,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * <p>[설계 원칙] - Fixed Pool Size: Min과 Max를 동일하게 설정하여 연결 비용(Handshake) 제거 - Size 30: RPS 235 트래픽이
  * Redis 장애로 넘어왔을 때 병목 없이 처리하기 위한 최소 용량 (Little's Law: 235 req/s * 0.1s latency + buffer ≈ 30
  * connections) - Fail-fast: 락 획득 타임아웃을 짧게 가져가서 스레드 고갈 방지
+ *
+ * <p>[P0-6 Fix] Circular Dependency Deadlock: MicrometerMetricsTrackerFactory 제거로 Spring Boot 초기화 시
+ * 데드락 방지 - 원인: MeterRegistry → HikariDataSource → MicrometerMetrics → MeterRegistry 순환 참조 - 해결:
+ * Lock Pool은 Micrometer 메트릭 비활성화 (주요 DataSource만 메트릭 수집)
  */
 @Slf4j
 @Configuration
@@ -36,8 +37,6 @@ public class LockHikariConfig {
 
   @Value("${spring.datasource.password}")
   private String password;
-
-  @Autowired private MeterRegistry meterRegistry;
 
   // Issue #284 DoD: Pool Size 외부화 (기본 40, prod에서 150으로 오버라이드)
   // AI SRE 제안 (INC-29506518): Lock Pool 병목 방지를 위해 최댓값 증가
@@ -69,11 +68,12 @@ public class LockHikariConfig {
     // 검증 설정 (JDBC4 isValid 사용으로 쿼리 비용 절감)
     config.setValidationTimeout(3000);
 
-    // Issue #284: Micrometer 메트릭 등록 (hikaricp.connections.active{pool=MySQLLockPool})
-    config.setMetricsTrackerFactory(new MicrometerMetricsTrackerFactory(meterRegistry));
+    // P0-6 Fix: Micrometer 메트릭 비활성화 (순환 참조 데드락 방지)
+    // 주요 HikariPool 메트릭은 기본 DataSource에서 충분히 수집 가능
 
     log.info(
-        "[Lock Pool] Initialized dedicated MySQL lock connection pool (Fixed Size: {})", poolSize);
+        "[Lock Pool] Initialized dedicated MySQL lock connection pool (Fixed Size: {}, Metrics: disabled)",
+        poolSize);
 
     return new HikariDataSource(config);
   }

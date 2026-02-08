@@ -2,7 +2,13 @@ package maple.expectation.monitoring.copilot.client;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -11,7 +17,6 @@ import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
-import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.error.exception.InternalSystemException;
@@ -33,19 +38,14 @@ import maple.expectation.global.executor.TaskContext;
 @RequiredArgsConstructor
 public class PrometheusClient {
 
+  private static final int TIMESTAMP_INDEX = 0;
+  private static final int VALUE_INDEX = 1;
+  private static final int ARRAY_SIZE = 2;
+
   private final HttpClient httpClient;
   private final ObjectMapper objectMapper;
   private final LogicExecutor executor;
   private final String prometheusUrl;
-
-  /** Create default instance (for backward compatibility) */
-  @Builder
-  public PrometheusClient(String prometheusUrl, HttpClient httpClient, ObjectMapper objectMapper) {
-    this.prometheusUrl = prometheusUrl != null ? prometheusUrl : "http://localhost:9090";
-    this.httpClient = httpClient != null ? httpClient : HttpClient.newHttpClient();
-    this.objectMapper = objectMapper != null ? objectMapper : new ObjectMapper();
-    this.executor = null; // Legacy constructor doesn't use executor
-  }
 
   /**
    * Query Prometheus with a time range.
@@ -96,25 +96,36 @@ public class PrometheusClient {
     return prometheusResponse.data().result();
   }
 
-  /** Send HTTP request with proper exception translation. */
+  /**
+   * Send HTTP request with proper exception translation.
+   *
+   * <p>Section 12 Exception: This is a low-level HTTP operation with checked exceptions
+   * (InterruptedException, IOException) that require structural try-catch handling. LogicExecutor
+   * cannot be used here due to legacy mode (executor=null) constraints.
+   */
   private HttpResponse<String> sendHttpRequest(HttpRequest request) {
     try {
       return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-    } catch (Exception e) {
-      if (e instanceof InterruptedException) {
-        Thread.currentThread().interrupt();
-        throw new InternalSystemException("Prometheus query interrupted", e);
-      }
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new InternalSystemException("Prometheus query interrupted", e);
+    } catch (IOException e) {
       throw new InternalSystemException(
           String.format("Prometheus HTTP request failed: %s", e.getMessage()), e);
     }
   }
 
-  /** Parse JSON response with proper exception translation. */
+  /**
+   * Parse JSON response with proper exception translation.
+   *
+   * <p>Section 12 Exception: This is a low-level JSON parsing operation with checked exceptions
+   * (IOException) that require structural try-catch handling. LogicExecutor cannot be used here due
+   * to legacy mode (executor=null) constraints.
+   */
   private PrometheusResponse parseResponse(String body) {
     try {
       return objectMapper.readValue(body, PrometheusResponse.class);
-    } catch (Exception e) {
+    } catch (IOException e) {
       throw new InternalSystemException(
           String.format("Failed to parse Prometheus response: %s", e.getMessage()), e);
     }
@@ -174,10 +185,16 @@ public class PrometheusClient {
   }
 
   /** Single value point with timestamp and value. */
-  public record ValuePoint(
-      @JsonProperty("timestamp") long timestamp, @JsonProperty("value") String value) {
+  @JsonDeserialize(using = ValuePointDeserializer.class)
+  public record ValuePoint(long timestamp, String value) {
 
-    /** Parse value as Double. Returns 0.0 on parse failure (safe default). */
+    /**
+     * Parse value as Double. Returns 0.0 on parse failure (safe default).
+     *
+     * <p>Section 12 Exception: This is a Record method (JPA Entity-like restriction). LogicExecutor
+     * cannot be used here due to lack of Spring Bean injection capability. Direct try-catch is
+     * acceptable per CLAUDE.md Section 12 exception list.
+     */
     public double getValueAsDouble() {
       try {
         return Double.parseDouble(value);
@@ -191,11 +208,21 @@ public class PrometheusClient {
     public Instant getTimestampAsInstant() {
       return Instant.ofEpochSecond(timestamp);
     }
+  }
 
-    @JsonCreator
-    public static ValuePoint create(
-        @JsonProperty("0") long timestamp, @JsonProperty("1") String value) {
-      return new ValuePoint(timestamp, value);
+  /** Custom deserializer for ValuePoint to handle Prometheus array format [[timestamp, value]]. */
+  public static class ValuePointDeserializer extends JsonDeserializer<ValuePoint> {
+
+    @Override
+    public ValuePoint deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
+      JsonNode node = p.getCodec().readTree(p);
+      if (node.isArray() && node.size() == ARRAY_SIZE) {
+        long timestamp = node.get(TIMESTAMP_INDEX).asLong();
+        String value = node.get(VALUE_INDEX).asText();
+        return new ValuePoint(timestamp, value);
+      }
+      throw new IOException(
+          "Invalid ValuePoint format: expected [timestamp, value] array, got: " + node);
     }
   }
 }

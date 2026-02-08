@@ -20,7 +20,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
  *
  * <ul>
  *   <li>Red (SRE): equipmentExecutor와 분리하여 Deadlock 방지
- *   <li>Green (Performance): CallerRunsPolicy로 큐 포화 시 직접 실행
+ *   <li>Green (Performance): AbortPolicy로 큐 포화 시 빠른 실패 및 메트릭 기록
  * </ul>
  *
  * <h3>P1 Deadlock 문제 해결</h3>
@@ -42,7 +42,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
  *   <li>Core 12: 3 프리셋 × 4 동시 요청 = 12 스레드
  *   <li>Max 24: 피크 시 2배 확장 여유
  *   <li>Queue 100: 스파이크 흡수 버퍼
- *   <li>CallerRunsPolicy: 큐 포화 시 호출 스레드에서 직접 실행 (Deadlock 방지)
+ *   <li>AbortPolicy: 큐 포화 시 빠른 실패 및 rejected 메트릭 기록 (CLAUDE.md Section 22)
  * </ul>
  *
  * @see EquipmentProcessingExecutorConfig 요청 처리용 Executor (AbortPolicy)
@@ -58,14 +58,16 @@ public class PresetCalculationExecutorConfig {
   /**
    * 프리셋 병렬 계산 전용 Executor
    *
-   * <h4>CLAUDE.md Section 22 예외 적용</h4>
+   * <h4>CLAUDE.md Section 22 준수</h4>
    *
-   * <p>CallerRunsPolicy 사용 - 프리셋 계산은 I/O가 없는 CPU 바운드 작업이므로 호출 스레드에서 직접 실행해도 안전함
+   * <p>AbortPolicy 사용 - 큐 포화 시 빠른 실패 및 rejected 메트릭 기록. CallerRunsPolicy는 큐 포화 시 호출 스레드에서 실행하여
+   * Backpressure 신호를 손실하므로 금지됨.
    *
    * <h4>메트릭 노출 (Issue #284: Micrometer 표준)</h4>
    *
    * <ul>
    *   <li>executor.completed / executor.active / executor.queued: Micrometer ExecutorServiceMetrics
+   *   <li>executor.rejected: 거부된 작업 수 (AbortPolicy 메트릭)
    *   <li>preset.calculation.queue.size: 큐 대기 작업 수 (레거시 호환)
    *   <li>preset.calculation.active.count: 활성 스레드 수 (레거시 호환)
    * </ul>
@@ -86,8 +88,20 @@ public class PresetCalculationExecutorConfig {
     // Issue #284 P1-NEW-1: MDC/ThreadLocal 전파
     executor.setTaskDecorator(contextPropagatingDecorator);
 
-    // CallerRunsPolicy: 큐 포화 시 호출 스레드에서 직접 실행 (Deadlock 방지)
-    executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+    // CLAUDE.md Section 22: AbortPolicy - 큐 포화 시 빠른 실패 및 rejected 메트릭 기록
+    executor.setRejectedExecutionHandler(
+        new ThreadPoolExecutor.AbortPolicy() {
+          @Override
+          public void rejectedExecution(Runnable r, ThreadPoolExecutor e) {
+            // rejected 메트릭 기록 (Micrometer ExecutorServiceMetrics가 자동 기록)
+            super.rejectedExecution(r, e);
+            log.warn(
+                "[PresetCalculationExecutor] Task rejected - queue saturated: active={}, poolSize={}, queueSize={}",
+                e.getActiveCount(),
+                e.getPoolSize(),
+                e.getQueue().size());
+          }
+        });
 
     // Graceful Shutdown
     executor.setWaitForTasksToCompleteOnShutdown(true);

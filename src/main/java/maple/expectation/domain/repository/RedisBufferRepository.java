@@ -23,8 +23,7 @@ public interface RedisBufferRepository {
   /**
    * 전역 카운터 증가 (L1 -> L2 전송 시 호출)
    *
-   * <p>Note: 원자적 연산은 {@link maple.expectation.global.redis.script.LikeAtomicOperations}를
-   * 사용합니다.
+   * <p>Note: 원자적 연산은 {@link maple.expectation.global.redis.script.LikeAtomicOperations}를 사용합니다.
    *
    * @param delta 증가량
    */
@@ -33,8 +32,7 @@ public interface RedisBufferRepository {
   /**
    * 전역 카운터 감소 (L2 -> L3 동기화 성공 시 호출)
    *
-   * <p>Note: 원자적 연산은 {@link maple.expectation.global.redis.script.LikeAtomicOperations}를
-   * 사용합니다.
+   * <p>Note: 원자적 연산은 {@link maple.expectation.global.redis.script.LikeAtomicOperations}를 사용합니다.
    *
    * @param delta 감소량
    */

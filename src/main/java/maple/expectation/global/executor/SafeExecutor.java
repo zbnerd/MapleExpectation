@@ -5,8 +5,8 @@ import maple.expectation.global.common.function.ThrowingSupplier;
 /**
  * Safe execution pattern interface.
  *
- * <p>Provides fallback capabilities for error recovery. Part of Interface Segregation
- * Principle (ISP) compliance - clients only depend on methods they use.
+ * <p>Provides fallback capabilities for error recovery. Part of Interface Segregation Principle
+ * (ISP) compliance - clients only depend on methods they use.
  */
 public interface SafeExecutor {
 

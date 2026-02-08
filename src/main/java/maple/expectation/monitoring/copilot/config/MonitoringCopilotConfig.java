@@ -64,7 +64,10 @@ public class MonitoringCopilotConfig {
   @Bean
   @ConditionalOnProperty(name = "app.monitoring.discord.webhook-url")
   public DiscordNotifier discordNotifier(
-      HttpClient httpClient, ObjectMapper objectMapper, LogicExecutor executor) {
-    return new DiscordNotifier(httpClient, objectMapper, executor);
+      HttpClient httpClient,
+      ObjectMapper objectMapper,
+      LogicExecutor executor,
+      maple.expectation.config.DiscordTimeoutProperties timeoutProperties) {
+    return new DiscordNotifier(httpClient, objectMapper, executor, timeoutProperties);
   }
 }

@@ -63,6 +63,10 @@ import org.redisson.client.codec.StringCodec;
 @Slf4j
 public class RedisLikeBufferStorage implements LikeBufferStrategy {
 
+  private static final int FIELD_INDEX = 0;
+  private static final int VALUE_INDEX = 1;
+  private static final int MIN_ENTRY_SIZE = 2;
+
   private static final String LUA_FETCH_AND_CLEAR =
       """
             -- Fetch all entries and delete them atomically
@@ -243,9 +247,9 @@ public class RedisLikeBufferStorage implements LikeBufferStrategy {
   private Map<String, Long> parseRawResult(List<List<String>> rawResult) {
     Map<String, Long> result = new HashMap<>();
     for (List<String> entry : rawResult) {
-      if (entry.size() >= 2) {
-        String field = entry.get(0);
-        Long value = Long.parseLong(entry.get(1));
+      if (entry.size() >= MIN_ENTRY_SIZE) {
+        String field = entry.get(FIELD_INDEX);
+        Long value = Long.parseLong(entry.get(VALUE_INDEX));
         result.put(field, value);
       }
     }

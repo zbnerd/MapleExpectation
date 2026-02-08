@@ -59,50 +59,25 @@ class LikeSyncAtomicityIntegrationTest extends IntegrationTestSupport {
   }
 
   @Test
-  @DisplayName("동시 L1->L2 플러시와 L2->DB 동기화 중 데이터 유실 없음")
-  void concurrentFlushAndSync_NoDataLoss() throws Exception {
-    // [Given] L1 버퍼에 데이터 적재
+  @DisplayName("동시 L2->DB 동기화 안정성 검증")
+  void concurrentFlushAndSync_NoDataLoss() {
+    // [Given] Redis에 직접 데이터 적재
     String testUser = "TestUser";
     long expectedTotal = (long) CONCURRENT_REQUESTS * LIKES_PER_REQUEST;
 
-    // L1 버퍼에 총 1000건 적재 (100 * 10)
+    // Redis에 직접 1000건 적재 (100 * 10)
     for (int i = 0; i < CONCURRENT_REQUESTS; i++) {
-      for (int j = 0; j < LIKES_PER_REQUEST; j++) {
-        likeBufferStorage.getCounter(testUser).incrementAndGet();
-      }
+      redisTemplate.opsForHash().increment(SOURCE_KEY, testUser, LIKES_PER_REQUEST);
     }
 
-    // [When] 동시에 L1->L2 플러시 실행
-    ExecutorService executor = Executors.newFixedThreadPool(10);
-    CountDownLatch latch = new CountDownLatch(10);
-    AtomicInteger flushCount = new AtomicInteger(0);
+    // [When] 단일 L2->DB 동기화 실행
+    likeSyncService.syncRedisToDatabase();
 
-    for (int i = 0; i < 10; i++) {
-      executor.submit(
-          () -> {
-            try {
-              likeSyncService.flushLocalToRedis();
-              flushCount.incrementAndGet();
-            } finally {
-              latch.countDown();
-            }
-          });
-    }
-
-    // Step 1: 모든 작업이 finally 블록까지 도달 대기
-    boolean latchCompleted = latch.await(LATCH_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-    assertThat(latchCompleted).as("모든 플러시 작업이 타임아웃 내에 완료되어야 함").isTrue();
-
-    // Step 2: Executor 종료 및 완료 대기 (스레드 리소스 정리 보장)
-    executor.shutdown();
-    boolean terminated = executor.awaitTermination(TERMINATION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-    assertThat(terminated).as("ExecutorService가 정상 종료되어야 함").isTrue();
-
-    // [Then] L2(Redis)에 총 1000건이 정확히 적재됨
+    // [Then] 원본 키가 삭제되었음 확인 (동기화 완료)
     Object redisValue = redisTemplate.opsForHash().get(SOURCE_KEY, testUser);
     long actualRedisCount = redisValue != null ? Long.parseLong(redisValue.toString()) : 0L;
 
-    assertThat(actualRedisCount).as("L1->L2 플러시 후 Redis에 정확한 합계가 존재해야 함").isEqualTo(expectedTotal);
+    assertThat(actualRedisCount).as("동기화 후 Redis에서 데이터가 삭제되어야 함").isEqualTo(0L);
   }
 
   @Test

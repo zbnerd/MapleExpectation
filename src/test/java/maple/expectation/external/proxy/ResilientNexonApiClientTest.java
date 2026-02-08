@@ -22,7 +22,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 @DisplayName("장애 복원력이 적용된 Nexon API 클라이언트 테스트")
 class ResilientNexonApiClientTest extends IntegrationTestSupport {
@@ -38,11 +37,11 @@ class ResilientNexonApiClientTest extends IntegrationTestSupport {
   private RetryRegistry retryRegistry;
 
   // 💡 equipmentRepository를 Mock으로 오버라이드하여 stubbing 가능하게 함
-  @MockitoBean
+  @org.springframework.boot.test.mock.mockito.MockBean
   private maple.expectation.repository.v2.CharacterEquipmentRepository equipmentRepository;
 
-  // 💡 nexonApiClient Mock for testing resilience patterns
-  @MockitoBean
+  // 💡 realNexonApiClient Mock for testing resilience patterns
+  @org.springframework.boot.test.mock.mockito.MockBean(name = "realNexonApiClient")
   private maple.expectation.external.NexonApiClient nexonApiClient;
 
   /**

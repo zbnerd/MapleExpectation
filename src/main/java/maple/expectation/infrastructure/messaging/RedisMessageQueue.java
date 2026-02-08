@@ -7,8 +7,10 @@ import org.redisson.api.RedissonClient;
 /**
  * Redis-backed message queue implementation.
  *
- * <p>Infrastructure adapter for MessageQueue port. Implements queue using Redisson
- * RBlockingQueue.
+ * <p>Infrastructure adapter for MessageQueue port. Implements queue using Redisson RBlockingQueue.
+ *
+ * <p>NOTE: This is a generic class - do NOT annotate with @Component. Create specific bean
+ * instances via @Configuration classes.
  *
  * <p>NOTE: This is a generic class - do NOT annotate with @Component.
  * Create specific bean instances via @Configuration classes.

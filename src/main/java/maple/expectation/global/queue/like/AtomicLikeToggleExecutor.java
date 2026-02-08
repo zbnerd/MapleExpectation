@@ -43,6 +43,9 @@ import org.redisson.client.codec.StringCodec;
 @Slf4j
 public class AtomicLikeToggleExecutor {
 
+  private static final int ACTION_INDEX = 0;
+  private static final int DELTA_INDEX = 1;
+
   /**
    * Atomic Toggle Lua Script
    *
@@ -178,8 +181,8 @@ public class AtomicLikeToggleExecutor {
             e -> evalToggleWithReloadedSha(script, relationKey, userIgn),
             TaskContext.of("LikeToggle", "EvalScript", userIgn));
 
-    long action = result.get(0);
-    long newDelta = result.get(1);
+    long action = result.get(ACTION_INDEX);
+    long newDelta = result.get(DELTA_INDEX);
     boolean liked = action == 1;
 
     recordToggleMetrics(liked);
