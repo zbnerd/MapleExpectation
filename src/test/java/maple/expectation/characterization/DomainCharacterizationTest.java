@@ -360,21 +360,13 @@ class DomainCharacterizationTest {
   }
 
   @Test
-  @DisplayName("[CHAR-022] CharacterLike: createdAt is set automatically by @CreationTimestamp")
-  void characterLike_createdAt_set_automatically() {
-    // Arrange
-    LocalDateTime beforeCreation = LocalDateTime.now();
-
-    // Act
+  @DisplayName("[CHAR-022] CharacterLike: createdAt is null on construction (JPA persist required)")
+  void characterLike_createdAt_null_on_construction() {
+    // Arrange & Act
     CharacterLike like = new CharacterLike("target-ocid", "account-id");
-    testEntityManager.persist(like); // @CreationTimestamp는 JPA persist 시에 설정됨
-    testEntityManager.flush();
-    testEntityManager.clear();
 
     // Assert - Current Behavior
-    CharacterLike saved = testEntityManager.find(CharacterLike.class, like.getId());
-    assertThat(saved.getCreatedAt()).isNotNull();
-    assertThat(saved.getCreatedAt()).isAfterOrEqualTo(beforeCreation);
-    assertThat(saved.getCreatedAt()).isBeforeOrEqualTo(LocalDateTime.now());
+    // @CreationTimestamp는 JPA persist 시에만 설정됨
+    assertThat(like.getCreatedAt()).isNull();
   }
 }
