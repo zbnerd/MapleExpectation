@@ -87,7 +87,7 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
               Session.ROLE_USER);
       RefreshToken originalToken =
           refreshTokenService.createRefreshToken(session.sessionId(), FINGERPRINT);
-      Thread.sleep(100); // Redis 저장 대기
+      Thread.sleep(200); // Redis 저장 대기
 
       // 원본 토큰 정보 저장
       String originalTokenId = originalToken.refreshTokenId();
@@ -128,13 +128,13 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
       RefreshToken token1 =
           refreshTokenService.createRefreshToken(session.sessionId(), FINGERPRINT);
       String familyId = token1.familyId();
-      Thread.sleep(100); // Redis 저장 대기
+      Thread.sleep(200); // Redis 저장 대기
 
       // [When] 3회 연속 Rotation
       RefreshToken token2 = refreshTokenService.rotateRefreshToken(token1.refreshTokenId());
-      Thread.sleep(100); // Redis 저장 대기
+      Thread.sleep(200); // Redis 저장 대기
       RefreshToken token3 = refreshTokenService.rotateRefreshToken(token2.refreshTokenId());
-      Thread.sleep(100); // Redis 저장 대기
+      Thread.sleep(200); // Redis 저장 대기
       RefreshToken token4 = refreshTokenService.rotateRefreshToken(token3.refreshTokenId());
 
       // [Then] 모든 토큰이 다르고, Family는 동일
@@ -156,7 +156,7 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
 
     @Test
     @DisplayName("동일 Refresh Token 2회 사용 시 Family 전체 무효화")
-    void shouldInvalidateFamilyOnTokenReuse() {
+    void shouldInvalidateFamilyOnTokenReuse() throws InterruptedException {
       // [Given] 세션 + Refresh Token 생성
       Session session =
           sessionService.createSession(
@@ -170,6 +170,7 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
           refreshTokenService.createRefreshToken(session.sessionId(), FINGERPRINT);
       String originalTokenId = token1.refreshTokenId();
       String familyId = token1.familyId();
+      Thread.sleep(200); // Redis 저장 대기
 
       // [When] 첫 번째 사용 - 정상
       RefreshToken token2 = refreshTokenService.rotateRefreshToken(originalTokenId);
@@ -187,7 +188,7 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
 
     @Test
     @DisplayName("탈취 감지 후 정상 사용자도 재로그인 필요")
-    void shouldForceReloginAfterTheftDetection() {
+    void shouldForceReloginAfterTheftDetection() throws InterruptedException {
       // [Given] 사용자 A가 로그인
       Session session =
           sessionService.createSession(
@@ -199,6 +200,7 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
               Session.ROLE_USER);
       RefreshToken originalToken =
           refreshTokenService.createRefreshToken(session.sessionId(), FINGERPRINT);
+      Thread.sleep(200); // Redis 저장 대기
 
       // [When] 정상 사용자가 Refresh → 공격자가 탈취된 토큰 사용
       RefreshToken newToken =
@@ -254,7 +256,7 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
 
     @Test
     @DisplayName("만료된 Refresh Token 사용 시 RefreshTokenExpiredException")
-    void shouldThrowWhenTokenExpired() {
+    void shouldThrowWhenTokenExpired() throws InterruptedException {
       // [Given] 세션 생성
       Session session =
           sessionService.createSession(
@@ -275,6 +277,7 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
               Instant.now().minusSeconds(1), // 이미 만료됨
               false);
       refreshTokenRepository.save(expiredToken);
+      Thread.sleep(200); // Redis 저장 대기
 
       // [When & Then]
       assertThatThrownBy(() -> refreshTokenService.rotateRefreshToken("expired-token-id"))
@@ -303,7 +306,7 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
               Session.ROLE_USER);
       RefreshToken token = refreshTokenService.createRefreshToken(session.sessionId(), FINGERPRINT);
       String tokenId = token.refreshTokenId();
-      Thread.sleep(100); // Redis 저장 대기
+      Thread.sleep(200); // Redis 저장 대기
 
       // [When] 동시에 5개 Refresh 요청
       int concurrentRequests = 5;
@@ -378,9 +381,9 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
               Session.ROLE_USER);
       RefreshToken token1 =
           refreshTokenService.createRefreshToken(session.sessionId(), FINGERPRINT);
-      Thread.sleep(100); // Redis 저장 대기
+      Thread.sleep(200); // Redis 저장 대기
       RefreshToken token2 = refreshTokenService.rotateRefreshToken(token1.refreshTokenId());
-      Thread.sleep(100); // Redis 저장 대기
+      Thread.sleep(200); // Redis 저장 대기
       RefreshToken token3 = refreshTokenService.rotateRefreshToken(token2.refreshTokenId());
 
       // [When] 로그아웃 (세션의 모든 Refresh Token 삭제)
