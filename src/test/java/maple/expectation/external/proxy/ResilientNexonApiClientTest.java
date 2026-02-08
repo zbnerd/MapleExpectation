@@ -41,8 +41,8 @@ class ResilientNexonApiClientTest extends IntegrationTestSupport {
   @org.springframework.boot.test.mock.mockito.MockBean
   private maple.expectation.repository.v2.CharacterEquipmentRepository equipmentRepository;
 
-  // 💡 nexonApiClient Mock for testing resilience patterns
-  @org.springframework.boot.test.mock.mockito.MockBean
+  // 💡 realNexonApiClient Mock for testing resilience patterns
+  @org.springframework.boot.test.mock.mockito.MockBean(name = "realNexonApiClient")
   private maple.expectation.external.NexonApiClient nexonApiClient;
 
   /**
