@@ -1,8 +1,9 @@
 package maple.expectation.global.lock;
 
 import jakarta.annotation.PostConstruct;
+import java.util.Optional;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
 
 /**
@@ -24,22 +25,22 @@ import org.springframework.context.annotation.Configuration;
  *
  * <p>@ConditionalOnProperty 어노테이션이 설정값에 따라 빈 로딩을 올바르게 제어하는지 검증합니다.
  *
+ * <h3>P1 Fix: 생성자 주입 (CLAUDE.md Section 6)</h3>
+ *
+ * <p>@Autowired(required=false) 필드 주입 -> Optional 생성자 주입
+ *
  * @see RedisDistributedLockStrategy
  * @see MySqlNamedLockStrategy
  * @see ResilientLockStrategy
  */
 @Slf4j
 @Configuration
+@RequiredArgsConstructor
 public class LockStrategyConfiguration {
 
-  @Autowired(required = false)
-  private RedisDistributedLockStrategy redisLockStrategy;
-
-  @Autowired(required = false)
-  private MySqlNamedLockStrategy mysqlLockStrategy;
-
-  @Autowired(required = false)
-  private ResilientLockStrategy resilientLockStrategy;
+  private final Optional<RedisDistributedLockStrategy> redisLockStrategy;
+  private final Optional<MySqlNamedLockStrategy> mysqlLockStrategy;
+  private final Optional<ResilientLockStrategy> resilientLockStrategy;
 
   /**
    * 애플리케이션 시작 시 활성화된 락 전략 로깅
@@ -57,16 +58,16 @@ public class LockStrategyConfiguration {
   public void logActiveLockStrategy() {
     String lockImpl = System.getProperty("lock.impl", "redis");
 
-    if (resilientLockStrategy != null) {
+    if (resilientLockStrategy.isPresent()) {
       log.info("✅ [Lock Strategy] Redis → MySQL Fallback 활성화 (ResilientLockStrategy)");
       log.info("   - Primary: Redisson RLock (Watchdog 모드)");
       log.info("   - Fallback: MySQL Named Lock (세션 기반)");
       log.info("   - Circuit Breaker: redisLock 인스턴스 적용");
-    } else if (mysqlLockStrategy != null) {
+    } else if (mysqlLockStrategy.isPresent()) {
       log.info("✅ [Lock Strategy] MySQL Named Lock 활성화 (MySqlNamedLockStrategy)");
       log.info("   - 구현: GET_LOCK/RELEASE_LOCK (세션 고정)");
       log.info("   - 주의: tryLockImmediately() 지원 불가 → executeWithLock() 사용");
-    } else if (redisLockStrategy != null) {
+    } else if (redisLockStrategy.isPresent()) {
       log.info("✅ [Lock Strategy] Redis 분산 락 활성화 (RedisDistributedLockStrategy)");
       log.info("   - 구현: Redisson RLock (Watchdog 자동 갱신)");
       log.info("   - 장점: 고성능, 저지연 (< 1ms), TTL 자동 관리");

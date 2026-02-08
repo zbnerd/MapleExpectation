@@ -182,6 +182,11 @@ public class DiscordNotifier {
   /**
    * Sleep with interrupt handling.
    *
+   * <p><b>Section 14 Exception:</b> Thread.sleep is acceptable here for HTTP client retry backoff with
+   * proper interrupt handling. This is a synchronous delay in a retry loop, not an asynchronous scheduled
+   * task. The InterruptedException is properly propagated to the caller.
+   *
+   * @param millis delay duration in milliseconds
    * @throws InterruptedException if sleep is interrupted
    */
   private void sleep(long millis) throws InterruptedException {

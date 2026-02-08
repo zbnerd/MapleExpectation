@@ -1,5 +1,6 @@
 package maple.expectation.controller;
 
+import java.util.concurrent.CompletableFuture;
 import lombok.RequiredArgsConstructor;
 import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.dto.response.CharacterResponse;
@@ -29,8 +30,12 @@ public class GameCharacterControllerV1 {
    * <p>Issue #128: Entity → DTO 변환으로 응답 크기 최적화 (350KB → 4KB)
    */
   @GetMapping("/{userIgn}")
-  public ResponseEntity<CharacterResponse> findCharacterByUserIgn(@PathVariable String userIgn) {
-    GameCharacter character = gameCharacterFacade.findCharacterByUserIgn(userIgn);
-    return ResponseEntity.ok(CharacterResponse.from(character));
+  public CompletableFuture<ResponseEntity<CharacterResponse>> findCharacterByUserIgn(
+      @PathVariable String userIgn) {
+    return CompletableFuture.supplyAsync(
+        () -> {
+          GameCharacter character = gameCharacterFacade.findCharacterByUserIgn(userIgn);
+          return ResponseEntity.ok(CharacterResponse.from(character));
+        });
   }
 }

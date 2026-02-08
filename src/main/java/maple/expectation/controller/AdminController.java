@@ -2,6 +2,7 @@ package maple.expectation.controller;
 
 import jakarta.validation.Valid;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import lombok.RequiredArgsConstructor;
 import maple.expectation.controller.dto.admin.AddAdminRequest;
 import maple.expectation.global.response.ApiResponse;
@@ -44,9 +45,12 @@ public class AdminController {
 
   /** 전체 Admin 목록 조회 */
   @GetMapping("/admins")
-  public ResponseEntity<ApiResponse<Set<String>>> getAdmins() {
-    Set<String> admins = adminService.getAllAdmins();
-    return ResponseEntity.ok(ApiResponse.success(admins));
+  public CompletableFuture<ResponseEntity<ApiResponse<Set<String>>>> getAdmins() {
+    return CompletableFuture.supplyAsync(
+        () -> {
+          Set<String> admins = adminService.getAllAdmins();
+          return ResponseEntity.ok(ApiResponse.success(admins));
+        });
   }
 
   /**
@@ -59,16 +63,19 @@ public class AdminController {
    * @param request fingerprint가 담긴 요청 (검증됨)
    */
   @PostMapping("/admins")
-  public ResponseEntity<ApiResponse<String>> addAdmin(
+  public CompletableFuture<ResponseEntity<ApiResponse<String>>> addAdmin(
       @Valid @RequestBody AddAdminRequest request, // ✅ @Valid 추가
       @AuthenticationPrincipal AuthenticatedUser currentUser) {
 
-    adminService.addAdmin(request.fingerprint());
+    return CompletableFuture.supplyAsync(
+        () -> {
+          adminService.addAdmin(request.fingerprint());
 
-    return ResponseEntity.ok(
-        ApiResponse.success(
-            "Admin added successfully: " + request.maskedFingerprint() // DTO의 마스킹 메서드 사용
-            ));
+          return ResponseEntity.ok(
+              ApiResponse.success(
+                  "Admin added successfully: " + request.maskedFingerprint() // DTO의 마스킹 메서드 사용
+                  ));
+        });
   }
 
   /**
@@ -77,25 +84,30 @@ public class AdminController {
    * @param fingerprint 제거할 Admin의 fingerprint
    */
   @DeleteMapping("/admins/{fingerprint}")
-  public ResponseEntity<ApiResponse<String>> removeAdmin(
+  public CompletableFuture<ResponseEntity<ApiResponse<String>>> removeAdmin(
       @PathVariable String fingerprint, @AuthenticationPrincipal AuthenticatedUser currentUser) {
 
-    // 자기 자신은 제거 불가
-    if (fingerprint.equals(currentUser.fingerprint())) {
-      return ResponseEntity.badRequest()
-          .body(ApiResponse.error("SELF_REMOVAL_NOT_ALLOWED", "자기 자신의 Admin 권한은 제거할 수 없습니다."));
-    }
+    return CompletableFuture.supplyAsync(
+        () -> {
+          // 자기 자신은 제거 불가
+          if (fingerprint.equals(currentUser.fingerprint())) {
+            return ResponseEntity.badRequest()
+                .body(
+                    ApiResponse.error(
+                        "SELF_REMOVAL_NOT_ALLOWED", "자기 자신의 Admin 권한은 제거할 수 없습니다."));
+          }
 
-    boolean removed = adminService.removeAdmin(fingerprint);
+          boolean removed = adminService.removeAdmin(fingerprint);
 
-    if (!removed) {
-      return ResponseEntity.badRequest()
-          .body(ApiResponse.error("BOOTSTRAP_ADMIN", "Bootstrap Admin은 제거할 수 없습니다."));
-    }
+          if (!removed) {
+            return ResponseEntity.badRequest()
+                .body(ApiResponse.error("BOOTSTRAP_ADMIN", "Bootstrap Admin은 제거할 수 없습니다."));
+          }
 
-    return ResponseEntity.ok(
-        ApiResponse.success(
-            "Admin removed successfully: "
-                + StringMaskingUtils.maskFingerprintWithSuffix(fingerprint)));
+          return ResponseEntity.ok(
+              ApiResponse.success(
+                  "Admin removed successfully: "
+                      + StringMaskingUtils.maskFingerprintWithSuffix(fingerprint)));
+        });
   }
 }

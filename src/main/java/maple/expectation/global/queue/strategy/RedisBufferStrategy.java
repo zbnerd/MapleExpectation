@@ -69,6 +69,10 @@ public class RedisBufferStrategy<T> implements MessageQueueStrategy<T> {
 
   private static final int DEFAULT_MAX_RETRIES = 3;
   private static final long BASE_RETRY_DELAY_MS = 1000L; // 1초
+  private static final int MSG_ID_INDEX = 0;
+  private static final int PAYLOAD_INDEX = 1;
+  private static final int MIN_ENTRY_SIZE = 2;
+  private static final int QUEUE_COUNT_SIZE = 4;
 
   private final RedissonClient redissonClient;
   private final BufferLuaScriptProvider scriptProvider;
@@ -288,9 +292,9 @@ public class RedisBufferStrategy<T> implements MessageQueueStrategy<T> {
     List<QueueMessage<T>> messages = new ArrayList<>();
 
     for (List<String> entry : rawResult) {
-      if (entry.size() >= 2) {
-        String msgId = entry.get(0);
-        String payloadJson = entry.get(1);
+      if (entry.size() >= MIN_ENTRY_SIZE) {
+        String msgId = entry.get(MSG_ID_INDEX);
+        String payloadJson = entry.get(PAYLOAD_INDEX);
 
         QueueMessage<T> queueMessage = deserializePayload(msgId, payloadJson);
         if (queueMessage != null) {
@@ -523,9 +527,9 @@ public class RedisBufferStrategy<T> implements MessageQueueStrategy<T> {
                       RScript.ReturnType.MULTI,
                       Arrays.asList(mainQueueKey, inflightKey, retryKey, dlqKey));
 
-          if (counts != null && counts.size() >= 4) {
-            cachedPendingCount.set(counts.get(0));
-            cachedInflightCount.set(counts.get(1));
+          if (counts != null && counts.size() >= QUEUE_COUNT_SIZE) {
+            cachedPendingCount.set(counts.get(MSG_ID_INDEX));
+            cachedInflightCount.set(counts.get(PAYLOAD_INDEX));
             cachedRetryCount.set(counts.get(2));
             cachedDlqCount.set(counts.get(3));
           }

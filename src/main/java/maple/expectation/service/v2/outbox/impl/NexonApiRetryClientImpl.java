@@ -10,7 +10,9 @@ import maple.expectation.external.dto.v2.CharacterBasicResponse;
 import maple.expectation.external.dto.v2.CharacterOcidResponse;
 import maple.expectation.external.dto.v2.EquipmentResponse;
 import maple.expectation.global.executor.CheckedLogicExecutor;
+import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
+import maple.expectation.global.error.exception.ExternalServiceException;
 import maple.expectation.global.util.ExceptionUtils;
 import maple.expectation.service.v2.outbox.NexonApiOutboxMetrics;
 import maple.expectation.service.v2.outbox.NexonApiRetryClient;
@@ -45,6 +47,7 @@ public class NexonApiRetryClientImpl implements NexonApiRetryClient {
 
   private final NexonApiClient nexonApiClient;
   private final CheckedLogicExecutor checkedExecutor;
+  private final LogicExecutor executor;
   private final NexonApiOutboxMetrics metrics;
   private final ObjectMapper objectMapper;
 
@@ -56,7 +59,7 @@ public class NexonApiRetryClientImpl implements NexonApiRetryClient {
     TaskContext context = TaskContext.of("NexonApiRetry", "ProcessEntry", outbox.getRequestId());
 
     return checkedExecutor.executeUnchecked(
-        () -> doRetry(outbox), context, e -> new RuntimeException("Outbox retry failed", e));
+        () -> doRetry(outbox), context, e -> new maple.expectation.global.error.exception.ExternalServiceException("Nexon API Outbox retry failed: " + outbox.getRequestId(), e));
   }
 
   /**
@@ -70,69 +73,81 @@ public class NexonApiRetryClientImpl implements NexonApiRetryClient {
 
     log.info("[Retry] Outbox 항목 재시도: requestId={}, eventType={}", outbox.getRequestId(), eventType);
 
-    try {
-      return switch (eventType) {
-        case GET_OCID -> retryGetOcid(payload);
-        case GET_CHARACTER_BASIC -> retryGetCharacterBasic(payload);
-        case GET_ITEM_DATA -> retryGetItemData(payload);
-        case GET_CUBES -> retryGetCubes(payload);
-      };
-    } catch (Exception e) {
-      log.error("[Retry] 재시도 실패: requestId={}, eventType={}", outbox.getRequestId(), eventType, e);
-      metrics.incrementApiCallRetry();
-      return false;
-    }
+    TaskContext context = TaskContext.of("NexonApiRetry", "DoRetry", outbox.getRequestId());
+
+    return executor.executeOrCatch(
+        () -> switch (eventType) {
+          case GET_OCID -> retryGetOcid(payload);
+          case GET_CHARACTER_BASIC -> retryGetCharacterBasic(payload);
+          case GET_ITEM_DATA -> retryGetItemData(payload);
+          case GET_CUBES -> retryGetCubes(payload);
+        },
+        (e) -> {
+          log.error("[Retry] 재시도 실패: requestId={}, eventType={}", outbox.getRequestId(), eventType, e);
+          metrics.incrementApiCallRetry();
+          return false;
+        },
+        context);
   }
 
   /** OCID 조회 재시도 */
   private boolean retryGetOcid(String characterName) {
-    try {
-      CharacterOcidResponse response =
-          nexonApiClient
-              .getOcidByCharacterName(characterName)
-              .orTimeout(API_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-              .join();
+    TaskContext context = TaskContext.of("NexonApiRetry", "RetryGetOcid", characterName);
 
-      log.info("[Retry] OCID 조회 성공: name={}, ocid={}", characterName, response.getOcid());
-      metrics.incrementApiCallSuccess();
-      return true;
-    } catch (Exception e) {
-      return handleRetryFailure("GET_OCID", characterName, e);
-    }
+    return executor.executeOrCatch(
+        () -> {
+          CharacterOcidResponse response =
+              nexonApiClient
+                  .getOcidByCharacterName(characterName)
+                  .orTimeout(API_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                  .join();
+
+          log.info("[Retry] OCID 조회 성공: name={}, ocid={}", characterName, response.getOcid());
+          metrics.incrementApiCallSuccess();
+          return true;
+        },
+        (e) -> handleRetryFailure("GET_OCID", characterName, e),
+        context);
   }
 
   /** 캐릭터 기본 정보 조회 재시도 */
   private boolean retryGetCharacterBasic(String ocid) {
-    try {
-      CharacterBasicResponse response =
-          nexonApiClient
-              .getCharacterBasic(ocid)
-              .orTimeout(API_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-              .join();
+    TaskContext context = TaskContext.of("NexonApiRetry", "RetryGetCharacterBasic", ocid);
 
-      log.info("[Retry] Character Basic 조회 성공: ocid={}, world={}", ocid, response.getWorldName());
-      metrics.incrementApiCallSuccess();
-      return true;
-    } catch (Exception e) {
-      return handleRetryFailure("GET_CHARACTER_BASIC", ocid, e);
-    }
+    return executor.executeOrCatch(
+        () -> {
+          CharacterBasicResponse response =
+              nexonApiClient
+                  .getCharacterBasic(ocid)
+                  .orTimeout(API_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                  .join();
+
+          log.info("[Retry] Character Basic 조회 성공: ocid={}, world={}", ocid, response.getWorldName());
+          metrics.incrementApiCallSuccess();
+          return true;
+        },
+        (e) -> handleRetryFailure("GET_CHARACTER_BASIC", ocid, e),
+        context);
   }
 
   /** 장비 데이터 조회 재시도 */
   private boolean retryGetItemData(String ocid) {
-    try {
-      EquipmentResponse response =
-          nexonApiClient
-              .getItemDataByOcid(ocid)
-              .orTimeout(API_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-              .join();
+    TaskContext context = TaskContext.of("NexonApiRetry", "RetryGetItemData", ocid);
 
-      log.info("[Retry] Item Data 조회 성공: ocid={}", ocid);
-      metrics.incrementApiCallSuccess();
-      return true;
-    } catch (Exception e) {
-      return handleRetryFailure("GET_ITEM_DATA", ocid, e);
-    }
+    return executor.executeOrCatch(
+        () -> {
+          EquipmentResponse response =
+              nexonApiClient
+                  .getItemDataByOcid(ocid)
+                  .orTimeout(API_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                  .join();
+
+          log.info("[Retry] Item Data 조회 성공: ocid={}", ocid);
+          metrics.incrementApiCallSuccess();
+          return true;
+        },
+        (e) -> handleRetryFailure("GET_ITEM_DATA", ocid, e),
+        context);
   }
 
   /** 큐브 데이터 조회 재시도 (TODO: 추후 구현) */
@@ -148,7 +163,7 @@ public class NexonApiRetryClientImpl implements NexonApiRetryClient {
    *
    * <p>5xx/네트워크 오류: 일시적 장애 → 실패 반환 (Processor가 재시도)
    */
-  private boolean handleRetryFailure(String eventType, String payload, Exception e) {
+  private boolean handleRetryFailure(String eventType, String payload, Throwable e) {
     Throwable root = ExceptionUtils.unwrapAsyncException(e);
 
     // 4xx 클라이언트 오류: 재시도 무의미

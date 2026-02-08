@@ -51,7 +51,6 @@ public class TotalExpectationCacheService {
   private final RedisSerializer<Object> redisSerializer;
   private final LogicExecutor executor;
 
-  // P1-6 Fix: 메트릭 카운터 (TODO 코멘트 제거)
   private final Counter oversizeSkipCounter;
   private final Counter serializeFailCounter;
 
