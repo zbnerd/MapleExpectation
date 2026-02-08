@@ -361,7 +361,7 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
 
     @Test
     @DisplayName("로그아웃 시 해당 세션의 모든 Refresh Token 삭제")
-    void shouldDeleteAllTokensOnLogout() {
+    void shouldDeleteAllTokensOnLogout() throws InterruptedException {
       // [Given] 세션 생성 + 여러 Refresh Token 발급 (연속 Rotation)
       Session session =
           sessionService.createSession(
@@ -373,7 +373,9 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
               Session.ROLE_USER);
       RefreshToken token1 =
           refreshTokenService.createRefreshToken(session.sessionId(), FINGERPRINT);
+      Thread.sleep(100); // Redis 저장 대기
       RefreshToken token2 = refreshTokenService.rotateRefreshToken(token1.refreshTokenId());
+      Thread.sleep(100); // Redis 저장 대기
       RefreshToken token3 = refreshTokenService.rotateRefreshToken(token2.refreshTokenId());
 
       // [When] 로그아웃 (세션의 모든 Refresh Token 삭제)
