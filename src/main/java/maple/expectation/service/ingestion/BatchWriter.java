@@ -11,7 +11,6 @@ import maple.expectation.domain.nexon.NexonApiCharacterData;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.repository.v2.NexonCharacterRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -167,7 +166,10 @@ public class BatchWriter {
             objectMapper.readValue(
                 jsonPayload, new TypeReference<IntegrationEvent<NexonApiCharacterData>>() {}),
         null,
-        TaskContext.of("BatchWriter", "DeserializeEvent", jsonPayload.substring(0, Math.min(50, jsonPayload.length()))));
+        TaskContext.of(
+            "BatchWriter",
+            "DeserializeEvent",
+            jsonPayload.substring(0, Math.min(50, jsonPayload.length()))));
   }
 
   /**

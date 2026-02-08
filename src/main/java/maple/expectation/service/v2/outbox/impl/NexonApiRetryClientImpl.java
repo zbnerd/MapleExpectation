@@ -12,7 +12,6 @@ import maple.expectation.external.dto.v2.EquipmentResponse;
 import maple.expectation.global.executor.CheckedLogicExecutor;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
-import maple.expectation.global.error.exception.ExternalServiceException;
 import maple.expectation.global.util.ExceptionUtils;
 import maple.expectation.service.v2.outbox.NexonApiOutboxMetrics;
 import maple.expectation.service.v2.outbox.NexonApiRetryClient;
@@ -59,7 +58,11 @@ public class NexonApiRetryClientImpl implements NexonApiRetryClient {
     TaskContext context = TaskContext.of("NexonApiRetry", "ProcessEntry", outbox.getRequestId());
 
     return checkedExecutor.executeUnchecked(
-        () -> doRetry(outbox), context, e -> new maple.expectation.global.error.exception.ExternalServiceException("Nexon API Outbox retry failed: " + outbox.getRequestId(), e));
+        () -> doRetry(outbox),
+        context,
+        e ->
+            new maple.expectation.global.error.exception.ExternalServiceException(
+                "Nexon API Outbox retry failed: " + outbox.getRequestId(), e));
   }
 
   /**
@@ -76,14 +79,16 @@ public class NexonApiRetryClientImpl implements NexonApiRetryClient {
     TaskContext context = TaskContext.of("NexonApiRetry", "DoRetry", outbox.getRequestId());
 
     return executor.executeOrCatch(
-        () -> switch (eventType) {
-          case GET_OCID -> retryGetOcid(payload);
-          case GET_CHARACTER_BASIC -> retryGetCharacterBasic(payload);
-          case GET_ITEM_DATA -> retryGetItemData(payload);
-          case GET_CUBES -> retryGetCubes(payload);
-        },
+        () ->
+            switch (eventType) {
+              case GET_OCID -> retryGetOcid(payload);
+              case GET_CHARACTER_BASIC -> retryGetCharacterBasic(payload);
+              case GET_ITEM_DATA -> retryGetItemData(payload);
+              case GET_CUBES -> retryGetCubes(payload);
+            },
         (e) -> {
-          log.error("[Retry] 재시도 실패: requestId={}, eventType={}", outbox.getRequestId(), eventType, e);
+          log.error(
+              "[Retry] 재시도 실패: requestId={}, eventType={}", outbox.getRequestId(), eventType, e);
           metrics.incrementApiCallRetry();
           return false;
         },
@@ -122,7 +127,8 @@ public class NexonApiRetryClientImpl implements NexonApiRetryClient {
                   .orTimeout(API_TIMEOUT_SECONDS, TimeUnit.SECONDS)
                   .join();
 
-          log.info("[Retry] Character Basic 조회 성공: ocid={}, world={}", ocid, response.getWorldName());
+          log.info(
+              "[Retry] Character Basic 조회 성공: ocid={}, world={}", ocid, response.getWorldName());
           metrics.incrementApiCallSuccess();
           return true;
         },

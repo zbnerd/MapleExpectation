@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
-import java.util.concurrent.CompletableFuture;
 import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.dto.response.CharacterResponse;
 import maple.expectation.service.v2.facade.GameCharacterFacade;

@@ -206,9 +206,9 @@ public class PopularCharacterWarmupScheduler {
   /**
    * 지연 (Thread.sleep 래핑)
    *
-   * <p><b>Section 14 Exception:</b> Thread.sleep is acceptable here for sequential warmup delays with
-   * proper LogicExecutor wrapping. This is a synchronous delay in a sequential processing loop, not an
-   * asynchronous scheduled task.
+   * <p><b>Section 14 Exception:</b> Thread.sleep is acceptable here for sequential warmup delays
+   * with proper LogicExecutor wrapping. This is a synchronous delay in a sequential processing
+   * loop, not an asynchronous scheduled task.
    *
    * @param millis 대기 시간 (밀리초)
    */

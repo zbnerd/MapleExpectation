@@ -184,9 +184,9 @@ public class ExpectationBatchShutdownHandler implements SmartLifecycle {
   /**
    * 안전한 sleep (인터럽트 처리)
    *
-   * <p><b>Section 14 Exception:</b> Thread.sleep is acceptable here for shutdown retry delays with proper
-   * LogicExecutor wrapping. This is a synchronous delay in a retry loop during graceful shutdown, not an
-   * asynchronous scheduled task.
+   * <p><b>Section 14 Exception:</b> Thread.sleep is acceptable here for shutdown retry delays with
+   * proper LogicExecutor wrapping. This is a synchronous delay in a retry loop during graceful
+   * shutdown, not an asynchronous scheduled task.
    *
    * @param millis 대기 시간 (밀리초)
    */

@@ -60,8 +60,8 @@ public class PresetCalculationExecutorConfig {
    *
    * <h4>CLAUDE.md Section 22 준수</h4>
    *
-   * <p>AbortPolicy 사용 - 큐 포화 시 빠른 실패 및 rejected 메트릭 기록. CallerRunsPolicy는 큐 포화 시 호출 스레드에서
-   * 실행하여 Backpressure 신호를 손실하므로 금지됨.
+   * <p>AbortPolicy 사용 - 큐 포화 시 빠른 실패 및 rejected 메트릭 기록. CallerRunsPolicy는 큐 포화 시 호출 스레드에서 실행하여
+   * Backpressure 신호를 손실하므로 금지됨.
    *
    * <h4>메트릭 노출 (Issue #284: Micrometer 표준)</h4>
    *

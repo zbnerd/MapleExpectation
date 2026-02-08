@@ -73,7 +73,7 @@ public class DlqAdminController {
   })
   @GetMapping("/{id}")
   public CompletableFuture<
-      ResponseEntity<maple.expectation.global.response.ApiResponse<DlqDetailResponse>>>
+          ResponseEntity<maple.expectation.global.response.ApiResponse<DlqDetailResponse>>>
       findById(@Parameter(description = "DLQ ID") @PathVariable Long id) {
 
     return CompletableFuture.supplyAsync(
@@ -93,7 +93,7 @@ public class DlqAdminController {
   })
   @PostMapping("/{id}/reprocess")
   public CompletableFuture<
-      ResponseEntity<maple.expectation.global.response.ApiResponse<DlqReprocessResult>>>
+          ResponseEntity<maple.expectation.global.response.ApiResponse<DlqReprocessResult>>>
       reprocess(@Parameter(description = "DLQ ID") @PathVariable Long id) {
 
     return CompletableFuture.supplyAsync(
@@ -127,7 +127,8 @@ public class DlqAdminController {
   @Operation(summary = "DLQ 총 건수", description = "현재 DLQ에 쌓인 총 항목 수를 조회합니다.")
   @ApiResponse(responseCode = "200", description = "조회 성공")
   @GetMapping("/count")
-  public CompletableFuture<ResponseEntity<maple.expectation.global.response.ApiResponse<Long>>> count() {
+  public CompletableFuture<ResponseEntity<maple.expectation.global.response.ApiResponse<Long>>>
+      count() {
     return CompletableFuture.supplyAsync(
         () -> {
           long count = dlqAdminService.count();
@@ -163,13 +164,12 @@ public class DlqAdminController {
   })
   @GetMapping("/v2")
   public CompletableFuture<
-      ResponseEntity<maple.expectation.global.response.ApiResponse<CursorPageResponse<DlqEntryResponse>>>>
+          ResponseEntity<
+              maple.expectation.global.response.ApiResponse<CursorPageResponse<DlqEntryResponse>>>>
       findAllByCursor(
-          @Parameter(description = "이전 페이지의 마지막 ID (첫 페이지는 생략)") @RequestParam(
-                  required = false)
+          @Parameter(description = "이전 페이지의 마지막 ID (첫 페이지는 생략)") @RequestParam(required = false)
               Long cursor,
-          @Parameter(description = "페이지 크기 (최대 100)") @RequestParam(defaultValue = "20")
-              int size) {
+          @Parameter(description = "페이지 크기 (최대 100)") @RequestParam(defaultValue = "20") int size) {
     return CompletableFuture.supplyAsync(
         () -> {
           CursorPageRequest request = CursorPageRequest.of(cursor, size);

@@ -93,8 +93,7 @@ public class AdminController {
           if (fingerprint.equals(currentUser.fingerprint())) {
             return ResponseEntity.badRequest()
                 .body(
-                    ApiResponse.error(
-                        "SELF_REMOVAL_NOT_ALLOWED", "자기 자신의 Admin 권한은 제거할 수 없습니다."));
+                    ApiResponse.error("SELF_REMOVAL_NOT_ALLOWED", "자기 자신의 Admin 권한은 제거할 수 없습니다."));
           }
 
           boolean removed = adminService.removeAdmin(fingerprint);

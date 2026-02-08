@@ -6,11 +6,9 @@ import static org.mockito.Mockito.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import maple.expectation.application.port.MessageQueue;
-import maple.expectation.domain.event.IntegrationEvent;
-import maple.expectation.domain.nexon.NexonApiCharacterData;
+import maple.expectation.global.common.function.ThrowingSupplier;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
-import maple.expectation.global.common.function.ThrowingSupplier;
 import maple.expectation.repository.v2.NexonCharacterRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
