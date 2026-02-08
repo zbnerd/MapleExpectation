@@ -28,9 +28,10 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  JAVA_VERSION: '21'  # #262: Virtual Thread 지원을 위해 21로 업그레이드
-  GRADLE_OPTS: '-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true'
+    env:
+      JAVA_VERSION: '21'  # #262: Virtual Thread 지원을 위해 21로 업그레이드
+      GRADLE_OPTS: '-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true'
+      DOCKER_HOST: unix:///var/run/docker.sock
 
 jobs:
   # ==========================================================================
@@ -62,9 +63,13 @@ jobs:
         run: |
           echo "🐳 Starting Docker daemon for Testcontainers..."
           sudo systemctl start docker
-          sudo chmod 666 /var/run/docker.sock
+          sudo chmod 777 /var/run/docker.sock
           docker version
           docker info
+        env:
+          DOCKER_HOST: unix:///var/run/docker.sock
+          # Testcontainers Ryuk 활성화 (컨테이너 정리)
+          TESTCONTAINERS_RYUK_CONTAINER_IMAGE: testcontainers/ryuk:0.3.0
 
       # ------------------------------------------------------------------
       # Step 2: Setup Java 21
