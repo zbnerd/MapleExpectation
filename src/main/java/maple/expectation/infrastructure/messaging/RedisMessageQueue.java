@@ -12,6 +12,9 @@ import org.redisson.api.RedissonClient;
  * <p>NOTE: This is a generic class - do NOT annotate with @Component. Create specific bean
  * instances via @Configuration classes.
  *
+ * <p>NOTE: This is a generic class - do NOT annotate with @Component.
+ * Create specific bean instances via @Configuration classes.
+ *
  * @param <T> message type
  */
 public class RedisMessageQueue<T> implements MessageQueue<T> {

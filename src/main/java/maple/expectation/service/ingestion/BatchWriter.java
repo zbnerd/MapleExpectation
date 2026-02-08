@@ -85,7 +85,6 @@ public class BatchWriter {
   private final LogicExecutor executor;
   private final ObjectMapper objectMapper;
   private final maple.expectation.config.BatchProperties batchProperties;
-
   public BatchWriter(
       @Qualifier("nexonDataQueue") MessageQueue<String> messageQueue,
       NexonCharacterRepository repository,

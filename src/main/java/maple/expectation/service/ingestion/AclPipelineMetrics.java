@@ -61,7 +61,10 @@ public class AclPipelineMetrics {
   // Gauges
   private final AtomicLong queueSize = new AtomicLong(0);
 
-  /** Initialize metrics on component startup. Called by Spring after dependency injection. */
+  /**
+   * Initialize metrics on component startup.
+   * Called by Spring after dependency injection.
+   */
   @PostConstruct
   public void init() {
     // NexonDataCollector metrics
