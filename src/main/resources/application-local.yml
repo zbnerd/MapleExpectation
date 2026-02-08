@@ -55,7 +55,7 @@ cors:
 app:
   buffer:
     redis:
-      enabled: false
+      enabled: true  # ACL Phase 2: Enable Redis buffer for queue
   event-publisher:
     type: redis  # Use Redis (default)
 
