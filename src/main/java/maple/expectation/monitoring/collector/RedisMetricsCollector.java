@@ -29,6 +29,7 @@ public class RedisMetricsCollector implements MetricsCollectorStrategy {
 
   private final MeterRegistry meterRegistry;
   private final RedisBufferRepository redisBufferRepository;
+  private final maple.expectation.config.MonitoringThresholdProperties thresholdProperties;
 
   @Override
   public String getCategoryName() {
@@ -63,8 +64,8 @@ public class RedisMetricsCollector implements MetricsCollectorStrategy {
     long pendingCount = redisBufferRepository.getTotalPendingCount();
     metrics.put("buffer_pending_count", pendingCount);
 
-    // 버퍼 포화도 (임계값 5000 기준)
-    double saturation = (pendingCount / 5000.0) * 100;
+    // 버퍼 포화도 (임계값 기준 - 설정에서 가져옴)
+    double saturation = (pendingCount / thresholdProperties.bufferSaturationDouble()) * 100;
     metrics.put("buffer_saturation_percent", Math.min(formatDouble(saturation), 100.0));
 
     // Micrometer 메트릭에서 추가 정보

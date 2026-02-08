@@ -85,26 +85,21 @@ public class BatchWriter {
   private final NexonCharacterRepository repository;
   private final LogicExecutor executor;
   private final ObjectMapper objectMapper;
+  private final maple.expectation.config.BatchProperties batchProperties;
 
   @Autowired
   public BatchWriter(
       @Qualifier("nexonDataQueue") MessageQueue<String> messageQueue,
       NexonCharacterRepository repository,
       LogicExecutor executor,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      maple.expectation.config.BatchProperties batchProperties) {
     this.messageQueue = messageQueue;
     this.repository = repository;
     this.executor = executor;
     this.objectMapper = objectMapper;
+    this.batchProperties = batchProperties;
   }
-
-  /**
-   * Batch size for database operations.
-   *
-   * <p>Accumulates this many records before flushing to database. Tuned for balance between
-   * throughput and latency.
-   */
-  private static final int BATCH_SIZE = 1000;
 
   /**
    * Scheduled batch processing (runs every 5 seconds).
@@ -128,10 +123,10 @@ public class BatchWriter {
 
     executor.executeVoid(
         () -> {
-          List<IntegrationEvent<NexonApiCharacterData>> batch = new ArrayList<>(BATCH_SIZE);
+          List<IntegrationEvent<NexonApiCharacterData>> batch = new ArrayList<>(batchProperties.aclWriterSize());
 
           // Accumulate batch from queue (JSON strings)
-          for (int i = 0; i < BATCH_SIZE; i++) {
+          for (int i = 0; i < batchProperties.aclWriterSize(); i++) {
             String jsonPayload = messageQueue.poll();
             if (jsonPayload == null) {
               break; // Queue empty

@@ -24,6 +24,7 @@ import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.global.util.StringMaskingUtils;
 import maple.expectation.parser.EquipmentStreamingParser;
+import maple.expectation.util.AsyncUtils;
 import maple.expectation.provider.EquipmentDataProvider;
 import maple.expectation.service.v2.cache.EquipmentCacheService;
 import maple.expectation.service.v2.cache.EquipmentDataResolver;
@@ -288,7 +289,7 @@ public class EquipmentService {
   // ==================== 예외 처리 ====================
 
   private TotalExpectationResponse handleAsyncException(Throwable e, String userIgn) {
-    Throwable cause = (e instanceof CompletionException) ? e.getCause() : e;
+    Throwable cause = AsyncUtils.unwrapCompletionException(e);
 
     if (cause instanceof TimeoutException) {
       throw new ExpectationCalculationUnavailableException(userIgn, cause);
@@ -381,7 +382,7 @@ public class EquipmentService {
   // ==================== 예외 처리 (Issue #118) ====================
 
   private EquipmentResponse handleEquipmentException(Throwable e, String userIgn) {
-    Throwable cause = (e instanceof CompletionException) ? e.getCause() : e;
+    Throwable cause = AsyncUtils.unwrapCompletionException(e);
 
     if (cause instanceof TimeoutException) {
       throw new ExpectationCalculationUnavailableException(userIgn, cause);

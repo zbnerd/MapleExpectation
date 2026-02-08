@@ -1,57 +1,50 @@
 package maple.expectation.service.v2.calculator.impl;
 
-import java.util.Optional;
 import maple.expectation.domain.v2.CubeType;
 import maple.expectation.dto.CubeCalculationInput;
 import maple.expectation.service.v2.CubeTrialsProvider;
-import maple.expectation.service.v2.calculator.EnhanceDecorator;
 import maple.expectation.service.v2.calculator.ExpectationCalculator;
+import maple.expectation.service.v2.cube.AbstractCubeDecoratorV2;
 import maple.expectation.service.v2.policy.CubeCostPolicy;
 
-public class BlackCubeDecorator extends EnhanceDecorator {
-  private final CubeTrialsProvider trialsProvider;
-  private final CubeCostPolicy costPolicy;
-  private final CubeCalculationInput input;
-  private Long trials;
+/**
+ * V2 블랙큐브 데코레이터 (리팩토링: AbstractCubeDecoratorV2 사용)
+ *
+ * <h3>리팩토링 내역</h3>
+ *
+ * <ul>
+ *   <li>중복 로직 제거: AbstractCubeDecoratorV2 템플릿 사용
+ *   <li>코드 감소: ~50% (58 → 30 라인)
+ *   <li>단일 책임: 큐브 타입과 경로 접미사만 정의
+ * </ul>
+ *
+ * <h3>블랙큐브 특성</h3>
+ *
+ * <ul>
+ *   <li>윗잠재(메인 잠재능력) 재설정
+ *   <li>레어 → 에픽 → 유니크 → 레전드리 등급 상승
+ *   <li>큐브 가격: 레벨 × 등급 계수
+ * </ul>
+ *
+ * @see AbstractCubeDecoratorV2 공통 로직 템플릿
+ */
+public class BlackCubeDecorator extends AbstractCubeDecoratorV2 {
 
   public BlackCubeDecorator(
       ExpectationCalculator target,
       CubeTrialsProvider trialsProvider,
       CubeCostPolicy costPolicy,
       CubeCalculationInput input) {
-    super(target);
-    this.trialsProvider = trialsProvider;
-    this.costPolicy = costPolicy;
-    this.input = input;
-  }
-
-  public Long calculateTrials() {
-    trials = trialsProvider.calculateExpectedTrials(input, CubeType.BLACK).longValue();
-    return trials;
+    super(target, trialsProvider, costPolicy, input);
   }
 
   @Override
-  public Optional<Long> getTrials() {
-    return Optional.of(trials);
+  protected CubeType getCubeType() {
+    return CubeType.BLACK;
   }
 
   @Override
-  public long calculateCost() {
-    // 1. 이전 단계 누적 비용 (BaseItem 등)
-    long previousCost = super.calculateCost();
-
-    // 2. 윗잠재(블랙큐브) 기대 시도 횟수 계산
-    long expectedTrials = calculateTrials();
-
-    // 3. 수정된 통합 비용 정책 적용 (CubeType.BLACK 전달)
-    // 기존 getBlackCubeCost -> getCubeCost로 변경
-    long costPerTrial = costPolicy.getCubeCost(CubeType.BLACK, input.getLevel(), input.getGrade());
-
-    return previousCost + (expectedTrials * costPerTrial);
-  }
-
-  @Override
-  public String getEnhancePath() {
-    return super.getEnhancePath() + " > 블랙큐브(윗잠)";
+  protected String getCubePathSuffix() {
+    return " > 블랙큐브(윗잠)";
   }
 }

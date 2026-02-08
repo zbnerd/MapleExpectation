@@ -4,7 +4,6 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -13,6 +12,7 @@ import maple.expectation.global.error.exception.ApiTimeoutException;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.global.util.StringMaskingUtils;
+import maple.expectation.util.AsyncUtils;
 import maple.expectation.provider.EquipmentDataProvider;
 import maple.expectation.service.v2.worker.EquipmentDbWorker;
 import maple.expectation.util.GzipUtils;
@@ -155,23 +155,11 @@ public class EquipmentDataResolver {
    * @see ApiTimeoutException 서킷브레이커 기록되는 타임아웃 예외
    */
   private CompletableFuture<byte[]> fetchFromNexonApiAndSave(String ocid) {
-    return dataProvider
-        .getRawEquipmentData(ocid)
-        // Issue #173: orTimeout()을 API 호출 직후로 이동 (race condition 해결)
-        .orTimeout(NEXON_API_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        // Issue #169: TimeoutException → ApiTimeoutException 변환 (서킷브레이커 기록)
-        .exceptionally(
-            e -> {
-              Throwable cause = (e instanceof CompletionException) ? e.getCause() : e;
-              if (cause instanceof TimeoutException) {
-                throw new ApiTimeoutException("NexonEquipmentAPI", cause);
-              }
-              // 다른 예외는 그대로 전파
-              if (e instanceof RuntimeException re) {
-                throw re;
-              }
-              throw new CompletionException(e);
-            })
+    return AsyncUtils.withTimeout(
+            dataProvider.getRawEquipmentData(ocid),
+            NEXON_API_TIMEOUT_SECONDS,
+            TimeUnit.SECONDS,
+            "NexonEquipmentAPI")
         // P2 Fix: thenApplyAsync로 ThreadLocal 전파 보장 (PR #160 Codex 지적)
         // expectationExecutor에 contextPropagatingDecorator가 설정되어 있음
         .thenApplyAsync(

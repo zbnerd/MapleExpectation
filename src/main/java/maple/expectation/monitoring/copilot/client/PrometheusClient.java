@@ -17,7 +17,6 @@ import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
-import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.error.exception.InternalSystemException;
@@ -43,15 +42,6 @@ public class PrometheusClient {
   private final ObjectMapper objectMapper;
   private final LogicExecutor executor;
   private final String prometheusUrl;
-
-  /** Create default instance (for backward compatibility) */
-  @Builder
-  public PrometheusClient(String prometheusUrl, HttpClient httpClient, ObjectMapper objectMapper) {
-    this.prometheusUrl = prometheusUrl != null ? prometheusUrl : "http://localhost:9090";
-    this.httpClient = httpClient != null ? httpClient : HttpClient.newHttpClient();
-    this.objectMapper = objectMapper != null ? objectMapper : new ObjectMapper();
-    this.executor = null; // Legacy constructor doesn't use executor
-  }
 
   /**
    * Query Prometheus with a time range.
@@ -102,25 +92,36 @@ public class PrometheusClient {
     return prometheusResponse.data().result();
   }
 
-  /** Send HTTP request with proper exception translation. */
+  /**
+   * Send HTTP request with proper exception translation.
+   *
+   * <p>Section 12 Exception: This is a low-level HTTP operation with checked exceptions
+   * (InterruptedException, IOException) that require structural try-catch handling. LogicExecutor
+   * cannot be used here due to legacy mode (executor=null) constraints.
+   */
   private HttpResponse<String> sendHttpRequest(HttpRequest request) {
     try {
       return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-    } catch (Exception e) {
-      if (e instanceof InterruptedException) {
-        Thread.currentThread().interrupt();
-        throw new InternalSystemException("Prometheus query interrupted", e);
-      }
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new InternalSystemException("Prometheus query interrupted", e);
+    } catch (IOException e) {
       throw new InternalSystemException(
           String.format("Prometheus HTTP request failed: %s", e.getMessage()), e);
     }
   }
 
-  /** Parse JSON response with proper exception translation. */
+  /**
+   * Parse JSON response with proper exception translation.
+   *
+   * <p>Section 12 Exception: This is a low-level JSON parsing operation with checked exceptions
+   * (IOException) that require structural try-catch handling. LogicExecutor cannot be used here due
+   * to legacy mode (executor=null) constraints.
+   */
   private PrometheusResponse parseResponse(String body) {
     try {
       return objectMapper.readValue(body, PrometheusResponse.class);
-    } catch (Exception e) {
+    } catch (IOException e) {
       throw new InternalSystemException(
           String.format("Failed to parse Prometheus response: %s", e.getMessage()), e);
     }
@@ -183,7 +184,13 @@ public class PrometheusClient {
   @JsonDeserialize(using = ValuePointDeserializer.class)
   public record ValuePoint(long timestamp, String value) {
 
-    /** Parse value as Double. Returns 0.0 on parse failure (safe default). */
+    /**
+     * Parse value as Double. Returns 0.0 on parse failure (safe default).
+     *
+     * <p>Section 12 Exception: This is a Record method (JPA Entity-like restriction). LogicExecutor
+     * cannot be used here due to lack of Spring Bean injection capability. Direct try-catch is
+     * acceptable per CLAUDE.md Section 12 exception list.
+     */
     public double getValueAsDouble() {
       try {
         return Double.parseDouble(value);

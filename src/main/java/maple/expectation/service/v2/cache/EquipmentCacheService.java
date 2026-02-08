@@ -1,6 +1,5 @@
 package maple.expectation.service.v2.cache;
 
-import java.util.Objects;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.external.dto.v2.EquipmentResponse;
@@ -15,19 +14,22 @@ import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
 
 /**
- * Equipment 캐시 서비스
+ * Equipment 캐시 서비스 (Issue #24: AbstractTieredCacheService 리팩토링)
  *
  * <h4>P1-4: Cache 필드 캐싱</h4>
  *
- * <p>매 호출마다 cacheManager.getCache() 반복 호출 대신 생성자에서 1회 조회하여 필드에 캐싱
+ * <p>AbstractTieredCacheService를 상속받아 L1→L2→Warm-up 패턴의 중복을 제거했습니다.
+ *
+ * <h4>추가 기능</h4>
+ *
+ * <ul>
+ *   <li>비동기 DB 저장 (EquipmentDbWorker)
+ *   <li>Negative 캐시 체크
+ * </ul>
  */
 @Slf4j
 @Service
-public class EquipmentCacheService {
-  private final Cache tieredEquipmentCache; // P1-4: Tiered (L1+L2) 필드 캐싱
-  private final Cache l1OnlyEquipmentCache; // P1-4: L1 Only 필드 캐싱
-  private final EquipmentDbWorker dbWorker;
-  private final LogicExecutor executor;
+public class EquipmentCacheService extends AbstractTieredCacheService<EquipmentResponse> {
 
   private static final String CACHE_NAME = "equipment";
   private static final EquipmentResponse NULL_MARKER = new EquipmentResponse();
@@ -36,51 +38,51 @@ public class EquipmentCacheService {
     NULL_MARKER.setCharacterClass("NEGATIVE_MARKER");
   }
 
+  private final EquipmentDbWorker dbWorker;
+
   public EquipmentCacheService(
       CacheManager cacheManager,
       @Qualifier("expectationL1CacheManager") CacheManager l1CacheManager,
       EquipmentDbWorker dbWorker,
       LogicExecutor executor) {
-    this.tieredEquipmentCache =
-        Objects.requireNonNull(
-            cacheManager.getCache(CACHE_NAME), "Tiered equipment cache must not be null");
-    this.l1OnlyEquipmentCache =
-        Objects.requireNonNull(
-            l1CacheManager.getCache(CACHE_NAME), "L1-only equipment cache must not be null");
+    super(CACHE_NAME, cacheManager, l1CacheManager, executor);
     this.dbWorker = dbWorker;
-    this.executor = executor;
   }
 
-  /** 캐시 조회 로직 (P1-4: 필드 캐싱 적용) */
+  // ==================== AbstractTieredCacheService Implementation ====================
+
+  @Override
+  protected boolean isValidNullMarker(EquipmentResponse value) {
+    return value != null && "NEGATIVE_MARKER".equals(value.getCharacterClass());
+  }
+
+  // ==================== Public API ====================
+
+  /** 캐시 조회 로직 (L1 → L2 → Warm-up) */
   public Optional<EquipmentResponse> getValidCache(String ocid) {
-    return executor.execute(
-        () -> {
-          EquipmentResponse cached = tieredEquipmentCache.get(ocid, EquipmentResponse.class);
-          if (cached != null && !"NEGATIVE_MARKER".equals(cached.getCharacterClass())) {
-            return Optional.of(cached);
-          }
-          return Optional.empty();
-        },
-        TaskContext.of("EquipmentCache", "GetValid", ocid));
+    return getFromTieredCache(ocid, EquipmentResponse.class);
   }
 
+  /** Negative 캐시 존재 여부 확인 */
   public boolean hasNegativeCache(String ocid) {
     return executor.executeOrDefault(
         () -> {
-          EquipmentResponse cached = tieredEquipmentCache.get(ocid, EquipmentResponse.class);
-          return cached != null && "NEGATIVE_MARKER".equals(cached.getCharacterClass());
+          EquipmentResponse cached = tieredCache.get(ocid, EquipmentResponse.class);
+          return cached != null && isValidNullMarker(cached);
         },
         false,
         TaskContext.of("EquipmentCache", "CheckNegative", ocid));
   }
 
-  /** 캐시 저장 및 비동기 DB persist (P1-4: 필드 캐싱 적용) */
+  /** 캐시 저장 및 비동기 DB persist */
   public void saveCache(String ocid, EquipmentResponse response) {
     TaskContext context = TaskContext.of("EquipmentCache", "Save", ocid);
 
     executor.executeOrCatch(
         () -> {
-          performCaching(ocid, response);
+          // 1. Tiered 캐시 저장 (L2 → L1)
+          saveToTieredCache(ocid, response, NULL_MARKER);
+          // 2. 비동기 DB 저장 트리거
           triggerAsyncPersist(ocid, response);
           return null;
         },
@@ -88,19 +90,26 @@ public class EquipmentCacheService {
         context);
   }
 
-  /** 헬퍼 1: 캐시 저장 로직 (Null Marker 처리 포함, P1-4: 필드 캐싱) */
-  private void performCaching(String ocid, EquipmentResponse response) {
-    tieredEquipmentCache.put(ocid, (response == null) ? NULL_MARKER : response);
+  /** L1-only 캐시 조회 (Expectation 경로 전용 - L2 우회) */
+  public Optional<EquipmentResponse> getValidCacheL1Only(String ocid) {
+    return getFromL1Only(ocid, EquipmentResponse.class);
   }
 
-  /** 헬퍼 2: 비동기 DB 저장 트리거 및 내부 예외 관측 */
+  /** L1-only 캐시 저장 (Expectation 경로 전용 - L2 우회, DB 저장도 스킵) */
+  public void saveCacheL1Only(String ocid, EquipmentResponse response) {
+    saveToL1Only(ocid, response, NULL_MARKER);
+  }
+
+  // ==================== Equipment-Specific Logic (DB Persistence) ====================
+
+  /** 비동기 DB 저장 트리거 및 내부 예외 관측 */
   private void triggerAsyncPersist(String ocid, EquipmentResponse response) {
     if (response == null) return;
 
     dbWorker.persist(ocid, response).exceptionally(ex -> observeAsyncError(ocid, ex));
   }
 
-  /** 헬퍼 3: 비동기 에러 관측 (executor 내부 중첩 방지용) */
+  /** 비동기 에러 관측 (executor 내부 중첩 방지용) */
   private Void observeAsyncError(String ocid, Throwable ex) {
     executor.executeVoid(
         () -> {
@@ -110,7 +119,7 @@ public class EquipmentCacheService {
     return null;
   }
 
-  /** 헬퍼 4: 셧다운 및 공통 예외 핸들러 */
+  /** 셧다운 및 공통 예외 핸들러 */
   private EquipmentResponse handleSaveFailure(String ocid, Throwable e) {
     if (e instanceof IllegalStateException) {
       log.warn("[Equipment Cache] Shutdown 진행 중 - DB 저장 스킵(캐시만 유지): {}", ocid);
@@ -123,30 +132,5 @@ public class EquipmentCacheService {
       throw re;
     }
     throw new CachePersistenceException(ocid, e);
-  }
-
-  // ==================== L1-only API (Expectation 경로 전용) ====================
-
-  /** L1 캐시에서만 조회 (Expectation 경로 전용 - L2 우회, P1-4: 필드 캐싱) */
-  public Optional<EquipmentResponse> getValidCacheL1Only(String ocid) {
-    return executor.execute(
-        () -> {
-          EquipmentResponse cached = l1OnlyEquipmentCache.get(ocid, EquipmentResponse.class);
-          if (cached != null && !"NEGATIVE_MARKER".equals(cached.getCharacterClass())) {
-            return Optional.of(cached);
-          }
-          return Optional.empty();
-        },
-        TaskContext.of("EquipmentCache", "GetValidL1Only", ocid));
-  }
-
-  /** L1 캐시에만 저장 (Expectation 경로 전용 - L2 우회, DB 저장도 스킵, P1-4: 필드 캐싱) */
-  public void saveCacheL1Only(String ocid, EquipmentResponse response) {
-    executor.executeVoid(
-        () -> {
-          l1OnlyEquipmentCache.put(ocid, (response == null) ? NULL_MARKER : response);
-          log.debug("[EquipmentCache] L1-only save: {}", ocid);
-        },
-        TaskContext.of("EquipmentCache", "SaveL1Only", ocid));
   }
 }

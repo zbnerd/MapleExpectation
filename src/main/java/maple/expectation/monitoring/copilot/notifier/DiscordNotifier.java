@@ -46,21 +46,26 @@ import org.springframework.stereotype.Component;
 @Component
 public class DiscordNotifier {
 
-  private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(5);
   private static final String CONTENT_TYPE = "application/json";
   private static final int MAX_RETRIES = 1;
 
   private final HttpClient httpClient;
   private final ObjectMapper objectMapper;
   private final LogicExecutor executor;
+  private final maple.expectation.config.DiscordTimeoutProperties timeoutProperties;
 
   @Value("${app.monitoring.discord.webhook-url:}")
   private String webhookUrl;
 
-  public DiscordNotifier(HttpClient httpClient, ObjectMapper objectMapper, LogicExecutor executor) {
+  public DiscordNotifier(
+      HttpClient httpClient,
+      ObjectMapper objectMapper,
+      LogicExecutor executor,
+      maple.expectation.config.DiscordTimeoutProperties timeoutProperties) {
     this.httpClient = httpClient;
     this.objectMapper = objectMapper;
     this.executor = executor;
+    this.timeoutProperties = timeoutProperties;
   }
 
   /**
@@ -94,7 +99,7 @@ public class DiscordNotifier {
         HttpRequest.newBuilder()
             .uri(URI.create(webhookUrl))
             .header("Content-Type", CONTENT_TYPE)
-            .timeout(REQUEST_TIMEOUT)
+            .timeout(Duration.ofSeconds(timeoutProperties.webhookTimeoutSeconds()))
             .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
             .build();
 
@@ -156,7 +161,7 @@ public class DiscordNotifier {
    * second.
    *
    * @param response HTTP response with 429 status
-   * @return Delay in milliseconds (default 1000ms if header missing/invalid)
+   * @return Delay in milliseconds (default from properties if header missing/invalid)
    */
   private long extractRetryAfter(HttpResponse<String> response) {
     return response
@@ -171,7 +176,7 @@ public class DiscordNotifier {
                 return Optional.empty();
               }
             })
-        .orElse(1000L);
+        .orElse(timeoutProperties.retryAfterDefaultMs());
   }
 
   /**

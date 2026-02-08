@@ -1,17 +1,24 @@
 package maple.expectation.service.v2.calculator.v4.impl;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.util.Optional;
 import maple.expectation.domain.v2.CubeType;
 import maple.expectation.dto.CubeCalculationInput;
 import maple.expectation.service.v2.CubeTrialsProvider;
-import maple.expectation.service.v2.calculator.v4.EquipmentEnhanceDecorator;
 import maple.expectation.service.v2.calculator.v4.EquipmentExpectationCalculator;
+import maple.expectation.service.v2.calculator.v4.EquipmentExpectationCalculator.CostBreakdown;
+import maple.expectation.service.v2.cube.AbstractCubeDecoratorV4;
 import maple.expectation.service.v2.policy.CubeCostPolicy;
 
 /**
- * V4 에디셔널큐브 데코레이터 (#240)
+ * V4 에디셔널큐브 데코레이터 (리팩토링: AbstractCubeDecoratorV4 사용)
+ *
+ * <h3>리팩토링 내역</h3>
+ *
+ * <ul>
+ *   <li>중복 로직 제거: AbstractCubeDecoratorV4 템플릿 사용
+ *   <li>코드 감소: ~60% (102 → 40 라인)
+ *   <li>단일 책임: 큐브 타입과 경로 접미사만 정의
+ * </ul>
  *
  * <h3>에디셔널큐브 특성</h3>
  *
@@ -21,81 +28,31 @@ import maple.expectation.service.v2.policy.CubeCostPolicy;
  *   <li>메이플스토리: 에디셔널 옵션은 주력 스탯에 추가 버프 제공
  * </ul>
  *
- * @see EquipmentEnhanceDecorator 추상 데코레이터
+ * @see AbstractCubeDecoratorV4 공통 로직 템플릿
  */
-public class AdditionalCubeDecoratorV4 extends EquipmentEnhanceDecorator {
-
-  private static final int PRECISION_SCALE = 2;
-
-  private final CubeTrialsProvider trialsProvider;
-  private final CubeCostPolicy costPolicy;
-  private final CubeCalculationInput input;
-  private BigDecimal trials;
+public class AdditionalCubeDecoratorV4 extends AbstractCubeDecoratorV4 {
 
   public AdditionalCubeDecoratorV4(
       EquipmentExpectationCalculator target,
       CubeTrialsProvider trialsProvider,
       CubeCostPolicy costPolicy,
       CubeCalculationInput input) {
-    super(target);
-    this.trialsProvider = trialsProvider;
-    this.costPolicy = costPolicy;
-    this.input = input;
+    super(target, trialsProvider, costPolicy, input);
   }
 
   @Override
-  public BigDecimal calculateCost() {
-    BigDecimal previousCost = super.calculateCost();
-
-    // #240 V4: trials를 정수로 반올림 후 cost 계산
-    BigDecimal expectedTrials = calculateTrials();
-    BigDecimal roundedTrials = expectedTrials.setScale(0, RoundingMode.HALF_UP);
-    BigDecimal costPerTrial =
-        BigDecimal.valueOf(
-            costPolicy.getCubeCost(CubeType.ADDITIONAL, input.getLevel(), input.getGrade()));
-
-    BigDecimal additionalCubeCost = roundedTrials.multiply(costPerTrial);
-
-    return previousCost.add(additionalCubeCost);
-  }
-
-  public BigDecimal calculateTrials() {
-    if (trials == null) {
-      Double rawTrials = trialsProvider.calculateExpectedTrials(input, CubeType.ADDITIONAL);
-      // P0 Fix (#262): Infinity 값은 BigDecimal로 변환 불가 → ZERO 처리
-      // 무한대 = 불가능한 조합 = 비용 계산 의미 없음
-      trials =
-          (rawTrials != null && Double.isFinite(rawTrials))
-              ? BigDecimal.valueOf(rawTrials)
-              : BigDecimal.ZERO;
-    }
-    return trials;
+  protected CubeType getCubeType() {
+    return CubeType.ADDITIONAL;
   }
 
   @Override
-  public Optional<BigDecimal> getTrials() {
-    return Optional.of(calculateTrials());
+  protected String getCubePathSuffix() {
+    return " > 에디셔널큐브(아랫잠)";
   }
 
   @Override
-  public CostBreakdown getDetailedCosts() {
-    CostBreakdown base = super.getDetailedCosts();
-
-    // #240 V4: trials를 정수로 반올림 후 cost 계산
-    BigDecimal expectedTrials = calculateTrials();
-    BigDecimal roundedTrials = expectedTrials.setScale(0, RoundingMode.HALF_UP);
-    BigDecimal costPerTrial =
-        BigDecimal.valueOf(
-            costPolicy.getCubeCost(CubeType.ADDITIONAL, input.getLevel(), input.getGrade()));
-    BigDecimal additionalCubeCost = roundedTrials.multiply(costPerTrial);
-
-    // #240 V4: 반올림된 trials 정보 포함
-    return base.withAdditionalCube(
-        base.additionalCubeCost().add(additionalCubeCost), roundedTrials);
-  }
-
-  @Override
-  public String getEnhancePath() {
-    return super.getEnhancePath() + " > 에디셔널큐브(아랫잠)";
+  protected CostBreakdown updateCostBreakdown(
+      CostBreakdown base, BigDecimal cubeCost, BigDecimal trials) {
+    return base.withAdditionalCube(base.additionalCubeCost().add(cubeCost), trials);
   }
 }
