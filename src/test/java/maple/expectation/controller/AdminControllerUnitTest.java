@@ -1,12 +1,9 @@
 package maple.expectation.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Collections;
@@ -33,7 +30,6 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.web.bind.MethodArgumentNotValidException;
 
 /**
  * AdminController 단위 테스트
@@ -83,7 +79,8 @@ class AdminControllerUnitTest {
       AddAdminRequest request = new AddAdminRequest("");
 
       // When & Then
-      mockMvc.perform(
+      mockMvc
+          .perform(
               post("/api/admin/admins")
                   .contentType(MediaType.APPLICATION_JSON)
                   .content(objectMapper.writeValueAsString(request)))
@@ -98,7 +95,8 @@ class AdminControllerUnitTest {
       String jsonWithNull = "{\"fingerprint\":null}";
 
       // When & Then
-      mockMvc.perform(
+      mockMvc
+          .perform(
               post("/api/admin/admins")
                   .contentType(MediaType.APPLICATION_JSON)
                   .content(jsonWithNull))
@@ -113,7 +111,8 @@ class AdminControllerUnitTest {
       AddAdminRequest request = new AddAdminRequest(FINGERPRINT_63);
 
       // When & Then
-      mockMvc.perform(
+      mockMvc
+          .perform(
               post("/api/admin/admins")
                   .contentType(MediaType.APPLICATION_JSON)
                   .content(objectMapper.writeValueAsString(request)))
@@ -128,7 +127,8 @@ class AdminControllerUnitTest {
       AddAdminRequest request = new AddAdminRequest(FINGERPRINT_65);
 
       // When & Then
-      mockMvc.perform(
+      mockMvc
+          .perform(
               post("/api/admin/admins")
                   .contentType(MediaType.APPLICATION_JSON)
                   .content(objectMapper.writeValueAsString(request)))
@@ -152,7 +152,8 @@ class AdminControllerUnitTest {
       AddAdminRequest request = new AddAdminRequest(invalidFingerprint);
 
       // When & Then
-      mockMvc.perform(
+      mockMvc
+          .perform(
               post("/api/admin/admins")
                   .contentType(MediaType.APPLICATION_JSON)
                   .content(objectMapper.writeValueAsString(request)))
@@ -167,14 +168,16 @@ class AdminControllerUnitTest {
       AddAdminRequest request = new AddAdminRequest(VALID_FINGERPRINT_64);
 
       // When & Then
-      mockMvc.perform(
+      mockMvc
+          .perform(
               post("/api/admin/admins")
                   .contentType(MediaType.APPLICATION_JSON)
                   .content(objectMapper.writeValueAsString(request)))
-          .andExpect(result -> {
-            assertThat(result.getResponse().getStatus()).isEqualTo(200);
-            assertThat(result.getResponse().getContentAsString()).contains("\"success\":true");
-          });
+          .andExpect(
+              result -> {
+                assertThat(result.getResponse().getStatus()).isEqualTo(200);
+                assertThat(result.getResponse().getContentAsString()).contains("\"success\":true");
+              });
     }
   }
 
@@ -228,9 +231,7 @@ class AdminControllerUnitTest {
     setupAdminAuthentication("default-admin-fingerprint-for-testing-1234567890abcdef1234");
   }
 
-  /**
-   * ADMIN 권한으로 SecurityContext 설정 (지정된 fingerprint)
-   */
+  /** ADMIN 권한으로 SecurityContext 설정 (지정된 fingerprint) */
   private void setupAdminAuthentication(String fingerprint) {
     AuthenticatedUser user =
         new AuthenticatedUser(
@@ -250,9 +251,7 @@ class AdminControllerUnitTest {
     SecurityContextHolder.getContext().setAuthentication(auth);
   }
 
-  /**
-   * 테스트용 AuthenticatedUser 생성 (SecurityContext 설정 없음)
-   */
+  /** 테스트용 AuthenticatedUser 생성 (SecurityContext 설정 없음) */
   private AuthenticatedUser createUser(String fingerprint) {
     return new AuthenticatedUser(
         "test-session-id", // sessionId
@@ -262,6 +261,6 @@ class AdminControllerUnitTest {
         "test-api-key", // apiKey
         Collections.emptySet(), // myOcids
         "ADMIN" // role
-    );
+        );
   }
 }

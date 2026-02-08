@@ -48,8 +48,7 @@ import org.springframework.boot.test.context.SpringBootTest;
  *
  * <h4>CI 실행 제외</h4>
  *
- * <p>이 테스트는 @Tag("chaos") 태그가 있어 CI 파이프라인에서 제외됩니다.
- * 별도의 카오스 엔지니어링 테스트 스위트에서 실행하세요:
+ * <p>이 테스트는 @Tag("chaos") 태그가 있어 CI 파이프라인에서 제외됩니다. 별도의 카오스 엔지니어링 테스트 스위트에서 실행하세요:
  *
  * <pre>
  * ./gradlew test --tests "*DiskFull*" --tags "chaos"

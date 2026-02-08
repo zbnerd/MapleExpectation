@@ -3,7 +3,6 @@ package maple.expectation.monitoring;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -93,11 +92,15 @@ class AiSreServiceTest {
 
     // then
     assertThat(future).isCompletedExceptionally();
-    future.handle((result, ex) -> {
-      assertThat(ex).isInstanceOf(RuntimeException.class)
-          .hasMessageContaining("AI API timeout");
-      return null;
-    }).join();
+    future
+        .handle(
+            (result, ex) -> {
+              assertThat(ex)
+                  .isInstanceOf(RuntimeException.class)
+                  .hasMessageContaining("AI API timeout");
+              return null;
+            })
+        .join();
   }
 
   @Test
@@ -108,9 +111,11 @@ class AiSreServiceTest {
     SQLException exception2 = new SQLException("Error 2");
 
     AiSreService.AiAnalysisResult result1 =
-        new AiSreService.AiAnalysisResult("Cause 1", "medium", "Component 1", "Fix 1", "Z.ai", "AI-generated");
+        new AiSreService.AiAnalysisResult(
+            "Cause 1", "medium", "Component 1", "Fix 1", "Z.ai", "AI-generated");
     AiSreService.AiAnalysisResult result2 =
-        new AiSreService.AiAnalysisResult("Cause 2", "low", "Component 2", "Fix 2", "Z.ai", "AI-generated");
+        new AiSreService.AiAnalysisResult(
+            "Cause 2", "low", "Component 2", "Fix 2", "Z.ai", "AI-generated");
 
     given(aiSreService.analyzeErrorAsync(exception1))
         .willReturn(CompletableFuture.completedFuture(Optional.of(result1)));
@@ -125,10 +130,8 @@ class AiSreServiceTest {
 
     // then
     CompletableFuture.allOf(future1, future2).join();
-    assertThat(future1.get()).isPresent().hasValueSatisfying(r ->
-        r.rootCause().equals("Cause 1"));
-    assertThat(future2.get()).isPresent().hasValueSatisfying(r ->
-        r.rootCause().equals("Cause 2"));
+    assertThat(future1.get()).isPresent().hasValueSatisfying(r -> r.rootCause().equals("Cause 1"));
+    assertThat(future2.get()).isPresent().hasValueSatisfying(r -> r.rootCause().equals("Cause 2"));
 
     verify(aiSreService).analyzeErrorAsync(exception1);
     verify(aiSreService).analyzeErrorAsync(exception2);
@@ -139,8 +142,11 @@ class AiSreServiceTest {
   void shouldCacheSameExceptionAnalysis() {
     // given
     given(aiSreService.analyzeErrorAsync(any(SQLException.class)))
-        .willReturn(CompletableFuture.completedFuture(
-            Optional.of(new AiSreService.AiAnalysisResult("Cause", "low", "Comp", "Fix", "Z.ai", "AI-generated"))));
+        .willReturn(
+            CompletableFuture.completedFuture(
+                Optional.of(
+                    new AiSreService.AiAnalysisResult(
+                        "Cause", "low", "Comp", "Fix", "Z.ai", "AI-generated"))));
 
     // when
     aiSreService.analyzeErrorAsync(testException);

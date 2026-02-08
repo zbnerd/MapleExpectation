@@ -153,7 +153,8 @@ class CalculatorCharacterizationTest {
     assertThat(result.size()).isEqualTo(51);
 
     // Assert - Current Behavior: Partial overflow accumulates in last bucket
-    // Note: Current implementation only captures P(sum=0,100) + P(sum=100,0) = 0.25 + 0.25 + P(sum=100,100) clamped
+    // Note: Current implementation only captures P(sum=0,100) + P(sum=100,0) = 0.25 + 0.25 +
+    // P(sum=100,100) clamped
     // Actual mass at target is 0.75, not 1.0 (some mass is lost during clamping)
     assertThat(result.massAt(target)).isCloseTo(0.75, within(1e-10));
 
@@ -403,7 +404,8 @@ class CalculatorCharacterizationTest {
   }
 
   @Test
-  @DisplayName("[CALC-023] SparsePmf: probAt() throws ArrayIndexOutOfBoundsException for out-of-bounds indices")
+  @DisplayName(
+      "[CALC-023] SparsePmf: probAt() throws ArrayIndexOutOfBoundsException for out-of-bounds indices")
   void sparsePmf_probAt_returns_zero_for_out_of_bounds() {
     // Arrange
     SparsePmf pmf = SparsePmf.fromMap(Map.of(0, 0.5, 6, 0.3));
