@@ -66,7 +66,7 @@ public class DonationTest extends IntegrationTestSupport {
   }
 
   private Member saveAndTrack(Member member) {
-    Member saved = memberRepository.save(member);
+    Member saved = memberRepository.saveAndFlush(member);
     createdMemberIds.add(saved.getId());
     return saved;
   }

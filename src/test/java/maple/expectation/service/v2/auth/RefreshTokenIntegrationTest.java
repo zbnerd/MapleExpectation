@@ -75,7 +75,7 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
 
     @Test
     @DisplayName("로그인 → Refresh → 새 Access Token + Refresh Token 발급")
-    void shouldRefreshTokensSuccessfully() {
+    void shouldRefreshTokensSuccessfully() throws InterruptedException {
       // [Given] 세션 생성 + Refresh Token 발급 (로그인 시뮬레이션)
       Session session =
           sessionService.createSession(
@@ -87,6 +87,7 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
               Session.ROLE_USER);
       RefreshToken originalToken =
           refreshTokenService.createRefreshToken(session.sessionId(), FINGERPRINT);
+      Thread.sleep(100); // Redis 저장 대기
 
       // 원본 토큰 정보 저장
       String originalTokenId = originalToken.refreshTokenId();
@@ -114,7 +115,7 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
 
     @Test
     @DisplayName("연속 Refresh 3회 - 매번 새 토큰 발급")
-    void shouldRotateTokensMultipleTimes() {
+    void shouldRotateTokensMultipleTimes() throws InterruptedException {
       // [Given]
       Session session =
           sessionService.createSession(
@@ -127,10 +128,13 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
       RefreshToken token1 =
           refreshTokenService.createRefreshToken(session.sessionId(), FINGERPRINT);
       String familyId = token1.familyId();
+      Thread.sleep(100); // Redis 저장 대기
 
       // [When] 3회 연속 Rotation
       RefreshToken token2 = refreshTokenService.rotateRefreshToken(token1.refreshTokenId());
+      Thread.sleep(100); // Redis 저장 대기
       RefreshToken token3 = refreshTokenService.rotateRefreshToken(token2.refreshTokenId());
+      Thread.sleep(100); // Redis 저장 대기
       RefreshToken token4 = refreshTokenService.rotateRefreshToken(token3.refreshTokenId());
 
       // [Then] 모든 토큰이 다르고, Family는 동일
@@ -299,6 +303,7 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
               Session.ROLE_USER);
       RefreshToken token = refreshTokenService.createRefreshToken(session.sessionId(), FINGERPRINT);
       String tokenId = token.refreshTokenId();
+      Thread.sleep(100); // Redis 저장 대기
 
       // [When] 동시에 5개 Refresh 요청
       int concurrentRequests = 5;
