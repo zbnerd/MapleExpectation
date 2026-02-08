@@ -41,7 +41,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10  # Unit tests only - 10분이면 충분
 
-    # Services 제거: Unit 테스트는 Mock 사용, Integration은 Nightly에서 실행
+    # Testcontainers 설정: Docker daemon 필요
+    env:
+      DOCKER_HOST: unix:///var/run/docker.sock
+      TESTCONTAINERS_RYUK_DISABLED: true
 
     steps:
       # ------------------------------------------------------------------
@@ -53,7 +56,18 @@ jobs:
           fetch-depth: 0  # Full history for accurate diff
 
       # ------------------------------------------------------------------
-      # Step 2: Setup Java 17
+      # Step 1.5: Setup Docker (Testcontainers)
+      # ------------------------------------------------------------------
+      - name: Setup Docker for Testcontainers
+        run: |
+          echo "🐳 Starting Docker daemon for Testcontainers..."
+          sudo systemctl start docker
+          sudo chmod 666 /var/run/docker.sock
+          docker version
+          docker info
+
+      # ------------------------------------------------------------------
+      # Step 2: Setup Java 21
       # ------------------------------------------------------------------
       - name: Setup JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
@@ -80,7 +94,7 @@ jobs:
       # ------------------------------------------------------------------
       # Step 5: Run Tests (Gate - Must Pass)
       # ------------------------------------------------------------------
-      # PR/Push: -PfastTest (slow, sentinel, quarantine, nightmare 제외 → 3-5분)
+      # PR/Push: -PfastTest (slow, sentinel, quarantine, nightmare, flaky 제외 → 3-5분)
       # Nightly: 전체 테스트 (별도 워크플로우)
       - name: Run Tests
         id: test
@@ -89,9 +103,6 @@ jobs:
           ./gradlew clean test -PfastTest --no-daemon --stacktrace
         env:
           SPRING_PROFILES_ACTIVE: test
-          DOCKER_HOST: unix:///var/run/docker.sock
-          # Testcontainers configuration
-          TESTCONTAINERS_RYUK_DISABLED: true
         continue-on-error: false  # CRITICAL: Block merge on failure
 
       # ------------------------------------------------------------------
