@@ -367,10 +367,14 @@ class DomainCharacterizationTest {
 
     // Act
     CharacterLike like = new CharacterLike("target-ocid", "account-id");
+    testEntityManager.persist(like); // @CreationTimestamp는 JPA persist 시에 설정됨
+    testEntityManager.flush();
+    testEntityManager.clear();
 
     // Assert - Current Behavior
-    assertThat(like.getCreatedAt()).isNotNull();
-    assertThat(like.getCreatedAt()).isAfterOrEqualTo(beforeCreation);
-    assertThat(like.getCreatedAt()).isBeforeOrEqualTo(LocalDateTime.now());
+    CharacterLike saved = testEntityManager.find(CharacterLike.class, like.getId());
+    assertThat(saved.getCreatedAt()).isNotNull();
+    assertThat(saved.getCreatedAt()).isAfterOrEqualTo(beforeCreation);
+    assertThat(saved.getCreatedAt()).isBeforeOrEqualTo(LocalDateTime.now());
   }
 }
