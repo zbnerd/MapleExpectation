@@ -370,16 +370,18 @@ class DiskFullChaosTest extends AbstractContainerBaseTest {
     int chunks = (int) (bytesToFill / chunkSize);
     int lastChunk = (int) (bytesToFill % chunkSize);
 
-    // 1MB 청크 생성
+    // 1MB 청크 생성 및 디스크에 쓰기
     byte[] chunk = new byte[(int) chunkSize];
     for (int i = 0; i < chunks; i++) {
-      writeTestLog("Fill chunk " + i);
+      Path chunkFile = Paths.get(TEST_DIR, "chunk-" + i + ".dat");
+      Files.write(chunkFile, chunk);
     }
 
     // 마지막 청크
     if (lastChunk > 0) {
       byte[] lastChunkBytes = new byte[lastChunk];
-      writeTestLog("Fill last chunk");
+      Path lastChunkFile = Paths.get(TEST_DIR, "chunk-last.dat");
+      Files.write(lastChunkFile, lastChunkBytes);
     }
   }
 

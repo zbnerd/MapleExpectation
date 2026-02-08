@@ -43,6 +43,7 @@ public abstract class AbstractContainerBaseTest {
 
     // Set system properties for Spring Boot to use Testcontainers URLs
     System.setProperty("spring.datasource.url", MYSQL_CONTAINER.getJdbcUrl());
+    System.setProperty("spring.datasource.driver-class-name", "com.mysql.cj.jdbc.Driver");
     System.setProperty("spring.datasource.username", MYSQL_CONTAINER.getUsername());
     System.setProperty("spring.datasource.password", MYSQL_CONTAINER.getPassword());
     System.setProperty("spring.data.redis.host", REDIS_CONTAINER.getHost());
