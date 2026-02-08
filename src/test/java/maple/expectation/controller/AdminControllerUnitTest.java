@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import maple.expectation.controller.dto.admin.AddAdminRequest;
 import maple.expectation.global.response.ApiResponse;
 import maple.expectation.global.security.AuthenticatedUser;
@@ -193,8 +194,9 @@ class AdminControllerUnitTest {
       AuthenticatedUser currentUser = createUser(currentUserFingerprint);
 
       // When
-      ResponseEntity<ApiResponse<String>> response =
+      CompletableFuture<ResponseEntity<ApiResponse<String>>> future =
           adminController.removeAdmin(currentUserFingerprint, currentUser);
+      ResponseEntity<ApiResponse<String>> response = future.join();
 
       // Then: 자기 자신이므로 400 Bad Request
       assertThat(response.getStatusCode().value()).isEqualTo(400);
@@ -215,7 +217,8 @@ class AdminControllerUnitTest {
       given(adminService.getAllAdmins()).willReturn(Set.of(VALID_FINGERPRINT_64));
 
       // When
-      var result = adminController.getAdmins();
+      CompletableFuture<ResponseEntity<ApiResponse<Set<String>>>> future = adminController.getAdmins();
+      ResponseEntity<ApiResponse<Set<String>>> result = future.join();
 
       // Then
       assertThat(result.getBody().data()).isNotNull();

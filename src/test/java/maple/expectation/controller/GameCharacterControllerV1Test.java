@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
+import java.util.concurrent.CompletableFuture;
 import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.dto.response.CharacterResponse;
 import maple.expectation.service.v2.facade.GameCharacterFacade;
@@ -53,7 +54,8 @@ class GameCharacterControllerV1Test {
       given(gameCharacterFacade.findCharacterByUserIgn("TestUser")).willReturn(character);
 
       // when
-      ResponseEntity<CharacterResponse> response = controller.findCharacterByUserIgn("TestUser");
+      CompletableFuture<ResponseEntity<CharacterResponse>> future = controller.findCharacterByUserIgn("TestUser");
+      ResponseEntity<CharacterResponse> response = future.join();
 
       // then
       assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -71,7 +73,8 @@ class GameCharacterControllerV1Test {
       given(gameCharacterFacade.findCharacterByUserIgn("TestUser")).willReturn(character);
 
       // when
-      ResponseEntity<CharacterResponse> response = controller.findCharacterByUserIgn("TestUser");
+      CompletableFuture<ResponseEntity<CharacterResponse>> future = controller.findCharacterByUserIgn("TestUser");
+      ResponseEntity<CharacterResponse> response = future.join();
 
       // then - CharacterResponse Record는 userIgn, ocid, likeCount만 포함
       assertThat(response.getBody()).isNotNull();
@@ -91,7 +94,8 @@ class GameCharacterControllerV1Test {
       given(gameCharacterFacade.findCharacterByUserIgn("NewUser")).willReturn(character);
 
       // when
-      ResponseEntity<CharacterResponse> response = controller.findCharacterByUserIgn("NewUser");
+      CompletableFuture<ResponseEntity<CharacterResponse>> future = controller.findCharacterByUserIgn("NewUser");
+      ResponseEntity<CharacterResponse> response = future.join();
 
       // then
       assertThat(response.getBody()).isNotNull();
