@@ -55,10 +55,10 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 @ConditionalOnProperty(
-    name = "app.event-publisher.type",
+    name = "app.event-publisher-type",  // Fix: Use kebab-case with hyphen for YAML property
     havingValue = "redis",
-    matchIfMissing = true // Default to Redis
-    )
+    matchIfMissing = true
+)
 public class RedisEventPublisher implements EventPublisher {
 
   private final MessageQueue<String> messageQueue;
