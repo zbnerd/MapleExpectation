@@ -41,10 +41,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10  # Unit tests only - 10분이면 충분
 
-    # Testcontainers 설정: Docker daemon 필요
-    env:
-      DOCKER_HOST: unix:///var/run/docker.sock
-      TESTCONTAINERS_RYUK_DISABLED: true
+    # CI에서는 service로 Redis 직접 실행 (Testcontainers 대안)
+    services:
+      - name: redis
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
 
     steps:
       # ------------------------------------------------------------------
@@ -56,19 +63,16 @@ jobs:
           fetch-depth: 0  # Full history for accurate diff
 
       # ------------------------------------------------------------------
-      # Step 1.5: Setup Docker (Testcontainers)
+      # Step 1.5: Configure Redis Connection
       # ------------------------------------------------------------------
-      - name: Setup Docker for Testcontainers
+      - name: Configure Redis Connection
         run: |
-          echo "🐳 Starting Docker daemon for Testcontainers..."
-          sudo systemctl start docker
-          sudo chmod 777 /var/run/docker.sock
-          docker version
-          docker info
+          echo "🔗 Configuring Redis connection for tests..."
+          echo "Redis host: localhost"
+          echo "Redis port: 6379"
         env:
-          DOCKER_HOST: unix:///var/run/docker.sock
-          # Testcontainers Ryuk 활성화 (컨테이너 정리)
-          TESTCONTAINERS_RYUK_CONTAINER_IMAGE: testcontainers/ryuk:0.3.0
+          SPRING_DATA_REDIS_HOST: localhost
+          SPRING_DATA_REDIS_PORT: 6379
 
       # ------------------------------------------------------------------
       # Step 2: Setup Java 21
