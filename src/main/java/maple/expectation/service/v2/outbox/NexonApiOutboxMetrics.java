@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import maple.expectation.domain.v2.NexonApiOutbox.OutboxStatus;
 import maple.expectation.repository.v2.NexonApiOutboxRepository;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Nexon API Outbox 메트릭 관리 (N19)
@@ -126,6 +127,7 @@ public class NexonApiOutboxMetrics {
    *
    * <p>스케줄러에서 주기적으로 호출
    */
+  @Transactional(readOnly = true)
   public void updatePendingCount() {
     long count = repository.countByStatusIn(List.of(OutboxStatus.PENDING, OutboxStatus.FAILED));
     pendingCount.set(count);

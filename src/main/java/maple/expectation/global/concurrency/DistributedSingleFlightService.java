@@ -74,8 +74,70 @@ public class DistributedSingleFlightService {
     }
 
     // Step 2: Acquire distributed lock and compute
-    return lockStrategy.executeWithLock(
-        "single-flight:" + key, 5, 30, () -> computeAndCache(key, cacheKey, computation, cacheTtl));
+    // If lock timeout occurs, retry cache reads (another instance may be computing)
+    try {
+      return lockStrategy.executeWithLock(
+          "single-flight:" + key,
+          5,
+          30,
+          () -> computeAndCache(key, cacheKey, computation, cacheTtl));
+    } catch (maple.expectation.global.error.exception.DistributedLockException e) {
+      log.debug("[DistributedSingleFlight] Lock timeout, retrying cache read: {}", key);
+      return retryCacheRead(cacheKey, key);
+    }
+  }
+
+  /**
+   * Retry cache read with exponential backoff when lock acquisition fails.
+   *
+   * <p>This handles the case where another instance is computing the result and we should wait for
+   * it to complete instead of failing immediately.
+   *
+   * @param cacheKey Redis cache key
+   * @param originalKey Original key for logging
+   * @return Cached result or throws if computation fails
+   */
+  private <T> T retryCacheRead(String cacheKey, String originalKey) throws Throwable {
+    int maxRetries = 6; // Total wait: 50ms + 100ms + 200ms + 400ms + 800ms + 1600ms = 3.15s
+    long baseDelayMs = 50;
+
+    for (int attempt = 0; attempt < maxRetries; attempt++) {
+      T cached = getCachedResult(cacheKey);
+      if (cached != null) {
+        log.debug(
+            "[DistributedSingleFlight] Cache HIT after retry (attempt {}): {}",
+            attempt + 1,
+            originalKey);
+        return cached;
+      }
+
+      long delayMs =
+          baseDelayMs * (1L << attempt); // Exponential backoff: 50ms, 100ms, 200ms, 400ms...
+      try {
+        Thread.sleep(delayMs);
+      } catch (InterruptedException ie) {
+        Thread.currentThread().interrupt();
+        throw new maple.expectation.global.error.exception.DistributedLockException(
+            "Cache read retry interrupted [key=" + originalKey + "]", ie);
+      }
+    }
+
+    // Final attempt after all retries
+    T finalCached = getCachedResult(cacheKey);
+    if (finalCached != null) {
+      log.debug("[DistributedSingleFlight] Cache HIT after final retry: {}", originalKey);
+      return finalCached;
+    }
+
+    log.error(
+        "[DistributedSingleFlight] Cache miss after all retries, computation may have failed: {}",
+        originalKey);
+    throw new maple.expectation.global.error.exception.DistributedLockException(
+        "Failed to acquire lock and no cached result available after "
+            + maxRetries
+            + " retries [key="
+            + originalKey
+            + "]");
   }
 
   private <T> T getCachedResult(String cacheKey) {

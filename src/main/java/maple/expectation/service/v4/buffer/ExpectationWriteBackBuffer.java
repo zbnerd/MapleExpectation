@@ -180,47 +180,40 @@ public class ExpectationWriteBackBuffer {
   private boolean offerInternal(Long characterId, List<PresetExpectation> presets) {
     int required = presets.size();
 
-    for (int attempt = 0; attempt < properties.casMaxRetries(); attempt++) {
-      int current = pendingCount.get();
+    // P2 Fix: Atomic capacity reservation using addAndGet with rollback
+    // 1. Atomically reserve capacity
+    int newCount = pendingCount.addAndGet(required);
 
-      // 백프레셔 체크: 현재 + 추가할 양이 최대치 초과하면 거부
-      if (current + required > properties.maxQueueSize()) {
-        meterRegistry.counter("expectation.buffer.rejected.backpressure").increment();
-        log.warn(
-            "[ExpectationBuffer] Backpressure triggered: pending={}, required={}, max={}",
-            current,
-            required,
-            properties.maxQueueSize());
-        return false;
-      }
-
-      // CAS 시도: 다른 스레드와 경합하여 카운터 갱신
-      if (pendingCount.compareAndSet(current, current + required)) {
-        // CAS 성공 - 큐에 추가
-        for (PresetExpectation preset : presets) {
-          queue.offer(ExpectationWriteTask.from(characterId, preset));
-        }
-        meterRegistry.counter("expectation.buffer.cas.success").increment();
-        log.debug(
-            "[ExpectationBuffer] Buffered {} presets for character {}, pending={}",
-            presets.size(),
-            characterId,
-            pendingCount.get());
-        return true;
-      }
-
-      // CAS 실패 - backoff 후 재시도
-      backoffStrategy.backoff(attempt);
-      meterRegistry.counter("expectation.buffer.cas.retry").increment();
+    // 2. Check if reservation exceeds limit
+    if (newCount > properties.maxQueueSize()) {
+      // Rollback: immediately release the reservation
+      pendingCount.addAndGet(-required);
+      meterRegistry.counter("expectation.buffer.rejected.backpressure").increment();
+      log.warn(
+          "[ExpectationBuffer] Backpressure triggered: pending={}, required={}, max={}",
+          newCount - required,
+          required,
+          properties.maxQueueSize());
+      return false;
     }
 
-    // 최대 재시도 초과
-    log.warn(
-        "[ExpectationBuffer] CAS retry exhausted after {} attempts for characterId={}",
-        properties.casMaxRetries(),
-        characterId);
-    meterRegistry.counter("expectation.buffer.cas.exhausted").increment();
-    return false;
+    // 3. Capacity reserved - enqueue items
+    try {
+      for (PresetExpectation preset : presets) {
+        queue.offer(ExpectationWriteTask.from(characterId, preset));
+      }
+      meterRegistry.counter("expectation.buffer.cas.success").increment();
+      log.debug(
+          "[ExpectationBuffer] Buffered {} presets for character {}, pending={}",
+          presets.size(),
+          characterId,
+          newCount);
+      return true;
+    } catch (Exception e) {
+      // Rollback on enqueue failure (should never happen with ConcurrentLinkedQueue)
+      pendingCount.addAndGet(-required);
+      throw e;
+    }
   }
 
   /**

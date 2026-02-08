@@ -98,17 +98,14 @@ public class AlertNotificationService {
       return;
     }
 
-    // 3. Track incident IMMEDIATELY to prevent race conditions
-    trackIncident(context.incidentId(), now);
-
-    // 4. AI SRE analysis
+    // 3. AI SRE analysis
     AiSreService.MitigationPlan plan =
         aiSreService
             .map(service -> service.analyzeIncident(context))
             .orElseGet(() -> createDefaultMitigationPlan(context));
 
-    // 5. Send Discord alert
-    sendDiscordAlert(context, plan, signalDefinitions);
+    // 4. Send Discord alert (track incident only after success)
+    sendDiscordAlert(context, plan, signalDefinitions, now);
   }
 
   /**
@@ -135,8 +132,8 @@ public class AlertNotificationService {
       return;
     }
 
-    trackIncident(context.incidentId(), now);
-    sendDiscordAlert(context, plan, signalDefinitions);
+    // Send Discord alert (track incident only after success)
+    sendDiscordAlert(context, plan, signalDefinitions, now);
   }
 
   /**
@@ -152,15 +149,17 @@ public class AlertNotificationService {
       IncidentContext context,
       AiSreService.MitigationPlan plan,
       List<SignalDefinition> signalDefinitions) {
+    long now = System.currentTimeMillis();
     log.info("[AlertNotificationService] Force sending alert: {}", context.incidentId());
-    sendDiscordAlert(context, plan, signalDefinitions);
+    sendDiscordAlert(context, plan, signalDefinitions, now);
   }
 
   /** Send Discord alert with formatted message */
   private void sendDiscordAlert(
       IncidentContext context,
       AiSreService.MitigationPlan plan,
-      List<SignalDefinition> signalDefinitions) {
+      List<SignalDefinition> signalDefinitions,
+      long timestamp) {
     executor.executeVoid(
         () -> {
           // Prepare annotated signals
@@ -192,7 +191,7 @@ public class AlertNotificationService {
 
           // Determine severity
           String severity =
-              context.anomalies().stream().anyMatch(a -> "CRIT".equals(a.severity()))
+              context.anomalies().stream().anyMatch(a -> "CRITICAL".equals(a.severity()))
                   ? "CRIT"
                   : "WARN";
 
@@ -202,6 +201,9 @@ public class AlertNotificationService {
                   context.incidentId(), severity, annotatedSignals, hypotheses, actions);
 
           discordNotifier.send(message);
+
+          // Track incident ONLY after successful webhook delivery
+          trackIncident(context.incidentId(), timestamp);
 
           log.info("[AlertNotificationService] Alert sent: {}", context.incidentId());
         },

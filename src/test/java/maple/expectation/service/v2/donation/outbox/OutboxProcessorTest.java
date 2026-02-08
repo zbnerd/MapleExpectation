@@ -63,9 +63,19 @@ class OutboxProcessorTest {
     transactionTemplate = mock(TransactionTemplate.class);
     properties = createTestProperties();
 
+    // Create mock OutboxFetchFacade
+    maple.expectation.service.v2.donation.outbox.OutboxFetchFacade fetchFacade =
+        mock(maple.expectation.service.v2.donation.outbox.OutboxFetchFacade.class);
+
     processor =
         new OutboxProcessor(
-            outboxRepository, dlqHandler, metrics, executor, transactionTemplate, properties);
+            fetchFacade, // OutboxFetchFacade
+            dlqHandler, // DlqHandler
+            metrics, // OutboxMetrics
+            executor, // LogicExecutor
+            transactionTemplate, // TransactionTemplate
+            properties, // OutboxProperties
+            outboxRepository); // DonationOutboxRepository
   }
 
   @Nested

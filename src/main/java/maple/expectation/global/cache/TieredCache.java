@@ -173,16 +173,36 @@ public class TieredCache implements Cache {
    * <h4>Issue #278: L1 Cache Coherence (P0-1)</h4>
    *
    * <p>evict 후 다른 인스턴스의 L1 캐시도 무효화하도록 이벤트 발행
+   *
+   * <h4>P1 Fix: L1 장애 격리 - L2 실패 시에도 L1 evict 보장</h4>
+   *
+   * <p>L2(Redis) 장애 시 l2.evict()가 예외를 던져도 L1 무효화는 반드시 수행해야 함. 따라서 L2 evict를 별도 executeOrDefault로 감싸
+   * 실패를 허용하고, L1 evict는 항상 실행.
    */
   @Override
   public void evict(Object key) {
-    executor.executeVoid(
-        () -> {
-          l2.evict(key); // P0-3: L2 먼저 (원본 제거)
-          l1.evict(key); // L1 다음 (로컬 제거)
-          publishEvictEvent(key); // Pub/Sub 마지막
-        },
-        TaskContext.of("Cache", "Evict", key.toString()));
+    TaskContext context = TaskContext.of("Cache", "Evict", key.toString());
+
+    // L2 evict는 장애 허용 (Graceful Degradation)
+    boolean l2Success =
+        executor.executeOrDefault(
+            () -> {
+              l2.evict(key);
+              return true;
+            },
+            false,
+            context);
+
+    if (!l2Success) {
+      log.warn("[TieredCache] L2 evict failed, proceeding with L1: key={}", key);
+      l2FailureCounter.increment();
+    }
+
+    // L1 evict는 항상 실행 (로컬 장애 없음, L2 실패와 무관)
+    executor.executeVoid(() -> l1.evict(key), context);
+
+    // Pub/Sub 이벤트 발행 (L2 성공 여부와 무관)
+    publishEvictEvent(key);
   }
 
   /**
@@ -193,16 +213,36 @@ public class TieredCache implements Cache {
    * <h4>Issue #278: L1 Cache Coherence (P0-1)</h4>
    *
    * <p>clear 후 다른 인스턴스의 L1 캐시도 전체 무효화하도록 이벤트 발행
+   *
+   * <h4>P1 Fix: L1 장애 격리 - L2 실패 시에도 L1 clear 보장</h4>
+   *
+   * <p>L2(Redis) 장애 시 l2.clear()가 예외를 던져도 L1 무효화는 반드시 수행해야 함. 따라서 L2 clear를 별도 executeOrDefault로 감싸
+   * 실패를 허용하고, L1 clear는 항상 실행.
    */
   @Override
   public void clear() {
-    executor.executeVoid(
-        () -> {
-          l2.clear();
-          l1.clear();
-          publishClearAllEvent();
-        },
-        TaskContext.of("Cache", "Clear"));
+    TaskContext context = TaskContext.of("Cache", "Clear");
+
+    // L2 clear는 장애 허용 (Graceful Degradation)
+    boolean l2Success =
+        executor.executeOrDefault(
+            () -> {
+              l2.clear();
+              return true;
+            },
+            false,
+            context);
+
+    if (!l2Success) {
+      log.warn("[TieredCache] L2 clear failed, proceeding with L1");
+      l2FailureCounter.increment();
+    }
+
+    // L1 clear는 항상 실행 (로컬 장애 없음, L2 실패와 무관)
+    executor.executeVoid(() -> l1.clear(), context);
+
+    // Pub/Sub 이벤트 발행 (L2 성공 여부와 무관)
+    publishClearAllEvent();
   }
 
   /** EVICT 이벤트 발행 (Section 15: 메서드 추출) */

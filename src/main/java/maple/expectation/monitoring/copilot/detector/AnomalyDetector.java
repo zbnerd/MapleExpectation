@@ -98,8 +98,8 @@ public class AnomalyDetector {
       return Optional.of(
           AnomalyEvent.builder()
               .signalId(signal.id().toString())
-              .severity("CRITICAL")
-              .reason(buildReason(signal, currentValue, critThreshold, comparator, "CRITICAL"))
+              .severity("CRIT")
+              .reason(buildReason(signal, currentValue, critThreshold, comparator, "CRIT"))
               .detectedAtMillis(detectedAtMillis)
               .currentValue(currentValue)
               .baselineValue(critThreshold)
@@ -111,8 +111,8 @@ public class AnomalyDetector {
       return Optional.of(
           AnomalyEvent.builder()
               .signalId(signal.id().toString())
-              .severity("WARNING")
-              .reason(buildReason(signal, currentValue, warnThreshold, comparator, "WARNING"))
+              .severity("WARN")
+              .reason(buildReason(signal, currentValue, warnThreshold, comparator, "WARN"))
               .detectedAtMillis(detectedAtMillis)
               .currentValue(currentValue)
               .baselineValue(warnThreshold)
@@ -263,13 +263,13 @@ public class AnomalyDetector {
   /** Determine severity from Z-score magnitude */
   private String determineSeverityFromZScore(double zScore) {
     if (zScore >= 4.0) {
-      return "CRITICAL";
+      return "CRIT";
     } else if (zScore >= 3.0) {
-      return "CRITICAL";
+      return "CRIT";
     } else if (zScore >= 2.5) {
-      return "WARNING";
+      return "WARN";
     }
-    return "WARNING";
+    return "WARN";
   }
 
   /** Build threshold-based reason message */

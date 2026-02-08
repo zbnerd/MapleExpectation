@@ -67,19 +67,41 @@ public class ExpectationCacheCoordinator {
   public EquipmentExpectationResponseV4 getOrCalculate(
       String userIgn, boolean force, Callable<EquipmentExpectationResponseV4> calculator) {
     if (force) {
-      return executeCalculator(calculator);
+      log.info("[V4] Force refresh - 캐시 무시 및 갱신: {}", userIgn);
+      EquipmentExpectationResponseV4 response = executeCalculator(calculator);
+      String compressedBase64 =
+          executor.executeWithTranslation(
+              () -> compressAndSerialize(response, userIgn),
+              (e, ctx) ->
+                  new EquipmentDataProcessingException(
+                      String.format(
+                          "Cache serialization failed [%s]: %s", ctx.toTaskName(), userIgn),
+                      e),
+              TaskContext.of("CacheCoordinator", "SerializeForce", userIgn));
+      expectationCache.put(userIgn, compressedBase64);
+      return response;
     }
 
-    String compressedBase64 =
-        expectationCache.get(
-            userIgn,
-            () -> {
-              log.info("[V4] Cache MISS - 계산 시작: {}", userIgn);
-              EquipmentExpectationResponseV4 response = calculator.call();
-              return compressAndSerialize(response, userIgn);
-            });
+    Object cachedValue = expectationCache.get(userIgn);
+    if (cachedValue != null) {
+      String compressedBase64 = convertCachedValueToBase64(cachedValue, userIgn);
+      return decompressCachedResponse(compressedBase64, userIgn);
+    }
 
-    return decompressCachedResponse(compressedBase64, userIgn);
+    // Cache miss - calculate and store
+    log.info("[V4] Cache MISS - 계산 시작: {}", userIgn);
+    EquipmentExpectationResponseV4 response = executeCalculator(calculator);
+    String compressedBase64 =
+        executor.executeWithTranslation(
+            () -> compressAndSerialize(response, userIgn),
+            (e, ctx) ->
+                new EquipmentDataProcessingException(
+                    String.format("Cache serialization failed [%s]: %s", ctx.toTaskName(), userIgn),
+                    e),
+            TaskContext.of("CacheCoordinator", "Serialize", userIgn));
+    expectationCache.put(userIgn, compressedBase64);
+
+    return response;
   }
 
   /**
@@ -93,24 +115,44 @@ public class ExpectationCacheCoordinator {
   public byte[] getGzipOrCalculate(
       String userIgn, boolean force, Callable<EquipmentExpectationResponseV4> calculator) {
     if (force) {
+      log.info("[V4] Force refresh (GZIP) - 캐시 무시 및 갱신: {}", userIgn);
       EquipmentExpectationResponseV4 response = executeCalculator(calculator);
-      return compressToGzipBytes(response, userIgn);
+      String compressedBase64 =
+          executor.executeWithTranslation(
+              () -> compressAndSerialize(response, userIgn),
+              (e, ctx) ->
+                  new EquipmentDataProcessingException(
+                      String.format(
+                          "Cache serialization failed [%s]: %s", ctx.toTaskName(), userIgn),
+                      e),
+              TaskContext.of("CacheCoordinator", "SerializeGzipForce", userIgn));
+      expectationCache.put(userIgn, compressedBase64);
+      return java.util.Base64.getDecoder().decode(compressedBase64);
     }
 
+    Object cachedValue = expectationCache.get(userIgn);
+    if (cachedValue != null) {
+      String compressedBase64 = convertCachedValueToBase64(cachedValue, userIgn);
+      if (compressedBase64 == null || compressedBase64.isEmpty()) {
+        throw new CacheDataNotFoundException(userIgn);
+      }
+      log.debug("[V4] GZIP Cache HIT: {} ({}KB)", userIgn, compressedBase64.length() / 1024);
+      return java.util.Base64.getDecoder().decode(compressedBase64);
+    }
+
+    // Cache miss - calculate and store
+    log.info("[V4] Cache MISS (GZIP) - 계산 시작: {}", userIgn);
+    EquipmentExpectationResponseV4 response = executeCalculator(calculator);
     String compressedBase64 =
-        expectationCache.get(
-            userIgn,
-            () -> {
-              log.info("[V4] Cache MISS (GZIP) - 계산 시작: {}", userIgn);
-              EquipmentExpectationResponseV4 response = calculator.call();
-              return compressAndSerialize(response, userIgn);
-            });
+        executor.executeWithTranslation(
+            () -> compressAndSerialize(response, userIgn),
+            (e, ctx) ->
+                new EquipmentDataProcessingException(
+                    String.format("Cache serialization failed [%s]: %s", ctx.toTaskName(), userIgn),
+                    e),
+            TaskContext.of("CacheCoordinator", "SerializeGzip", userIgn));
+    expectationCache.put(userIgn, compressedBase64);
 
-    if (compressedBase64 == null || compressedBase64.isEmpty()) {
-      throw new CacheDataNotFoundException(userIgn);
-    }
-
-    log.debug("[V4] GZIP Cache HIT: {} ({}KB)", userIgn, compressedBase64.length() / 1024);
     return java.util.Base64.getDecoder().decode(compressedBase64);
   }
 
@@ -133,15 +175,76 @@ public class ExpectationCacheCoordinator {
       return Optional.empty();
     }
 
-    String base64 = (String) wrapper.get();
-    byte[] gzipBytes = java.util.Base64.getDecoder().decode(base64);
+    Object cachedValue = wrapper.get();
+    byte[] gzipBytes = convertCachedValueToGzipBytes(cachedValue, userIgn);
+
+    if (gzipBytes == null) {
+      recordFastPathMiss();
+      return Optional.empty();
+    }
 
     recordFastPathHit();
     log.debug("[V4] L1 Fast Path HIT: {} ({}KB)", userIgn, gzipBytes.length / 1024);
     return Optional.of(gzipBytes);
   }
 
+  /**
+   * Legacy byte[] → GZIP bytes 변환 (L1 Fast Path용)
+   *
+   * @param cachedValue 캐시에서 조회된 값 (byte[] 또는 String)
+   * @param userIgn 캐릭터 IGN
+   * @return GZIP 압축 바이트 배열
+   */
+  private byte[] convertCachedValueToGzipBytes(Object cachedValue, String userIgn) {
+    if (cachedValue instanceof String base64) {
+      return java.util.Base64.getDecoder().decode(base64);
+    }
+
+    if (cachedValue instanceof byte[] gzipBytes) {
+      log.warn(
+          "[V4] L1 Legacy byte[] format detected: {} ({}KB)", userIgn, gzipBytes.length / 1024);
+      return gzipBytes;
+    }
+
+    log.error(
+        "[V4] L1 Unknown cache value type: {} for userIgn={}", cachedValue.getClass(), userIgn);
+    return null;
+  }
+
   // ==================== Internal Methods ====================
+
+  /**
+   * Legacy byte[] → Base64 String 마이그레이션
+   *
+   * <p>캐시에 저장된 값이 old format(byte[])인지 new format(Base64 String)인지 확인하고 변환. old format을 만나면 new
+   * format으로 변환하여 캐시에 갱신(migration).
+   *
+   * @param cachedValue 캐시에서 조회된 값 (byte[] 또는 String)
+   * @param userIgn 캐릭터 IGN (로그용)
+   * @return Base64 String (압축된 데이터)
+   */
+  private String convertCachedValueToBase64(Object cachedValue, String userIgn) {
+    if (cachedValue instanceof String base64) {
+      log.debug("[V4] Cache HIT (New Base64 format): {}", userIgn);
+      return base64;
+    }
+
+    if (cachedValue instanceof byte[] oldGzipBytes) {
+      log.warn(
+          "[V4] Legacy byte[] format detected - migrating to Base64: {} ({}KB)",
+          userIgn,
+          oldGzipBytes.length / 1024);
+      String migratedBase64 = java.util.Base64.getEncoder().encodeToString(oldGzipBytes);
+      // Migrate to new format
+      expectationCache.put(userIgn, migratedBase64);
+      log.info("[V4] Migration complete: {}", userIgn);
+      return migratedBase64;
+    }
+
+    log.error("[V4] Unknown cache value type: {} for userIgn={}", cachedValue.getClass(), userIgn);
+    throw new EquipmentDataProcessingException(
+        String.format("Invalid cache value type: %s", cachedValue.getClass()));
+  }
 
   private EquipmentExpectationResponseV4 executeCalculator(
       Callable<EquipmentExpectationResponseV4> calculator) {

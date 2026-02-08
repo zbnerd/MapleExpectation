@@ -228,8 +228,8 @@ public class AnomalyDetectionOrchestrator {
 
   /** Build incident summary */
   private String buildSummary(List<AnomalyEvent> anomalies) {
-    long critCount = anomalies.stream().filter(a -> "CRIT".equals(a.severity())).count();
-    long warnCount = anomalies.size() - critCount;
+    long critCount = anomalies.stream().filter(a -> "CRITICAL".equals(a.severity())).count();
+    long warnCount = anomalies.stream().filter(a -> "WARNING".equals(a.severity())).count();
 
     return String.format("%d CRIT, %d WARN anomalies detected", critCount, warnCount);
   }
