@@ -74,6 +74,7 @@ public class NexonApiOutboxProcessor {
   private final LogicExecutor executor;
   private final TransactionTemplate transactionTemplate;
   private final OutboxProperties properties;
+  private final NexonApiDlqHandler dlqHandler;
 
   /**
    * Pending 항목 폴링 및 처리
@@ -251,18 +252,19 @@ public class NexonApiOutboxProcessor {
   /**
    * 무결성 검증 실패 처리
    *
-   * <p>재시도 무의미 -> 즉시 DEAD_LETTER 이동
+   * <p>재시도 무의미 -> 즉시 DLQ 이동
    */
   private void handleIntegrityFailure(NexonApiOutbox entry) {
     log.error("[NexonApiOutbox] 무결성 검증 실패 -> 즉시 DLQ 이동: {}", entry.getRequestId());
     metrics.incrementIntegrityFailure();
 
-    entry.markFailed("Integrity verification failed - data tampering detected");
+    String reason = "Integrity verification failed - data tampering detected";
+    entry.markFailed(reason);
     entry.forceDeadLetter();
     outboxRepository.save(entry);
 
-    // TODO: DLQ 핸들러 연동 (DonationDlqHandler 패턴 참조)
-    log.warn("[NexonApiOutbox] DLQ 이동 필요: requestId={}", entry.getRequestId());
+    // Triple Safety Net: DLQ 핸들러 연동 (Issue #333)
+    dlqHandler.handleDeadLetter(entry, reason);
   }
 
   /**
@@ -281,7 +283,9 @@ public class NexonApiOutboxProcessor {
           entry.getRequestId(),
           entry.getRetryCount());
       metrics.incrementDlq();
-      // TODO: DLQ 핸들러 연동
+
+      // Triple Safety Net: DLQ 핸들러 연동 (Issue #333)
+      dlqHandler.handleDeadLetter(entry, error);
     }
   }
 

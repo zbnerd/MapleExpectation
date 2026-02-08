@@ -17,6 +17,7 @@ import maple.expectation.domain.v2.NexonApiOutbox;
 import maple.expectation.external.NexonApiClient;
 import maple.expectation.external.dto.v2.CharacterBasicResponse;
 import maple.expectation.external.dto.v2.CharacterOcidResponse;
+import maple.expectation.external.dto.v2.CubeHistoryResponse;
 import maple.expectation.external.dto.v2.EquipmentResponse;
 import maple.expectation.global.error.exception.CharacterNotFoundException;
 import maple.expectation.global.error.exception.EquipmentDataProcessingException;
@@ -159,6 +160,29 @@ public class ResilientNexonApiClient implements NexonApiClient {
   }
 
   /**
+   * OCID로 큐브 사용 내역 조회 (비동기)
+   *
+   * <p>Resilience4j 적용: CircuitBreaker + Retry + TimeLimiter
+   *
+   * <p>Retry Budget: 장기 장애 시 재시도 폭주 방지
+   */
+  @Override
+  @ObservedTransaction("external.api.nexon.cube")
+  @Bulkhead(name = NEXON_API)
+  @TimeLimiter(name = NEXON_API)
+  @CircuitBreaker(name = NEXON_API)
+  @Retry(name = NEXON_API, fallbackMethod = "getCubeHistoryFallback")
+  public CompletableFuture<CubeHistoryResponse> getCubeHistory(String ocid) {
+    // Retry Budget 확인 (재시도 전에 예산 체크)
+    if (!retryBudgetManager.tryAcquire(NEXON_API)) {
+      log.warn("[RetryBudget] Cube History 조회 예산 소진으로 즉시 실패. ocid={}", ocid);
+      return CompletableFuture.failedFuture(
+          new ExternalServiceException("Retry budget exceeded for Cube History lookup", null));
+    }
+    return delegate.getCubeHistory(ocid);
+  }
+
+  /**
    * OCID 조회 fallback (비동기)
    *
    * <p>Issue #195: CompletableFuture.failedFuture() 반환으로 비동기 계약 준수
@@ -265,6 +289,34 @@ public class ResilientNexonApiClient implements NexonApiClient {
     // ★ P0-3 : 도메인 예외 cause는 원본 t 유지 (래퍼 컨텍스트 보존)
     // - 관측(로그/알림): rootCause 사용 (위에서 처리)
     // - 트러블슈팅: wrapper(CompletionException 등)도 의미 있으므로 원본 유지
+    return CompletableFuture.failedFuture(new ExternalServiceException(SERVICE_NEXON, t));
+  }
+
+  /**
+   * 큐브 사용 내역 조회 fallback (비동기)
+   *
+   * <p>Nexon API 4xx 응답(유효하지 않은 OCID 등)은 캐릭터 미존재로 처리
+   *
+   * <p>N19: Outbox Fallback 패턴 적용
+   */
+  public CompletableFuture<CubeHistoryResponse> getCubeHistoryFallback(String ocid, Throwable t) {
+    handleIgnoreMarker(t);
+
+    Throwable root = ExceptionUtils.unwrapAsyncException(t);
+    if (root instanceof WebClientResponseException wce && wce.getStatusCode().is4xxClientError()) {
+      log.warn(
+          "[Resilience] Cube History 조회 4xx - 캐릭터 미존재 처리. ocid={}, status={}",
+          ocid,
+          wce.getStatusCode());
+      return CompletableFuture.failedFuture(new CharacterNotFoundException(ocid));
+    }
+
+    log.error("[Resilience] Cube History 최종 조회 실패. ocid={}", ocid, t);
+
+    // Outbox Fallback: 5xx/장애 시에만 Outbox 적재 (4xx는 비즈니스 예외)
+    saveToOutbox(
+        generateRequestId("GET_CUBES", ocid), NexonApiOutbox.NexonApiEventType.GET_CUBES, ocid);
+
     return CompletableFuture.failedFuture(new ExternalServiceException(SERVICE_NEXON, t));
   }
 
