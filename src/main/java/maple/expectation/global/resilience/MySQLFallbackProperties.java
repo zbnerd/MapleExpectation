@@ -10,6 +10,8 @@ import org.springframework.stereotype.Component;
  * MySQL Resilience 설정 프로퍼티 (Issue #218)
  *
  * <p>application.yml의 resilience.mysql-fallback 설정을 바인딩합니다.
+ *
+ * <p>P1 Externalization: syncBatchSize는 expectation.batch.mysql-fallback-sync-size에서 주입받습니다.
  */
 @Getter
 @Setter
@@ -38,8 +40,8 @@ public class MySQLFallbackProperties {
   /** 상태 키 TTL (초) - 인스턴스 크래시 대비 */
   private int stateTtlSeconds = 300;
 
-  /** Sync 배치 크기 */
-  private int syncBatchSize = 100;
+  /** Sync 배치 크기 - BatchProperties에서 주입됨 */
+  private int syncBatchSize = 100; // 기본값 유지 (역호환성)
 
   /** Sync 최대 재시도 횟수 */
   private int syncMaxRetries = 3;

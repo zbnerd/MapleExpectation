@@ -2,6 +2,7 @@ package maple.expectation.controller;
 
 import java.util.concurrent.CompletableFuture;
 import lombok.RequiredArgsConstructor;
+import maple.expectation.controller.util.AsyncResponseUtils;
 import maple.expectation.external.dto.v2.EquipmentResponse;
 import maple.expectation.external.dto.v2.TotalExpectationResponse;
 import maple.expectation.global.response.ApiResponse;
@@ -50,7 +51,7 @@ public class GameCharacterControllerV2 {
   @GetMapping("/{userIgn}/equipment")
   public CompletableFuture<ResponseEntity<EquipmentResponse>> getCharacterEquipment(
       @PathVariable String userIgn) {
-    return equipmentService.getEquipmentByUserIgnAsync(userIgn).thenApply(ResponseEntity::ok);
+    return AsyncResponseUtils.ok(equipmentService.getEquipmentByUserIgnAsync(userIgn));
   }
 
   /**
@@ -61,7 +62,7 @@ public class GameCharacterControllerV2 {
   @GetMapping("/{userIgn}/expectation")
   public CompletableFuture<ResponseEntity<TotalExpectationResponse>> calculateTotalCost(
       @PathVariable String userIgn) {
-    return equipmentService.calculateTotalExpectationAsync(userIgn).thenApply(ResponseEntity::ok);
+    return AsyncResponseUtils.ok(equipmentService.calculateTotalExpectationAsync(userIgn));
   }
 
   /**

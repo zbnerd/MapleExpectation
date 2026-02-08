@@ -33,11 +33,10 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class LikeRelationSyncService {
 
-  private static final int BATCH_SIZE = 100;
-
   private final LikeRelationBufferStrategy likeRelationBuffer;
   private final CharacterLikeRepository characterLikeRepository;
   private final LogicExecutor executor;
+  private final maple.expectation.config.BatchProperties batchProperties;
 
   /**
    * L1 → L2 동기화 (스케줄러 호출)
@@ -81,7 +80,9 @@ public class LikeRelationSyncService {
 
     // 배치 단위로 원자적 fetch + remove
     Set<String> batch;
-    while (!(batch = likeRelationBuffer.fetchAndRemovePending(BATCH_SIZE)).isEmpty()) {
+    while (!(batch =
+            likeRelationBuffer.fetchAndRemovePending(batchProperties.likeRelationSyncSize()))
+        .isEmpty()) {
       processBatch(batch, successCount, skipCount, failCount);
     }
 

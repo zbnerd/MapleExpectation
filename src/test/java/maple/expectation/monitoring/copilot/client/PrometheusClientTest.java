@@ -18,7 +18,10 @@ class PrometheusClientTest {
     // Create real PrometheusClient with test URL
     prometheusClient =
         new PrometheusClient(
-            "http://localhost:9090", HttpClient.newHttpClient(), new ObjectMapper());
+            HttpClient.newHttpClient(),
+            new ObjectMapper(),
+            null, // LogicExecutor (null for tests)
+            "http://localhost:9090");
   }
 
   @Test

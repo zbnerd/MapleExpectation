@@ -61,9 +61,12 @@ class ExpectationBatchWriteSchedulerTest {
     Counter counter = mock(Counter.class);
     given(meterRegistry.counter(anyString())).willReturn(counter);
 
+    maple.expectation.config.BatchProperties batchProperties =
+        maple.expectation.config.BatchProperties.defaults();
+
     scheduler =
         new ExpectationBatchWriteScheduler(
-            buffer, repository, lockStrategy, executor, meterRegistry);
+            buffer, repository, lockStrategy, executor, meterRegistry, batchProperties);
   }
 
   @Nested

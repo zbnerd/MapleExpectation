@@ -4,6 +4,7 @@ import java.io.BufferedOutputStream;
 import java.util.concurrent.CompletableFuture;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.controller.util.AsyncResponseUtils;
 import maple.expectation.external.dto.v2.TotalExpectationResponse;
 import maple.expectation.service.v2.EquipmentService;
 import org.springframework.http.HttpHeaders;
@@ -71,6 +72,6 @@ public class GameCharacterControllerV3 {
   public CompletableFuture<ResponseEntity<TotalExpectationResponse>> getEquipmentExpectation(
       @PathVariable String userIgn) {
 
-    return equipmentService.calculateTotalExpectationAsync(userIgn).thenApply(ResponseEntity::ok);
+    return AsyncResponseUtils.ok(equipmentService.calculateTotalExpectationAsync(userIgn));
   }
 }

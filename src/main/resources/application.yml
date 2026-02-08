@@ -339,6 +339,20 @@ expectation:
     shutdown-await-timeout-seconds: 30  # Shutdown 시 진행 중인 offer 대기 (초)
     cas-max-retries: 10                  # CAS 연산 최대 재시도 횟수
     max-queue-size: 10000                # 버퍼 최대 크기 (백프레셔 임계값)
+  # Batch size configuration (P1 externalization)
+  batch:
+    like-relation-sync-size: 100         # 좋아요 관계 동기화 배치 크기
+    expectation-write-size: 100          # Expectation 배치 DB 동기화 크기
+    acl-writer-size: 1000                # ACL Pipeline 배치 크기
+    mysql-fallback-sync-size: 100        # MySQL Fallback Sync 배치 크기
+  # Discord timeout configuration (P1 externalization)
+  discord:
+    webhook-timeout-seconds: 5           # Discord Webhook 요청 타임아웃 (초)
+    retry-after-default-ms: 1000         # Discord 429 응답 시 기본 Retry-After 딜레이 (ms)
+  # Monitoring threshold configuration (P1 externalization)
+  monitoring-threshold:
+    buffer-saturation-count: 5000        # 버퍼 포화도 경고 임계값
+    buffer-saturation-double: 5000.0     # 버퍼 포화도 퍼센트 계산 기준값
 
 # 스케줄러 설정
 scheduler:
@@ -374,8 +388,7 @@ resilience:
     debounce-seconds: 5
     # P1-N5: 상태 키 TTL (인스턴스 크래시 대비)
     state-ttl-seconds: 300  # 5분
-    # P1-4: Sync 재시도 설정
-    sync-batch-size: 100
+    # P1-4: Sync 재시도 설정 (배치 크기는 expectation.batch.mysql-fallback-sync-size 사용)
     sync-max-retries: 3
     sync-consumer-group: compensation-sync
     # P0-1: 대상 캐시 패턴 (equipment, ocidCache만)

@@ -1,7 +1,6 @@
 package maple.expectation.global.concurrency;
 
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -182,7 +181,7 @@ public class SingleFlightExecutor<T> {
 
   /** CompletionException unwrap */
   private Throwable unwrapCause(Throwable e) {
-    return (e instanceof CompletionException ce) ? ce.getCause() : e;
+    return maple.expectation.util.AsyncUtils.unwrapCompletionException(e);
   }
 
   /** 키 마스킹 (로깅용) */
