@@ -165,20 +165,18 @@ class AdminControllerUnitTest {
     @DisplayName("TC-151-06: 정상 64자 hex fingerprint → 200")
     void addAdmin_validFingerprint_returns200() throws Exception {
       // Given
-      setupAdminAuthentication();
+      AuthenticatedUser currentUser = setupAdminAuthentication();
       AddAdminRequest request = new AddAdminRequest(VALID_FINGERPRINT_64);
 
-      // When & Then
-      mockMvc
-          .perform(
-              post("/api/admin/admins")
-                  .contentType(MediaType.APPLICATION_JSON)
-                  .content(objectMapper.writeValueAsString(request)))
-          .andExpect(
-              result -> {
-                assertThat(result.getResponse().getStatus()).isEqualTo(200);
-                assertThat(result.getResponse().getContentAsString()).contains("\"success\":true");
-              });
+      // When & Then - For async controllers, call controller directly
+      CompletableFuture<ResponseEntity<ApiResponse<String>>> future =
+          adminController.addAdmin(request, currentUser);
+
+      ResponseEntity<ApiResponse<String>> response = future.join();
+
+      // Then
+      assertThat(response.getStatusCode().value()).isEqualTo(200);
+      assertThat(response.getBody().success()).isTrue();
     }
   }
 
@@ -194,9 +192,8 @@ class AdminControllerUnitTest {
       AuthenticatedUser currentUser = createUser(currentUserFingerprint);
 
       // When
-      CompletableFuture<ResponseEntity<ApiResponse<String>>> future =
-          adminController.removeAdmin(currentUserFingerprint, currentUser);
-      ResponseEntity<ApiResponse<String>> response = future.join();
+      ResponseEntity<ApiResponse<String>> response =
+          adminController.removeAdmin(currentUserFingerprint, currentUser).join();
 
       // Then: 자기 자신이므로 400 Bad Request
       assertThat(response.getStatusCode().value()).isEqualTo(400);
@@ -217,8 +214,7 @@ class AdminControllerUnitTest {
       given(adminService.getAllAdmins()).willReturn(Set.of(VALID_FINGERPRINT_64));
 
       // When
-      CompletableFuture<ResponseEntity<ApiResponse<Set<String>>>> future = adminController.getAdmins();
-      ResponseEntity<ApiResponse<Set<String>>> result = future.join();
+      var result = adminController.getAdmins().join();
 
       // Then
       assertThat(result.getBody().data()).isNotNull();
@@ -230,12 +226,12 @@ class AdminControllerUnitTest {
   // ==================== Helper Methods ====================
 
   /** ADMIN 권한으로 SecurityContext 설정 (기본 fingerprint) */
-  private void setupAdminAuthentication() {
-    setupAdminAuthentication("default-admin-fingerprint-for-testing-1234567890abcdef1234");
+  private AuthenticatedUser setupAdminAuthentication() {
+    return setupAdminAuthentication("default-admin-fingerprint-for-testing-1234567890abcdef1234");
   }
 
   /** ADMIN 권한으로 SecurityContext 설정 (지정된 fingerprint) */
-  private void setupAdminAuthentication(String fingerprint) {
+  private AuthenticatedUser setupAdminAuthentication(String fingerprint) {
     AuthenticatedUser user =
         new AuthenticatedUser(
             "test-session-id", // sessionId
@@ -252,6 +248,7 @@ class AdminControllerUnitTest {
             user, null, List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
 
     SecurityContextHolder.getContext().setAuthentication(auth);
+    return user;
   }
 
   /** 테스트용 AuthenticatedUser 생성 (SecurityContext 설정 없음) */

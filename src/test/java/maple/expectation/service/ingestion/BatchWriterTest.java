@@ -10,6 +10,7 @@ import maple.expectation.domain.event.IntegrationEvent;
 import maple.expectation.domain.nexon.NexonApiCharacterData;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
+import maple.expectation.global.common.function.ThrowingSupplier;
 import maple.expectation.repository.v2.NexonCharacterRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -40,7 +41,7 @@ class BatchWriterTest {
 
   @Mock private LogicExecutor executor;
 
-  @Mock private ObjectMapper objectMapper;
+  private ObjectMapper objectMapper; // Real instance for actual JSON serialization
 
   private BatchWriter batchWriter;
 
@@ -48,6 +49,9 @@ class BatchWriterTest {
   void setUp() {
     maple.expectation.config.BatchProperties batchProperties =
         maple.expectation.config.BatchProperties.defaults();
+
+    // Use real ObjectMapper for actual JSON deserialization
+    objectMapper = new ObjectMapper();
 
     batchWriter =
         new BatchWriter(messageQueue, repository, executor, objectMapper, batchProperties);
@@ -62,6 +66,21 @@ class BatchWriterTest {
             })
         .when(executor)
         .executeVoid(any(), any(TaskContext.class));
+
+    // Configure executeOrDefault to execute the supplier and return its result
+    // Use lenient() to avoid "unnecessary stubbing" warnings when not all stubbings are used
+    lenient()
+        .doAnswer(
+            invocation -> {
+              ThrowingSupplier<?> supplier = invocation.getArgument(0);
+              try {
+                return supplier.get(); // Execute and return result
+              } catch (Throwable e) {
+                throw new RuntimeException(e);
+              }
+            })
+        .when(executor)
+        .executeOrDefault(any(ThrowingSupplier.class), any(), any(TaskContext.class));
   }
 
   @Test
@@ -79,18 +98,14 @@ class BatchWriterTest {
 
   @Test
   @DisplayName("processBatch() should process single message")
-  void testProcessBatch_SingleMessage() throws Exception {
-    // Given
-    NexonApiCharacterData data =
-        NexonApiCharacterData.builder().ocid("test-ocid").characterName("TestChar").build();
-    IntegrationEvent<NexonApiCharacterData> event = IntegrationEvent.of("TEST_EVENT", data);
-    String jsonPayload = "{\"event\":\"TEST_EVENT\"}"; // Simplified JSON
+  void testProcessBatch_SingleMessage() {
+    // Given - Proper JSON structure matching IntegrationEvent format
+    String jsonPayload =
+        """
+        {"eventId":"test-event-1","eventType":"TEST_EVENT","timestamp":1234567890,"payload":{"ocid":"test-ocid","character_name":"TestChar"}}
+        """;
 
-    when(messageQueue.poll()).thenReturn(jsonPayload).thenReturn(null); // End of queue
-
-    when(objectMapper.readValue(
-            eq(jsonPayload), any(com.fasterxml.jackson.core.type.TypeReference.class)))
-        .thenReturn(event);
+    when(messageQueue.poll()).thenReturn(jsonPayload).thenReturn(null);
 
     // When
     batchWriter.processBatch();
@@ -103,22 +118,20 @@ class BatchWriterTest {
 
   @Test
   @DisplayName("processBatch() should process multiple messages up to BATCH_SIZE")
-  void testProcessBatch_MultipleMessages() throws Exception {
-    // Given - Create 3 events
-    NexonApiCharacterData data1 =
-        NexonApiCharacterData.builder().ocid("ocid-1").characterName("Char-1").build();
-    NexonApiCharacterData data2 =
-        NexonApiCharacterData.builder().ocid("ocid-2").characterName("Char-2").build();
-    NexonApiCharacterData data3 =
-        NexonApiCharacterData.builder().ocid("ocid-3").characterName("Char-3").build();
-
-    IntegrationEvent<NexonApiCharacterData> event1 = IntegrationEvent.of("TEST_EVENT", data1);
-    IntegrationEvent<NexonApiCharacterData> event2 = IntegrationEvent.of("TEST_EVENT", data2);
-    IntegrationEvent<NexonApiCharacterData> event3 = IntegrationEvent.of("TEST_EVENT", data3);
-
-    String json1 = "{\"ocid\":\"ocid-1\"}";
-    String json2 = "{\"ocid\":\"ocid-2\"}";
-    String json3 = "{\"ocid\":\"ocid-3\"}";
+  void testProcessBatch_MultipleMessages() {
+    // Given - Create 3 events with proper JSON structure matching IntegrationEvent
+    String json1 =
+        """
+        {"eventId":"event-1","eventType":"TEST_EVENT","timestamp":1234567890,"payload":{"ocid":"ocid-1","character_name":"Char-1"}}
+        """;
+    String json2 =
+        """
+        {"eventId":"event-2","eventType":"TEST_EVENT","timestamp":1234567891,"payload":{"ocid":"ocid-2","character_name":"Char-2"}}
+        """;
+    String json3 =
+        """
+        {"eventId":"event-3","eventType":"TEST_EVENT","timestamp":1234567892,"payload":{"ocid":"ocid-3","character_name":"Char-3"}}
+        """;
 
     // Mock queue to return 3 JSON strings, then null
     when(messageQueue.poll())
@@ -126,17 +139,6 @@ class BatchWriterTest {
         .thenReturn(json2)
         .thenReturn(json3)
         .thenReturn(null);
-
-    // Mock ObjectMapper to deserialize JSON to IntegrationEvent
-    when(objectMapper.readValue(
-            eq(json1), any(com.fasterxml.jackson.core.type.TypeReference.class)))
-        .thenReturn(event1);
-    when(objectMapper.readValue(
-            eq(json2), any(com.fasterxml.jackson.core.type.TypeReference.class)))
-        .thenReturn(event2);
-    when(objectMapper.readValue(
-            eq(json3), any(com.fasterxml.jackson.core.type.TypeReference.class)))
-        .thenReturn(event3);
 
     // When
     batchWriter.processBatch();
@@ -148,22 +150,20 @@ class BatchWriterTest {
 
   @Test
   @DisplayName("processBatch() should limit batch size to BATCH_SIZE")
-  void testProcessBatch_BatchSizeLimit() throws Exception {
-    // Given - Create 3 events (small batch for testing)
-    NexonApiCharacterData data1 =
-        NexonApiCharacterData.builder().ocid("ocid-1").characterName("Char-1").build();
-    NexonApiCharacterData data2 =
-        NexonApiCharacterData.builder().ocid("ocid-2").characterName("Char-2").build();
-    NexonApiCharacterData data3 =
-        NexonApiCharacterData.builder().ocid("ocid-3").characterName("Char-3").build();
-
-    IntegrationEvent<NexonApiCharacterData> event1 = IntegrationEvent.of("TEST_EVENT", data1);
-    IntegrationEvent<NexonApiCharacterData> event2 = IntegrationEvent.of("TEST_EVENT", data2);
-    IntegrationEvent<NexonApiCharacterData> event3 = IntegrationEvent.of("TEST_EVENT", data3);
-
-    String json1 = "{\"ocid\":\"ocid-1\"}";
-    String json2 = "{\"ocid\":\"ocid-2\"}";
-    String json3 = "{\"ocid\":\"ocid-3\"}";
+  void testProcessBatch_BatchSizeLimit() {
+    // Given - Create 3 events with proper JSON structure matching IntegrationEvent
+    String json1 =
+        """
+        {"eventId":"event-1","eventType":"TEST_EVENT","timestamp":1234567890,"payload":{"ocid":"ocid-1","character_name":"Char-1"}}
+        """;
+    String json2 =
+        """
+        {"eventId":"event-2","eventType":"TEST_EVENT","timestamp":1234567891,"payload":{"ocid":"ocid-2","character_name":"Char-2"}}
+        """;
+    String json3 =
+        """
+        {"eventId":"event-3","eventType":"TEST_EVENT","timestamp":1234567892,"payload":{"ocid":"ocid-3","character_name":"Char-3"}}
+        """;
 
     // Mock queue to return 3 JSON strings
     when(messageQueue.poll())
@@ -171,17 +171,6 @@ class BatchWriterTest {
         .thenReturn(json2)
         .thenReturn(json3)
         .thenReturn(null);
-
-    // Mock ObjectMapper to deserialize JSON to IntegrationEvent
-    when(objectMapper.readValue(
-            eq(json1), any(com.fasterxml.jackson.core.type.TypeReference.class)))
-        .thenReturn(event1);
-    when(objectMapper.readValue(
-            eq(json2), any(com.fasterxml.jackson.core.type.TypeReference.class)))
-        .thenReturn(event2);
-    when(objectMapper.readValue(
-            eq(json3), any(com.fasterxml.jackson.core.type.TypeReference.class)))
-        .thenReturn(event3);
 
     // When
     batchWriter.processBatch();
@@ -196,22 +185,14 @@ class BatchWriterTest {
 
   @Test
   @DisplayName("processBatch() should extract payloads from IntegrationEvent")
-  void testProcessBatch_PayloadExtraction() throws Exception {
-    // Given
-    NexonApiCharacterData data =
-        NexonApiCharacterData.builder()
-            .ocid("test-ocid")
-            .characterName("TestChar")
-            .characterLevel(200)
-            .build();
-    IntegrationEvent<NexonApiCharacterData> event = IntegrationEvent.of("TEST_EVENT", data);
-    String jsonPayload = "{\"ocid\":\"test-ocid\"}";
+  void testProcessBatch_PayloadExtraction() {
+    // Given - Proper JSON structure with all fields matching IntegrationEvent
+    String jsonPayload =
+        """
+        {"eventId":"test-event-1","eventType":"TEST_EVENT","timestamp":1234567890,"payload":{"ocid":"test-ocid","character_name":"TestChar","character_level":200}}
+        """;
 
     when(messageQueue.poll()).thenReturn(jsonPayload).thenReturn(null);
-
-    when(objectMapper.readValue(
-            eq(jsonPayload), any(com.fasterxml.jackson.core.type.TypeReference.class)))
-        .thenReturn(event);
 
     // When
     batchWriter.processBatch();

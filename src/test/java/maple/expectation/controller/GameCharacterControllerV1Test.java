@@ -54,8 +54,8 @@ class GameCharacterControllerV1Test {
       given(gameCharacterFacade.findCharacterByUserIgn("TestUser")).willReturn(character);
 
       // when
-      CompletableFuture<ResponseEntity<CharacterResponse>> future = controller.findCharacterByUserIgn("TestUser");
-      ResponseEntity<CharacterResponse> response = future.join();
+      ResponseEntity<CharacterResponse> response =
+          controller.findCharacterByUserIgn("TestUser").join();
 
       // then
       assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -73,8 +73,8 @@ class GameCharacterControllerV1Test {
       given(gameCharacterFacade.findCharacterByUserIgn("TestUser")).willReturn(character);
 
       // when
-      CompletableFuture<ResponseEntity<CharacterResponse>> future = controller.findCharacterByUserIgn("TestUser");
-      ResponseEntity<CharacterResponse> response = future.join();
+      ResponseEntity<CharacterResponse> response =
+          controller.findCharacterByUserIgn("TestUser").join();
 
       // then - CharacterResponse Record는 userIgn, ocid, likeCount만 포함
       assertThat(response.getBody()).isNotNull();
@@ -94,8 +94,8 @@ class GameCharacterControllerV1Test {
       given(gameCharacterFacade.findCharacterByUserIgn("NewUser")).willReturn(character);
 
       // when
-      CompletableFuture<ResponseEntity<CharacterResponse>> future = controller.findCharacterByUserIgn("NewUser");
-      ResponseEntity<CharacterResponse> response = future.join();
+      ResponseEntity<CharacterResponse> response =
+          controller.findCharacterByUserIgn("NewUser").join();
 
       // then
       assertThat(response.getBody()).isNotNull();
