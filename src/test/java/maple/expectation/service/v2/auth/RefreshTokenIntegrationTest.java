@@ -52,8 +52,8 @@ import org.springframework.data.redis.core.StringRedisTemplate;
  *
  * <p><strong>⚠️ Flaky Tests (Redis Timing Issue)</strong>
  *
- * <p>여러 테스트에서 Thread.sleep()으로 Redis 저장 대기 중이나, 이는 안티패턴입니다.
- * 추후 Awaitility 또는 Redis Pub/Sub 기반의 동기화 메커니즘으로 리팩토링 필요합니다.
+ * <p>여러 테스트에서 Thread.sleep()으로 Redis 저장 대기 중이나, 이는 안티패턴입니다. 추후 Awaitility 또는 Redis Pub/Sub 기반의 동기화
+ * 메커니즘으로 리팩토링 필요합니다.
  */
 @DisplayName("Refresh Token 통합 테스트")
 @Tag("flaky")

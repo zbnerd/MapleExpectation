@@ -22,7 +22,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 @DisplayName("장애 복원력이 적용된 Nexon API 클라이언트 테스트")
 class ResilientNexonApiClientTest extends IntegrationTestSupport {

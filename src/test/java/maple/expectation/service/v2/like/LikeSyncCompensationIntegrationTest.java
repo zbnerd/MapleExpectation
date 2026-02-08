@@ -30,8 +30,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
  *
  * <p><strong>⚠️ Flaky Tests (Redis Key Deletion Issue)</strong>
  *
- * <p>일부 테스트에서 syncRedisToDatabase() 호출 후 원본 키가 삭제되지 않는 문제가 있습니다.
- * fetchAndMove()의 Lua Script RENAME 동작이 예상대로 작동하지 않는 것으로 보입니다.
+ * <p>일부 테스트에서 syncRedisToDatabase() 호출 후 원본 키가 삭제되지 않는 문제가 있습니다. fetchAndMove()의 Lua Script RENAME
+ * 동작이 예상대로 작동하지 않는 것으로 보입니다.
  *
  * @since 2.0.0
  */
