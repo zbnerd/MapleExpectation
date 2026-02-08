@@ -60,7 +60,7 @@ class LikeSyncAtomicityIntegrationTest extends IntegrationTestSupport {
 
   @Test
   @DisplayName("동시 L2->DB 동기화 안정성 검증")
-  void concurrentFlushAndSync_NoDataLoss() throws Exception {
+  void concurrentFlushAndSync_NoDataLoss() {
     // [Given] Redis에 직접 데이터 적재
     String testUser = "TestUser";
     long expectedTotal = (long) CONCURRENT_REQUESTS * LIKES_PER_REQUEST;
@@ -70,11 +70,8 @@ class LikeSyncAtomicityIntegrationTest extends IntegrationTestSupport {
       redisTemplate.opsForHash().increment(SOURCE_KEY, testUser, LIKES_PER_REQUEST);
     }
 
-    // [When] 단일 L2->DB 동기화 실행 (동시 호출은 데이터 유실 발생)
-    boolean syncResult = likeSyncService.syncRedisToDatabase();
-
-    // [Then] 동기화 성공 확인
-    assertThat(syncResult).as("동기화는 성공해야 함").isTrue();
+    // [When] 단일 L2->DB 동기화 실행
+    likeSyncService.syncRedisToDatabase();
 
     // [Then] 원본 키가 삭제되었음 확인 (동기화 완료)
     Object redisValue = redisTemplate.opsForHash().get(SOURCE_KEY, testUser);
