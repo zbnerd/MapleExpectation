@@ -220,9 +220,7 @@ public class NexonApiOutboxProcessor {
    * <p>Content Hash를 재계산하여 데이터 위변조 검증
    */
   private boolean verifyIntegrity(NexonApiOutbox entry) {
-    // TODO: Content Hash 검증 로직 구현
-    // DonationOutbox.verifyIntegrity() 패턴 참조
-    return true;
+    return entry.verifyIntegrity();
   }
 
   /**
