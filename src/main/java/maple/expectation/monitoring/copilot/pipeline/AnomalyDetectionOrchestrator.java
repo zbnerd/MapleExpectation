@@ -43,8 +43,7 @@ import org.springframework.stereotype.Service;
  *
  * <h3>LogicExecutor Compliance</h3>
  *
- * <p>All operations wrapped in {@link LogicExecutor} for resilience and observability (Section
- * 12).
+ * <p>All operations wrapped in {@link LogicExecutor} for resilience and observability (Section 12).
  *
  * @see PrometheusClient
  * @see AnomalyDetector

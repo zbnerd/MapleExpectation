@@ -123,7 +123,8 @@ public class BatchWriter {
 
     executor.executeVoid(
         () -> {
-          List<IntegrationEvent<NexonApiCharacterData>> batch = new ArrayList<>(batchProperties.aclWriterSize());
+          List<IntegrationEvent<NexonApiCharacterData>> batch =
+              new ArrayList<>(batchProperties.aclWriterSize());
 
           // Accumulate batch from queue (JSON strings)
           for (int i = 0; i < batchProperties.aclWriterSize(); i++) {

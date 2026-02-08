@@ -15,6 +15,7 @@ import maple.expectation.service.v2.policy.CubeCostPolicy;
  * V4-specific abstract cube decorator using BigDecimal type.
  *
  * <p>Extends AbstractCubeDecorator with V4-specific implementations:
+ *
  * <ul>
  *   <li>Type parameter: BigDecimal (precise decimal arithmetic)
  *   <li>Rounds trials to integer (HALF_UP) before cost calculation
@@ -92,7 +93,8 @@ public abstract class AbstractCubeDecoratorV4 extends EquipmentEnhanceDecorator 
 
           @Override
           protected BigDecimal getCostPerTrial() {
-            return BigDecimal.valueOf(AbstractCubeDecoratorV4.this.getLongCostPerTrial());
+            return BigDecimal.valueOf(
+                costPolicy.getCubeCost(getCubeType(), input.getLevel(), input.getGrade()));
           }
 
           @Override
@@ -227,6 +229,7 @@ public abstract class AbstractCubeDecoratorV4 extends EquipmentEnhanceDecorator 
    * Update CostBreakdown with cube-specific costs (Template Method hook).
    *
    * <p>Subclasses must implement this to call the appropriate CostBreakdown method:
+   *
    * <ul>
    *   <li>Black Cube: base.withBlackCube(cost, trials)
    *   <li>Red Cube: base.withRedCube(cost, trials)

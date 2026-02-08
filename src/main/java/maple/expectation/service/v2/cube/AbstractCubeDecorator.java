@@ -1,6 +1,5 @@
 package maple.expectation.service.v2.cube;
 
-import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Optional;
 import maple.expectation.domain.v2.CubeType;
@@ -9,7 +8,8 @@ import maple.expectation.service.v2.CubeTrialsProvider;
 import maple.expectation.service.v2.policy.CubeCostPolicy;
 
 /**
- * Abstract template for Cube decorators that eliminates duplication between V2 (long) and V4 (BigDecimal).
+ * Abstract template for Cube decorators that eliminates duplication between V2 (long) and V4
+ * (BigDecimal).
  *
  * <h3>Generic Number Type Parameter</h3>
  *
@@ -40,7 +40,8 @@ import maple.expectation.service.v2.policy.CubeCostPolicy;
  * </ul>
  *
  * @param <N> Number type (Long for V2, BigDecimal for V4)
- * @param <T> Target calculator type (ExpectationCalculator for V2, EquipmentExpectationCalculator for V4)
+ * @param <T> Target calculator type (ExpectationCalculator for V2, EquipmentExpectationCalculator
+ *     for V4)
  */
 public abstract class AbstractCubeDecorator<N extends Number, T> {
 

@@ -46,7 +46,11 @@ class BatchWriterTest {
 
   @BeforeEach
   void setUp() {
-    batchWriter = new BatchWriter(messageQueue, repository, executor, objectMapper);
+    maple.expectation.config.BatchProperties batchProperties =
+        maple.expectation.config.BatchProperties.defaults();
+
+    batchWriter =
+        new BatchWriter(messageQueue, repository, executor, objectMapper, batchProperties);
 
     // Setup LogicExecutor to execute directly (synchronous for testing)
     doAnswer(

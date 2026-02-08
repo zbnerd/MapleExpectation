@@ -23,7 +23,8 @@ import org.springframework.stereotype.Component;
 public class AiResponseParser {
 
   /** AI 응답 파싱 (에러 분석) */
-  public AiSreService.AiAnalysisResult parseAiResponse(String response, Throwable originalException) {
+  public AiSreService.AiAnalysisResult parseAiResponse(
+      String response, Throwable originalException) {
     return AiSreService.AiAnalysisResult.builder()
         .rootCause(extractSection(response, "Root Cause", "원인 분석 중"))
         .severity(extractSection(response, "Severity", "MEDIUM"))
@@ -69,7 +70,8 @@ public class AiResponseParser {
    * @param incidentId 인시던트 ID
    * @return 파싱된 완화 계획
    */
-  public AiSreService.MitigationPlan parseMitigationPlanJson(String jsonResponse, String incidentId) {
+  public AiSreService.MitigationPlan parseMitigationPlanJson(
+      String jsonResponse, String incidentId) {
     // Markdown 코드 블록 제거 (ChatGPT가 ```json ... ```으로 감싸는 경우 대응)
     String cleanedResponse = removeMarkdownCodeBlocks(jsonResponse);
 
@@ -81,19 +83,25 @@ public class AiResponseParser {
       List<AiSreService.Hypothesis> hypotheses =
           mapper.convertValue(
               planNode.get("hypotheses"),
-              mapper.getTypeFactory().constructCollectionType(List.class, AiSreService.Hypothesis.class));
+              mapper
+                  .getTypeFactory()
+                  .constructCollectionType(List.class, AiSreService.Hypothesis.class));
 
       // actions 파싱
       List<AiSreService.Action> actions =
           mapper.convertValue(
               planNode.get("actions"),
-              mapper.getTypeFactory().constructCollectionType(List.class, AiSreService.Action.class));
+              mapper
+                  .getTypeFactory()
+                  .constructCollectionType(List.class, AiSreService.Action.class));
 
       // questions 파싱
       List<AiSreService.ClarifyingQuestion> questions =
           mapper.convertValue(
               planNode.get("questions"),
-              mapper.getTypeFactory().constructCollectionType(List.class, AiSreService.ClarifyingQuestion.class));
+              mapper
+                  .getTypeFactory()
+                  .constructCollectionType(List.class, AiSreService.ClarifyingQuestion.class));
 
       // rollbackPlan 파싱
       AiSreService.RollbackPlan rollbackPlan =

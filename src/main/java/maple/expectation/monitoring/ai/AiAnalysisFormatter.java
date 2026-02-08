@@ -1,6 +1,5 @@
 package maple.expectation.monitoring.ai;
 
-import java.util.Map;
 import org.springframework.stereotype.Component;
 
 /**
@@ -14,8 +13,8 @@ import org.springframework.stereotype.Component;
  *   <li>마크다운 형식 변환
  * </ul>
  *
- * <p>참고: AiPromptBuilder에서 이미 formatAnomalies(), formatEvidence(), formatMetadata()를
- * 처리하므로 이 클래스는 최종 결과 포맷팅에 집중합니다.
+ * <p>참고: AiPromptBuilder에서 이미 formatAnomalies(), formatEvidence(), formatMetadata()를 처리하므로 이 클래스는
+ * 최종 결과 포맷팅에 집중합니다.
  */
 @Component
 public class AiAnalysisFormatter {
@@ -73,7 +72,9 @@ public class AiAnalysisFormatter {
                   ### %s (%s)
                   %s
                   """,
-              hypothesis.cause(), hypothesis.confidence(), formatEvidenceList(hypothesis.evidence())));
+              hypothesis.cause(),
+              hypothesis.confidence(),
+              formatEvidenceList(hypothesis.evidence())));
     }
 
     // 조치 항목
@@ -164,7 +165,8 @@ public class AiAnalysisFormatter {
             h ->
                 sb.append(
                     String.format(
-                        "- %s (%s)\n", h.cause().length() > 50 ? h.cause().substring(0, 50) + "..." : h.cause(),
+                        "- %s (%s)\n",
+                        h.cause().length() > 50 ? h.cause().substring(0, 50) + "..." : h.cause(),
                         h.confidence())));
 
     // 조치 계획 (상위 3개만)
@@ -175,7 +177,9 @@ public class AiAnalysisFormatter {
             a ->
                 sb.append(
                     String.format(
-                        "%d. %s (위험도: %s)\n", a.step(), a.action().length() > 50 ? a.action().substring(0, 50) + "..." : a.action(),
+                        "%d. %s (위험도: %s)\n",
+                        a.step(),
+                        a.action().length() > 50 ? a.action().substring(0, 50) + "..." : a.action(),
                         a.risk())));
 
     sb.append(String.format("\n*출처: %s*\n", plan.analysisSource()));

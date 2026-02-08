@@ -33,8 +33,8 @@ import org.springframework.stereotype.Service;
  *
  * <p>이 클래스는 AbstractTieredCacheService를 상속받지 않고 독립 구현을 유지합니다.
  *
- * <p>이유: TotalExpectationCacheService는 L1/L2를 별도의 CacheManager로 관리하며, 5KB 제한
- * 직렬화 체크, 복잡한 저장 순서(L2→L1) 등 특수한 로직이 있어 템플릿과 호환되지 않습니다.
+ * <p>이유: TotalExpectationCacheService는 L1/L2를 별도의 CacheManager로 관리하며, 5KB 제한 직렬화 체크, 복잡한 저장
+ * 순서(L2→L1) 등 특수한 로직이 있어 템플릿과 호환되지 않습니다.
  *
  * @see <a href="https://github.com/issue/158">Issue #158: Expectation API 캐시 타겟 전환</a>
  */

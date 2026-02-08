@@ -2,7 +2,6 @@ package maple.expectation.service.v2.cache;
 
 import java.util.Objects;
 import java.util.Optional;
-import java.util.function.Function;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
@@ -20,8 +19,8 @@ import org.springframework.cache.CacheManager;
  *
  * <ul>
  *   <li>L1 → L2 계층적 캐시 조회
- *   <li>L2 hit 시 L1 warm-up
- *   *   <li>L2 → L1 저장 순서 (불변식 준수)
+ *   <li>L2 hit 시 L1 warm-up *
+ *   <li>L2 → L1 저장 순서 (불변식 준수)
  *   <li>LogicExecutor 래핑
  *   <li>캐시 필드 캐싱 (P1-4)
  * </ul>
@@ -128,7 +127,11 @@ public abstract class AbstractTieredCacheService<T> {
    * @param error 발생한 예외
    */
   protected void logL2SaveFailure(String key, T value, Throwable error) {
-    log.warn("[Cache] L2 SAVE FAIL | cache={} | key={} | err={}", cacheName, maskKey(key), error.toString());
+    log.warn(
+        "[Cache] L2 SAVE FAIL | cache={} | key={} | err={}",
+        cacheName,
+        maskKey(key),
+        error.toString());
   }
 
   /**
@@ -314,9 +317,7 @@ public abstract class AbstractTieredCacheService<T> {
         TaskContext.of(cacheName, "EvictL1Only", maskKey(key)));
   }
 
-  /**
-   * Tiered 캐시 전체 무효화
-   */
+  /** Tiered 캐시 전체 무효화 */
   public void clearTieredCache() {
     executor.executeVoid(
         () -> {
@@ -326,9 +327,7 @@ public abstract class AbstractTieredCacheService<T> {
         TaskContext.of(cacheName, "ClearTiered"));
   }
 
-  /**
-   * L1-only 캐시 전체 무효화
-   */
+  /** L1-only 캐시 전체 무효화 */
   public void clearL1OnlyCache() {
     executor.executeVoid(
         () -> {

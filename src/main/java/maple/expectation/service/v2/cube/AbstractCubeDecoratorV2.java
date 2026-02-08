@@ -12,6 +12,7 @@ import maple.expectation.service.v2.policy.CubeCostPolicy;
  * V2-specific abstract cube decorator using Long type.
  *
  * <p>Extends AbstractCubeDecorator with V2-specific implementations:
+ *
  * <ul>
  *   <li>Type parameter: Long (boxed long)
  *   <li>No rounding (exact integer arithmetic)

@@ -2,7 +2,6 @@ package maple.expectation.monitoring.copilot.pipeline;
 
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.executor.LogicExecutor;
@@ -18,8 +17,8 @@ import org.springframework.stereotype.Service;
  *
  * <h3>Responsibility</h3>
  *
- * <p>Loads and caches signal definitions from Grafana dashboard JSON files. Provides a single source
- * of truth for monitoring signal catalog with 5-minute cache TTL.
+ * <p>Loads and caches signal definitions from Grafana dashboard JSON files. Provides a single
+ * source of truth for monitoring signal catalog with 5-minute cache TTL.
  *
  * <h3>Cache Strategy</h3>
  *
@@ -31,8 +30,8 @@ import org.springframework.stereotype.Service;
  *
  * <h3>LogicExecutor Compliance</h3>
  *
- * <p>All file I/O operations wrapped in {@link LogicExecutor#executeOrDefault()} for resilience
- * and observability (Section 12).
+ * <p>All file I/O operations wrapped in {@link LogicExecutor#executeOrDefault()} for resilience and
+ * observability (Section 12).
  *
  * @see GrafanaJsonIngestor
  */
@@ -66,7 +65,8 @@ public class SignalDefinitionLoader {
   public List<SignalDefinition> loadSignalDefinitions(long currentTimestamp) {
     // Cache hit: return cached data if still valid
     if (isCacheValid(currentTimestamp)) {
-      log.debug("[SignalDefinitionLoader] Cache hit - returning {} signals", signalCatalogCache.size());
+      log.debug(
+          "[SignalDefinitionLoader] Cache hit - returning {} signals", signalCatalogCache.size());
       return signalCatalogCache;
     }
 

@@ -1,8 +1,8 @@
 package maple.expectation.monitoring.copilot.pipeline;
 
-import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.executor.LogicExecutor;
@@ -75,8 +75,8 @@ public class AlertNotificationService {
   /**
    * Send alert notification for detected incident.
    *
-   * <p>Checks de-duplication cache, performs AI analysis (if available), formats message, and
-   * sends to Discord webhook.
+   * <p>Checks de-duplication cache, performs AI analysis (if available), formats message, and sends
+   * to Discord webhook.
    *
    * @param context Incident context with anomalies and metadata
    * @param aiSreService Optional AI SRE service for analysis
@@ -93,7 +93,8 @@ public class AlertNotificationService {
 
     // 2. De-duplication check
     if (isRecentIncident(context.incidentId(), now)) {
-      log.info("[AlertNotificationService] Incident {} already recent, skipping", context.incidentId());
+      log.info(
+          "[AlertNotificationService] Incident {} already recent, skipping", context.incidentId());
       return;
     }
 
@@ -129,7 +130,8 @@ public class AlertNotificationService {
     cleanOldIncidents(now);
 
     if (isRecentIncident(context.incidentId(), now)) {
-      log.info("[AlertNotificationService] Incident {} already recent, skipping", context.incidentId());
+      log.info(
+          "[AlertNotificationService] Incident {} already recent, skipping", context.incidentId());
       return;
     }
 
@@ -190,7 +192,9 @@ public class AlertNotificationService {
 
           // Determine severity
           String severity =
-              context.anomalies().stream().anyMatch(a -> "CRIT".equals(a.severity())) ? "CRIT" : "WARN";
+              context.anomalies().stream().anyMatch(a -> "CRIT".equals(a.severity()))
+                  ? "CRIT"
+                  : "WARN";
 
           // Format and send
           String message =
@@ -225,20 +229,22 @@ public class AlertNotificationService {
   private void cleanOldIncidents(long now) {
     long threshold = now - throttleWindowMs;
 
-    int removedCount =
-        recentIncidents
-            .entrySet()
-            .removeIf(
-                entry -> {
-                  boolean isOld = entry.getValue() < threshold;
-                  if (isOld) {
-                    log.debug("[AlertNotificationService] Cleaned old incident: {}", entry.getKey());
-                  }
-                  return isOld;
-                });
+    // removeIf returns boolean, so we track count manually
+    AtomicInteger removedCount = new AtomicInteger(0);
+    recentIncidents
+        .entrySet()
+        .removeIf(
+            entry -> {
+              boolean isOld = entry.getValue() < threshold;
+              if (isOld) {
+                log.debug("[AlertNotificationService] Cleaned old incident: {}", entry.getKey());
+                removedCount.incrementAndGet();
+              }
+              return isOld;
+            });
 
-    if (removedCount > 0) {
-      log.debug("[AlertNotificationService] Cleaned {} old incidents", removedCount);
+    if (removedCount.get() > 0) {
+      log.debug("[AlertNotificationService] Cleaned {} old incidents", removedCount.get());
     }
   }
 
@@ -251,9 +257,7 @@ public class AlertNotificationService {
     return recentIncidents.size();
   }
 
-  /**
-   * Clear all tracked incidents (useful for testing or manual reset).
-   */
+  /** Clear all tracked incidents (useful for testing or manual reset). */
   public void clearCache() {
     int size = recentIncidents.size();
     recentIncidents.clear();

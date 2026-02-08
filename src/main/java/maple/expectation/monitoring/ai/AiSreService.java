@@ -3,7 +3,6 @@ package maple.expectation.monitoring.ai;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -321,7 +320,8 @@ public class AiSreService {
       }
 
       AiAnalysisResult build() {
-        return new AiAnalysisResult(rootCause, severity, affectedComponents, actionItems, analysisSource, disclaimer);
+        return new AiAnalysisResult(
+            rootCause, severity, affectedComponents, actionItems, analysisSource, disclaimer);
       }
     }
   }

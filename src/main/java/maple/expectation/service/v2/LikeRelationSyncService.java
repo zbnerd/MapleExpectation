@@ -80,7 +80,9 @@ public class LikeRelationSyncService {
 
     // 배치 단위로 원자적 fetch + remove
     Set<String> batch;
-    while (!(batch = likeRelationBuffer.fetchAndRemovePending(batchProperties.likeRelationSyncSize())).isEmpty()) {
+    while (!(batch =
+            likeRelationBuffer.fetchAndRemovePending(batchProperties.likeRelationSyncSize()))
+        .isEmpty()) {
       processBatch(batch, successCount, skipCount, failCount);
     }
 
