@@ -17,10 +17,11 @@ import org.junit.jupiter.api.Test;
  *
  * <p><b>PURPOSE:</b> Capture CURRENT behavior before domain extraction refactoring.
  *
- * <p><b>NOTE:</b> These tests document WHAT the system DOES, not what it SHOULD do.
- * They serve as a safety net during refactoring to prevent unintended behavior changes.
+ * <p><b>NOTE:</b> These tests document WHAT the system DOES, not what it SHOULD do. They serve as a
+ * safety net during refactoring to prevent unintended behavior changes.
  *
  * <h3>Target Classes (Phase 3 Domain Extraction):</h3>
+ *
  * <ul>
  *   <li>{@link GameCharacter} - Character domain entity
  *   <li>{@link CharacterEquipment} - Equipment domain entity
@@ -84,7 +85,8 @@ class DomainCharacterizationTest {
   }
 
   @Test
-  @DisplayName("[CHAR-004] GameCharacter: needsBasicInfoRefresh() returns true when worldName is null")
+  @DisplayName(
+      "[CHAR-004] GameCharacter: needsBasicInfoRefresh() returns true when worldName is null")
   void gameCharacter_needsRefresh_true_when_worldName_null() {
     // Arrange
     GameCharacter character = new GameCharacter("TestUser", "ocid-123");
@@ -98,7 +100,8 @@ class DomainCharacterizationTest {
   }
 
   @Test
-  @DisplayName("[CHAR-005] GameCharacter: needsBasicInfoRefresh() returns true if basicInfoUpdatedAt is null")
+  @DisplayName(
+      "[CHAR-005] GameCharacter: needsBasicInfoRefresh() returns true if basicInfoUpdatedAt is null")
   void gameCharacter_needsRefresh_true_when_basicInfoUpdatedAt_null() {
     // Arrange
     GameCharacter character = new GameCharacter("TestUser", "ocid-123");
@@ -112,7 +115,8 @@ class DomainCharacterizationTest {
   }
 
   @Test
-  @DisplayName("[CHAR-006] GameCharacter: needsBasicInfoRefresh() returns true if > 15 minutes elapsed")
+  @DisplayName(
+      "[CHAR-006] GameCharacter: needsBasicInfoRefresh() returns true if > 15 minutes elapsed")
   void gameCharacter_needsRefresh_true_when_15min_elapsed() {
     // Arrange
     GameCharacter character = new GameCharacter("TestUser", "ocid-123");
@@ -127,7 +131,8 @@ class DomainCharacterizationTest {
   }
 
   @Test
-  @DisplayName("[CHAR-007] GameCharacter: needsBasicInfoRefresh() returns false if < 15 minutes elapsed")
+  @DisplayName(
+      "[CHAR-007] GameCharacter: needsBasicInfoRefresh() returns false if < 15 minutes elapsed")
   void gameCharacter_needsRefresh_false_when_recently_updated() {
     // Arrange
     GameCharacter character = new GameCharacter("TestUser", "ocid-123");
@@ -145,8 +150,7 @@ class DomainCharacterizationTest {
   @DisplayName("[CHAR-008] GameCharacter: Constructor throws on null OCID")
   void gameCharacter_constructor_throws_on_null_ocid() {
     // Act & Assert - Current Behavior
-    org.assertj.core.api.Assertions.assertThatThrownBy(
-            () -> new GameCharacter("TestUser", null))
+    org.assertj.core.api.Assertions.assertThatThrownBy(() -> new GameCharacter("TestUser", null))
         .isInstanceOf(maple.expectation.global.error.exception.InvalidCharacterStateException.class)
         .hasMessageContaining("OCID");
   }
@@ -155,8 +159,7 @@ class DomainCharacterizationTest {
   @DisplayName("[CHAR-009] GameCharacter: Constructor throws on blank OCID")
   void gameCharacter_constructor_throws_on_blank_ocid() {
     // Act & Assert - Current Behavior
-    org.assertj.core.api.Assertions.assertThatThrownBy(
-            () -> new GameCharacter("TestUser", "   "))
+    org.assertj.core.api.Assertions.assertThatThrownBy(() -> new GameCharacter("TestUser", "   "))
         .isInstanceOf(maple.expectation.global.error.exception.InvalidCharacterStateException.class)
         .hasMessageContaining("OCID");
   }
@@ -186,10 +189,7 @@ class DomainCharacterizationTest {
   void characterEquipment_updateData_modifies_fields() throws InterruptedException {
     // Arrange
     CharacterEquipment equipment =
-        CharacterEquipment.builder()
-            .ocid("ocid-123")
-            .jsonContent("{\"v\": 1}")
-            .build();
+        CharacterEquipment.builder().ocid("ocid-123").jsonContent("{\"v\": 1}").build();
     String newJson = "{\"v\": 2}";
     LocalDateTime beforeUpdate = equipment.getUpdatedAt();
 
@@ -208,10 +208,7 @@ class DomainCharacterizationTest {
   void characterEquipment_isExpired_true_when_updatedAt_null() {
     // Arrange - Can't directly set updatedAt to null via builder, so test with Duration.ZERO
     CharacterEquipment equipment =
-        CharacterEquipment.builder()
-            .ocid("ocid-123")
-            .jsonContent("{\"data\": 1}")
-            .build();
+        CharacterEquipment.builder().ocid("ocid-123").jsonContent("{\"data\": 1}").build();
 
     // Act - With ZERO TTL, even recently created data is expired
     boolean isExpired = equipment.isExpired(Duration.ZERO);
@@ -225,10 +222,7 @@ class DomainCharacterizationTest {
   void characterEquipment_isExpired_false_when_within_ttl() {
     // Arrange
     CharacterEquipment equipment =
-        CharacterEquipment.builder()
-            .ocid("ocid-123")
-            .jsonContent("{\"data\": 1}")
-            .build();
+        CharacterEquipment.builder().ocid("ocid-123").jsonContent("{\"data\": 1}").build();
 
     // Act - 1 hour TTL, just created
     boolean isExpired = equipment.isExpired(Duration.ofHours(1));
@@ -247,7 +241,8 @@ class DomainCharacterizationTest {
     CharacterEquipment equipment =
         CharacterEquipment.builder().ocid(ocid).jsonContent(jsonContent).build();
 
-    // Manually set updatedAt to past (via reflection or direct field access not possible, so use builder pattern)
+    // Manually set updatedAt to past (via reflection or direct field access not possible, so use
+    // builder pattern)
     // Note: Builder automatically sets updatedAt to now(), so we can't test expired case directly
     // This is a limitation of the current implementation
 
@@ -263,10 +258,7 @@ class DomainCharacterizationTest {
   void characterEquipment_isFresh_opposite_of_isExpired() {
     // Arrange
     CharacterEquipment equipment =
-        CharacterEquipment.builder()
-            .ocid("ocid-123")
-            .jsonContent("{\"data\": 1}")
-            .build();
+        CharacterEquipment.builder().ocid("ocid-123").jsonContent("{\"data\": 1}").build();
     Duration ttl = Duration.ofHours(1);
 
     // Act
@@ -278,14 +270,12 @@ class DomainCharacterizationTest {
   }
 
   @Test
-  @DisplayName("[CHAR-016] CharacterEquipment: hasData() returns true when jsonContent is non-blank")
+  @DisplayName(
+      "[CHAR-016] CharacterEquipment: hasData() returns true when jsonContent is non-blank")
   void characterEquipment_hasData_true_when_content_non_blank() {
     // Arrange
     CharacterEquipment equipment =
-        CharacterEquipment.builder()
-            .ocid("ocid-123")
-            .jsonContent("{\"items\": []}")
-            .build();
+        CharacterEquipment.builder().ocid("ocid-123").jsonContent("{\"items\": []}").build();
 
     // Act
     boolean hasData = equipment.hasData();

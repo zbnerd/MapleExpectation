@@ -1,6 +1,7 @@
 package maple.expectation.domain.nexon;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.persistence.*;
 import java.time.Instant;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -10,12 +11,11 @@ import lombok.NoArgsConstructor;
 /**
  * Nexon API character data response.
  *
- * <p>This is a simplified version of the actual Nexon API response.
- * In production, this should match the actual Nexon Open API schema.
+ * <p>This is a simplified version of the actual Nexon API response. In production, this should
+ * match the actual Nexon Open API schema.
  *
- * <p><strong>Anti-Corruption Layer:</strong>
- * This DTO isolates the external API structure from internal domain models.
- * Changes in Nexon API should not propagate to internal business logic.
+ * <p><strong>Anti-Corruption Layer:</strong> This DTO isolates the external API structure from
+ * internal domain models. Changes in Nexon API should not propagate to internal business logic.
  *
  * @see <a href="https://openapi.nexon.com/maplestory">Nexon Open API Documentation</a>
  */
@@ -23,7 +23,13 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Entity
+@Table(name = "nexon_character_data")
 public class NexonApiCharacterData {
+
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  private Long id;
 
   @JsonProperty("ocid")
   private String ocid;

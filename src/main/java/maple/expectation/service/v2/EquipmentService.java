@@ -232,7 +232,8 @@ public class EquipmentService {
 
   private String buildExpectationCacheKey(CharacterSnapshot snapshot) {
     String fingerprint = fingerprintGenerator.generate(snapshot.equipmentUpdatedAt());
-    String tableVersionHash = fingerprintGenerator.hashTableVersion(calculationProperties.getTableVersion());
+    String tableVersionHash =
+        fingerprintGenerator.hashTableVersion(calculationProperties.getTableVersion());
     return expectationCacheService.buildCacheKey(
         snapshot.ocid(), fingerprint, tableVersionHash, calculationProperties.getLogicVersion());
   }

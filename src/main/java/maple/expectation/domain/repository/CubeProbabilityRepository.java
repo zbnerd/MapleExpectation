@@ -12,8 +12,7 @@ import maple.expectation.domain.v2.CubeType;
  * <p>구현체:
  *
  * <ul>
- *   <li>{@link maple.expectation.repository.v2.CubeProbabilityRepositoryImpl} - CSV 기반 인메모리
- *       구현
+ *   <li>{@link maple.expectation.repository.v2.CubeProbabilityRepositoryImpl} - CSV 기반 인메모리 구현
  * </ul>
  */
 public interface CubeProbabilityRepository {
@@ -28,7 +27,8 @@ public interface CubeProbabilityRepository {
    * @param slot 슬롯 번호 (1, 2, 3)
    * @return 확률 데이터 리스트
    */
-  List<CubeProbability> findProbabilities(CubeType type, int level, String part, String grade, int slot);
+  List<CubeProbability> findProbabilities(
+      CubeType type, int level, String part, String grade, int slot);
 
   /**
    * 전체 확률 데이터 조회

@@ -42,8 +42,7 @@ class ResilientNexonApiClientTest extends IntegrationTestSupport {
   private maple.expectation.repository.v2.CharacterEquipmentRepository equipmentRepository;
 
   // 💡 nexonApiClient Mock for testing resilience patterns
-  @MockitoBean
-  private maple.expectation.external.NexonApiClient nexonApiClient;
+  @MockitoBean private maple.expectation.external.NexonApiClient nexonApiClient;
 
   /**
    * CLAUDE.md Section 24: 공유 상태 해결 - 테스트 간 Resilience4j 상태 격리 Circuit Breaker와 Retry 상태를 각 테스트 전에

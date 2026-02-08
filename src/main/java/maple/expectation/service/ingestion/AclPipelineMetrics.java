@@ -1,10 +1,10 @@
 package maple.expectation.service.ingestion;
 
 import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.Counter.Builder;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
+import jakarta.annotation.PostConstruct;
 import java.util.concurrent.atomic.AtomicLong;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,16 +14,18 @@ import org.springframework.stereotype.Component;
  * Metrics collector for ACL Pipeline components (Issue #300).
  *
  * <p><strong>Tracked Metrics:</strong>
+ *
  * <ul>
- *   <li>NexonDataCollector: API calls, success/failure, latency</li>
- *   <li>MessageQueue: Queue size, publish/consume rates</li>
- *   <li>BatchWriter: Batch size, processing time, DB operations</li>
+ *   <li>NexonDataCollector: API calls, success/failure, latency
+ *   <li>MessageQueue: Queue size, publish/consume rates
+ *   <li>BatchWriter: Batch size, processing time, DB operations
  * </ul>
  *
- * <p><strong>Integration with Prometheus:</strong>
- * All metrics are exposed via Actuator at {@code /actuator/prometheus} endpoint.
+ * <p><strong>Integration with Prometheus:</strong> All metrics are exposed via Actuator at {@code
+ * /actuator/prometheus} endpoint.
  *
  * <h3>Metric Naming Convention:</h3>
+ *
  * <pre>{@code
  * acl_collector_api_calls_total        - Counter
  * acl_collector_api_latency_seconds     - Timer
@@ -59,47 +61,51 @@ public class AclPipelineMetrics {
   // Gauges
   private final AtomicLong queueSize = new AtomicLong(0);
 
-  /**
-   * Initialize metrics on component startup.
-   * Called by Spring after dependency injection.
-   */
+  /** Initialize metrics on component startup. Called by Spring after dependency injection. */
+  @PostConstruct
   public void init() {
     // NexonDataCollector metrics
-    this.apiCallCounter = Counter.builder("acl_collector_api_calls_total")
-        .description("Total number of Nexon API calls")
-        .tag("component", "NexonDataCollector")
-        .register(meterRegistry);
+    this.apiCallCounter =
+        Counter.builder("acl_collector_api_calls_total")
+            .description("Total number of Nexon API calls")
+            .tag("component", "NexonDataCollector")
+            .register(meterRegistry);
 
-    this.apiSuccessCounter = Counter.builder("acl_collector_api_success_total")
-        .description("Successful Nexon API calls")
-        .tag("component", "NexonDataCollector")
-        .tag("status", "success")
-        .register(meterRegistry);
+    this.apiSuccessCounter =
+        Counter.builder("acl_collector_api_success_total")
+            .description("Successful Nexon API calls")
+            .tag("component", "NexonDataCollector")
+            .tag("status", "success")
+            .register(meterRegistry);
 
-    this.apiFailureCounter = Counter.builder("acl_collector_api_failure_total")
-        .description("Failed Nexon API calls")
-        .tag("component", "NexonDataCollector")
-        .tag("status", "failure")
-        .register(meterRegistry);
+    this.apiFailureCounter =
+        Counter.builder("acl_collector_api_failure_total")
+            .description("Failed Nexon API calls")
+            .tag("component", "NexonDataCollector")
+            .tag("status", "failure")
+            .register(meterRegistry);
 
-    this.apiLatencyTimer = Timer.builder("acl_collector_api_latency_seconds")
-        .description("Nexon API call latency")
-        .tag("component", "NexonDataCollector")
-        .publishPercentiles(0.5, 0.95, 0.99)
-        .publishPercentileHistogram()
-        .register(meterRegistry);
+    this.apiLatencyTimer =
+        Timer.builder("acl_collector_api_latency_seconds")
+            .description("Nexon API call latency")
+            .tag("component", "NexonDataCollector")
+            .publishPercentiles(0.5, 0.95, 0.99)
+            .publishPercentileHistogram()
+            .register(meterRegistry);
 
     // MessageQueue metrics
-    this.queuePublishCounter = Counter.builder("acl_queue_publish_total")
-        .description("Total messages published to queue")
-        .tag("component", "RedisEventPublisher")
-        .register(meterRegistry);
+    this.queuePublishCounter =
+        Counter.builder("acl_queue_publish_total")
+            .description("Total messages published to queue")
+            .tag("component", "RedisEventPublisher")
+            .register(meterRegistry);
 
-    this.queuePublishFailureCounter = Counter.builder("acl_queue_publish_failure_total")
-        .description("Failed queue publish attempts")
-        .tag("component", "RedisEventPublisher")
-        .tag("status", "failure")
-        .register(meterRegistry);
+    this.queuePublishFailureCounter =
+        Counter.builder("acl_queue_publish_failure_total")
+            .description("Failed queue publish attempts")
+            .tag("component", "RedisEventPublisher")
+            .tag("status", "failure")
+            .register(meterRegistry);
 
     // Queue size gauge (dynamic)
     Gauge.builder("acl_queue_size", queueSize, AtomicLong::get)
@@ -108,21 +114,24 @@ public class AclPipelineMetrics {
         .register(meterRegistry);
 
     // BatchWriter metrics
-    this.batchProcessedCounter = Counter.builder("acl_writer_batches_processed_total")
-        .description("Total number of batches processed")
-        .tag("component", "BatchWriter")
-        .register(meterRegistry);
+    this.batchProcessedCounter =
+        Counter.builder("acl_writer_batches_processed_total")
+            .description("Total number of batches processed")
+            .tag("component", "BatchWriter")
+            .register(meterRegistry);
 
-    this.batchUpsertCounter = Counter.builder("acl_writer_records_upserted_total")
-        .description("Total number of records upserted via batch")
-        .tag("component", "BatchWriter")
-        .register(meterRegistry);
+    this.batchUpsertCounter =
+        Counter.builder("acl_writer_records_upserted_total")
+            .description("Total number of records upserted via batch")
+            .tag("component", "BatchWriter")
+            .register(meterRegistry);
 
-    this.batchProcessingTimer = Timer.builder("acl_writer_batch_processing_seconds")
-        .description("Batch processing time")
-        .tag("component", "BatchWriter")
-        .publishPercentiles(0.5, 0.95, 0.99)
-        .register(meterRegistry);
+    this.batchProcessingTimer =
+        Timer.builder("acl_writer_batch_processing_seconds")
+            .description("Batch processing time")
+            .tag("component", "BatchWriter")
+            .publishPercentiles(0.5, 0.95, 0.99)
+            .register(meterRegistry);
 
     log.info("[AclPipelineMetrics] Metrics initialized and registered with Prometheus");
   }

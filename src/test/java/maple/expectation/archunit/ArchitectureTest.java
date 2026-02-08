@@ -137,8 +137,8 @@ class ArchitectureTest {
    * JpaRepository. The rule was checking non-interface classes ending with "Repository" and
    * expecting them to be Serializable, which is incorrect.
    *
-   * <p>Correct interpretation: Repository interfaces should exist, and implementations should follow
-   * Spring Data patterns.
+   * <p>Correct interpretation: Repository interfaces should exist, and implementations should
+   * follow Spring Data patterns.
    */
   @Test
   void repositories_should_follow_spring_data_pattern() {
@@ -159,8 +159,8 @@ class ArchitectureTest {
    * Controllers should only depend on services, not other controllers.
    *
    * <p><strong>Phase 2A Fix:</strong> Removed this rule as it produces false positives when
-   * controllers share common DTOs or utility classes. The rule intent (prevent controller-to-controller
-   * delegation) is better enforced through code review.
+   * controllers share common DTOs or utility classes. The rule intent (prevent
+   * controller-to-controller delegation) is better enforced through code review.
    */
   @Test
   @Disabled("Phase 2A: False positives from shared DTOs and utilities")
@@ -185,8 +185,8 @@ class ArchitectureTest {
    * framework-agnostic.
    *
    * <p><strong>Phase 2A Fix:</strong> This rule is DISABLED because the current codebase has
-   * LogicExecutor in global/ that needs to reference service layer classes for TaskContext.
-   * This is acceptable architectural coupling (executor pattern requires context awareness).
+   * LogicExecutor in global/ that needs to reference service layer classes for TaskContext. This is
+   * acceptable architectural coupling (executor pattern requires context awareness).
    *
    * <p>Alternative: Enforce through code review that global/ only depends on service interfaces,
    * not implementations.
@@ -207,13 +207,14 @@ class ArchitectureTest {
   /**
    * Config classes should be annotated with @Configuration or @ConfigurationProperties.
    *
-   * <p><strong>Phase 2A Fix:</strong> Changed from "assignable to" (inheritance) to proper annotation
-   * checks. The old rule incorrectly expected config classes to extend @Configuration.
+   * <p><strong>Phase 2A Fix:</strong> Changed from "assignable to" (inheritance) to proper
+   * annotation checks. The old rule incorrectly expected config classes to extend @Configuration.
    *
    * <p>This rule validates that:
+   *
    * <ul>
-   *   <li>Configuration classes (with @Bean methods) have @Configuration</li>
-   *   <li>Properties classes (with @ConfigurationProperties) are properly annotated</li>
+   *   <li>Configuration classes (with @Bean methods) have @Configuration
+   *   <li>Properties classes (with @ConfigurationProperties) are properly annotated
    * </ul>
    *
    * <p>Test classes are excluded as they don't need Spring annotations.
@@ -227,7 +228,8 @@ class ArchitectureTest {
         .that()
         .resideInAPackage("..config..")
         .and()
-        .areNotAssignableTo(org.springframework.boot.context.properties.ConfigurationProperties.class)
+        .areNotAssignableTo(
+            org.springframework.boot.context.properties.ConfigurationProperties.class)
         .should()
         .beMetaAnnotatedWith(org.springframework.context.annotation.Configuration.class)
         .orShould()
