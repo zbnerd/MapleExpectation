@@ -1,6 +1,7 @@
 package maple.expectation.controller;
 
 import jakarta.validation.Valid;
+import java.util.concurrent.CompletableFuture;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.controller.dto.auth.LoginRequest;
@@ -41,12 +42,14 @@ public class AuthController {
    * @return 로그인 응답 (accessToken, expiresIn, role, refreshToken, refreshExpiresIn)
    */
   @PostMapping("/login")
-  public ResponseEntity<ApiResponse<LoginResponse>> login(
+  public CompletableFuture<ResponseEntity<ApiResponse<LoginResponse>>> login(
       @Valid @RequestBody LoginRequest request) {
 
-    LoginResponse response = authService.login(request);
-
-    return ResponseEntity.ok(ApiResponse.success(response));
+    return CompletableFuture.supplyAsync(
+        () -> {
+          LoginResponse response = authService.login(request);
+          return ResponseEntity.ok(ApiResponse.success(response));
+        });
   }
 
   /**

@@ -45,6 +45,8 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v4/characters")
 public class GameCharacterControllerV4 {
 
+  private static final int FIRST_PRESET_INDEX = 0;
+
   private final EquipmentExpectationServiceV4 expectationService;
   private final PopularCharacterTracker popularCharacterTracker;
 
@@ -186,11 +188,11 @@ public class GameCharacterControllerV4 {
         .totalExpectedCost(
             filteredPresets.isEmpty()
                 ? java.math.BigDecimal.ZERO
-                : filteredPresets.get(0).getTotalExpectedCost())
+                : filteredPresets.get(FIRST_PRESET_INDEX).getTotalExpectedCost())
         .totalCostBreakdown(
             filteredPresets.isEmpty()
                 ? EquipmentExpectationResponseV4.CostBreakdownDto.empty()
-                : filteredPresets.get(0).getCostBreakdown())
+                : filteredPresets.get(FIRST_PRESET_INDEX).getCostBreakdown())
         .presets(filteredPresets)
         .build();
   }

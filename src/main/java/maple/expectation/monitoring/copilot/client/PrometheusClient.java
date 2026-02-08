@@ -38,6 +38,10 @@ import maple.expectation.global.executor.TaskContext;
 @RequiredArgsConstructor
 public class PrometheusClient {
 
+  private static final int TIMESTAMP_INDEX = 0;
+  private static final int VALUE_INDEX = 1;
+  private static final int ARRAY_SIZE = 2;
+
   private final HttpClient httpClient;
   private final ObjectMapper objectMapper;
   private final LogicExecutor executor;
@@ -212,9 +216,9 @@ public class PrometheusClient {
     @Override
     public ValuePoint deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
       JsonNode node = p.getCodec().readTree(p);
-      if (node.isArray() && node.size() == 2) {
-        long timestamp = node.get(0).asLong();
-        String value = node.get(1).asText();
+      if (node.isArray() && node.size() == ARRAY_SIZE) {
+        long timestamp = node.get(TIMESTAMP_INDEX).asLong();
+        String value = node.get(VALUE_INDEX).asText();
         return new ValuePoint(timestamp, value);
       }
       throw new IOException(

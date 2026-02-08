@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.controller.dto.donation.SendCoffeeRequest;
@@ -55,7 +56,7 @@ public class DonationController {
    */
   @PostMapping("/coffee")
   @Operation(summary = "커피 후원", description = "Admin(개발자)에게 커피를 후원합니다.")
-  public ResponseEntity<ApiResponse<SendCoffeeResponse>> sendCoffee(
+  public CompletableFuture<ResponseEntity<ApiResponse<SendCoffeeResponse>>> sendCoffee(
       @AuthenticationPrincipal AuthenticatedUser user,
       @Valid @RequestBody SendCoffeeRequest request,
       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
@@ -70,10 +71,14 @@ public class DonationController {
     // (Member 테이블에 fingerprint가 uuid로 저장되어 있어야 함)
     String guestUuid = user.fingerprint();
 
-    donationService.sendCoffee(guestUuid, request.adminFingerprint(), request.amount(), requestId);
-
-    log.info("[Donation] Coffee sent successfully: requestId={}", requestId);
-
-    return ResponseEntity.ok(ApiResponse.success(SendCoffeeResponse.success(requestId)));
+    return CompletableFuture.runAsync(
+            () ->
+                donationService.sendCoffee(
+                    guestUuid, request.adminFingerprint(), request.amount(), requestId))
+        .thenApply(
+            unused -> {
+              log.info("[Donation] Coffee sent successfully: requestId={}", requestId);
+              return ResponseEntity.ok(ApiResponse.success(SendCoffeeResponse.success(requestId)));
+            });
   }
 }

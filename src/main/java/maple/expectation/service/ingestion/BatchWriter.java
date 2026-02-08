@@ -87,7 +87,6 @@ public class BatchWriter {
   private final ObjectMapper objectMapper;
   private final maple.expectation.config.BatchProperties batchProperties;
 
-  @Autowired
   public BatchWriter(
       @Qualifier("nexonDataQueue") MessageQueue<String> messageQueue,
       NexonCharacterRepository repository,
@@ -133,15 +132,10 @@ public class BatchWriter {
               break; // Queue empty
             }
 
-            try {
-              // Deserialize JSON back to IntegrationEvent
-              IntegrationEvent<NexonApiCharacterData> event =
-                  objectMapper.readValue(
-                      jsonPayload, new TypeReference<IntegrationEvent<NexonApiCharacterData>>() {});
+            // Deserialize JSON back to IntegrationEvent (with recovery)
+            IntegrationEvent<NexonApiCharacterData> event = deserializeEvent(jsonPayload);
+            if (event != null) {
               batch.add(event);
-            } catch (Exception e) {
-              log.error("[BatchWriter] Failed to deserialize event: {}", jsonPayload, e);
-              // Skip invalid message and continue
             }
           }
 
@@ -156,6 +150,24 @@ public class BatchWriter {
           log.info("[BatchWriter] Processed batch: {} records", batch.size());
         },
         context);
+  }
+
+  /**
+   * Deserialize JSON payload to IntegrationEvent with error handling.
+   *
+   * <p><strong>LogicExecutor Compliance:</strong> Uses executeOrDefault to safely handle JSON
+   * parsing failures without crashing the batch processor.
+   *
+   * @param jsonPayload JSON string to deserialize
+   * @return Deserialized event, or null if parsing fails
+   */
+  private IntegrationEvent<NexonApiCharacterData> deserializeEvent(String jsonPayload) {
+    return executor.executeOrDefault(
+        () ->
+            objectMapper.readValue(
+                jsonPayload, new TypeReference<IntegrationEvent<NexonApiCharacterData>>() {}),
+        null,
+        TaskContext.of("BatchWriter", "DeserializeEvent", jsonPayload.substring(0, Math.min(50, jsonPayload.length()))));
   }
 
   /**

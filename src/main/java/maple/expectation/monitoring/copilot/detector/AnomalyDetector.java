@@ -37,6 +37,8 @@ import maple.expectation.monitoring.copilot.model.*;
 @RequiredArgsConstructor
 public class AnomalyDetector {
 
+  private static final int FIRST_TIME_SERIES_INDEX = 0;
+
   /**
    * Detect anomalies in time series data
    *
@@ -183,7 +185,7 @@ public class AnomalyDetector {
       return null;
     }
 
-    TimeSeries latest = timeSeriesList.get(0);
+    TimeSeries latest = timeSeriesList.get(FIRST_TIME_SERIES_INDEX);
     if (latest.points() == null || latest.points().isEmpty()) {
       return null;
     }
