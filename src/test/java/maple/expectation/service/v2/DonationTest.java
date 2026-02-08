@@ -72,7 +72,6 @@ public class DonationTest extends IntegrationTestSupport {
   }
 
   @AfterEach
-  @Transactional
   void tearDown() {
     // Admin 등록 해제
     if (testAdminFingerprint != null) {
