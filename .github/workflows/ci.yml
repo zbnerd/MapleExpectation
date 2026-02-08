@@ -28,10 +28,9 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-    env:
-      JAVA_VERSION: '21'  # #262: Virtual Thread 지원을 위해 21로 업그레이드
-      GRADLE_OPTS: '-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true'
-      DOCKER_HOST: unix:///var/run/docker.sock
+env:
+  JAVA_VERSION: '21'  # #262: Virtual Thread 지원을 위해 21로 업그레이드
+  GRADLE_OPTS: '-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true'
 
 jobs:
   # ==========================================================================
