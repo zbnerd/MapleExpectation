@@ -64,6 +64,7 @@ docker exec -it redis_container redis-cli
 > - [Infrastructure & Integration Guide](docs/02_Technical_Guides/infrastructure.md) - Redis, Cache, Security (Sections 7-10, 17-20)
 > - [Async & Concurrency Guide](docs/02_Technical_Guides/async-concurrency.md) - 비동기, Thread Pool (Sections 21-22)
 > - [Testing Guide](docs/02_Technical_Guides/testing-guide.md) - 테스트, Flaky Test 방지 (Sections 23-25)
+> - [Flaky Test Management](docs/02_Technical_Guides/flaky-test-management.md) - 플래키 테스트 식별, 격리, 관리 절차
 > - [Multi-Agent Protocol](docs/00_Start_Here/multi-agent-protocol.md) - 5-Agent Council
 > - [Chaos Engineering](docs/01_Chaos_Engineering/) - Nightmare Tests N01-N18
 > - [Templates](docs/98_Templates/) - PR, Issue, Report 템플릿

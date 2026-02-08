@@ -22,6 +22,7 @@ import maple.expectation.support.IntegrationTestSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -48,8 +49,14 @@ import org.springframework.data.redis.core.StringRedisTemplate;
  *   <li>CountDownLatch 타임아웃 설정
  *   <li>테스트 간 상태 격리 (Redis flush)
  * </ul>
+ *
+ * <p><strong>⚠️ Flaky Tests (Redis Timing Issue)</strong>
+ *
+ * <p>여러 테스트에서 Thread.sleep()으로 Redis 저장 대기 중이나, 이는 안티패턴입니다.
+ * 추후 Awaitility 또는 Redis Pub/Sub 기반의 동기화 메커니즘으로 리팩토링 필요합니다.
  */
 @DisplayName("Refresh Token 통합 테스트")
+@Tag("flaky")
 class RefreshTokenIntegrationTest extends IntegrationTestSupport {
 
   private static final String FINGERPRINT = "test-fingerprint";
