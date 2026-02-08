@@ -87,14 +87,14 @@ public class MonitoringReportJob {
       return;
     }
 
-    executor.executeOrCatch(
+    executor.executeWithFinally(
         () -> {
           generateAndSendReport(reportType);
           return null;
         },
-        t -> {
-          handleReportFailure(reportType, t);
-          return null;
+        () -> {
+          lockStrategy.unlock(REPORT_LOCK_KEY);
+          log.debug("[MonitoringReport] 리더 락 해제: {}", REPORT_LOCK_KEY);
         },
         context);
   }

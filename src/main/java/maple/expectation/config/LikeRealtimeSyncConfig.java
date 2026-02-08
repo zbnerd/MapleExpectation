@@ -3,6 +3,7 @@ package maple.expectation.config;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.global.cache.TieredCacheManager;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.service.v2.like.realtime.LikeEventPublisher;
 import maple.expectation.service.v2.like.realtime.LikeEventSubscriber;
@@ -68,7 +69,7 @@ public class LikeRealtimeSyncConfig {
   static class RTopicConfig {
 
     private final RedissonClient redissonClient;
-    private final CacheManager cacheManager;
+    private final TieredCacheManager cacheManager;
     private final LogicExecutor executor;
     private final MeterRegistry meterRegistry;
 

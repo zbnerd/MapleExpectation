@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.error.exception.MapleDataProcessingException;
@@ -80,11 +81,32 @@ public class CompensationLogService {
           RStream<String, String> stream =
               redissonClient.getStream(properties.getCompensationStream());
 
-          // 그룹이 없으면 생성 (MKSTREAM으로 스트림도 자동 생성)
+          // 스트림이 없으면 생성 및 그룹 생성
           if (!stream.isExists()) {
             stream.createGroup(
                 StreamCreateGroupArgs.name(properties.getSyncConsumerGroup()).makeStream());
-            log.info("[CompensationLog] Consumer Group 생성: {}", properties.getSyncConsumerGroup());
+            log.info(
+                "[CompensationLog] Stream 및 Consumer Group 생성: {}",
+                properties.getSyncConsumerGroup());
+            return;
+          }
+
+          // 스트림이 존재하면 그룹 존재 여부 확인 후 생성 (Redis snapshot restore 대응)
+          try {
+            stream.readGroup(
+                properties.getSyncConsumerGroup(),
+                instanceId,
+                StreamReadGroupArgs.neverDelivered().count(1));
+          } catch (Exception e) {
+            // NOGROUP 에러인 경우 그룹 생성
+            if (e.getMessage() != null && e.getMessage().contains("NOGROUP")) {
+              stream.createGroup(StreamCreateGroupArgs.name(properties.getSyncConsumerGroup()));
+              log.info(
+                  "[CompensationLog] Consumer Group 재생성 (NOGROUP 복구): {}",
+                  properties.getSyncConsumerGroup());
+            } else {
+              throw e;
+            }
           }
         },
         TaskContext.of("Compensation", "InitConsumerGroup", properties.getSyncConsumerGroup()),
@@ -132,6 +154,14 @@ public class CompensationLogService {
   /**
    * Compensation Log 읽기 (Consumer Group)
    *
+   * <p>P1 Fix: Pending 메시지를 먼저 확인하고 재시도 후 새 메시지를 읽습니다.
+   *
+   * <p>1. XAUTOCLAIM로 10분 이상 대기 중인 메시지 확인 및 자동 CLAIM (crashed consumer 감지)
+   *
+   * <p>2. Claim된 메시지가 있으면 반환
+   *
+   * <p>3. Claim된 메시지가 없으면 새 메시지 읽기
+   *
    * @param consumerId Consumer 식별자 (deprecated, instanceId 사용됨)
    * @param count 읽을 최대 메시지 수
    * @return 읽은 메시지 목록
@@ -142,6 +172,24 @@ public class CompensationLogService {
           RStream<String, String> stream =
               redissonClient.getStream(properties.getCompensationStream());
 
+          // P1 Fix: Pending 메시지 확인 및 자동 CLAIM (crashed consumer 재시도)
+          // 10분(600,000ms) 이상 delivery된 메시지만 CLAIM (타 consumer가 처리 중인 메시지 방지)
+          var autoClaimResult =
+              stream.autoClaim(
+                  properties.getSyncConsumerGroup(),
+                  instanceId,
+                  600_000, // min idle time: 10 minutes
+                  TimeUnit.MILLISECONDS,
+                  StreamMessageId.MIN, // start from beginning
+                  count);
+
+          Map<StreamMessageId, Map<String, String>> claimedMessages = autoClaimResult.getMessages();
+          if (!claimedMessages.isEmpty()) {
+            log.info("[CompensationLog] Pending 메시지 재처리: {} 건", claimedMessages.size());
+            return claimedMessages;
+          }
+
+          // Pending 메시지가 없으면 새 메시지 읽기
           return stream.readGroup(
               properties.getSyncConsumerGroup(),
               instanceId,

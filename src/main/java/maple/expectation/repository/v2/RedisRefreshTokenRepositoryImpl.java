@@ -2,6 +2,7 @@ package maple.expectation.repository.v2;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
@@ -134,6 +135,87 @@ public class RedisRefreshTokenRepositoryImpl implements RedisRefreshTokenReposit
         TaskContext.of("RefreshToken", "MarkAsUsed", refreshTokenId));
 
     log.debug("RefreshToken marked as used: tokenId={}", refreshTokenId);
+  }
+
+  /**
+   * Atomic Check-and-Mark: 토큰 사용 상태 확인 후 마크 (P1 Race Condition Fix)
+   *
+   * <p>Redis Lua script로 원자적으로 수행하여 TOCTOU 취약점 방지:
+   *
+   * <ul>
+   *   <li>토큰이 존재하지 않으면 Optional.empty() 반환
+   *   <li>이미 used=true이면 Optional.empty() 반환 (재사용 감지)
+   *   <li>used=false이면 used=true로 변경 후 토큰 반환
+   * </ul>
+   *
+   * @param refreshTokenId Refresh Token ID
+   * @return 마크된 RefreshToken (이미 사용되었거나 존재하지 않으면 Optional.empty())
+   */
+  public Optional<RefreshToken> checkAndMarkAsUsed(String refreshTokenId) {
+    return executor.executeOrDefault(
+        () -> doCheckAndMarkAsUsed(refreshTokenId),
+        Optional.empty(),
+        TaskContext.of("RefreshToken", "CheckAndMark", refreshTokenId));
+  }
+
+  /**
+   * Lua Script로 원자적 check-and-mark 수행
+   *
+   * <p>Script 로직:
+   *
+   * <ol>
+   *   <li>토큰 조회 (GET)
+   *   <li>존재하지 않으면 nil 반환
+   *   <li>이미 used=true이면 nil 반환 (재사용 감지)
+   *   <li>used=false이면 used=true로 설정 후 토큰 반환
+   * </ol>
+   */
+  private Optional<RefreshToken> doCheckAndMarkAsUsed(String refreshTokenId) {
+    String key = buildTokenKey(refreshTokenId);
+
+    // Lua script for atomic check-and-set
+    String luaScript =
+        """
+        local tokenJson = redis.call('GET', KEYS[1])
+        if tokenJson == false then
+            return nil
+        end
+
+        local usedFlag = string.match(tokenJson, '"used":(true|false)')
+        if usedFlag == 'true' then
+            return nil
+        end
+
+        -- Replace used:false with used:true
+        local newJson = string.gsub(tokenJson, '"used":false', '"used":true', 1)
+        redis.call('SET', KEYS[1], newJson, 'PX', ARGV[1])
+
+        return newJson
+        """;
+
+    RBucket<String> bucket = redissonClient.getBucket(key);
+    long remainingTtl = bucket.remainTimeToLive();
+
+    if (remainingTtl < 0) {
+      return Optional.empty();
+    }
+
+    // Execute Lua script atomically
+    Object result =
+        redissonClient
+            .getScript()
+            .eval(
+                org.redisson.api.RScript.Mode.READ_WRITE,
+                luaScript,
+                org.redisson.api.RScript.ReturnType.VALUE,
+                List.of(key),
+                String.valueOf(remainingTtl));
+
+    if (result == null) {
+      return Optional.empty();
+    }
+
+    return Optional.of(deserializeToken((String) result));
   }
 
   /**

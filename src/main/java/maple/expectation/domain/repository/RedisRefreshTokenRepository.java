@@ -54,6 +54,22 @@ public interface RedisRefreshTokenRepository {
   void markAsUsed(String refreshTokenId);
 
   /**
+   * Atomic Check-and-Mark: 토큰 사용 상태 확인 후 마크 (P1 Race Condition Fix)
+   *
+   * <p>Redis Lua script로 원자적으로 수행하여 TOCTOU 취약점 방지:
+   *
+   * <ul>
+   *   <li>토큰이 존재하지 않으면 Optional.empty() 반환
+   *   <li>이미 used=true이면 Optional.empty() 반환 (재사용 감지)
+   *   <li>used=false이면 used=true로 변경 후 토큰 반환
+   * </ul>
+   *
+   * @param refreshTokenId Refresh Token ID
+   * @return 마크된 RefreshToken (이미 사용되었거나 존재하지 않으면 Optional.empty())
+   */
+  Optional<RefreshToken> checkAndMarkAsUsed(String refreshTokenId);
+
+  /**
    * Family 전체 무효화 (탈취 감지 시)
    *
    * @param familyId Token Family ID

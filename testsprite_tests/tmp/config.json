@@ -1,0 +1,16 @@
+{
+  "status": "init",
+  "scope": "codebase",
+  "type": "backend",
+  "localEndpoint": "http://localhost:8080/",
+  "serverPort": 36505,
+  "executionArgs": {
+    "projectName": "MapleExpectation",
+    "projectPath": "/home/maple/MapleExpectation",
+    "testIds": [],
+    "additionalInstruction": "Backend testing for Spring Boot application. Test critical areas: P0 (Nexon API resilience, Thread pool concurrency, Exception handling), P1 (Cache consistency, Auth/Rate limiting, Distributed locks), P2 (Batch scheduler stability, Donation outbox), P3 (Flaky test fixes).",
+    "envs": {
+      "API_KEY": "sk-user-jgCGZdwoc44mrLQsm3jd__rMr9q2m_6_hUlezy4aRefQnCg6q4Ds-pkZr6nqJbboLuqcZ99vihJdqJm6-pshBPgJHev7u5Stx7yPjVPhfkjchSb4I2BlrgbS7l6bXIiNG10"
+    }
+  }
+}

@@ -2,19 +2,16 @@ package maple.expectation.service.v2.outbox;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.aop.annotation.ObservedTransaction;
 import maple.expectation.config.OutboxProperties;
 import maple.expectation.domain.v2.NexonApiOutbox;
-import maple.expectation.domain.v2.NexonApiOutbox.OutboxStatus;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.repository.v2.NexonApiOutboxRepository;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -65,9 +62,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Slf4j
 @Service
 @EnableConfigurationProperties(OutboxProperties.class)
-@RequiredArgsConstructor
 public class NexonApiOutboxProcessor {
 
+  private final NexonApiOutboxFetchFacade fetchFacade;
   private final NexonApiOutboxRepository outboxRepository;
   private final NexonApiRetryClient retryClient;
   private final NexonApiOutboxMetrics metrics;
@@ -75,6 +72,25 @@ public class NexonApiOutboxProcessor {
   private final TransactionTemplate transactionTemplate;
   private final OutboxProperties properties;
   private final NexonApiDlqHandler dlqHandler;
+
+  public NexonApiOutboxProcessor(
+      NexonApiOutboxFetchFacade fetchFacade,
+      NexonApiOutboxRepository outboxRepository,
+      NexonApiRetryClient retryClient,
+      NexonApiOutboxMetrics metrics,
+      LogicExecutor executor,
+      TransactionTemplate transactionTemplate,
+      OutboxProperties properties,
+      NexonApiDlqHandler dlqHandler) {
+    this.fetchFacade = fetchFacade;
+    this.outboxRepository = outboxRepository;
+    this.retryClient = retryClient;
+    this.metrics = metrics;
+    this.executor = executor;
+    this.transactionTemplate = transactionTemplate;
+    this.properties = properties;
+    this.dlqHandler = dlqHandler;
+  }
 
   /**
    * Pending 항목 폴링 및 처리
@@ -93,7 +109,7 @@ public class NexonApiOutboxProcessor {
 
     executor.executeOrCatch(
         () -> {
-          List<NexonApiOutbox> locked = fetchAndLock();
+          List<NexonApiOutbox> locked = fetchFacade.fetchAndLock();
           if (locked.isEmpty()) {
             return null;
           }
@@ -108,30 +124,6 @@ public class NexonApiOutboxProcessor {
           return null;
         },
         context);
-  }
-
-  /**
-   * Phase 1: SKIP LOCKED 조회 + markProcessing (단일 트랜잭션)
-   *
-   * <p>트랜잭션 종료와 함께 SKIP LOCKED 해제되지만, 상태가 PROCESSING으로 변경되어 다른 인스턴스가 재조회하지 않음
-   *
-   * <h4>인덱스 활용</h4>
-   *
-   * <p>idx_pending_poll (status, next_retry_at, id) 복합 인덱스 사용
-   */
-  @Transactional(isolation = Isolation.READ_COMMITTED)
-  public List<NexonApiOutbox> fetchAndLock() {
-    List<NexonApiOutbox> pending =
-        outboxRepository.findPendingWithLock(
-            List.of(OutboxStatus.PENDING, OutboxStatus.FAILED),
-            LocalDateTime.now(),
-            PageRequest.of(0, properties.getBatchSize()));
-
-    for (NexonApiOutbox entry : pending) {
-      entry.markProcessing(properties.getInstanceId());
-    }
-
-    return outboxRepository.saveAll(pending);
   }
 
   /**

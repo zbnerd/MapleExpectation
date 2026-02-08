@@ -131,16 +131,23 @@ public class CharacterLikeService {
     boolean liked;
     long newDelta;
 
+    // P2 Fix: null accountId fallback (pre-deploy sessions)
     String accountId = user.accountId();
+    String effectiveAccountId = (accountId != null) ? accountId : user.fingerprint();
+
+    if (accountId == null) {
+      log.warn("[P2] Pre-deploy session detected: using fingerprint as accountId fallback");
+    }
 
     if (atomicToggle != null) {
       // Redis 모드: Lua Script Atomic Toggle (P0-1/P0-2/P0-3 해결)
-      ToggleResult result = executeAtomicToggle(accountId, targetOcid, targetUserIgn);
+      ToggleResult result = executeAtomicToggle(effectiveAccountId, targetOcid, targetUserIgn);
       liked = result.liked();
       newDelta = result.newDelta();
     } else {
       // In-Memory 모드: 기존 로직 (단일 인스턴스에서 안전)
-      LegacyToggleResult result = executeLegacyToggle(targetUserIgn, targetOcid, accountId);
+      LegacyToggleResult result =
+          executeLegacyToggle(targetUserIgn, targetOcid, effectiveAccountId);
       liked = result.liked;
       newDelta = result.newDelta;
     }
@@ -149,7 +156,7 @@ public class CharacterLikeService {
         "{} buffered: targetIgn={}, accountId={}, newDelta={}",
         liked ? "Like" : "Unlike",
         targetUserIgn,
-        StringMaskingUtils.maskAccountId(accountId),
+        StringMaskingUtils.maskAccountId(effectiveAccountId),
         newDelta);
 
     // 4. Scale-out 실시간 동기화 이벤트 발행 (Issue #278)

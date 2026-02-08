@@ -77,8 +77,12 @@ public class MonitoringCopilotScheduler {
   // Signal catalog cache for signal prioritization and annotation
   private volatile List<SignalDefinition> signalCatalogCache = List.of();
 
-  /** Main scheduled task: runs every 15 seconds */
-  @Scheduled(fixedRate = 15000)
+  /**
+   * Main scheduled task: runs every monitoring.interval-seconds (default 15 seconds)
+   *
+   * <p>Property is in seconds, converted to milliseconds for @Scheduled
+   */
+  @Scheduled(fixedRateString = "${monitoring.interval-seconds:15}000")
   public void monitorAndDetect() {
     TaskContext context = TaskContext.of("MonitoringCopilot", "ScheduledDetection");
 

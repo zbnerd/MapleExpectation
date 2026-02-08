@@ -47,7 +47,7 @@ public enum FlameOptionType {
     ALLSTAT_PCT
   };
 
-  // Armor+Accessory option pool (19 types)
+  // Armor+Accessory option pool (21 types)
   public static final FlameOptionType[] ARMOR_OPTIONS = {
     STR,
     DEX,
@@ -65,9 +65,11 @@ public enum FlameOptionType {
     DEF,
     ATT,
     MAG,
+    BOSS_DMG_PCT,
+    DMG_PCT,
+    ALLSTAT_PCT,
     SPEED,
-    JUMP,
-    ALLSTAT_PCT
+    JUMP
   };
 
   public boolean isCompositeStat() {

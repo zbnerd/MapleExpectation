@@ -6,14 +6,12 @@ import lombok.extern.slf4j.Slf4j;
 import maple.expectation.aop.annotation.ObservedTransaction;
 import maple.expectation.config.OutboxProperties;
 import maple.expectation.domain.v2.DonationOutbox;
-import maple.expectation.domain.v2.DonationOutbox.OutboxStatus;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.repository.v2.DonationOutboxRepository;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -52,26 +50,29 @@ import org.springframework.transaction.support.TransactionTemplate;
 @EnableConfigurationProperties(OutboxProperties.class)
 public class OutboxProcessor {
 
-  private final DonationOutboxRepository outboxRepository;
+  private final OutboxFetchFacade fetchFacade;
   private final DlqHandler dlqHandler;
   private final OutboxMetrics metrics;
   private final LogicExecutor executor;
   private final TransactionTemplate transactionTemplate;
   private final OutboxProperties properties;
+  private final DonationOutboxRepository outboxRepository;
 
   public OutboxProcessor(
-      DonationOutboxRepository outboxRepository,
+      OutboxFetchFacade fetchFacade,
       DlqHandler dlqHandler,
       OutboxMetrics metrics,
       LogicExecutor executor,
       TransactionTemplate transactionTemplate,
-      OutboxProperties properties) {
-    this.outboxRepository = outboxRepository;
+      OutboxProperties properties,
+      DonationOutboxRepository outboxRepository) {
+    this.fetchFacade = fetchFacade;
     this.dlqHandler = dlqHandler;
     this.metrics = metrics;
     this.executor = executor;
     this.transactionTemplate = transactionTemplate;
     this.properties = properties;
+    this.outboxRepository = outboxRepository;
   }
 
   /**
@@ -90,7 +91,7 @@ public class OutboxProcessor {
 
     executor.executeOrCatch(
         () -> {
-          List<DonationOutbox> locked = fetchAndLock();
+          List<DonationOutbox> locked = fetchFacade.fetchAndLock();
           if (locked.isEmpty()) {
             return null;
           }
@@ -105,26 +106,6 @@ public class OutboxProcessor {
           return null;
         },
         context);
-  }
-
-  /**
-   * Phase 1: SKIP LOCKED 조회 + markProcessing (단일 트랜잭션)
-   *
-   * <p>트랜잭션 종료와 함께 SKIP LOCKED 해제되지만, 상태가 PROCESSING으로 변경되어 다른 인스턴스가 재조회하지 않음
-   */
-  @Transactional(isolation = Isolation.READ_COMMITTED)
-  public List<DonationOutbox> fetchAndLock() {
-    List<DonationOutbox> pending =
-        outboxRepository.findPendingWithLock(
-            List.of(OutboxStatus.PENDING, OutboxStatus.FAILED),
-            LocalDateTime.now(),
-            PageRequest.of(0, properties.getBatchSize()));
-
-    for (DonationOutbox entry : pending) {
-      entry.markProcessing(properties.getInstanceId());
-    }
-
-    return outboxRepository.saveAll(pending);
   }
 
   /**

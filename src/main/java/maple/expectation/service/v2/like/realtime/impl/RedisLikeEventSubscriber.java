@@ -5,6 +5,7 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.global.cache.TieredCacheManager;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.global.queue.RedisKey;
@@ -15,7 +16,6 @@ import org.redisson.api.RedissonClient;
 import org.redisson.api.listener.MessageListener;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.Cache;
-import org.springframework.cache.CacheManager;
 
 /**
  * Redis RTopic 기반 좋아요 이벤트 구독자
@@ -41,7 +41,7 @@ import org.springframework.cache.CacheManager;
 public class RedisLikeEventSubscriber implements LikeEventSubscriber {
 
   private final RedissonClient redissonClient;
-  private final CacheManager cacheManager;
+  private final TieredCacheManager cacheManager;
   private final LogicExecutor executor;
   private final MeterRegistry meterRegistry;
 
@@ -117,13 +117,13 @@ public class RedisLikeEventSubscriber implements LikeEventSubscriber {
    */
   private void evictL1Cache(String userIgn) {
     // character 캐시의 L1만 evict (GameCharacter 엔티티)
-    Cache characterCache = cacheManager.getCache("character");
+    Cache characterCache = cacheManager.getL1CacheDirect("character");
     if (characterCache != null) {
       characterCache.evict(userIgn);
     }
 
     // characterBasic 캐시도 evict (기본 정보)
-    Cache basicCache = cacheManager.getCache("characterBasic");
+    Cache basicCache = cacheManager.getL1CacheDirect("characterBasic");
     if (basicCache != null) {
       basicCache.evict(userIgn);
     }

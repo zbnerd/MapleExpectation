@@ -54,12 +54,12 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 @ConditionalOnProperty(
     name = "scheduler.warmup.enabled",
     havingValue = "true",
     matchIfMissing = false // 명시적으로 활성화 필요
     )
+@RequiredArgsConstructor
 public class PopularCharacterWarmupScheduler {
 
   private final PopularCharacterTracker popularCharacterTracker;
@@ -73,6 +73,23 @@ public class PopularCharacterWarmupScheduler {
 
   @Value("${scheduler.warmup.delay-between-ms:100}")
   private long delayBetweenMs;
+
+  // Stable gauge instances (registered once, updated each run)
+  private final AtomicInteger successCount = new AtomicInteger(0);
+  private final AtomicInteger failCount = new AtomicInteger(0);
+
+  /**
+   * Constructor with gauge registration (once at startup)
+   *
+   * <p>Lombok's @RequiredArgsConstructor generates the constructor, so we use @PostConstruct for
+   * gauge initialization instead of a custom constructor.
+   */
+  @jakarta.annotation.PostConstruct
+  public void init() {
+    // Register gauges once to stable instances
+    meterRegistry.gauge("warmup.last.success_count", successCount);
+    meterRegistry.gauge("warmup.last.fail_count", failCount);
+  }
 
   /**
    * 매일 새벽 5시 웜업 실행
@@ -153,11 +170,12 @@ public class PopularCharacterWarmupScheduler {
       return;
     }
 
-    AtomicInteger successCount = new AtomicInteger(0);
-    AtomicInteger failCount = new AtomicInteger(0);
+    // Reset stable counters for new warmup run
+    successCount.set(0);
+    failCount.set(0);
 
     for (String userIgn : topCharacters) {
-      warmupCharacter(userIgn, successCount, failCount);
+      warmupCharacter(userIgn);
 
       // Thundering Herd 방지를 위한 요청 간 지연
       if (delayBetweenMs > 0) {
@@ -167,8 +185,6 @@ public class PopularCharacterWarmupScheduler {
 
     sample.stop(meterRegistry.timer("warmup.duration", "type", warmupType));
     meterRegistry.counter("warmup.execution", "type", warmupType, "status", "success").increment();
-    meterRegistry.gauge("warmup.last.success_count", successCount);
-    meterRegistry.gauge("warmup.last.fail_count", failCount);
 
     log.info(
         "[Warmup] {} completed - success: {}, fail: {}, total: {}",
@@ -182,11 +198,8 @@ public class PopularCharacterWarmupScheduler {
    * 단일 캐릭터 웜업
    *
    * @param userIgn 캐릭터 닉네임
-   * @param successCount 성공 카운터
-   * @param failCount 실패 카운터
    */
-  private void warmupCharacter(
-      String userIgn, AtomicInteger successCount, AtomicInteger failCount) {
+  private void warmupCharacter(String userIgn) {
     executor.executeOrCatch(
         () -> {
           // V4 API 호출하여 캐시 채우기 (force=false로 기존 캐시 사용)

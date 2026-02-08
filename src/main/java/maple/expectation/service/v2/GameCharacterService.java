@@ -2,16 +2,20 @@ package maple.expectation.service.v2;
 
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.aop.annotation.ObservedTransaction;
 import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.external.NexonApiClient;
 import maple.expectation.external.dto.v2.CharacterBasicResponse;
+import maple.expectation.global.error.exception.ApiTimeoutException;
 import maple.expectation.global.error.exception.CharacterNotFoundException;
+import maple.expectation.global.error.exception.InternalSystemException;
+import maple.expectation.global.error.exception.base.BaseException;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
+import maple.expectation.global.util.ExceptionUtils;
 import maple.expectation.repository.v2.GameCharacterRepository;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
@@ -42,7 +46,7 @@ public class GameCharacterService {
   private final CacheManager cacheManager;
   private final LogicExecutor executor;
   private final CharacterCreationService characterCreationService;
-  private final ObjectProvider<GameCharacterService> selfProvider;
+  private final CharacterAsyncService characterAsyncService;
 
   public GameCharacterService(
       GameCharacterRepository gameCharacterRepository,
@@ -50,13 +54,13 @@ public class GameCharacterService {
       CacheManager cacheManager,
       LogicExecutor executor,
       CharacterCreationService characterCreationService,
-      ObjectProvider<GameCharacterService> selfProvider) {
+      CharacterAsyncService characterAsyncService) {
     this.gameCharacterRepository = gameCharacterRepository;
     this.nexonApiClient = nexonApiClient;
     this.cacheManager = cacheManager;
     this.executor = executor;
     this.characterCreationService = characterCreationService;
-    this.selfProvider = selfProvider;
+    this.characterAsyncService = characterAsyncService;
   }
 
   /** ⚡ [Negative Cache 확인] executeOrDefault를 사용하여 캐시 존재 여부 및 타입 캐스팅 노이즈 제거 */
@@ -154,18 +158,35 @@ public class GameCharacterService {
         cache.get(
             ocid,
             () -> {
-              log.info("🔄 [Enrich] 캐릭터 기본 정보 API 호출: {} (캐시 MISS)", character.getUserIgn());
-              return nexonApiClient
-                  .getCharacterBasic(ocid)
-                  .orTimeout(API_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-                  .join();
+              try {
+                log.info("🔄 [Enrich] 캐릭터 기본 정보 API 호출: {} (캐시 MISS)", character.getUserIgn());
+                return nexonApiClient
+                    .getCharacterBasic(ocid)
+                    .orTimeout(API_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                    .join();
+              } catch (Exception e) {
+                Throwable unwrapped = ExceptionUtils.unwrapAsyncException(e);
+                // Issue #284 P0: TimeoutException 감지 → 서킷브레이커 기록
+                if (unwrapped instanceof TimeoutException) {
+                  throw new ApiTimeoutException("NexonCharacterBasicAPI", unwrapped);
+                }
+                // BaseException 또는 RuntimeException인 경우 재전파
+                if (e instanceof BaseException be) {
+                  throw be;
+                }
+                if (e instanceof RuntimeException re) {
+                  throw re;
+                }
+                throw new InternalSystemException(
+                    "GameCharacterService.fetchAndUpdateBasicInfo", e);
+              }
             });
 
     // 엔티티 업데이트 (메모리)
     updateCharacterWithBasicInfo(character, basicInfo);
 
-    // 비동기 DB 저장 (Background) — selfProvider로 프록시 경유하여 @Async 활성화
-    selfProvider.getObject().saveCharacterBasicInfoAsync(character);
+    // 비동기 DB 저장 (Background) — 별도 빈(CharacterAsyncService)으로 @Async 활성화
+    characterAsyncService.saveCharacterBasicInfoAsync(character);
 
     return character;
   }
@@ -177,23 +198,6 @@ public class GameCharacterService {
     character.setCharacterClass(basicInfo.getCharacterClass());
     character.setCharacterImage(basicInfo.getCharacterImage());
     character.setBasicInfoUpdatedAt(java.time.LocalDateTime.now());
-  }
-
-  /**
-   * 캐릭터 기본 정보 비동기 저장 (DB + 캐시 갱신)
-   *
-   * <p>expectation-sequence-diagram Phase 7: 비동기 DB 저장 (Background)
-   */
-  @org.springframework.scheduling.annotation.Async
-  @Transactional
-  public void saveCharacterBasicInfoAsync(GameCharacter character) {
-    executor.executeVoid(
-        () -> {
-          // DB 저장
-          gameCharacterRepository.save(character);
-          log.info("✅ [Async] 캐릭터 기본 정보 DB 저장 완료: {}", character.getUserIgn());
-        },
-        TaskContext.of("DB", "SaveBasicInfoAsync", character.getUserIgn()));
   }
 
   /** 좋아요 버퍼 동기화용 Pessimistic Lock 조회 LikeSyncExecutor에서 호출하여 likeCount 업데이트에 사용 */

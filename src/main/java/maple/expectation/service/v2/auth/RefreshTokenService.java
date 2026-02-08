@@ -52,7 +52,7 @@ public class RefreshTokenService {
    * <ol>
    *   <li>토큰 존재 여부 확인
    *   <li>만료 여부 확인
-   *   <li>재사용(탈취) 감지
+   *   <li>재사용(탈취) 감지 (Atomic check-and-mark)
    * </ol>
    *
    * @param refreshTokenId 기존 Refresh Token ID
@@ -74,30 +74,32 @@ public class RefreshTokenService {
       throw new RefreshTokenExpiredException();
     }
 
-    // 3. 재사용(탈취) 감지
-    if (oldToken.used()) {
-      log.warn(
-          "Token reuse detected! Possible token theft. " + "familyId={}, tokenId={}",
-          oldToken.familyId(),
-          refreshTokenId);
-      // Family 전체 무효화
-      invalidateFamily(oldToken.familyId());
-      throw new TokenReusedException();
-    }
+    // 3. Atomic Check-and-Mark (P1 Fix: TOCTOU 방지)
+    // Redis Lua script로 원자적으로 used 확인 및 마크 수행
+    RefreshToken markedToken =
+        refreshTokenRepository
+            .checkAndMarkAsUsed(refreshTokenId)
+            .orElseThrow(
+                () -> {
+                  log.warn(
+                      "Token reuse detected! Possible token theft. " + "familyId={}, tokenId={}",
+                      oldToken.familyId(),
+                      refreshTokenId);
+                  // Family 전체 무효화
+                  invalidateFamily(oldToken.familyId());
+                  return new TokenReusedException();
+                });
 
-    // 4. 기존 토큰 사용 처리
-    refreshTokenRepository.markAsUsed(refreshTokenId);
-
-    // 5. 같은 familyId로 새 토큰 발급
+    // 4. 같은 familyId로 새 토큰 발급
     RefreshToken newToken =
         createRefreshTokenWithFamily(
-            oldToken.sessionId(), oldToken.fingerprint(), oldToken.familyId());
+            markedToken.sessionId(), markedToken.fingerprint(), markedToken.familyId());
 
     log.debug(
         "Token rotated: oldTokenId={}, newTokenId={}, familyId={}",
         refreshTokenId,
         newToken.refreshTokenId(),
-        oldToken.familyId());
+        markedToken.familyId());
 
     return newToken;
   }

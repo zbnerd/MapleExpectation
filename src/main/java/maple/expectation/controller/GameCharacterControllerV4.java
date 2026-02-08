@@ -1,5 +1,6 @@
 package maple.expectation.controller;
 
+import jakarta.validation.constraints.NotBlank;
 import java.util.concurrent.CompletableFuture;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -89,7 +90,7 @@ public class GameCharacterControllerV4 {
    */
   @GetMapping("/{userIgn}/expectation")
   public CompletableFuture<ResponseEntity<?>> getExpectation(
-      @PathVariable String userIgn,
+      @PathVariable @NotBlank String userIgn,
       @RequestParam(defaultValue = "false") boolean force,
       @RequestHeader(value = HttpHeaders.ACCEPT_ENCODING, required = false) String acceptEncoding) {
 

@@ -10,6 +10,7 @@ import maple.expectation.config.OutboxProperties;
 import maple.expectation.domain.v2.DonationOutbox.OutboxStatus;
 import maple.expectation.repository.v2.DonationOutboxRepository;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Outbox 메트릭 관리 (Issue #80)
@@ -130,6 +131,7 @@ public class OutboxMetrics {
    *
    * <p>스케줄러에서 주기적으로 호출
    */
+  @Transactional(readOnly = true)
   public void updatePendingCount() {
     long count = repository.countByStatusIn(List.of(OutboxStatus.PENDING, OutboxStatus.FAILED));
     pendingCount.set(count);

@@ -1,7 +1,6 @@
 package maple.expectation.config;
 
 import io.micrometer.core.instrument.MeterRegistry;
-import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.cache.TieredCacheManager;
 import maple.expectation.global.cache.invalidation.CacheInvalidationPublisher;
@@ -10,6 +9,7 @@ import maple.expectation.global.cache.invalidation.impl.RedisCacheInvalidationPu
 import maple.expectation.global.cache.invalidation.impl.RedisCacheInvalidationSubscriber;
 import maple.expectation.global.executor.LogicExecutor;
 import org.redisson.api.RedissonClient;
+import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.cache.CacheManager;
@@ -27,11 +27,15 @@ import org.springframework.context.annotation.Configuration;
  *
  * <p>TieredCacheManager.initializeInstanceId() / initializeInvalidationCallback()
  *
+ * <h3>P1-9: SmartInitializingSingleton으로 초기화 순서 보장</h3>
+ *
+ * <p>모든 Singleton Bean 생성 완료 후 콜백 연결로 pre-created TieredCache 인스턴스 문제 해결
+ *
  * <h3>Callback 패턴 (순환참조 방지)</h3>
  *
  * <pre>
  * TieredCacheManager → TieredCache (Supplier callback)
- *    ↑ @PostConstruct
+ *    ↑ SmartInitializingSingleton.afterSingletonsInstantiated()
  * CacheInvalidationConfig → RedisCacheInvalidationPublisher
  * </pre>
  */
@@ -41,7 +45,7 @@ import org.springframework.context.annotation.Configuration;
     name = "cache.invalidation.pubsub.enabled",
     havingValue = "true",
     matchIfMissing = true)
-public class CacheInvalidationConfig {
+public class CacheInvalidationConfig implements SmartInitializingSingleton {
 
   private final RedissonClient redissonClient;
   private final CacheManager cacheManager;
@@ -106,10 +110,15 @@ public class CacheInvalidationConfig {
    *
    * <p>@Setter → initializeInstanceId() / initializeInvalidationCallback()
    *
+   * <h4>P1-9: SmartInitializingSingleton으로 초기화 순서 보장</h4>
+   *
+   * <p>모든 Singleton Bean 생성 완료 후 실행되므로, 이미 생성된 TieredCache 인스턴스도 AtomicReference를 통해 최신 instanceId와
+   * callback을 참조 (Supplier-based Lazy Resolution)
+   *
    * <p>중복 호출 시 CAS로 안전하게 무시
    */
-  @PostConstruct
-  public void connectInvalidationCallback() {
+  @Override
+  public void afterSingletonsInstantiated() {
     if (!(cacheManager instanceof TieredCacheManager tieredManager)) {
       log.warn(
           "[CacheInvalidationConfig] CacheManager is not TieredCacheManager, skipping callback connection");

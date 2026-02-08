@@ -73,3 +73,9 @@ scheduler:
     enabled: false
   popular-character-warmup:
     enabled: false
+
+# Disable outbox schedulers to prevent connection pool exhaustion
+outbox:
+  scheduler:
+    nexon-api-outbox:
+      enabled: false
