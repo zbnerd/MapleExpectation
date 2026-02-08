@@ -37,6 +37,9 @@ public class NexonApiOutboxMetrics {
   private Counter processedCounter;
   private Counter failedCounter;
   private Counter dlqCounter;
+  private Counter dlqMovedCounter;
+  private Counter dlqFileBackupCounter;
+  private Counter dlqCriticalFailureCounter;
   private Counter integrityFailureCounter;
   private Counter stalledRecoveredCounter;
   private Counter pollFailureCounter;
@@ -57,6 +60,9 @@ public class NexonApiOutboxMetrics {
     processedCounter = registry.counter("nexon_api_outbox.processed.total");
     failedCounter = registry.counter("nexon_api_outbox.failed.total");
     dlqCounter = registry.counter("nexon_api_outbox.dlq.total");
+    dlqMovedCounter = registry.counter("nexon_api_outbox.dlq.moved.total");
+    dlqFileBackupCounter = registry.counter("nexon_api_outbox.dlq.file_backup.total");
+    dlqCriticalFailureCounter = registry.counter("nexon_api_outbox.dlq.critical_failure.total");
     integrityFailureCounter = registry.counter("nexon_api_outbox.integrity.failure.total");
     stalledRecoveredCounter = registry.counter("nexon_api_outbox.stalled.recovered.total");
     pollFailureCounter = registry.counter("nexon_api_outbox.poll.failure.total");
@@ -99,6 +105,18 @@ public class NexonApiOutboxMetrics {
 
   public void incrementApiCallRetry() {
     apiCallRetryCounter.increment();
+  }
+
+  public void incrementDlqMoved() {
+    dlqMovedCounter.increment();
+  }
+
+  public void incrementDlqFileBackup() {
+    dlqFileBackupCounter.increment();
+  }
+
+  public void incrementDlqCriticalFailure() {
+    dlqCriticalFailureCounter.increment();
   }
 
   // ========== Gauge Methods ==========

@@ -4,6 +4,7 @@ import java.util.concurrent.CompletableFuture;
 import maple.expectation.aop.annotation.NexonDataCache;
 import maple.expectation.external.dto.v2.CharacterBasicResponse;
 import maple.expectation.external.dto.v2.CharacterOcidResponse;
+import maple.expectation.external.dto.v2.CubeHistoryResponse;
 import maple.expectation.external.dto.v2.EquipmentResponse;
 
 public interface NexonApiClient {
@@ -31,4 +32,16 @@ public interface NexonApiClient {
 
   @NexonDataCache
   CompletableFuture<EquipmentResponse> getItemDataByOcid(String ocid);
+
+  /**
+   * OCID로 큐브 사용 내역 조회 (비동기)
+   *
+   * <p>Nexon API /maplestory/v1/history/cube 호출
+   *
+   * <p>큐브 사용 결과, 잠재능력 등급, 옵션 값 등 반환
+   *
+   * @param ocid 캐릭터 고유 ID
+   * @return 큐브 사용 내역 응답 Future
+   */
+  CompletableFuture<CubeHistoryResponse> getCubeHistory(String ocid);
 }

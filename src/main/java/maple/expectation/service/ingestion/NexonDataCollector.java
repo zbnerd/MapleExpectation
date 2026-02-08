@@ -1,26 +1,37 @@
 package maple.expectation.service.ingestion;
 
-import java.util.concurrent.CompletableFuture;
+import java.time.Duration;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.application.port.EventPublisher;
 import maple.expectation.domain.event.IntegrationEvent;
 import maple.expectation.domain.nexon.NexonApiCharacterData;
-import maple.expectation.global.executor.LogicExecutor;
-import maple.expectation.global.executor.TaskContext;
+import maple.expectation.global.error.exception.ExternalServiceException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
+import reactor.core.publisher.Mono;
 
 /**
- * Non-blocking Nexon API data collector.
+ * Non-blocking Nexon API data collector with reactive streams.
  *
  * <p><strong>Stage 1 (Ingestion) - Anti-Corruption Layer:</strong>
  *
  * <ul>
  *   <li>Uses WebClient for non-blocking HTTP calls (prevents thread pool exhaustion)
+ *   <li>Returns {@link Mono} for fully reactive pipeline (no blocking operations)
  *   <li>Parses JSON to {@link NexonApiCharacterData} domain object
  *   <li>Publishes to Queue via {@link EventPublisher} (fire-and-forget)
+ * </ul>
+ *
+ * <p><strong>Reactive Features:</strong>
+ *
+ * <ul>
+ *   <li><b>Timeout:</b> 5 seconds (prevents hanging requests)
+ *   <li><b>Retry:</b> Up to 2 retries on 5xx errors (resilient to transient failures)
+ *   <li><b>Error Translation:</b> WebClient errors → ExternalServiceException (triggers circuit
+ *       breaker)
  * </ul>
  *
  * <p><strong>Anti-Corruption Layer Benefits:</strong>
@@ -39,25 +50,10 @@ import org.springframework.web.reactive.function.client.WebClient;
  *   <li><b>OCP:</b> Open for extension (new API endpoints), closed for modification
  * </ul>
  *
- * <h3>Migration to Fully Non-Blocking (Phase 8):</h3>
- *
- * Current implementation uses {@code WebClient.block()} which is not ideal. In Phase 8, this should
- * be refactored to fully reactive:
- *
- * <pre>{@code
- * public Mono<NexonApiCharacterData> fetchAndPublish(String ocid) {
- *   return webClient.get()
- *       .uri("/maplestory/v1/character/basic?ocid={ocid}", ocid)
- *       .retrieve()
- *       .bodyToMono(NexonApiCharacterData.class)
- *       .doOnNext(data -> eventPublisher.publishAsync("nexon-data", IntegrationEvent.of("NEXON_DATA_COLLECTED", data)));
- * }
- * }</pre>
- *
  * @see EventPublisher
  * @see IntegrationEvent
  * @see NexonApiCharacterData
- * @see ADR-018 Strategy Pattern for ACL
+ * @see reactor.core.publisher.Mono
  */
 @Slf4j
 @Service
@@ -66,12 +62,13 @@ public class NexonDataCollector {
 
   private final WebClient nexonWebClient;
   private final EventPublisher eventPublisher;
-  private final LogicExecutor executor;
 
   @Value("${nexon.api.key}")
   private String apiKey;
 
   private static final String NEXON_DATA_COLLECTED = "NEXON_DATA_COLLECTED";
+  private static final Duration API_TIMEOUT = Duration.ofSeconds(5);
+  private static final int MAX_RETRIES = 2;
 
   /**
    * Fetch character data from Nexon API and publish to queue.
@@ -79,71 +76,136 @@ public class NexonDataCollector {
    * <p><strong>Workflow:</strong>
    *
    * <ol>
-   *   <li>Call Nexon API (HTTP GET)
+   *   <li>Call Nexon API (HTTP GET) with reactive WebClient
    *   <li>Parse JSON response to {@link NexonApiCharacterData}
    *   <li>Wrap in {@link IntegrationEvent}
-   *   <li>Publish to queue (fire-and-forget)
-   *   <li>Return character data to caller
+   *   <li>Publish to queue (fire-and-forget via doOnNext)
+   *   <li>Return character data to caller as Mono
    * </ol>
    *
+   * <p><strong>Reactive Features:</strong>
+   *
+   * <ul>
+   *   <li>Timeout: 5 seconds (prevents hanging requests)
+   *   <li>Retry: Up to 2 retries on 5xx errors (resilient to transient failures)
+   *   <li>Fire-and-forget publish: Event publishing doesn't block the response
+   * </ul>
+   *
    * @param ocid Character OCID
-   * @return CompletableFuture that completes with character data when queued
+   * @return Mono that emits character data when API call completes
    */
-  public CompletableFuture<NexonApiCharacterData> fetchAndPublish(String ocid) {
-    TaskContext context = TaskContext.of("NexonDataCollector", "FetchAndPublish", ocid);
+  public Mono<NexonApiCharacterData> fetchAndPublish(String ocid) {
+    log.debug("[NexonDataCollector] Fetching character data: ocid={}", ocid);
 
-    try {
-      log.debug("[NexonDataCollector] Fetching character data: ocid={}", ocid);
-
-      // Execute fetch logic with LogicExecutor
-      NexonApiCharacterData data = executor.execute(() -> fetchFromNexonApi(ocid), context);
-
-      // Wrap in IntegrationEvent with metadata
-      IntegrationEvent<NexonApiCharacterData> event =
-          IntegrationEvent.of(NEXON_DATA_COLLECTED, data);
-
-      // Publish to queue (fire-and-forget async publish)
-      eventPublisher
-          .publishAsync("nexon-data", event)
-          .exceptionally(
-              ex -> {
-                log.error("[NexonDataCollector] Failed to publish event: ocid={}", ocid, ex);
-                return null; // Async error handling
-              });
-
-      log.info(
-          "[NexonDataCollector] Fetched and queued: ocid={}, characterName={}",
-          ocid,
-          data.getCharacterName());
-
-      // Return completed future
-      return CompletableFuture.completedFuture(data);
-
-    } catch (Exception e) {
-      log.error("[NexonDataCollector] Failed to fetch character: ocid={}", ocid, e);
-      return CompletableFuture.failedFuture(e);
-    }
+    return fetchFromNexonApi(ocid)
+        .doOnNext(
+            data -> {
+              log.info(
+                  "[NexonDataCollector] Fetched and queued: ocid={}, characterName={}",
+                  ocid,
+                  data.getCharacterName());
+              publishEvent(data);
+            })
+        .doOnError(
+            ex ->
+                log.error(
+                    "[NexonDataCollector] Failed to fetch character: ocid={}, error={}",
+                    ocid,
+                    ex.getMessage(),
+                    ex));
   }
 
   /**
-   * Non-blocking HTTP call to Nexon API.
+   * Non-blocking HTTP call to Nexon API with reactive error handling.
    *
-   * <p><strong>Note:</strong> Currently uses {@code block()} which ties up a thread. This is
-   * acceptable for Phase 1 but should be refactored to fully reactive in Phase 8 (Kafka migration).
+   * <p><strong>Reactive Features:</strong>
+   *
+   * <ul>
+   *   <li>Timeout: 5 seconds (prevents hanging requests)
+   *   <li>Retry: Up to 2 retries on 5xx errors (resilient to transient failures)
+   *   <li>Exception translation: WebClient errors translated to ExternalServiceException
+   * </ul>
    *
    * <p><strong>API Endpoint:</strong> Uses Nexon Open API {@code /character/basic} endpoint which
    * returns lightweight character data (~1-2 KB) instead of full profile (300 KB).
    *
    * @param ocid Character OCID
-   * @return Parsed character data
+   * @return Mono that emits parsed character data
    */
-  private NexonApiCharacterData fetchFromNexonApi(String ocid) {
+  private Mono<NexonApiCharacterData> fetchFromNexonApi(String ocid) {
     return nexonWebClient
         .get()
         .uri("/maplestory/v1/character/basic?ocid={ocid}", ocid)
         .header("x-nxopen-api-key", apiKey)
         .retrieve()
         .bodyToMono(NexonApiCharacterData.class)
-        .block(); // TODO: Phase 8 - Remove block(), return Mono instead
+        .timeout(API_TIMEOUT)
+        .retryWhen(
+            reactor.util.retry.Retry.backoff(MAX_RETRIES, Duration.ofMillis(100))
+                .filter(this::isRetryableError))
+        .onErrorMap(this::translateWebClientError);
+  }
+
+  /**
+   * Publish event to queue (fire-and-forget).
+   *
+   * <p><strong>Note:</strong> This method is called from doOnNext() and must not throw exceptions.
+   * Publishing failures are logged but don't affect the main reactive chain.
+   *
+   * @param data Character data to publish
+   */
+  private void publishEvent(NexonApiCharacterData data) {
+    IntegrationEvent<NexonApiCharacterData> event = IntegrationEvent.of(NEXON_DATA_COLLECTED, data);
+
+    try {
+      eventPublisher.publishAsync("nexon-data", event);
+    } catch (Exception ex) {
+      log.error(
+          "[NexonDataCollector] Failed to publish event: ocid={}, characterName={}",
+          data.getOcid(),
+          data.getCharacterName(),
+          ex);
+    }
+  }
+
+  /**
+   * Determine if an error is retryable (5xx server errors).
+   *
+   * @param ex The exception to check
+   * @return true if the error is retryable, false otherwise
+   */
+  private boolean isRetryableError(Throwable ex) {
+    if (ex instanceof WebClientResponseException webClientEx) {
+      int statusCode = webClientEx.getStatusCode().value();
+      return statusCode >= 500 && statusCode < 600;
+    }
+    return false;
+  }
+
+  /**
+   * Translate WebClient exceptions to domain exceptions.
+   *
+   * <p><strong>Translation Strategy:</strong>
+   *
+   * <ul>
+   *   <li>All WebClient exceptions → ExternalServiceException (triggers circuit breaker)
+   *   <li>Preserves cause for debugging (Exception Chaining)
+   * </ul>
+   *
+   * @param ex The original exception
+   * @return Translated domain exception
+   */
+  private Throwable translateWebClientError(Throwable ex) {
+    if (ex instanceof WebClientResponseException webClientEx) {
+      return new ExternalServiceException(
+          "NexonAPI",
+          new ExternalServiceException(
+              String.format(
+                  "Nexon API returned %d: %s",
+                  webClientEx.getStatusCode().value(), webClientEx.getStatusText()),
+              ex));
+    }
+
+    return new ExternalServiceException("NexonAPI", ex);
   }
 }

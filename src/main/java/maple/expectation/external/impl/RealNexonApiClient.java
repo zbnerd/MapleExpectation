@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import maple.expectation.external.NexonApiClient;
 import maple.expectation.external.dto.v2.CharacterBasicResponse;
 import maple.expectation.external.dto.v2.CharacterOcidResponse;
+import maple.expectation.external.dto.v2.CubeHistoryResponse;
 import maple.expectation.external.dto.v2.EquipmentResponse;
 import maple.expectation.global.error.exception.CharacterNotFoundException;
 import org.springframework.beans.factory.annotation.Value;
@@ -105,6 +106,26 @@ public class RealNexonApiClient implements NexonApiClient {
         .header("x-nxopen-api-key", apiKey)
         .retrieve()
         .bodyToMono(EquipmentResponse.class)
+        .timeout(API_TIMEOUT)
+        .toFuture();
+  }
+
+  /**
+   * OCID로 큐브 사용 내역 조회 (비동기)
+   *
+   * <p>Nexon API /maplestory/v1/history/cube 호출
+   */
+  @Override
+  public CompletableFuture<CubeHistoryResponse> getCubeHistory(String ocid) {
+    log.info("[NexonApi] Cube history request: ocid={}", ocid);
+    return mapleWebClient
+        .get()
+        .uri(
+            uriBuilder ->
+                uriBuilder.path("/maplestory/v1/history/cube").queryParam("ocid", ocid).build())
+        .header("x-nxopen-api-key", apiKey)
+        .retrieve()
+        .bodyToMono(CubeHistoryResponse.class)
         .timeout(API_TIMEOUT)
         .toFuture();
   }

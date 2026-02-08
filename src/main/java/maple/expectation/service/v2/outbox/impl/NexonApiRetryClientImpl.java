@@ -8,6 +8,7 @@ import maple.expectation.domain.v2.NexonApiOutbox;
 import maple.expectation.external.NexonApiClient;
 import maple.expectation.external.dto.v2.CharacterBasicResponse;
 import maple.expectation.external.dto.v2.CharacterOcidResponse;
+import maple.expectation.external.dto.v2.CubeHistoryResponse;
 import maple.expectation.external.dto.v2.EquipmentResponse;
 import maple.expectation.global.executor.CheckedLogicExecutor;
 import maple.expectation.global.executor.LogicExecutor;
@@ -156,10 +157,24 @@ public class NexonApiRetryClientImpl implements NexonApiRetryClient {
         context);
   }
 
-  /** 큐브 데이터 조회 재시도 (TODO: 추후 구현) */
+  /** 큐브 데이터 조회 재시도 */
   private boolean retryGetCubes(String ocid) {
-    log.warn("[Retry] GET_CUBES 아직 미구현: ocid={}", ocid);
-    return false;
+    TaskContext context = TaskContext.of("NexonApiRetry", "RetryGetCubes", ocid);
+
+    return executor.executeOrCatch(
+        () -> {
+          CubeHistoryResponse response =
+              nexonApiClient
+                  .getCubeHistory(ocid)
+                  .orTimeout(API_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                  .join();
+
+          log.info("[Retry] Cube History 조회 성공: ocid={}", ocid);
+          metrics.incrementApiCallSuccess();
+          return true;
+        },
+        (e) -> handleRetryFailure("GET_CUBES", ocid, e),
+        context);
   }
 
   /**
