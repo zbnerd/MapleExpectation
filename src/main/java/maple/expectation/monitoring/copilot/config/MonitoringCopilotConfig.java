@@ -2,8 +2,9 @@ package maple.expectation.monitoring.copilot.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.http.HttpClient;
-import java.time.Duration;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.config.TimeoutProperties;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.monitoring.copilot.client.PrometheusClient;
 import maple.expectation.monitoring.copilot.detector.AnomalyDetector;
@@ -17,12 +18,15 @@ import org.springframework.context.annotation.Configuration;
 /** Monitoring Copilot Configuration Provides HTTP clients and copilot components. */
 @Slf4j
 @Configuration
+@RequiredArgsConstructor
 public class MonitoringCopilotConfig {
+
+  private final TimeoutProperties timeoutProperties;
 
   /** Shared HTTP client for external API calls. */
   @Bean
   public HttpClient httpClient() {
-    return HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+    return HttpClient.newBuilder().connectTimeout(timeoutProperties.getApiCall()).build();
   }
 
   /** Prometheus client for metric queries. Only created if monitoring is enabled. */

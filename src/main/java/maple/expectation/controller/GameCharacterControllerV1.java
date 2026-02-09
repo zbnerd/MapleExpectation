@@ -6,7 +6,10 @@ import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.dto.response.CharacterResponse;
 import maple.expectation.service.v2.facade.GameCharacterFacade;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 캐릭터 API V1 (레거시)

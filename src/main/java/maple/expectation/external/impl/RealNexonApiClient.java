@@ -1,9 +1,9 @@
 package maple.expectation.external.impl;
 
-import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.config.TimeoutProperties;
 import maple.expectation.external.NexonApiClient;
 import maple.expectation.external.dto.v2.CharacterBasicResponse;
 import maple.expectation.external.dto.v2.CharacterOcidResponse;
@@ -21,14 +21,8 @@ import reactor.core.publisher.Mono;
 @RequiredArgsConstructor
 public class RealNexonApiClient implements NexonApiClient {
 
-  /**
-   * API 호출 타임아웃 (5초)
-   *
-   * <p>Issue #196: 무한 대기로 인한 스레드 고갈 방지
-   */
-  private static final Duration API_TIMEOUT = Duration.ofSeconds(5);
-
   private final WebClient mapleWebClient;
+  private final TimeoutProperties timeoutProperties;
 
   @Value("${nexon.api.key}")
   private String apiKey;
@@ -68,7 +62,7 @@ public class RealNexonApiClient implements NexonApiClient {
               // 5xx: 서킷브레이커 동작을 위해 상위 전파
               return Mono.error(ex);
             })
-        .timeout(API_TIMEOUT)
+        .timeout(timeoutProperties.getApiCall())
         .toFuture();
   }
 
@@ -88,7 +82,7 @@ public class RealNexonApiClient implements NexonApiClient {
         .header("x-nxopen-api-key", apiKey)
         .retrieve()
         .bodyToMono(CharacterBasicResponse.class)
-        .timeout(API_TIMEOUT)
+        .timeout(timeoutProperties.getApiCall())
         .toFuture();
   }
 
@@ -106,7 +100,7 @@ public class RealNexonApiClient implements NexonApiClient {
         .header("x-nxopen-api-key", apiKey)
         .retrieve()
         .bodyToMono(EquipmentResponse.class)
-        .timeout(API_TIMEOUT)
+        .timeout(timeoutProperties.getApiCall())
         .toFuture();
   }
 
@@ -126,7 +120,7 @@ public class RealNexonApiClient implements NexonApiClient {
         .header("x-nxopen-api-key", apiKey)
         .retrieve()
         .bodyToMono(CubeHistoryResponse.class)
-        .timeout(API_TIMEOUT)
+        .timeout(timeoutProperties.getApiCall())
         .toFuture();
   }
 }
