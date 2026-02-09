@@ -1,9 +1,9 @@
 package maple.expectation.external.impl;
 
-import java.time.Duration;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.config.TimeoutProperties;
 import maple.expectation.external.NexonAuthClient;
 import maple.expectation.external.dto.v2.CharacterListResponse;
 import maple.expectation.global.executor.LogicExecutor;
@@ -42,11 +42,11 @@ import reactor.core.publisher.Mono;
 @RequiredArgsConstructor
 public class RealNexonAuthClient implements NexonAuthClient {
 
-  private static final Duration API_TIMEOUT = Duration.ofSeconds(5);
   private static final String CHARACTER_LIST_PATH = "/maplestory/v1/character/list";
 
   private final WebClient mapleWebClient;
   private final LogicExecutor executor;
+  private final TimeoutProperties timeoutProperties;
 
   @Override
   public Optional<CharacterListResponse> getCharacterList(String apiKey) {
@@ -91,7 +91,7 @@ public class RealNexonAuthClient implements NexonAuthClient {
                   // 5xx: 서버 에러는 상위 전파 (서킷브레이커 동작)
                   return Mono.error(ex);
                 })
-            .timeout(API_TIMEOUT)
+            .timeout(timeoutProperties.getApiCall())
             .block();
 
     return Optional.ofNullable(response)

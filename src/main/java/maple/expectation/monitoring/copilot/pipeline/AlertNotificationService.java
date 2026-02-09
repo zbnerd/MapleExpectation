@@ -1,8 +1,9 @@
 package maple.expectation.monitoring.copilot.pipeline;
 
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.executor.LogicExecutor;
@@ -10,7 +11,6 @@ import maple.expectation.global.executor.TaskContext;
 import maple.expectation.monitoring.ai.AiSreService;
 import maple.expectation.monitoring.copilot.model.*;
 import maple.expectation.monitoring.copilot.notifier.DiscordNotifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
@@ -19,24 +19,19 @@ import org.springframework.stereotype.Service;
  *
  * <h3>Responsibility</h3>
  *
- * <p>Manages Discord alert notifications with throttling and formatting:
+ * <p>Manages Discord alert notifications with formatting and delivery:
  *
  * <pre>
- * 1. De-duplication Check → Prevent alert spam
+ * 1. De-duplication Check → Prevent alert spam (via DeDuplicationCache)
  * 2. AI SRE Analysis → Generate mitigation plan
  * 3. Message Formatting → Discord-compatible format
  * 4. Webhook Delivery → Send to Discord
  * </pre>
  *
- * <h3>Throttling Strategy</h3>
+ * <h3>SRP Compliance</h3>
  *
- * <p>Implements time-based de-duplication with configurable window (default 5 minutes):
- *
- * <ul>
- *   <li>Tracks recent incident IDs in memory
- *   <li>Cleaned up periodically to prevent memory leaks
- *   <li>Prevents duplicate alerts for same incident signature
- * </ul>
+ * <p>De-duplication logic extracted to {@link DeDuplicationCache} following Single Responsibility
+ * Principle.
  *
  * <h3>Alert Formatting</h3>
  *
@@ -56,6 +51,7 @@ import org.springframework.stereotype.Service;
  *
  * @see DiscordNotifier
  * @see AiSreService
+ * @see DeDuplicationCache
  */
 @Slf4j
 @Service
@@ -65,12 +61,7 @@ public class AlertNotificationService {
 
   private final DiscordNotifier discordNotifier;
   private final LogicExecutor executor;
-
-  @Value("${monitoring.copilot.alert.throttle-window-ms:300000}")
-  private long throttleWindowMs;
-
-  // De-duplication: Recent incident IDs (last 5 minutes by default)
-  private final Map<String, Long> recentIncidents = new ConcurrentHashMap<>();
+  private final DeDuplicationCache deDuplicationCache;
 
   /**
    * Send alert notification for detected incident.
@@ -89,10 +80,10 @@ public class AlertNotificationService {
     long now = System.currentTimeMillis();
 
     // 1. Clean old incidents
-    cleanOldIncidents(now);
+    deDuplicationCache.cleanOld(now);
 
     // 2. De-duplication check
-    if (isRecentIncident(context.incidentId(), now)) {
+    if (deDuplicationCache.isRecent(context.incidentId(), now)) {
       log.info(
           "[AlertNotificationService] Incident {} already recent, skipping", context.incidentId());
       return;
@@ -124,9 +115,9 @@ public class AlertNotificationService {
     long now = System.currentTimeMillis();
 
     // Clean and check de-duplication
-    cleanOldIncidents(now);
+    deDuplicationCache.cleanOld(now);
 
-    if (isRecentIncident(context.incidentId(), now)) {
+    if (deDuplicationCache.isRecent(context.incidentId(), now)) {
       log.info(
           "[AlertNotificationService] Incident {} already recent, skipping", context.incidentId());
       return;
@@ -203,51 +194,11 @@ public class AlertNotificationService {
           discordNotifier.send(message);
 
           // Track incident ONLY after successful webhook delivery
-          trackIncident(context.incidentId(), timestamp);
+          deDuplicationCache.track(context.incidentId(), timestamp);
 
           log.info("[AlertNotificationService] Alert sent: {}", context.incidentId());
         },
         TaskContext.of("AlertNotificationService", "SendDiscord", context.incidentId()));
-  }
-
-  /** Check if incident is recent (within throttle window) */
-  private boolean isRecentIncident(String incidentId, long now) {
-    Long timestamp = recentIncidents.get(incidentId);
-    if (timestamp == null) {
-      return false;
-    }
-
-    long age = now - timestamp;
-    return age < throttleWindowMs;
-  }
-
-  /** Track incident to prevent duplicates */
-  private void trackIncident(String incidentId, long timestamp) {
-    recentIncidents.put(incidentId, timestamp);
-    log.debug("[AlertNotificationService] Tracked incident: {}", incidentId);
-  }
-
-  /** Clean old incidents (older than throttle window) */
-  private void cleanOldIncidents(long now) {
-    long threshold = now - throttleWindowMs;
-
-    // removeIf returns boolean, so we track count manually
-    AtomicInteger removedCount = new AtomicInteger(0);
-    recentIncidents
-        .entrySet()
-        .removeIf(
-            entry -> {
-              boolean isOld = entry.getValue() < threshold;
-              if (isOld) {
-                log.debug("[AlertNotificationService] Cleaned old incident: {}", entry.getKey());
-                removedCount.incrementAndGet();
-              }
-              return isOld;
-            });
-
-    if (removedCount.get() > 0) {
-      log.debug("[AlertNotificationService] Cleaned {} old incidents", removedCount.get());
-    }
   }
 
   /**
@@ -256,14 +207,12 @@ public class AlertNotificationService {
    * @return Number of tracked incidents
    */
   public int getCacheSize() {
-    return recentIncidents.size();
+    return deDuplicationCache.size();
   }
 
   /** Clear all tracked incidents (useful for testing or manual reset). */
   public void clearCache() {
-    int size = recentIncidents.size();
-    recentIncidents.clear();
-    log.info("[AlertNotificationService] Cleared {} tracked incidents", size);
+    deDuplicationCache.clear();
   }
 
   /** Create default mitigation plan when AI SRE is not available */

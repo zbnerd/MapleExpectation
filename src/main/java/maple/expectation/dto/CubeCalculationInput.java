@@ -2,7 +2,10 @@ package maple.expectation.dto;
 
 import java.util.ArrayList;
 import java.util.List;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import maple.expectation.util.StatType;
 
 /**

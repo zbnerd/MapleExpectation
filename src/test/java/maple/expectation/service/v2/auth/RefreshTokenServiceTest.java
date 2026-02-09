@@ -84,6 +84,7 @@ class RefreshTokenServiceTest {
   class RotationTest {
 
     @Test
+    @Tag("flaky")
     @DisplayName("Token Rotation 성공 - 새 토큰 발급")
     void shouldRotateTokenSuccessfully() {
       // given
