@@ -1,0 +1,18 @@
+// ========================================
+// Module-Core: 순수 도메인 (Spring/JPA 의존 없음)
+// ADR-017: Pure Domain Model
+// ========================================
+
+dependencies {
+	implementation project(':module-common')
+
+	// Jackson (JSON serialization for domain)
+	implementation 'com.fasterxml.jackson.core:jackson-annotations:2.17.0'
+	implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.0'
+
+	testImplementation 'org.junit.jupiter:junit-jupiter:5.10.3'
+}
+
+java {
+	withSourcesJar()
+}

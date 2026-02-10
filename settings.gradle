@@ -4,3 +4,9 @@ plugins {
 }
 
 rootProject.name = 'expectation'
+
+// ADR-014/ADR-017: Multi-module structure
+include 'module-core'
+include 'module-infra'
+include 'module-common'
+include 'module-app'

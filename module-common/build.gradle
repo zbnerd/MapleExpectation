@@ -1,0 +1,15 @@
+// ========================================
+// Module-Common: 공통 클래스 (Exception, DTO, Response)
+// ADR-014: 공통 횡단 관심사
+// ========================================
+
+dependencies {
+	// Spring (minimal for HttpStatus)
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+
+	// Jackson
+	implementation 'com.fasterxml.jackson.core:jackson-annotations:2.17.0'
+	implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.0'
+
+	testImplementation 'org.junit.jupiter:junit-jupiter:5.10.3'
+}

@@ -1,0 +1,72 @@
+// ========================================
+// Module-App: Spring Boot 실행, Controller, Config
+// ADR-017: Application Layer
+// ========================================
+
+plugins {
+	id 'org.springframework.boot' version '3.5.4'
+}
+
+dependencies {
+	implementation project(':module-core')
+	implementation project(':module-infra')
+	implementation project(':module-common')
+
+	// Spring Web
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springframework.boot:spring-boot-starter-webflux'
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
+	implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
+
+	// Spring Security
+	implementation 'org.springframework.boot:spring-boot-starter-security'
+	testImplementation 'org.springframework.security:spring-security-test'
+
+	// JWT
+	implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
+	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
+
+	// Actuator & Observability
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+	implementation 'io.micrometer:micrometer-registry-prometheus'
+	implementation 'io.micrometer:micrometer-tracing-bridge-otel'
+	implementation 'io.opentelemetry:opentelemetry-exporter-otlp'
+	implementation 'io.opentelemetry.contrib:opentelemetry-samplers:1.33.0-alpha'
+
+	// SpringDoc OpenAPI
+	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.13'
+
+	// Loki Appender
+	implementation 'com.github.loki4j:loki-logback-appender:1.4.2'
+
+	// AI SRE (LangChain4j)
+	implementation 'dev.langchain4j:langchain4j-spring-boot-starter:0.29.0'
+	implementation 'dev.langchain4j:langchain4j-open-ai-spring-boot-starter:0.29.0'
+
+	// Spring Batch
+	implementation 'org.springframework.boot:spring-boot-starter-batch'
+
+	// Cache
+	implementation 'org.springframework.boot:spring-boot-starter-cache'
+	implementation 'com.github.ben-manes.caffeine:caffeine'
+
+	// Env
+	implementation 'me.paulschwarz:spring-dotenv:4.0.0'
+
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testImplementation 'org.testcontainers:toxiproxy'
+}
+
+// Spring Boot JAR 비활성화 (bootRun만 사용)
+tasks.named("jar") {
+	enabled = false
+}
+
+bootRun {
+	jvmArgs = [
+		'-Xms512m',
+		'-Xmx1024m',
+		'-XX:+UseG1GC'
+	]
+}

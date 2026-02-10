@@ -1,11 +1,15 @@
+// ========================================
+// MapleExpectation Multi-Module Root Project
+// ADR-014/ADR-017: Gradle 멀티모듈 구조
+// ========================================
+
 plugins {
 	id 'java'
-	id 'org.springframework.boot' version '3.5.4'
 	id 'io.spring.dependency-management' version '1.1.7'
 	id 'jacoco'
-	id 'org.gradle.test-retry' version '1.6.0'  // Issue #210: Flaky Test 재시도
+	id 'org.gradle.test-retry' version '1.6.0'
 	id 'com.github.spotbugs' version '6.0.25'
-	id 'com.diffplug.spotless' version '6.25.0'  // Code formatting
+	id 'com.diffplug.spotless' version '6.25.0'
 }
 
 group = 'maple'
@@ -13,13 +17,7 @@ version = '0.0.1-SNAPSHOT'
 
 java {
 	toolchain {
-		languageVersion = JavaLanguageVersion.of(21)  // #262: Virtual Thread 지원을 위해 21로 업그레이드
-	}
-}
-
-configurations {
-	compileOnly {
-		extendsFrom annotationProcessor
+		languageVersion = JavaLanguageVersion.of(21)
 	}
 }
 
@@ -27,283 +25,143 @@ repositories {
 	mavenCentral()
 }
 
-dependencyManagement {
-    imports {
-        mavenBom "io.github.resilience4j:resilience4j-bom:2.2.0"
-    }
+// All projects: 공통 설정
+allprojects {
+	apply plugin: 'java'
+	apply plugin: 'io.spring.dependency-management'
+	apply plugin: 'com.diffplug.spotless'
+
+	group = 'maple'
+	version = '0.0.1-SNAPSHOT'
+
+	repositories {
+		mavenCentral()
+	}
+
+	dependencyManagement {
+	    imports {
+	        mavenBom "org.springframework.boot:spring-boot-dependencies:3.5.4"
+	        mavenBom "io.github.resilience4j:resilience4j-bom:2.2.0"
+	        mavenBom "org.testcontainers:testcontainers-bom:1.21.3"
+	    }
+	}
+
+	spotless {
+		java {
+			googleJavaFormat()
+			formatAnnotations()
+			importOrder()
+			removeUnusedImports()
+			trimTrailingWhitespace()
+			endWithNewline()
+		}
+	}
 }
 
-dependencies {
-	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-	implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
-	implementation 'org.springframework.boot:spring-boot-starter-validation'
-	implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.springframework.boot:spring-boot-starter-aop'
-	implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.0'
-	implementation 'org.springframework.boot:spring-boot-starter-webflux'
-    implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-csv'
-    implementation 'org.springframework.boot:spring-boot-starter-cache'
-    implementation 'com.github.ben-manes.caffeine:caffeine'
-    implementation 'me.paulschwarz:spring-dotenv:4.0.0'
+// Subprojects: 모듈별 공통 설정
+subprojects {
+	apply plugin: 'jacoco'
+	apply plugin: 'org.gradle.test-retry'
 
-    implementation 'org.springframework.boot:spring-boot-starter-actuator'
-    implementation 'io.micrometer:micrometer-registry-prometheus'
+	java {
+		toolchain {
+			languageVersion = JavaLanguageVersion.of(21)
+		}
+	}
 
-    implementation 'com.google.guava:guava:33.5.0-jre'
+	// 공통 의존성
+	dependencies {
+		compileOnly 'org.projectlombok:lombok:1.18.30'
+		annotationProcessor 'org.projectlombok:lombok:1.18.30'
+		testCompileOnly 'org.projectlombok:lombok:1.18.30'
+		testAnnotationProcessor 'org.projectlombok:lombok:1.18.30'
 
-    implementation 'io.github.resilience4j:resilience4j-spring-boot3'
-    implementation 'io.github.resilience4j:resilience4j-micrometer'
+		testImplementation('org.springframework.boot:spring-boot-starter-test') {
+			exclude group: 'org.junit.vintage', module: 'junit-vintage-engine'
+		}
 
-    implementation 'org.redisson:redisson-spring-boot-starter:3.48.0'
+		testImplementation "org.testcontainers:testcontainers"
+		testImplementation "org.testcontainers:junit-jupiter"
+		testImplementation "org.testcontainers:mysql"
+		testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
-    // Bucket4j Rate Limiting (Issue #152)
-    implementation 'com.bucket4j:bucket4j_jdk17-core:8.14.0'
-    implementation 'com.bucket4j:bucket4j_jdk17-redisson:8.14.0'
+		// ArchUnit
+		testImplementation 'com.tngtech.archunit:archunit:1.3.0'
 
-    // Spring Security
-    implementation 'org.springframework.boot:spring-boot-starter-security'
-    testImplementation 'org.springframework.security:spring-security-test'
+		// Awaitility
+		testImplementation 'org.awaitility:awaitility:4.2.0'
+	}
 
-    // JJWT (0.12.x - Context7 권장)
-    implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
-    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
-    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
+	// 테스트 설정
+	boolean isCiServer = System.getenv().containsKey("CI")
 
-    // SpringDoc OpenAPI (Swagger UI) - Context7 Best Practice
-    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.13'
+	test {
+		jvmArgs = [
+			'-Xms512m',
+			'-Xmx2048m',
+			'-XX:+UseG1GC',
+			'-XX:MaxMetaspaceSize=512m'
+		]
 
-    // Observability - Loki Appender (Issue #143)
-    implementation 'com.github.loki4j:loki-logback-appender:1.4.2'
+		useJUnitPlatform {
+			if (project.hasProperty('fastTest')) {
+				excludeTags 'sentinel', 'slow', 'quarantine', 'chaos', 'nightmare', 'integration', 'flaky'
+			} else if (project.hasProperty('integrationTest')) {
+				includeTags 'integration'
+			} else if (project.hasProperty('chaosTest')) {
+				includeTags 'chaos'
+			} else if (project.hasProperty('nightmareTest')) {
+				includeTags 'nightmare'
+			} else {
+				excludeTags 'sentinel', 'quarantine', 'flaky'
+			}
+		}
 
-    // ========================================
-    // Issue #251: AI SRE + OpenTelemetry
-    // ========================================
+		retry {
+			if (isCiServer) {
+				maxRetries = 1
+				maxFailures = 5
+				failOnPassedAfterRetry = false
+			}
+		}
 
-    // LangChain4j - AI SRE 분석 (Z.ai compatibility: 0.29.0 버전)
-    implementation 'dev.langchain4j:langchain4j-spring-boot-starter:0.29.0'
-    implementation 'dev.langchain4j:langchain4j-open-ai-spring-boot-starter:0.29.0'
+		systemProperty 'flaky.logging.enabled', 'true'
+		systemProperty 'flaky.log.dir', "${buildDir}/flaky"
 
-    // OpenTelemetry - 분산 추적 (Context7 Best Practice)
-    implementation 'io.micrometer:micrometer-tracing-bridge-otel'
-    implementation 'io.opentelemetry:opentelemetry-exporter-otlp'
-    implementation 'io.opentelemetry.contrib:opentelemetry-samplers:1.33.0-alpha'
+		maxParallelForks = 1
+		environment "DOCKER_HOST", "unix:///var/run/docker.sock"
 
-    // Spring Batch - 주기적 리포트 (Issue #251 Phase 4)
-    implementation 'org.springframework.boot:spring-boot-starter-batch'
+		finalizedBy jacocoTestReport
 
-    compileOnly 'org.projectlombok:lombok:1.18.30'
-	runtimeOnly 'com.h2database:h2'
-    runtimeOnly 'com.mysql:mysql-connector-j'
-    annotationProcessor 'org.projectlombok:lombok:1.18.30'
-    testImplementation('org.springframework.boot:spring-boot-starter-test') {
-        exclude group: 'org.junit.vintage', module: 'junit-vintage-engine'
-    }
-    testImplementation platform('org.testcontainers:testcontainers-bom:1.21.3')
-    testImplementation "org.testcontainers:testcontainers"
-    testImplementation "org.testcontainers:junit-jupiter"
-    testImplementation "org.testcontainers:mysql"
-    testImplementation "org.testcontainers:toxiproxy"
+		testLogging {
+			events "passed", "skipped", "failed"
+			exceptionFormat "full"
+		}
+	}
 
-	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+	jacoco {
+		toolVersion = "0.8.11"
+	}
 
-    testCompileOnly 'org.projectlombok:lombok:1.18.30'
-    testAnnotationProcessor 'org.projectlombok:lombok:1.18.30'
-
-    // ArchUnit - Architecture testing (Issue #325)
-    testImplementation 'com.tngtech.archunit:archunit:1.3.0'
-
-    // Awaitility - Flaky test fixing (Issue #329, #330)
-    testImplementation 'org.awaitility:awaitility:4.2.0'
+	jacocoTestReport {
+		dependsOn test
+		reports {
+			xml.required = true
+			html.required = true
+		}
+	}
 }
 
-tasks.named("jar") {
-    enabled = false
-}
-
-// JVM 메모리 설정 (bootRun)
-bootRun {
-    jvmArgs = [
-        '-Xms512m',
-        '-Xmx1024m',
-        '-XX:+UseG1GC'
-    ]
-}
-
-// ========================================
-// Issue #207: CI 테스트 최적화
-// Issue #210: Flaky Test 추적 및 Quarantine
-// ========================================
-
-// CI 환경 감지 (Context7 Best Practice)
-boolean isCiServer = System.getenv().containsKey("CI")
-
-test {
-    // 테스트 힙 크기 설정 (Issue #312: OutOfMemoryError 방지)
-    jvmArgs = [
-        '-Xms512m',
-        '-Xmx2048m',
-        '-XX:+UseG1GC',
-        '-XX:MaxMetaspaceSize=512m'
-    ]
-
-    useJUnitPlatform {
-        // @Tag 기반 테스트 필터링
-        // ./gradlew test -PfastTest → CI Gate (chaos, nightmare, slow 제외 → 1-2분)
-        // ./gradlew test -PintegrationTest → Integration 테스트만 (3-5분)
-        // ./gradlew test -PchaosTest → Chaos 테스트만 (5-10분)
-        // ./gradlew test -PnightmareTest → Nightmare 테스트만 (10-15분)
-        // ./gradlew test -PsentinelTest → Sentinel HA 테스트 전용 (야간)
-        // ./gradlew test → Nightly 전체 테스트
-        if (project.hasProperty('sentinelTest')) {
-            includeTags 'sentinel'
-        } else if (project.hasProperty('integrationTest')) {
-            // Integration 테스트만 실행
-            includeTags 'integration'
-        } else if (project.hasProperty('chaosTest')) {
-            // Chaos 테스트만 실행
-            includeTags 'chaos'
-        } else if (project.hasProperty('nightmareTest')) {
-            // Nightmare 테스트만 실행
-            includeTags 'nightmare'
-        } else if (project.hasProperty('fastTest')) {
-            // CI Gate: integration, chaos, nightmare 등 무거운 테스트 제외 (1-2분)
-            excludeTags 'sentinel', 'slow', 'quarantine', 'chaos', 'nightmare', 'integration', 'flaky'
-        } else {
-            // Nightly: sentinel, quarantine, flaky 제외
-            excludeTags 'sentinel', 'quarantine', 'flaky'
-        }
-    }
-    exclude '**/vintage/**'
-
-    // Issue #210: Flaky Test 재시도 (CI에서만)
-    retry {
-        if (isCiServer) {
-            maxRetries = 1          // 보수적 재시도
-            maxFailures = 5         // 5개 초과 실패 시 빌드 중단
-            failOnPassedAfterRetry = false  // 재시도 성공 시 빌드 통과
-        }
-    }
-
-    // Flaky 로그 시스템 프로퍼티
-    systemProperty 'flaky.logging.enabled', 'true'
-    systemProperty 'flaky.log.dir', "${buildDir}/flaky"
-
-    // 병렬 실행 설정
-    // - Testcontainers 사용 시 Docker 컨테이너 리소스 경합 방지를 위해 직렬 실행 (Issue #320)
-    // - 병렬 실행 시 MySQL/Redis 컨테이너 시작 타임아웃 발생
-    maxParallelForks = 1
-
-    // WSL에서 확인된 Docker Engine API 소켓
-    environment "DOCKER_HOST", "unix:///var/run/docker.sock"
-
-    // JaCoCo 연동
-    finalizedBy jacocoTestReport
-
-    // 테스트 로깅 (디버깅용)
-    testLogging {
-        events "passed", "skipped", "failed"
-        exceptionFormat "full"
-    }
-}
-
-// Issue #210: Quarantine 테스트 포함 실행 (Nightly용)
-tasks.register('testWithQuarantine', Test) {
-    useJUnitPlatform()  // quarantine 태그 포함
-    retry {
-        maxRetries = 1
-        maxFailures = 10
-        failOnPassedAfterRetry = false
-    }
-    systemProperty 'flaky.logging.enabled', 'true'
-    systemProperty 'flaky.log.dir', "${buildDir}/flaky"
-    environment "DOCKER_HOST", "unix:///var/run/docker.sock"
-}
-
-// ========================================
-// JaCoCo 테스트 커버리지 설정 (#56)
-// ========================================
-jacoco {
-    toolVersion = "0.8.11"
-}
-
-jacocoTestReport {
-    dependsOn test
-
-    reports {
-        xml.required = true   // CI 통합용
-        html.required = true  // 로컬 확인용
-    }
-
-    afterEvaluate {
-        classDirectories.setFrom(files(classDirectories.files.collect {
-            fileTree(dir: it, exclude: [
-                '**/config/**',
-                '**/dto/**',
-                '**/entity/**',
-                '**/domain/**',
-                '**/*Config*',
-                '**/*Properties*',
-                '**/*Application*'
-            ])
-        }))
-    }
-}
-
-// ⚠️ P0-7 (Red Agent): jacocoTestCoverageVerification은 초기 비활성화
-// 테스트 커버리지가 충분히 확보된 후 별도 이슈로 활성화 권장
-// 활성화 시 아래 주석 해제:
-//
-// jacocoTestCoverageVerification {
-//     dependsOn jacocoTestReport
-//     violationRules {
-//         rule {
-//             limit {
-//                 minimum = 0.45  // 초기 45%, 점진 상향
-//             }
-//         }
-//         rule {
-//             element = 'CLASS'
-//             includes = ['maple.expectation.service.v2.*']
-//             limit {
-//                 counter = 'LINE'
-//                 minimum = 0.60  // 핵심 서비스 60%
-//             }
-//         }
-//     }
-// }
-
-// ========================================
-// SpotBugs Static Analysis Setup
-// ========================================
+// SpotBugs (루트 프로젝트에서만)
 spotbugs {
-    ignoreFailures = false
-    showStackTraces = true
+	ignoreFailures = false
+	showStackTraces = true
 }
 
 spotbugsMain {
-    enabled = false  // Disabled during Spotless Phase 1 - will be enabled in SpotBugs Phase
-    reports {
-        html {
-            required = true
-            outputLocation = file("$buildDir/reports/spotbugs/main.html")
-        }
-    }
+	enabled = false
 }
 
 spotbugsTest {
-    enabled = false
-}
-
-// ========================================
-// Spotless Code Formatting
-// ========================================
-spotless {
-	java {
-		googleJavaFormat()
-		formatAnnotations()
-		importOrder()
-		removeUnusedImports()
-		trimTrailingWhitespace()
-		endWithNewline()
-	}
+	enabled = false
 }
