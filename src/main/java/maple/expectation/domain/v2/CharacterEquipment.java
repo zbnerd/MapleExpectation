@@ -13,6 +13,9 @@ import maple.expectation.util.converter.GzipStringConverter;
  * CharacterEquipment 엔티티 (Rich Domain Model)
  *
  * <p>Issue #120: 장비 데이터 만료 여부 판단 로직 캡슐화
+ *
+ * <p><b>NOTE:</b> This will be replaced by domain-layer entity and JPA entity during ADR-017
+ * migration.
  */
 @Entity
 @Table(
