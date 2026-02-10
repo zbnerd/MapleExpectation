@@ -11,8 +11,13 @@ import maple.expectation.support.IntegrationTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.batch.BatchAutoConfiguration;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
+@SpringBootTest(
+    classes = maple.expectation.ExpectationApplication.class,
+    properties = "spring.batch.job.enabled=false")
 class MonitoringAlertServiceTest extends IntegrationTestSupport {
 
   // 💡 실제 MonitoringAlertService를 테스트하기 위해 필요한 의존성들을 Mock으로 오버라이드
