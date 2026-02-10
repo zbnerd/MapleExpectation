@@ -18,7 +18,7 @@
 | 2 | 버전과 수정일 | ✅ | 2.0.0, 2026-02-05 | EV-TPL-002 |
 | 3 | 모든 용어 정의 | ✅ | 하단 Terminology 섹션 | EV-TPL-003 |
 | 4 | 사용 방법 명확성 | ✅ | 3단계 복사-붙여넣기-수정 | EV-TPL-004 |
-| 5 | 템플릿 목록 완비 | ✅ | 3개 핵심 템플릿 | EV-TPL-005 |
+| 5 | 템플릿 목록 완비 | ✅ | 4개 핵심 템플릿 | EV-TPL-005 |
 | 6 | 템플릿 추가 규칙 | ✅ | 파일명/README 업데이트/출처 | EV-TPL-006 |
 | 7 | 각 템플릿 용도 설명 | ✅ | 사용 위치 명시 | EV-TPL-007 |
 | 8 | 예시 포함 여부 | ✅ | 각 템플릿에 Usage Examples | EV-TPL-008 |
@@ -62,6 +62,7 @@
 | [Chaos_Report_Template.md](./Chaos_Report_Template.md) | 카오스 테스트 시나리오 문서화 | `01_Chaos_Engineering/` | 2.0.0 |
 | [ISSUE_TEMPLATE.md](./ISSUE_TEMPLATE.md) | 카오스 테스트 실패 이슈 생성 | GitHub Issues | 2.0.0 |
 | [PR_TEMPLATE.md](./PR_TEMPLATE.md) | Pull Request 작성 | GitHub PRs | 2.0.0 |
+| [GITHUB_SECRETS_SETUP_GUIDE.md](./GITHUB_SECRETS_SETUP_GUIDE.md) | GitHub Secrets 설정 가이드 | CI/CD 초기 설정 | 1.0.0 |
 
 ## 템플릿 추가 규칙
 
@@ -129,7 +130,7 @@ grep -A 30 "문서 무결성 체크리스트" docs/98_Templates/*.md | grep "통
 - **EV-TPL-002**: 헤더 "버전 2.0.0", "마지막 수정 2026-02-05"
 - **EV-TPL-003**: 섹션 "Terminology" - 10개 핵심 용어 정의
 - **EV-TPL-004**: 섹션 "사용 방법" - 복사/붙여넣기/수정 3단계
-- **EV-TPL-005**: 섹션 "템플릿 목록" - 3개 핵심 템플릿
+- **EV-TPL-005**: 섹션 "템플릿 목록" - 4개 핵심 템플릿
 - **EV-TPL-006**: 섹션 "템플릿 추가 규칙" - 7가지 규칙
 - **EV-TPL-007**: 섹션 "템플릿 목록" - 사용 위치 명시
 - **EV-TPL-008**: 각 템플릿 "Usage Examples" 섹션
@@ -142,7 +143,7 @@ grep -A 30 "문서 무결성 체크리스트" docs/98_Templates/*.md | grep "통
 - **EV-TPL-015**: 각 템플릿 "템플릿 버전 2.0.0"
 - **EV-TPL-016**: Markdown 표/헤더/리스트 가독성
 - **EV-TPL-017**: 섹션 "템플릿 목록" 상대 경로
-- **EV-TPL-018**: ISSUE_TEMPLATE.md 제공
+- **EV-TPL-018**: ISSUE_TEMPLATE.md, GITHUB_SECRETS_SETUP_GUIDE.md 제공
 - **EV-TPL-019**: 헤더 "마지막 수정 2026-02-05"
 - **EV-TPL-020**: 모든 템플릿 동일한 체크리스트 구조
 - **EV-TPL-021**: 영어 용어 + 한글 설명 혼용
@@ -150,7 +151,7 @@ grep -A 30 "문서 무결성 체크리스트" docs/98_Templates/*.md | grep "통
 - **EV-TPL-023**: Markdown 표 정렬
 - **EV-TPL-024**: 소규모 문서로 목차 생략 (선택)
 - **EV-TPL-025**: 섹션 "사용 방법" 3단계
-- **EV-TPL-026**: 섹션 "템플릿 목록" - 카오스/이슈/PR 커버
+- **EV-TPL-026**: 섹션 "템플릿 목록" - 카오스/이슈/PR/Secrets 커버
 - **EV-TPL-027**: ISSUE_TEMPLATE "🔴 Red + 🟣 Purple"
 - **EV-TPL-028**: Chaos_Report_Template "01_Chaos_Engineering/"
 - **EV-TPL-029**: 템플릿이 특정 상황에 너무 구체적이지 않음
@@ -166,6 +167,7 @@ grep -A 30 "문서 무결성 체크리스트" docs/98_Templates/*.md | grep "통
 | ISSUE_TEMPLATE | 30/30 (100%) | 7개 | 5개 |
 | PR_TEMPLATE | 30/31 (97%) | 7개 | 5개 |
 | README | 30/30 (100%) | 10개 | 5개 |
+| GITHUB_SECRETS_SETUP_GUIDE | 30/30 (100%) | 7개 | 5개 |
 
 ---
 
