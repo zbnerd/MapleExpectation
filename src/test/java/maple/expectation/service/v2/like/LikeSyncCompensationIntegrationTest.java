@@ -9,9 +9,9 @@ import maple.expectation.service.v2.LikeSyncExecutor;
 import maple.expectation.service.v2.LikeSyncService;
 import maple.expectation.service.v2.cache.LikeBufferStorage;
 import maple.expectation.support.IntegrationTestSupport;
+import maple.expectation.support.TestAwaitilityHelper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -28,15 +28,16 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
  *   <li>보상 트랜잭션 멱등성 검증
  * </ul>
  *
- * <p><strong>⚠️ Flaky Tests (Redis Key Deletion Issue)</strong>
+ * <h4>ADR-020: Issue #330 Flaky Test Fix</h4>
  *
- * <p>일부 테스트에서 syncRedisToDatabase() 호출 후 원본 키가 삭제되지 않는 문제가 있습니다. fetchAndMove()의 Lua Script RENAME
- * 동작이 예상대로 작동하지 않는 것으로 보입니다.
+ * <ul>
+ *   <li>Awaitility 사용으로 Thread.sleep 안티패턴 제거
+ *   <li>임시 키 삭제 확인을 위한 동적 대기
+ * </ul>
  *
  * @since 2.0.0
  */
 @DisplayName("LikeSync 보상 트랜잭션 통합 테스트")
-@Tag("flaky")
 class LikeSyncCompensationIntegrationTest extends IntegrationTestSupport {
 
   private static final String SOURCE_KEY = "{buffer:likes}";
@@ -111,7 +112,6 @@ class LikeSyncCompensationIntegrationTest extends IntegrationTestSupport {
   }
 
   @Test
-  @Tag("flaky")
   @DisplayName("동기화 성공 시 임시 키 삭제 확인")
   void syncSuccess_TempKeyDeleted() {
     // [Given] L2에 데이터 적재
@@ -122,16 +122,15 @@ class LikeSyncCompensationIntegrationTest extends IntegrationTestSupport {
     // [When] 동기화 실행 (성공)
     likeSyncService.syncRedisToDatabase();
 
-    // [Then] 원본 키에 데이터 없음 (동기화 완료)
-    assertThat(redisTemplate.hasKey(SOURCE_KEY)).as("동기화 성공 후 원본 키는 비어있어야 함").isFalse();
+    // [Then] Awaitility로 원본 키 삭제 대기 (ADR-020: Issue #330)
+    TestAwaitilityHelper.await().untilRedisKeyAbsent(redisTemplate, SOURCE_KEY);
 
     // 임시 키도 삭제되어야 함 (패턴 검색)
-    var tempKeys = redisTemplate.keys("{buffer:likes}:sync:*");
-    assertThat(tempKeys).as("동기화 성공 후 임시 키는 삭제되어야 함").isEmpty();
+    TestAwaitilityHelper.await()
+        .untilRedisKeysPatternAbsent(redisTemplate, "{buffer:likes}:sync:*");
   }
 
   @Test
-  @Tag("flaky")
   @DisplayName("연속 실패 후 성공 시 정상 동작")
   void consecutiveFailuresThenSuccess_WorksCorrectly() {
     // [Given] L2에 데이터 적재
@@ -155,8 +154,12 @@ class LikeSyncCompensationIntegrationTest extends IntegrationTestSupport {
 
     likeSyncService.syncRedisToDatabase();
 
-    // [Then] 동기화 성공 후 데이터 없음
-    assertThat(redisTemplate.hasKey(SOURCE_KEY)).as("재시도 성공 후 원본 키는 비어있어야 함").isFalse();
+    // [Then] Awaitility로 원본 키 삭제 대기 (ADR-020: Issue #330)
+    TestAwaitilityHelper.await().untilRedisKeyAbsent(redisTemplate, SOURCE_KEY);
+
+    // 임시 키도 삭제되어야 함
+    TestAwaitilityHelper.await()
+        .untilRedisKeysPatternAbsent(redisTemplate, "{buffer:likes}:sync:*");
   }
 
   @Test
