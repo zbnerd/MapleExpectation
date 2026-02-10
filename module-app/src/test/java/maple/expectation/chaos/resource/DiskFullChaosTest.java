@@ -195,21 +195,22 @@ class DiskFullChaosTest extends AbstractContainerBaseTest {
 
     TaskContext context = TaskContext.of("Chaos", "Disk_Full_Exception_Test");
 
-    // When: 디스크 쓰기 시도
-    // LogicExecutor executeWithTranslation을 사용하여 IOException을 처리
-    String result =
-        logicExecutor.executeWithTranslation(
-            () -> {
-              throw new IOException("No space left on device");
-            },
-            (e, ctx) -> {
-              // IOException을 ServerBaseException으로 변환
-              throw new RuntimeException("디스크 용량 부족", e);
-            },
-            context);
+    // When & Then: executeWithTranslation으로 예외 변환 검증
+    // 첫 번째 테스트: IOException이 RuntimeException으로 변환되는지 확인
+    org.junit.jupiter.api.Assertions.assertThrows(
+        RuntimeException.class,
+        () ->
+            logicExecutor.executeWithTranslation(
+                () -> {
+                  throw new IOException("No space left on device");
+                },
+                (e, ctx) -> {
+                  // IOException을 RuntimeException으로 변환
+                  throw new RuntimeException("디스크 용량 부족", e);
+                },
+                context));
 
-    // Then: 예외가 발생하더라도 시스템은 종료되지 않음
-    // 실제로는 예외가 발생하므로 executeOrDefault 패턴 사용
+    // 두 번째 테스트: executeOrDefault로 Fallback 값 반환 검증
     String fallbackResult =
         logicExecutor.executeOrDefault(
             () -> {

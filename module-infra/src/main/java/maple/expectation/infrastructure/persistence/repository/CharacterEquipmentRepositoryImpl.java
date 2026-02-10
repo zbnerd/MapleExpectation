@@ -1,8 +1,8 @@
 package maple.expectation.infrastructure.persistence.repository;
 
 import java.util.Optional;
-import maple.expectation.domain.model.equipment.CharacterEquipment;
 import maple.expectation.domain.model.character.CharacterId;
+import maple.expectation.domain.model.equipment.CharacterEquipment;
 import maple.expectation.infrastructure.persistence.CharacterEquipmentJpaRepository;
 import maple.expectation.infrastructure.persistence.entity.CharacterEquipmentJpaEntity;
 import maple.expectation.infrastructure.persistence.mapper.CharacterEquipmentMapper;

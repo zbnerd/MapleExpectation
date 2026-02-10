@@ -9,4 +9,8 @@ public class CompressionException extends ServerBaseException
   public CompressionException(String detail) {
     super(CommonErrorCode.DATA_PROCESSING_ERROR, "압축 에러: " + detail);
   }
+
+  public CompressionException(String detail, Throwable cause) {
+    super(CommonErrorCode.DATA_PROCESSING_ERROR, "압축 에러: " + detail, cause);
+  }
 }

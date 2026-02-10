@@ -11,16 +11,33 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 
 /**
  * AI SRE Service Integration Test
  *
  * <p>실제 디스코드 웹훅과 Z.ai API를 사용하는 통합 테스트
+ *
+ * <p><b>실행 전제조건:</b>
+ * <ul>
+ *   <li>MySQL Docker 컨테이너 실행 중: {@code docker-compose up -d}
+ *   <li>환경변수 설정: DB_SCHEMA_NAME, DB_ROOT_PASSWORD
+ *   <li>선택사항: DISCORD_WEBHOOK_URL (디스코드 알림 전송용)
+ * </ul>
+ *
+ * <p><b>실행 방법:</b>
+ * <pre>
+ * ./gradlew test --tests "*AiSreService*" --tags "integration"
+ * </pre>
  */
 @Slf4j
 @Tag("integration")
-@SpringBootTest(classes = ExpectationApplication.class)
-@ActiveProfiles("local")
+@SpringBootTest(
+    classes = ExpectationApplication.class,
+    properties = {
+        "spring.batch.job.enabled=false"
+    })
+@ActiveProfiles("test")
 public class AiSreServiceIntegrationTest {
 
   @Autowired(required = false)

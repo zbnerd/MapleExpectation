@@ -13,16 +13,18 @@ import org.junit.jupiter.api.Test;
  *
  * <p>These tests verify that the codebase follows the hexagonal architecture pattern.
  *
- * <p><b>Note:</b> During ADR-017 migration, these rules only apply to the Equipment slice. Other slices
- * (Character, Calculator, etc.) still use the old structure and are excluded from these rules.
+ * <p><b>Note:</b> During ADR-017 migration, these rules only apply to the Equipment slice. Other
+ * slices (Character, Calculator, etc.) still use the old structure and are excluded from these
+ * rules.
  */
 @DisplayName("Clean Architecture Rules (ADR-017 Equipment Slice)")
 public class CleanArchitectureTest {
 
-  private final JavaClasses classes = new com.tngtech.archunit.core.importer.ClassFileImporter()
-      .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
-      .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_JARS)
-      .importPackages("maple.expectation");
+  private final JavaClasses classes =
+      new com.tngtech.archunit.core.importer.ClassFileImporter()
+          .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
+          .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_JARS)
+          .importPackages("maple.expectation");
 
   @Test
   @DisplayName("[Equipment Slice] Domain model should not depend on infrastructure")
