@@ -9,8 +9,7 @@ import java.util.zip.GZIPOutputStream;
 
 public class GzipUtils {
 
-  private GzipUtils() {
-  }
+  private GzipUtils() {}
 
   /**
    * 문자열을 GZIP 압축합니다.

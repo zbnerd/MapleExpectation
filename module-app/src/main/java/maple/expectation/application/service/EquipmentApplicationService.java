@@ -2,8 +2,8 @@ package maple.expectation.application.service;
 
 import java.time.Duration;
 import java.util.Optional;
-import maple.expectation.domain.model.equipment.CharacterEquipment;
 import maple.expectation.domain.model.character.CharacterId;
+import maple.expectation.domain.model.equipment.CharacterEquipment;
 import maple.expectation.domain.model.equipment.EquipmentData;
 import maple.expectation.domain.repository.CharacterEquipmentRepository;
 import org.springframework.stereotype.Service;
@@ -13,7 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
  * Application Service for CharacterEquipment domain operations.
  *
  * <p>This service orchestrates business operations and manages transaction boundaries. It acts as
- * the use-case layer in Clean Architecture, coordinating between the domain layer and infrastructure.
+ * the use-case layer in Clean Architecture, coordinating between the domain layer and
+ * infrastructure.
  *
  * <h3>Responsibilities</h3>
  *

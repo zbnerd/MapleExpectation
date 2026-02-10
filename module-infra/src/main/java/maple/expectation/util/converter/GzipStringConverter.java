@@ -2,10 +2,9 @@ package maple.expectation.util.converter;
 
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
+import java.io.IOException;
 import maple.expectation.global.error.exception.CompressionException;
 import maple.expectation.util.GzipUtils;
-
-import java.io.IOException;
 
 @Converter
 public class GzipStringConverter implements AttributeConverter<String, byte[]> {

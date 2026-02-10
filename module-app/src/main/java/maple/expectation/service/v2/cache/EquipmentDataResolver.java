@@ -2,6 +2,7 @@ package maple.expectation.service.v2.cache;
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -165,16 +166,20 @@ public class EquipmentDataResolver {
             compressedData -> {
               // DB 저장용 decompress (GzipStringConverter가 저장 시 다시 compress)
               // fire-and-forget: 비동기 + non-blocking
-              String json = GzipUtils.decompress(compressedData);
-              dbWorker
-                  .persistRawJson(ocid, json)
-                  .exceptionally(
-                      ex -> {
-                        log.warn(
-                            "[DataResolver] DB save failed (non-blocking): {}", ex.getMessage());
-                        dbSaveFailCounter.increment();
-                        return null;
-                      });
+              try {
+                String json = GzipUtils.decompress(compressedData);
+                dbWorker
+                    .persistRawJson(ocid, json)
+                    .exceptionally(
+                        ex -> {
+                          log.warn(
+                              "[DataResolver] DB save failed (non-blocking): {}", ex.getMessage());
+                          dbSaveFailCounter.increment();
+                          return null;
+                        });
+              } catch (IOException e) {
+                log.warn("[DataResolver] Decompress failed (non-blocking): {}", e.getMessage());
+              }
 
               // Parser에게는 압축 상태로 전달 (스트리밍 의도 유지)
               // EquipmentStreamingParser가 GZIPInputStream으로 스트리밍 해제

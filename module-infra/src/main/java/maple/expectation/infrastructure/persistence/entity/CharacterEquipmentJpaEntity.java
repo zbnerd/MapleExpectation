@@ -15,16 +15,15 @@ import maple.expectation.util.converter.GzipStringConverter;
  * should only be used by repository implementations.
  *
  * <p><b>Important:</b> Business logic has been moved to {@link
- * maple.expectation.domain.model.equipment.CharacterEquipment}. This entity is purely for
- * database mapping.
+ * maple.expectation.domain.model.equipment.CharacterEquipment}. This entity is purely for database
+ * mapping.
  *
  * @see maple.expectation.domain.model.equipment.CharacterEquipment
  */
 @Entity
 @Table(
     name = "character_equipment",
-    indexes =
-        @Index(name = "idx_character_equipment_updated_at", columnList = "updated_at"))
+    indexes = @Index(name = "idx_character_equipment_updated_at", columnList = "updated_at"))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class CharacterEquipmentJpaEntity {
@@ -57,8 +56,8 @@ public class CharacterEquipmentJpaEntity {
   /**
    * Updates the equipment data and timestamp.
    *
-   * <p><b>Note:</b> This method exists for JPA/Hibernate usage. Domain-level updates should use
-   * the domain entity's {@link maple.expectation.domain.model.equipment.CharacterEquipment#updateData
+   * <p><b>Note:</b> This method exists for JPA/Hibernate usage. Domain-level updates should use the
+   * domain entity's {@link maple.expectation.domain.model.equipment.CharacterEquipment#updateData
    * updateData()} method.
    *
    * @param newJsonContent the new JSON content

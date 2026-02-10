@@ -60,8 +60,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 class CharacterEquipmentCharacterizationTest extends IntegrationTestSupport {
 
-  @Autowired
-  private maple.expectation.repository.v2.CharacterEquipmentRepository repository;
+  @Autowired private maple.expectation.repository.v2.CharacterEquipmentRepository repository;
 
   /** Test data constants */
   private static final String TEST_OCID = "test-character-ocid-12345";

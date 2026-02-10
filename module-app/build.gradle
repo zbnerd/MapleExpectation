@@ -51,6 +51,27 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-cache'
 	implementation 'com.github.ben-manes.caffeine:caffeine'
 
+	// Spring Data JPA
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	runtimeOnly 'com.mysql:mysql-connector-j'
+	runtimeOnly 'com.h2database:h2'
+
+	// Redisson (Redis)
+	implementation 'org.redisson:redisson-spring-boot-starter:3.48.0'
+
+	// Resilience4j
+	implementation 'io.github.resilience4j:resilience4j-spring-boot3'
+
+	// Guava
+	implementation 'com.google.guava:guava:33.5.0-jre'
+
+	// Bucket4j
+	implementation 'com.bucket4j:bucket4j_jdk17-core:8.14.0'
+	implementation 'com.bucket4j:bucket4j_jdk17-redisson:8.14.0'
+
+	// Jackson CSV
+	implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-csv'
+
 	// Env
 	implementation 'me.paulschwarz:spring-dotenv:4.0.0'
 

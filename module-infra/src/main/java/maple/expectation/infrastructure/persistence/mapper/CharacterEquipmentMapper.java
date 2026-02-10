@@ -1,6 +1,5 @@
 package maple.expectation.infrastructure.persistence.mapper;
 
-import java.time.LocalDateTime;
 import maple.expectation.domain.model.character.CharacterId;
 import maple.expectation.domain.model.equipment.CharacterEquipment;
 import maple.expectation.domain.model.equipment.EquipmentData;
