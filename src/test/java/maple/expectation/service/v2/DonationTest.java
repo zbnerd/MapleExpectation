@@ -25,6 +25,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
 
 /**
  * DonationService 통합 테스트
@@ -46,6 +47,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 @Slf4j
 @EnableTimeLogging
 @Execution(ExecutionMode.SAME_THREAD)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
+@Tag("concurrency")
 public class DonationTest extends IntegrationTestSupport {
 
   @Autowired DonationService donationService;

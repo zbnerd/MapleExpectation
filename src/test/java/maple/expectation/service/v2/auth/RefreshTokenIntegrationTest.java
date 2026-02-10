@@ -19,16 +19,21 @@ import maple.expectation.global.error.exception.auth.RefreshTokenExpiredExceptio
 import maple.expectation.global.error.exception.auth.TokenReusedException;
 import maple.expectation.global.security.jwt.JwtTokenProvider;
 import maple.expectation.support.IntegrationTestSupport;
+import maple.expectation.support.TestAwaitilityHelper;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 /**
- * Refresh Token 통합 테스트 (Issue #279)
+ * Refresh Token 통합 테스트 (Issue #279, #329)
  *
  * <p>Testcontainers를 사용하여 실제 Redis 환경에서 검증합니다.
  *
@@ -48,15 +53,13 @@ import org.springframework.data.redis.core.StringRedisTemplate;
  *   <li>ExecutorService shutdown + awaitTermination 필수
  *   <li>CountDownLatch 타임아웃 설정
  *   <li>테스트 간 상태 격리 (Redis flush)
+ *   <li>Awaitility 사용 (Thread.sleep 안티패턴 제거 - Issue #329)
  * </ul>
- *
- * <p><strong>⚠️ Flaky Tests (Redis Timing Issue)</strong>
- *
- * <p>여러 테스트에서 Thread.sleep()으로 Redis 저장 대기 중이나, 이는 안티패턴입니다. 추후 Awaitility 또는 Redis Pub/Sub 기반의 동기화
- * 메커니즘으로 리팩토링 필요합니다.
  */
 @DisplayName("Refresh Token 통합 테스트")
-@Tag("flaky")
+@Tag("integration")
+@Tag("concurrency")
+@Execution(ExecutionMode.SAME_THREAD)
 class RefreshTokenIntegrationTest extends IntegrationTestSupport {
 
   private static final String FINGERPRINT = "test-fingerprint";
@@ -69,11 +72,31 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
   @Autowired private JwtTokenProvider jwtTokenProvider;
   @Autowired private RedisRefreshTokenRepository refreshTokenRepository;
   @Autowired private StringRedisTemplate redisTemplate;
+  @Autowired private RedissonClient redissonClient;
 
   @BeforeEach
   void setUp() {
-    // 테스트 전 Redis 데이터 초기화
+    // 테스트 전 Redis 데이터 초기화 (Issue #329: RedissonClient 사용으로 일관성 보장)
+    flushAllDatabases();
+  }
+
+  @AfterEach
+  void tearDown() {
+    // 테스트 후 Redis 데이터 정리 (이중 정리 보장)
+    flushAllDatabases();
+  }
+
+  /**
+   * 모든 Redis 데이터베이스 플러시 (Issue #329)
+   *
+   * <p>StringRedisTemplate와 RedissonClient는 서로 다른 커넥션 풀을 사용하므로, 양쪽 모두에서 플러시를 실행하여 데이터 일관성을 보장합니다.
+   */
+  private void flushAllDatabases() {
+    // 1. StringRedisTemplate로 플러시
     redisTemplate.getConnectionFactory().getConnection().serverCommands().flushAll();
+
+    // 2. RedissonClient로도 플러시 (동일한 Redis 서버지만 다른 커넥션)
+    redissonClient.getKeys().flushall();
   }
 
   @Nested
@@ -82,7 +105,7 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
 
     @Test
     @DisplayName("로그인 → Refresh → 새 Access Token + Refresh Token 발급")
-    void shouldRefreshTokensSuccessfully() throws InterruptedException {
+    void shouldRefreshTokensSuccessfully() {
       // [Given] 세션 생성 + Refresh Token 발급 (로그인 시뮬레이션)
       Session session =
           sessionService.createSession(
@@ -94,7 +117,10 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
               Session.ROLE_USER);
       RefreshToken originalToken =
           refreshTokenService.createRefreshToken(session.sessionId(), FINGERPRINT);
-      Thread.sleep(200); // Redis 저장 대기
+
+      // ✅ Awaitility로 Redis 저장 대기 (Issue #329: Thread.sleep 안티패턴 제거)
+      TestAwaitilityHelper.await()
+          .untilRedisKeyPresent(refreshTokenRepository, originalToken.refreshTokenId());
 
       // 원본 토큰 정보 저장
       String originalTokenId = originalToken.refreshTokenId();
@@ -122,7 +148,7 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
 
     @Test
     @DisplayName("연속 Refresh 3회 - 매번 새 토큰 발급")
-    void shouldRotateTokensMultipleTimes() throws InterruptedException {
+    void shouldRotateTokensMultipleTimes() {
       // [Given]
       Session session =
           sessionService.createSession(
@@ -135,13 +161,24 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
       RefreshToken token1 =
           refreshTokenService.createRefreshToken(session.sessionId(), FINGERPRINT);
       String familyId = token1.familyId();
-      Thread.sleep(200); // Redis 저장 대기
+
+      // ✅ Awaitility로 token1 저장 대기
+      TestAwaitilityHelper.await()
+          .untilRedisKeyPresent(refreshTokenRepository, token1.refreshTokenId());
 
       // [When] 3회 연속 Rotation
       RefreshToken token2 = refreshTokenService.rotateRefreshToken(token1.refreshTokenId());
-      Thread.sleep(200); // Redis 저장 대기
+
+      // ✅ Awaitility로 token2 저장 대기
+      TestAwaitilityHelper.await()
+          .untilRedisKeyPresent(refreshTokenRepository, token2.refreshTokenId());
+
       RefreshToken token3 = refreshTokenService.rotateRefreshToken(token2.refreshTokenId());
-      Thread.sleep(200); // Redis 저장 대기
+
+      // ✅ Awaitility로 token3 저장 대기
+      TestAwaitilityHelper.await()
+          .untilRedisKeyPresent(refreshTokenRepository, token3.refreshTokenId());
+
       RefreshToken token4 = refreshTokenService.rotateRefreshToken(token3.refreshTokenId());
 
       // [Then] 모든 토큰이 다르고, Family는 동일
@@ -163,7 +200,7 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
 
     @Test
     @DisplayName("동일 Refresh Token 2회 사용 시 Family 전체 무효화")
-    void shouldInvalidateFamilyOnTokenReuse() throws InterruptedException {
+    void shouldInvalidateFamilyOnTokenReuse() {
       // [Given] 세션 + Refresh Token 생성
       Session session =
           sessionService.createSession(
@@ -177,7 +214,9 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
           refreshTokenService.createRefreshToken(session.sessionId(), FINGERPRINT);
       String originalTokenId = token1.refreshTokenId();
       String familyId = token1.familyId();
-      Thread.sleep(200); // Redis 저장 대기
+
+      // ✅ Awaitility로 Redis 저장 대기
+      TestAwaitilityHelper.await().untilRedisKeyPresent(refreshTokenRepository, originalTokenId);
 
       // [When] 첫 번째 사용 - 정상
       RefreshToken token2 = refreshTokenService.rotateRefreshToken(originalTokenId);
@@ -195,7 +234,7 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
 
     @Test
     @DisplayName("탈취 감지 후 정상 사용자도 재로그인 필요")
-    void shouldForceReloginAfterTheftDetection() throws InterruptedException {
+    void shouldForceReloginAfterTheftDetection() {
       // [Given] 사용자 A가 로그인
       Session session =
           sessionService.createSession(
@@ -207,15 +246,16 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
               Session.ROLE_USER);
       RefreshToken originalToken =
           refreshTokenService.createRefreshToken(session.sessionId(), FINGERPRINT);
-      Thread.sleep(200); // Redis 저장 대기
+      String originalTokenId = originalToken.refreshTokenId();
+
+      // ✅ Awaitility로 Redis 저장 대기
+      TestAwaitilityHelper.await().untilRedisKeyPresent(refreshTokenRepository, originalTokenId);
 
       // [When] 정상 사용자가 Refresh → 공격자가 탈취된 토큰 사용
-      RefreshToken newToken =
-          refreshTokenService.rotateRefreshToken(originalToken.refreshTokenId());
+      RefreshToken newToken = refreshTokenService.rotateRefreshToken(originalTokenId);
 
       // 공격자가 탈취된 토큰 사용 시도 → Family 무효화
-      assertThatThrownBy(
-              () -> refreshTokenService.rotateRefreshToken(originalToken.refreshTokenId()))
+      assertThatThrownBy(() -> refreshTokenService.rotateRefreshToken(originalTokenId))
           .isInstanceOf(TokenReusedException.class);
 
       // [Then] 정상 사용자의 새 토큰도 무효화됨
@@ -242,6 +282,10 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
               Session.ROLE_USER);
       RefreshToken token = refreshTokenService.createRefreshToken(session.sessionId(), FINGERPRINT);
 
+      // ✅ Awaitility로 Redis 저장 대기
+      TestAwaitilityHelper.await()
+          .untilRedisKeyPresent(refreshTokenRepository, token.refreshTokenId());
+
       // 세션 삭제 (만료 시뮬레이션)
       sessionService.deleteSession(session.sessionId());
 
@@ -263,7 +307,7 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
 
     @Test
     @DisplayName("만료된 Refresh Token 사용 시 RefreshTokenExpiredException")
-    void shouldThrowWhenTokenExpired() throws InterruptedException {
+    void shouldThrowWhenTokenExpired() {
       // [Given] 세션 생성
       Session session =
           sessionService.createSession(
@@ -275,23 +319,26 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
               Session.ROLE_USER);
 
       // 만료된 토큰 직접 생성 (Repository에 직접 저장)
+      String expiredTokenId = "expired-token-id";
       RefreshToken expiredToken =
           new RefreshToken(
-              "expired-token-id",
+              expiredTokenId,
               session.sessionId(),
               FINGERPRINT,
               "expired-family-id",
               Instant.now().minusSeconds(1), // 이미 만료됨
               false);
       refreshTokenRepository.save(expiredToken);
-      Thread.sleep(200); // Redis 저장 대기
+
+      // ✅ Awaitility로 Redis 저장 대기
+      TestAwaitilityHelper.await().untilRedisKeyPresent(refreshTokenRepository, expiredTokenId);
 
       // [When & Then]
-      assertThatThrownBy(() -> refreshTokenService.rotateRefreshToken("expired-token-id"))
+      assertThatThrownBy(() -> refreshTokenService.rotateRefreshToken(expiredTokenId))
           .isInstanceOf(RefreshTokenExpiredException.class);
 
       // 만료 토큰은 삭제됨
-      assertThat(refreshTokenRepository.findById("expired-token-id")).isEmpty();
+      assertThat(refreshTokenRepository.findById(expiredTokenId)).isEmpty();
     }
   }
 
@@ -313,7 +360,9 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
               Session.ROLE_USER);
       RefreshToken token = refreshTokenService.createRefreshToken(session.sessionId(), FINGERPRINT);
       String tokenId = token.refreshTokenId();
-      Thread.sleep(200); // Redis 저장 대기
+
+      // ✅ Awaitility로 Redis 저장 대기
+      TestAwaitilityHelper.await().untilRedisKeyPresent(refreshTokenRepository, tokenId);
 
       // [When] 동시에 5개 Refresh 요청
       int concurrentRequests = 5;
@@ -376,7 +425,7 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
 
     @Test
     @DisplayName("로그아웃 시 해당 세션의 모든 Refresh Token 삭제")
-    void shouldDeleteAllTokensOnLogout() throws InterruptedException {
+    void shouldDeleteAllTokensOnLogout() {
       // [Given] 세션 생성 + 여러 Refresh Token 발급 (연속 Rotation)
       Session session =
           sessionService.createSession(
@@ -388,10 +437,22 @@ class RefreshTokenIntegrationTest extends IntegrationTestSupport {
               Session.ROLE_USER);
       RefreshToken token1 =
           refreshTokenService.createRefreshToken(session.sessionId(), FINGERPRINT);
-      Thread.sleep(200); // Redis 저장 대기
+
+      // ✅ Awaitility로 token1 저장 대기
+      TestAwaitilityHelper.await()
+          .untilRedisKeyPresent(refreshTokenRepository, token1.refreshTokenId());
+
       RefreshToken token2 = refreshTokenService.rotateRefreshToken(token1.refreshTokenId());
-      Thread.sleep(200); // Redis 저장 대기
+
+      // ✅ Awaitility로 token2 저장 대기
+      TestAwaitilityHelper.await()
+          .untilRedisKeyPresent(refreshTokenRepository, token2.refreshTokenId());
+
       RefreshToken token3 = refreshTokenService.rotateRefreshToken(token2.refreshTokenId());
+
+      // ✅ Awaitility로 token3 저장 대기
+      TestAwaitilityHelper.await()
+          .untilRedisKeyPresent(refreshTokenRepository, token3.refreshTokenId());
 
       // [When] 로그아웃 (세션의 모든 Refresh Token 삭제)
       refreshTokenService.deleteBySessionId(session.sessionId());

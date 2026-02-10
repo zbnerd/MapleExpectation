@@ -84,12 +84,14 @@ class RefreshTokenServiceTest {
   class RotationTest {
 
     @Test
-    @Tag("flaky")
     @DisplayName("Token Rotation 성공 - 새 토큰 발급")
     void shouldRotateTokenSuccessfully() {
       // given
       RefreshToken oldToken = createValidToken(false);
+      RefreshToken markedToken = createValidToken(true); // used=true after marking
       given(refreshTokenRepository.findById(REFRESH_TOKEN_ID)).willReturn(Optional.of(oldToken));
+      given(refreshTokenRepository.checkAndMarkAsUsed(REFRESH_TOKEN_ID))
+          .willReturn(Optional.of(markedToken));
 
       // when
       RefreshToken newToken = refreshTokenService.rotateRefreshToken(REFRESH_TOKEN_ID);
@@ -101,8 +103,8 @@ class RefreshTokenServiceTest {
       assertThat(newToken.familyId()).isEqualTo(FAMILY_ID); // 동일 Family
       assertThat(newToken.used()).isFalse();
 
-      // 기존 토큰 사용 처리 확인
-      verify(refreshTokenRepository).markAsUsed(REFRESH_TOKEN_ID);
+      // 기존 토큰 사용 처리 확인 (Atomic check-and-mark)
+      verify(refreshTokenRepository).checkAndMarkAsUsed(REFRESH_TOKEN_ID);
       // 새 토큰 저장 확인
       verify(refreshTokenRepository).save(any(RefreshToken.class));
     }

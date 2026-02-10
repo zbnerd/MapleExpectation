@@ -59,6 +59,7 @@ public record RefreshToken(
    *
    * @return 만료되었으면 true
    */
+  @com.fasterxml.jackson.annotation.JsonIgnore
   public boolean isExpired() {
     return Instant.now().isAfter(expiresAt);
   }
