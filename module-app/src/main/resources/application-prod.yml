@@ -71,3 +71,10 @@ scheduler:
     enabled: true           # 자동 웜업 활성화
     top-count: 100          # 상위 100개 캐릭터 웜업
     delay-between-ms: 50    # 프로덕션에서는 더 빠르게
+
+# SpringDoc OpenAPI (Swagger UI) - 프로덕션에서 비활성화
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

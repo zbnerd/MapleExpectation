@@ -80,8 +80,8 @@ class MySQLDeathChaosTest {
         // 1) MySQL 설정
         MYSQL = new MySQLContainer<>(DockerImageName.parse("mysql:8.0"))
                 .withDatabaseName("maple_expectation")
-                .withUsername("root")
-                .withPassword("1234")
+                .withUsername("chaos_root_admin")
+                .withPassword("H7$kX9pQ3vM6nR2tY8#wB4fD8gJ")
                 .withNetwork(NETWORK)
                 .withNetworkAliases("mysql-server")
                 .waitingFor(Wait.forLogMessage(".*ready for connections.*\\s", 2))

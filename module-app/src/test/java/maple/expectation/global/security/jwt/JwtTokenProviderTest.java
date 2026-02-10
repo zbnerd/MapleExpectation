@@ -265,6 +265,75 @@ class JwtTokenProviderTest {
 
       assertThat(devProvider.getExpirationSeconds()).isEqualTo(EXPIRATION_SECONDS);
     }
+
+    @Test
+    @DisplayName("환경변수 placeholder 포함 시 예외 발생 (Issue #19)")
+    void whenSecretContainsPlaceholder_shouldThrowException() {
+      // given - 환경변수가 설정되지 않아 placeholder가 그대로 남은 경우
+      String placeholderSecret = "${JWT_SECRET}";
+
+      // when & then
+      assertThatThrownBy(
+              () -> {
+                JwtTokenProvider placeholderProvider =
+                    new JwtTokenProvider(placeholderSecret, EXPIRATION_SECONDS, environment, executor);
+                placeholderProvider.init();
+              })
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessageContaining("environment variable is not set")
+          .hasMessageContaining("placeholder");
+    }
+
+    @Test
+    @DisplayName("빈 secret 값 시 예외 발생 (Issue #19)")
+    void whenSecretIsEmpty_shouldThrowException() {
+      // given
+      String emptySecret = "";
+
+      // when & then
+      assertThatThrownBy(
+              () -> {
+                JwtTokenProvider emptyProvider =
+                    new JwtTokenProvider(emptySecret, EXPIRATION_SECONDS, environment, executor);
+                emptyProvider.init();
+              })
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessageContaining("not be null or blank");
+    }
+
+    @Test
+    @DisplayName("null secret 값 시 예외 발생 (Issue #19)")
+    void whenSecretIsNull_shouldThrowException() {
+      // given
+      String nullSecret = null;
+
+      // when & then
+      assertThatThrownBy(
+              () -> {
+                JwtTokenProvider nullProvider =
+                    new JwtTokenProvider(nullSecret, EXPIRATION_SECONDS, environment, executor);
+                nullProvider.init();
+              })
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessageContaining("not be null or blank");
+    }
+
+    @Test
+    @DisplayName("공백만 있는 secret 값 시 예외 발생 (Issue #19)")
+    void whenSecretIsBlank_shouldThrowException() {
+      // given
+      String blankSecret = "   ";
+
+      // when & then
+      assertThatThrownBy(
+              () -> {
+                JwtTokenProvider blankProvider =
+                    new JwtTokenProvider(blankSecret, EXPIRATION_SECONDS, environment, executor);
+                blankProvider.init();
+              })
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessageContaining("not be null or blank");
+    }
   }
 
   @Nested

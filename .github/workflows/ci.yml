@@ -195,12 +195,12 @@ jobs:
         ports:
           - 3306:3306
         env:
-          MYSQL_ROOT_PASSWORD: testpassword
-          MYSQL_DATABASE: maple_test
-          MYSQL_USER: testuser
-          MYSQL_PASSWORD: testpassword
+          MYSQL_ROOT_PASSWORD: ${{ secrets.CI_MYSQL_ROOT_PASSWORD }}
+          MYSQL_DATABASE: ${{ secrets.CI_MYSQL_DATABASE }}
+          MYSQL_USER: ${{ secrets.CI_MYSQL_USER }}
+          MYSQL_PASSWORD: ${{ secrets.CI_MYSQL_PASSWORD }}
         options: >-
-          --health-cmd "mysqladmin ping -h 127.0.0.1 -u root -ptestpassword"
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -u root -p${{ secrets.CI_MYSQL_ROOT_PASSWORD }}"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 10
@@ -275,12 +275,12 @@ jobs:
           exit 1
         env:
           SPRING_PROFILES_ACTIVE: ci
-          NEXON_API_KEY: dummy-ci-key
-          JWT_SECRET: ci-test-secret-key-for-jwt-token-generation-32chars
-          FINGERPRINT_SECRET: ci-test-fingerprint-secret-key-32chars
-          DB_SCHEMA_NAME: maple_test
-          DB_ROOT_PASSWORD: testpassword
-          DISCORD_WEBHOOK_URL: https://discord.com/api/webhooks/dummy
+          NEXON_API_KEY: ${{ secrets.CI_NEXON_API_KEY }}
+          JWT_SECRET: ${{ secrets.CI_JWT_SECRET }}
+          FINGERPRINT_SECRET: ${{ secrets.CI_FINGERPRINT_SECRET }}
+          DB_SCHEMA_NAME: ${{ secrets.CI_MYSQL_DATABASE }}
+          DB_ROOT_PASSWORD: ${{ secrets.CI_MYSQL_ROOT_PASSWORD }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.CI_DISCORD_WEBHOOK_URL }}
 
       # ------------------------------------------------------------------
       # Step 7: Run Locust Smoke Test

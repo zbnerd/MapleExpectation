@@ -36,8 +36,12 @@ out/
 ### VS Code ###
 .vscode/
 
-# Docker
+# Docker & Secrets
 .env
+.env.local
+.env.*.local
+.env.production
+.env.staging
 mysql_data/
 /redis_data/
 /logs/

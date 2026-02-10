@@ -9,7 +9,7 @@
 # 사용법:
 #   docker-compose -f docker-compose.observability.yml up -d
 #
-# Grafana 접속: http://localhost:3000 (admin/admin 또는 GRAFANA_PASSWORD 환경변수)
+# Grafana 접속: http://localhost:3000 (GRAFANA_ADMIN_USER, GRAFANA_ADMIN_PASSWORD 환경변수 필수)
 # Loki API: http://localhost:3100
 # Prometheus: http://localhost:9090
 
@@ -149,9 +149,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      # P0-3 해결: 환경변수 외부화
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
       - GF_USERS_ALLOW_SIGN_UP=false
     volumes:
       - grafana_data:/var/lib/grafana

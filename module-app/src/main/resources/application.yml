@@ -56,6 +56,17 @@ management:
       enabled: true
     metrics:
       enabled: true
+    # Issue #22: 민감한 액추에이터 엔드포인트 비활성화
+    env:
+      enabled: false
+    shutdown:
+      enabled: false
+    heapdump:
+      enabled: false
+    threaddump:
+      enabled: false
+    beans:
+      enabled: false
   health:
     circuitbreakers:
       enabled: true
@@ -374,6 +385,16 @@ cors:
     - "http://localhost:3000"  # 기본값 (환경별 오버라이드 필수)
   allow-credentials: true
   max-age: 3600  # 1시간
+  validation:
+    enabled: true  # Issue #21: 런타임 오리진 검증 필터 활성화
+
+# Prometheus Security 설정 (Issue #20, #34)
+# Prometheus 메트릭 엔드포인트 다층 보안
+prometheus:
+  security:
+    enabled: true  # Prometheus Security 필터 활성화
+    trusted-proxies: "127.0.0.1,::1,localhost"  # 신뢰할 수 있는 프록시 IP (쉼표 구분)
+    internal-networks: "172.16.0.0/12,10.0.0.0/8,192.168.0.0/16"  # 내부 네트워크 CIDR
 
 # MySQL Resilience 설정 (Issue #218: Stateless 아키텍처)
 resilience:

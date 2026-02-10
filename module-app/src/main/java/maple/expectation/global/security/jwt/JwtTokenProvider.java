@@ -36,6 +36,9 @@ public class JwtTokenProvider {
   private static final String CLAIM_FINGERPRINT = "fgp";
   private static final String CLAIM_ROLE = "role";
   private static final String DEFAULT_SECRET_PREFIX = "dev-secret";
+  private static final String PLACEHOLDER_PATTERN = "${";
+
+  private static final int MIN_SECRET_LENGTH = 32;
 
   private final String secret;
   private final long expirationSeconds;
@@ -62,8 +65,34 @@ public class JwtTokenProvider {
     log.info("JWT TokenProvider initialized with expiration: {}s", expirationSeconds);
   }
 
-  /** 프로덕션 환경에서 기본 secret 사용 시 애플리케이션 시작을 거부합니다. */
+  /**
+   * JWT Secret Key 유효성 검증 (Issue #19)
+   *
+   * <p>모든 환경에서 fail-fast로 보안을 강화합니다:
+   *
+   * <ul>
+   *   <li>환경변수 미설정 감지 (placeholder 패턴)
+   *   <li>빈 값 감지
+   *   <li>프로덕션 환경에서 기본 개발용 secret 사용 거부
+   *   <li>HS256 알고리즘 최소 길이(32자) 검증
+   * </ul>
+   */
   private void validateSecretKeyForProduction() {
+    // 1. 환경변수 placeholder 감지 (모든 환경에서 fail-fast)
+    if (secret.contains(PLACEHOLDER_PATTERN)) {
+      throw new IllegalStateException(
+          "JWT_SECRET environment variable is not set. "
+              + "The secret contains an unresolved placeholder: "
+              + maskSecretForLogging(secret));
+    }
+
+    // 2. 빈 값 또는 null 감지 (모든 환경에서 fail-fast)
+    if (secret == null || secret.isBlank()) {
+      throw new IllegalStateException(
+          "JWT_SECRET must not be null or blank. Please set the JWT_SECRET environment variable.");
+    }
+
+    // 3. 프로덕션 환경에서 기본 개발용 secret 사용 거부
     boolean isProduction = Arrays.asList(environment.getActiveProfiles()).contains("prod");
     boolean isDefaultSecret = secret.startsWith(DEFAULT_SECRET_PREFIX);
 
@@ -73,10 +102,21 @@ public class JwtTokenProvider {
               + "Default development secret is not allowed in production.");
     }
 
-    if (secret.length() < 32) {
+    // 4. HS256 알고리즘 최소 길이 검증 (모든 환경)
+    if (secret.length() < MIN_SECRET_LENGTH) {
       throw new IllegalStateException(
-          "JWT secret must be at least 32 characters for HS256 algorithm");
+          String.format(
+              "JWT secret must be at least %d characters for HS256 algorithm (current: %d)",
+              MIN_SECRET_LENGTH, secret.length()));
     }
+  }
+
+  /** 비밀키 로그 출력 시 노출 방지를 위한 마스킹 */
+  private String maskSecretForLogging(String value) {
+    if (value == null || value.length() < 8) {
+      return "***";
+    }
+    return value.substring(0, 4) + "..." + value.substring(value.length() - 4);
   }
 
   /**

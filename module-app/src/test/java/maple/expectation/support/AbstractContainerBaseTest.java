@@ -26,8 +26,8 @@ public abstract class AbstractContainerBaseTest {
   protected static final MySQLContainer<?> MYSQL_CONTAINER =
       new MySQLContainer<>("mysql:8.0")
           .withDatabaseName("testdb")
-          .withUsername("test")
-          .withPassword("test")
+          .withUsername("tc_test_user_8xq2")
+          .withPassword("K9$mP2vL5xR8nQ3wT7#yC4fG6hJ")
           .withReuse(true);
 
   /** Shared Redis container for all tests. Uses testcontainers/Redis 7-alpine image. */

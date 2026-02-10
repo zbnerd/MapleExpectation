@@ -3,21 +3,25 @@ package maple.expectation.config;
 import java.util.Arrays;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.ratelimit.RateLimitingFacade;
+import maple.expectation.global.security.cors.CorsOriginValidator;
+import maple.expectation.global.security.cors.CorsValidationFilter;
 import maple.expectation.global.ratelimit.config.RateLimitProperties;
 import maple.expectation.global.ratelimit.filter.RateLimitingFilter;
 import maple.expectation.global.security.FingerprintGenerator;
 import maple.expectation.global.security.filter.JwtAuthenticationFilter;
+import maple.expectation.global.security.filter.PrometheusSecurityFilter;
 import maple.expectation.global.security.jwt.JwtTokenProvider;
 import maple.expectation.service.v2.auth.SessionService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -39,7 +43,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
  *   <li>STATELESS 세션 정책 (JWT 사용)
  *   <li>CSRF 비활성화 (REST API)
  *   <li>CORS 설정
- *   <li>보안 헤더 (X-Frame-Options, HSTS)
+ *   <li>보안 헤더 (X-Frame-Options, HSTS, CSP)
  *   <li>JWT 인증 필터
  * </ul>
  *
@@ -51,7 +55,9 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
  * </ul>
  *
  * <p>Issue #172: CORS 와일드카드 제거 - CorsProperties로 환경별 설정 분리
+ * Issue #21: CORS 오리진 검증 강화 - 시작 시 오리진 유효성 검증 및 감사 로그
  */
+@Slf4j
 @Configuration
 @EnableWebSecurity
 @EnableConfigurationProperties({CorsProperties.class, RateLimitProperties.class})
@@ -59,6 +65,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 public class SecurityConfig {
 
   private final CorsProperties corsProperties;
+  private final CorsOriginValidator corsOriginValidator;
+  private final LogicExecutor logicExecutor;
 
   /**
    * JWT 인증 필터 Bean 등록
@@ -122,11 +130,84 @@ public class SecurityConfig {
     return registration;
   }
 
+  /**
+   * CORS 검증 필터 Bean 등록 (Issue #21)
+   *
+   * <p>CRITICAL: @Component 대신 @Bean으로 등록하여 CGLIB 프록시 문제 방지
+   *
+   * <p>런타임에 Origin 헤더를 검증하여 허용되지 않은 오리진 요청을 차단합니다.
+   */
+  @Bean
+  @ConditionalOnProperty(
+      prefix = "cors.validation",
+      name = "enabled",
+      havingValue = "true",
+      matchIfMissing = true)
+  public CorsValidationFilter corsValidationFilter() {
+    return new CorsValidationFilter(
+        corsOriginValidator, logicExecutor, corsProperties.getAllowedOrigins());
+  }
+
+  /** CORS 검증 필터 서블릿 컨테이너 중복 등록 방지 (Issue #21) */
+  @Bean
+  @ConditionalOnProperty(
+      prefix = "cors.validation",
+      name = "enabled",
+      havingValue = "true",
+      matchIfMissing = true)
+  public FilterRegistrationBean<CorsValidationFilter> corsValidationFilterRegistration(
+      CorsValidationFilter filter) {
+    FilterRegistrationBean<CorsValidationFilter> registration =
+        new FilterRegistrationBean<>(filter);
+    registration.setEnabled(false);
+    return registration;
+  }
+
+  /**
+   * Prometheus Security 필터 Bean 등록 (Issue #20, #34)
+   *
+   * <p>CRITICAL: @Component 대신 @Bean으로 등록하여 CGLIB 프록시 문제 방지
+   *
+   * <p>보안 계층:
+   *
+   * <ul>
+   *   <li>Layer 1 (IP Whitelist): 신뢰할 수 있는 프록시/내부 네트워크만 허용
+   *   <li>Layer 2 (X-Forwarded-For Validation): 헤더 스푸핑 방지
+   *   <li>Layer 3 (Role-based Access): ADMIN 역할 필요
+   * </ul>
+   */
+  @Bean
+  @ConditionalOnProperty(
+      prefix = "prometheus.security",
+      name = "enabled",
+      havingValue = "true",
+      matchIfMissing = true)
+  public PrometheusSecurityFilter prometheusSecurityFilter(LogicExecutor logicExecutor) {
+    return new PrometheusSecurityFilter(logicExecutor);
+  }
+
+  /** Prometheus Security 필터 서블릿 컨테이너 중복 등록 방지 (Issue #20) */
+  @Bean
+  @ConditionalOnProperty(
+      prefix = "prometheus.security",
+      name = "enabled",
+      havingValue = "true",
+      matchIfMissing = true)
+  public FilterRegistrationBean<PrometheusSecurityFilter> prometheusSecurityFilterRegistration(
+      PrometheusSecurityFilter filter) {
+    FilterRegistrationBean<PrometheusSecurityFilter> registration =
+        new FilterRegistrationBean<>(filter);
+    registration.setEnabled(false);
+    return registration;
+  }
+
   @Bean
   public SecurityFilterChain filterChain(
       HttpSecurity http,
       JwtAuthenticationFilter jwtAuthenticationFilter,
-      Optional<RateLimitingFilter> rateLimitingFilter)
+      Optional<RateLimitingFilter> rateLimitingFilter,
+      Optional<CorsValidationFilter> corsValidationFilter,
+      Optional<PrometheusSecurityFilter> prometheusSecurityFilter)
       throws Exception {
     http
         // CSRF 비활성화 (REST API)
@@ -149,7 +230,20 @@ public class SecurityConfig {
                     .contentTypeOptions(Customizer.withDefaults())
                     // HSTS (HTTPS 강제)
                     .httpStrictTransportSecurity(
-                        hsts -> hsts.includeSubDomains(true).maxAgeInSeconds(31536000)))
+                        hsts -> hsts.includeSubDomains(true).maxAgeInSeconds(31536000))
+                    // CSP (Content Security Policy)
+                    .contentSecurityPolicy(
+                        csp ->
+                            csp.policyDirectives(
+                                "default-src 'self'; "
+                                    + "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
+                                    + "style-src 'self' 'unsafe-inline'; "
+                                    + "img-src 'self' data: https:; "
+                                    + "font-src 'self'; "
+                                    + "connect-src 'self'; "
+                                    + "frame-ancestors 'none'; "
+                                    + "form-action 'self'; "
+                                    + "base-uri 'self';")))
 
         // 요청 권한 설정
         // IMPORTANT: 더 구체적인 규칙이 먼저 와야 함 (Spring Security 6.x 규칙)
@@ -165,15 +259,11 @@ public class SecurityConfig {
                     .permitAll()
                     .requestMatchers("/actuator/info")
                     .permitAll()
-                    // Issue #209: Prometheus 메트릭 (Docker 네트워크/localhost만 허용)
+                    // Issue #20, #34: Prometheus 메트릭 (다층 보안)
+                    // Layer 1: PrometheusSecurityFilter (IP Whitelist + X-Forwarded-For 검증)
+                    // Layer 2: ADMIN role-based access control
                     .requestMatchers("/actuator/prometheus")
-                    .access(
-                        (authentication, context) -> {
-                          String ip = context.getRequest().getRemoteAddr();
-                          boolean isInternalNetwork =
-                              ip.startsWith("172.") || ip.startsWith("127.") || ip.equals("::1");
-                          return new AuthorizationDecision(isInternalNetwork);
-                        })
+                    .hasRole("ADMIN")
 
                     // Swagger UI (개발용)
                     .requestMatchers("/swagger-ui/**", "/v3/api-docs/**")
@@ -221,13 +311,21 @@ public class SecurityConfig {
         // #262 Fix: Spring Security 6.x 필터 순서 문제 해결
         // 커스텀 필터는 표준 필터 기준으로만 순서 지정 가능
         // addFilterBefore 호출 순서 = 실행 순서
-        // 실행 순서: JWT → RateLimit → UsernamePassword
-        // (JWT가 먼저 인증 후, RateLimit이 user-based rate limiting 수행)
+        // 실행 순서: CorsValidation → JWT → RateLimit → UsernamePassword
+        // (CorsValidation이 먼저 오리진 검증, JWT가 인증 후, RateLimit이 user-based rate limiting 수행)
         .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
     // #264: Rate Limiting 비활성화 시 필터 스킵
     rateLimitingFilter.ifPresent(
         filter -> http.addFilterBefore(filter, UsernamePasswordAuthenticationFilter.class));
+
+    // Issue #21: CORS Validation 필터 (가장 먼저 실행)
+    corsValidationFilter.ifPresent(
+        filter -> http.addFilterBefore(filter, jwtAuthenticationFilter.getClass()));
+
+    // Issue #20, #34: Prometheus Security 필터 (CORS 다음, JWT 전에 실행)
+    prometheusSecurityFilter.ifPresent(
+        filter -> http.addFilterBefore(filter, jwtAuthenticationFilter.getClass()));
 
     http
 
@@ -264,6 +362,14 @@ public class SecurityConfig {
    *   <li><b>변경 후</b>: CorsProperties 주입 - 환경별 명시적 오리진
    * </ul>
    *
+   * <h4>Issue #21: CORS 오리진 검증 강화</h4>
+   *
+   * <ul>
+   *   <li><b>시작 시 검증</b>: URL 포맷, 프로토콜, 금지 패턴 확인
+   *   <li><b>감사 로그</b>: 허용된 모든 오리진 로그 기록
+   *   <li><b>보안 경고</b>: 프로덕션에서 HTTP/localhost/IP 사용 시 경고
+   * </ul>
+   *
    * <h4>5-Agent Council Round 2 결정</h4>
    *
    * <ul>
@@ -274,10 +380,13 @@ public class SecurityConfig {
    */
   @Bean
   public CorsConfigurationSource corsConfigurationSource() {
+    // Issue #21: CORS 오리진 검증 및 감사 로그
+    logCorsConfiguration();
+
     CorsConfiguration configuration = new CorsConfiguration();
 
     // ✅ Issue #172: 환경별 허용 오리진 (하드코딩 제거)
-    // CorsProperties.allowedOrigins는 @NotEmpty로 검증됨 (fail-fast)
+    // CorsProperties.allowedOrigins는 @NotEmpty + @ValidCorsOrigin로 검증됨 (fail-fast)
     configuration.setAllowedOrigins(corsProperties.getAllowedOrigins());
 
     // 허용 메서드
@@ -298,5 +407,41 @@ public class SecurityConfig {
     source.registerCorsConfiguration("/**", configuration);
 
     return source;
+  }
+
+  /**
+   * CORS 설정 감사 로그 (Issue #21)
+   *
+   * <p>앱 시작 시 허용된 오리진 목록과 검증 결과를 로그에 기록합니다.
+   *
+   * <ul>
+   *   <li>INFO: 허용된 오리진 목록
+   *   <li>WARN: 보안 권장사항 위반 사항 (프로덕션 환경)
+   * </ul>
+   */
+  private void logCorsConfiguration() {
+    CorsOriginValidator.ValidationResult result =
+        corsOriginValidator.validateOrigins(corsProperties.getAllowedOrigins());
+
+    // 기본 정보 로그
+    log.info(
+        "[CORS-Config] Allowed origins: {}, AllowCredentials: {}, MaxAge: {}s",
+        corsProperties.getAllowedOrigins(),
+        corsProperties.getAllowCredentials(),
+        corsProperties.getMaxAge());
+
+    // 보안 경고 로그 (프로덕션 환경)
+    if (result.hasWarnings()) {
+      for (String warning : result.warnings()) {
+        log.warn("[CORS-Security-Warning] {}", warning);
+      }
+    }
+
+    // 검증 에러 로그 (앱 시작 실패 예정)
+    if (!result.isValid()) {
+      for (String error : result.errors()) {
+        log.error("[CORS-Validation-Error] {}", error);
+      }
+    }
   }
 }

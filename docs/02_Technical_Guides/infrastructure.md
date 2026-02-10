@@ -505,8 +505,34 @@ http.headers(headers -> headers
         .includeSubDomains(true)
         .maxAgeInSeconds(31536000)
     )
+    .contentSecurityPolicy(csp -> csp              // CSP (Content Security Policy)
+        .policyDirectives(
+            "default-src 'self'; "
+            + "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
+            + "style-src 'self' 'unsafe-inline'; "
+            + "img-src 'self' data: https:; "
+            + "font-src 'self'; "
+            + "connect-src 'self'; "
+            + "frame-ancestors 'none'; "
+            + "form-action 'self'; "
+            + "base-uri 'self';"
+        )
+    )
 );
 ```
+
+**CSP Policy Directives:**
+| 지시어 | 값 | 설명 |
+|--------|-----|------|
+| `default-src` | `'self'` | 기본: 동일 출처만 허용 |
+| `script-src` | `'self' 'unsafe-inline' 'unsafe-eval'` | 스크립트: 동일 출처, 인라인, eval 허용 |
+| `style-src` | `'self' 'unsafe-inline'` | 스타일: 동일 출처, 인라인 허용 |
+| `img-src` | `'self' data: https:` | 이미지: 동일 출처, data URL, HTTPS 허용 |
+| `font-src` | `'self'` | 폰트: 동일 출처만 |
+| `connect-src` | `'self'` | Fetch/XHR: 동일 출처만 |
+| `frame-ancestors` | `'none'` | 프레임 삽입 금지 (Clickjacking 방지) |
+| `form-action` | `'self'` | 폼 제출: 동일 출처만 |
+| `base-uri` | `'self'` | base 태그: 동일 출처만 |
 
 ---
 
@@ -516,6 +542,12 @@ http.headers(headers -> headers
 > **Incident Evidence:** API key exposure in logs detected during security audit 2025-11 (Evidence: [Security Review](../04_Reports/)).
 > **Why toString() override:** Default Record toString() exposes all fields; masking prevents credential leakage.
 > **Rollback Plan:** Disable request logging entirely if masking implementation is deemed insufficient.
+>
+> **Comprehensive Security Documentation:**
+> - [Security Hardening Guide](security-hardening.md) - Defense in depth, JWT, CSP, CORS, secrets management
+> - [Security Testing Guide](security-testing.md) - Unit/integration tests, penetration testing, automated scanning
+> - [Security Incident Response](security-incident-response.md) - NIST-based incident response procedures
+> - [Security Audit Checklist](security-checklist.md) - OWASP ASVS compliance checklist
 
 민감한 정보 보호와 외부 API 에러 처리를 위한 필수 규칙입니다.
 
