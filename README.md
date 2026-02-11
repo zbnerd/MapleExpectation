@@ -7,7 +7,6 @@
 <div align="center">
 
 ![CI Pipeline](https://github.com/zbnerd/probabilistic-valuation-engine/actions/workflows/ci.yml/badge.svg)
-![Nightly Tests](https://github.com/zbnerd/probabilistic-valuation-engine/actions/workflows/nightly.yml/badge.svg)
 ![Java](https://img.shields.io/badge/Java-21-007396?logo=openjdk)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.4-6DB33F?logo=springboot)
 ![License](https://img.shields.io/badge/License-MIT-blue)
@@ -137,7 +136,8 @@ Discord 알림(증거 포함) → 버튼 기반 완화 실행 → 검증 → 감
 
 ## System Architecture
 
-<img width="1512" height="1112" alt="architecture" src="https://github.com/user-attachments/assets/e77f3f78-f57b-47a8-91f9-40843fdd4cb6" />
+<img width="6672" height="4608" alt="image" src="https://github.com/user-attachments/assets/27d161ae-b925-4c20-a2f7-d549ee944527" />
+
 
 **Legend**
 - Solid: Implemented (Current)
