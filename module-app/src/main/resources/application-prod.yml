@@ -18,12 +18,11 @@ spring:
     hibernate:
       ddl-auto: update
 
-  # Redis Sentinel 설정 (운영 환경)
+  # Redis Standalone 설정 (운영 환경)
   data:
     redis:
-      sentinel:
-        master: mymaster
-        nodes: ${REDIS_SENTINEL_NODES}  # 예: sentinel1:26379,sentinel2:26379,sentinel3:26379
+      host: ${REDIS_HOST:-localhost}
+      port: ${REDIS_PORT:-6379}
 
 discord:
   webhook-url: ${DISCORD_WEBHOOK_URL}
