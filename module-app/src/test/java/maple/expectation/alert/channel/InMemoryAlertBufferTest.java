@@ -20,7 +20,8 @@ class InMemoryAlertBufferTest {
   @Test
   void testSend_Success() {
     // TODO: Implement when buffer has capacity
-    // boolean sent = buffer.send(new AlertMessage("Test", "Success message", null)));
+    // boolean sent = buffer.send(new AlertMessage("Test", "Success message", null,
+    // "http://test.webhook")));
     // assertTrue(sent, "Alert should be sent when buffer has capacity");
   }
 
@@ -28,9 +29,11 @@ class InMemoryAlertBufferTest {
   void testSend_BufferFull() {
     // TODO: Fill buffer to capacity and test overflow
     // for (int i = 0; i < 1000; i++) {
-    //     buffer.send(new AlertMessage("Alert" + i, "Fill message " + i, null)));
+    //     buffer.send(new AlertMessage("Alert" + i, "Fill message " + i, null,
+    // "http://test.webhook")));
     // }
-    // boolean offered = buffer.send(new AlertMessage("Overflow", "Buffer full", null)));
+    // boolean offered = buffer.send(new AlertMessage("Overflow", "Buffer full", null,
+    // "http://test.webhook")));
     // assertFalse(offered, "Should not accept alert when full");
     // }
   }
@@ -49,6 +52,6 @@ class InMemoryAlertBufferTest {
     // InMemoryAlertBuffer buffer1 = new InMemoryAlertBuffer();
     // LocalFileAlertChannel fileChannel = new LocalFileAlertChannel(Path.of("alerts.log"));
     // buffer1.setFallback(fileChannel);
-    // assertTrue(buffer1.send(new AlertMessage("Fallback", "Test", null)));
+    // assertTrue(buffer1.send(new AlertMessage("Fallback", "Test", null, "http://test.webhook")));
   }
 }

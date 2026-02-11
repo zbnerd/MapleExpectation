@@ -9,13 +9,12 @@ import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import maple.expectation.alert.channel.AlertChannel;
+import maple.expectation.alert.channel.AlertTestConfig;
 import maple.expectation.alert.channel.InMemoryAlertBuffer;
 import maple.expectation.alert.channel.LocalFileAlertChannel;
 import maple.expectation.alert.message.AlertMessage;
-import maple.expectation.alert.AlertPriority;
 import maple.expectation.alert.strategy.AlertChannelStrategy;
 import maple.expectation.support.AppIntegrationTestSupport;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,7 +27,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.reactive.function.client.WebClient;
-import org.springframework.web.reactive.function.client.WebClientResponseException;
+import reactor.core.publisher.Mono;
 
 /**
  * Stateless Alert Service Integration Test
@@ -48,7 +47,7 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
  * @author ADR-0345
  * @since 2025-02-12
  */
-@SpringBootTest(classes = maple.expectation.ExpectationApplication.class)
+@SpringBootTest(classes = {maple.expectation.ExpectationApplication.class, AlertTestConfig.class})
 @ActiveProfiles("test")
 @Tag("integration")
 @DisplayName("상태less 알림 서비스 통합 테스트")
@@ -105,12 +104,10 @@ class StatelessAlertServiceIntegrationTest extends AppIntegrationTestSupport {
     when(requestBodySpec2.body(any())).thenReturn(requestHeadersSpec);
     when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
     when(responseSpec.toBodilessEntity())
-        .thenReturn(
-            CompletableFuture.completedFuture(
-                org.springframework.http.ResponseEntity.ok().build()));
+        .thenReturn(Mono.just(org.springframework.http.ResponseEntity.ok().build()));
 
     // When: CRITICAL 알림 전송
-    assertDoesNotThrow(() -> alertService.sendCritical("테스트 제목", "테스트 메시지", null);
+    assertDoesNotThrow(() -> alertService.sendCritical("테스트 제목", "테스트 메시지", null));
 
     // Then: 예외가 발생하지 않음
     verify(mockAlertWebClient, atLeastOnce()).post();
@@ -148,7 +145,8 @@ class StatelessAlertServiceIntegrationTest extends AppIntegrationTestSupport {
     // In-Memory 버퍼를 꽉 채움 (1000개)
     if (inMemoryBuffer != null) {
       for (int i = 0; i < 1000; i++) {
-        inMemoryBuffer.send(new AlertMessage("Filler", "Fill message " + i, null)));
+        inMemoryBuffer.send(
+            new AlertMessage("Filler", "Fill message " + i, null, "http://test.webhook"));
       }
     }
 
@@ -197,10 +195,12 @@ class StatelessAlertServiceIntegrationTest extends AppIntegrationTestSupport {
     when(requestBodySpec2.body(any())).thenReturn(requestHeadersSpec);
     when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
     when(responseSpec.toBodilessEntity())
-        .thenThrow(WebClientResponseException.create(400, "Bad Request", null, null, null);
+        .thenThrow(
+            new org.springframework.web.reactive.function.client.WebClientResponseException(
+                400, "Bad Request", null, null, null));
 
     // When: 알림 전송
-    alertService.sendNormal("4xx 테스트", "잘못된 요청", null);
+    alertService.sendNormal("4xx 테스트", "잘못된 요청");
 
     // Then: 폴백 발생 안 함 (4xx는 클라이언트 오류로 간주)
     if (inMemoryBuffer != null) {
@@ -216,7 +216,8 @@ class StatelessAlertServiceIntegrationTest extends AppIntegrationTestSupport {
     when(mockAlertWebClient.post()).thenReturn(requestBodySpec);
     when(requestBodySpec.uri(anyString()))
         .thenThrow(
-            WebClientResponseException.create(500, "Internal Server Error", null, null, null);
+            new org.springframework.web.reactive.function.client.WebClientResponseException(
+                500, "Internal Server Error", null, null, null));
 
     int initialBufferSize = inMemoryBuffer != null ? inMemoryBuffer.getBufferSize() : 0;
 
@@ -272,14 +273,12 @@ class StatelessAlertServiceIntegrationTest extends AppIntegrationTestSupport {
     when(requestBodySpec2.body(any())).thenReturn(requestHeadersSpec);
     when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
     when(responseSpec.toBodilessEntity())
-        .thenReturn(
-            CompletableFuture.completedFuture(
-                org.springframework.http.ResponseEntity.ok().build()));
+        .thenReturn(Mono.just(org.springframework.http.ResponseEntity.ok().build()));
 
     // When: 여러 알림 전송
     int alertCount = 5;
     for (int i = 0; i < alertCount; i++) {
-      alertService.sendNormal("메트릭 테스트 " + i, "메시지", null);
+      alertService.sendNormal("메트릭 테스트 " + i, "메시지");
     }
 
     // Then: WebClient 호출 횟수 검증
@@ -300,9 +299,7 @@ class StatelessAlertServiceIntegrationTest extends AppIntegrationTestSupport {
     when(requestBodySpec2.body(any())).thenReturn(requestHeadersSpec);
     when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
     when(responseSpec.toBodilessEntity())
-        .thenReturn(
-            CompletableFuture.completedFuture(
-                org.springframework.http.ResponseEntity.ok().build()));
+        .thenReturn(Mono.just(org.springframework.http.ResponseEntity.ok().build()));
 
     AtomicInteger successCount = new AtomicInteger(0);
     int threadCount = 10;
@@ -317,7 +314,7 @@ class StatelessAlertServiceIntegrationTest extends AppIntegrationTestSupport {
               () -> {
                 for (int j = 0; j < alertsPerThread; j++) {
                   try {
-                    alertService.sendNormal("스레드 " + threadId, "메시지 " + j, null);
+                    alertService.sendNormal("스레드 " + threadId, "메시지 " + j);
                     successCount.incrementAndGet();
                   } catch (Exception e) {
                     // 예외 무시 (폴백으로 처리됨)
@@ -363,7 +360,7 @@ class StatelessAlertServiceIntegrationTest extends AppIntegrationTestSupport {
       return; // 테스트 스킵
     }
 
-    AlertMessage testMessage = new AlertMessage("드레인 테스트", "메시지", null);
+    AlertMessage testMessage = new AlertMessage("드레인 테스트", "메시지", null, "http://test.webhook");
     inMemoryBuffer.send(testMessage);
 
     assertEquals(1, inMemoryBuffer.getBufferSize(), "버퍼에 1개의 알림이 있어야 함");

@@ -1,5 +1,7 @@
 package maple.expectation.alert.channel;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -18,12 +20,13 @@ class LocalFileAlertChannelTest {
 
   @Test
   void testSend_Success() throws IOException {
-    Path tempFile = Files.createTempFile("test-alerts.log");
+    Path tempFile = Files.createTempFile("test-alerts", ".log");
     try {
       // Create channel
       LocalFileAlertChannel channel = new LocalFileAlertChannel(tempFile);
 
-      AlertMessage message = new AlertMessage("Test Alert", "Success message", null);
+      AlertMessage message =
+          new AlertMessage("Test Alert", "Success message", null, "http://test.webhook");
 
       boolean sent = channel.send(message);
       assertTrue(sent, "Alert should be written to file successfully");
@@ -45,7 +48,8 @@ class LocalFileAlertChannelTest {
     // Create channel with invalid path
     LocalFileAlertChannel channel = new LocalFileAlertChannel(tempFile);
 
-    AlertMessage message = new AlertMessage("Test Alert", "Should fail", null);
+    AlertMessage message =
+        new AlertMessage("Test Alert", "Should fail", null, "http://test.webhook");
 
     boolean sent = channel.send(message);
     assertFalse(sent, "Alert send should fail for invalid path");

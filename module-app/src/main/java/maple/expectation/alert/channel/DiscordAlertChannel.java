@@ -1,12 +1,13 @@
 package maple.expectation.alert.channel;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.alert.factory.MessageFactory;
 import maple.expectation.alert.message.AlertMessage;
 import maple.expectation.config.AlertFeatureProperties;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
@@ -34,7 +35,6 @@ import org.springframework.web.reactive.function.client.WebClientRequestExceptio
  * @since 2025-02-12
  */
 @Component
-@RequiredArgsConstructor
 @ConditionalOnProperty(
     name = "alert.stateless.enabled",
     havingValue = "true",
@@ -45,6 +45,16 @@ public class DiscordAlertChannel implements AlertChannel {
   private final WebClient alertWebClient;
   private final LogicExecutor executor;
   private final AlertFeatureProperties alertFeatureProperties;
+
+  @Autowired
+  public DiscordAlertChannel(
+      @Qualifier("alertWebClient") WebClient alertWebClient,
+      LogicExecutor executor,
+      AlertFeatureProperties alertFeatureProperties) {
+    this.alertWebClient = alertWebClient;
+    this.executor = executor;
+    this.alertFeatureProperties = alertFeatureProperties;
+  }
 
   @Override
   public boolean send(AlertMessage message) {

@@ -8,6 +8,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
 import java.util.function.Function;
+import maple.expectation.alert.StatelessAlertService;
 import maple.expectation.domain.v2.DonationDlq;
 import maple.expectation.domain.v2.DonationOutbox;
 import maple.expectation.global.common.function.ThrowingSupplier;
@@ -15,7 +16,6 @@ import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.global.executor.function.ThrowingRunnable;
 import maple.expectation.repository.v2.DonationDlqRepository;
-import maple.expectation.service.v2.alert.DiscordAlertService;
 import maple.expectation.service.v2.shutdown.ShutdownDataPersistenceService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -40,7 +40,7 @@ class DlqHandlerTest {
 
   private DonationDlqRepository dlqRepository;
   private ShutdownDataPersistenceService fileBackupService;
-  private DiscordAlertService discordAlertService;
+  private StatelessAlertService statelessAlertService;
   private LogicExecutor executor;
   private OutboxMetrics metrics;
 
@@ -50,12 +50,12 @@ class DlqHandlerTest {
   void setUp() {
     dlqRepository = mock(DonationDlqRepository.class);
     fileBackupService = mock(ShutdownDataPersistenceService.class);
-    discordAlertService = mock(DiscordAlertService.class);
+    statelessAlertService = mock(StatelessAlertService.class);
     executor = createPassThroughExecutor();
     metrics = mock(OutboxMetrics.class);
 
     dlqHandler =
-        new DlqHandler(dlqRepository, fileBackupService, discordAlertService, executor, metrics);
+        new DlqHandler(dlqRepository, fileBackupService, statelessAlertService, executor, metrics);
   }
 
   @Nested
@@ -105,8 +105,8 @@ class DlqHandlerTest {
       dlqHandler.handleDeadLetter(entry, "Max retry exceeded");
 
       // then
-      verify(discordAlertService)
-          .sendCriticalAlert(
+      verify(statelessAlertService)
+          .sendCritical(
               contains("OUTBOX CRITICAL FAILURE"), contains("req-001"), any(Throwable.class));
       verify(metrics).incrementCriticalFailure();
     }
@@ -130,7 +130,7 @@ class DlqHandlerTest {
       dlqHandler.handleDeadLetter(entry, "Max retry exceeded");
 
       // then: Throwable(Error)이 안전하게 전달됨
-      verify(discordAlertService).sendCriticalAlert(anyString(), anyString(), any(Throwable.class));
+      verify(statelessAlertService).sendCritical(anyString(), anyString(), any(Throwable.class));
       verify(metrics).incrementCriticalFailure();
     }
 
@@ -148,7 +148,7 @@ class DlqHandlerTest {
       dlqHandler.handleDeadLetter(entry, "Max retry exceeded");
 
       // then
-      verify(discordAlertService).sendCriticalAlert(anyString(), anyString(), any(Throwable.class));
+      verify(statelessAlertService).sendCritical(anyString(), anyString(), any(Throwable.class));
     }
   }
 

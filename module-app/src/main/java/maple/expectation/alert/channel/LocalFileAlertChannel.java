@@ -4,9 +4,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import lombok.extern.slf4j.Slf4j;
 import maple.expectation.alert.message.AlertMessage;
-import org.springframework.stereotype.Component;
 
 /**
  * Local File Alert Channel (Tertiary Fallback)
@@ -28,9 +26,10 @@ import org.springframework.stereotype.Component;
  * @author ADR-0345
  * @since 2025-02-12
  */
-@Component
-@Slf4j
 public class LocalFileAlertChannel implements AlertChannel, FallbackSupport {
+
+  private static final org.slf4j.Logger log =
+      org.slf4j.LoggerFactory.getLogger(LocalFileAlertChannel.class);
 
   private final Path logFilePath;
   private AlertChannel fallback;
@@ -49,7 +48,8 @@ public class LocalFileAlertChannel implements AlertChannel, FallbackSupport {
 
       // Append to log file (atomic operation)
       String logEntry =
-          String.format("[%s] %s\n```\n%s", message.getTitle(), message.getFormattedMessage());
+          String.format(
+              "[%s] %s\n```\n%s", message.getTitle(), message.getFormattedMessage(), "LocalFile");
 
       Files.writeString(
           logFilePath,

@@ -6,7 +6,6 @@ import static org.mockito.Mockito.*;
 
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import maple.expectation.alert.message.AlertMessage;
 import maple.expectation.support.AppIntegrationTestSupport;
@@ -22,6 +21,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
+import reactor.core.publisher.Mono;
 
 /**
  * Discord Alert Channel Integration Test
@@ -40,7 +40,7 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
  * @author ADR-0345
  * @since 2025-02-12
  */
-@SpringBootTest(classes = maple.expectation.ExpectationApplication.class)
+@SpringBootTest(classes = {maple.expectation.ExpectationApplication.class, AlertTestConfig.class})
 @ActiveProfiles("test")
 @Tag("integration")
 @DisplayName("Discord 알림 채널 통합 테스트")
@@ -82,11 +82,9 @@ class DiscordAlertChannelIntegrationTest extends AppIntegrationTestSupport {
     when(requestBodySpec2.body(any())).thenReturn(requestHeadersSpec);
     when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
     when(responseSpec.toBodilessEntity())
-        .thenReturn(
-            CompletableFuture.completedFuture(
-                org.springframework.http.ResponseEntity.ok().build()));
+        .thenReturn(Mono.just(org.springframework.http.ResponseEntity.ok().build()));
 
-    AlertMessage message = new AlertMessage("테스트 제목", "테스트 메시지", null);
+    AlertMessage message = new AlertMessage("테스트 제목", "테스트 메시지", null, "http://test.webhook");
 
     // When: 알림 전송
     boolean result = discordAlertChannel.send(message);
@@ -110,9 +108,12 @@ class DiscordAlertChannelIntegrationTest extends AppIntegrationTestSupport {
     when(requestBodySpec2.body(any())).thenReturn(requestHeadersSpec);
     when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
     when(responseSpec.toBodilessEntity())
-        .thenThrow(WebClientResponseException.create(404, "Not Found", null, null, null);
+        .thenThrow(
+            new org.springframework.web.reactive.function.client.WebClientResponseException(
+                404, "Not Found", null, null, null));
 
-    AlertMessage message = new AlertMessage("404 테스트", "웹훅 URL을 찾을 수 없음", null);
+    AlertMessage message =
+        new AlertMessage("404 테스트", "웹훅 URL을 찾을 수 없음", null, "http://test.webhook");
 
     // When: 알림 전송
     boolean result = discordAlertChannel.send(message);
@@ -131,7 +132,7 @@ class DiscordAlertChannelIntegrationTest extends AppIntegrationTestSupport {
         .thenThrow(
             new ResourceAccessException("Request timeout: Discord server did not respond in time"));
 
-    AlertMessage message = new AlertMessage("타임아웃 테스트", "서버 응답 지연", null);
+    AlertMessage message = new AlertMessage("타임아웃 테스트", "서버 응답 지연", null, "http://test.webhook");
 
     // When: 알림 전송
     boolean result = discordAlertChannel.send(message);
@@ -149,7 +150,7 @@ class DiscordAlertChannelIntegrationTest extends AppIntegrationTestSupport {
     when(requestBodySpec.uri(anyString()))
         .thenThrow(new ResourceAccessException("Connection refused: Discord server unreachable"));
 
-    AlertMessage message = new AlertMessage("네트워크 오류", "서버 연결 실패", null);
+    AlertMessage message = new AlertMessage("네트워크 오류", "서버 연결 실패", null, "http://test.webhook");
 
     // When: 알림 전송
     boolean result = discordAlertChannel.send(message);
@@ -172,9 +173,11 @@ class DiscordAlertChannelIntegrationTest extends AppIntegrationTestSupport {
     when(requestBodySpec2.body(any())).thenReturn(requestHeadersSpec);
     when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
     when(responseSpec.toBodilessEntity())
-        .thenThrow(WebClientResponseException.create(429, "Too Many Requests", null, null, null);
+        .thenThrow(
+            new org.springframework.web.reactive.function.client.WebClientResponseException(
+                429, "Too Many Requests", null, null, null));
 
-    AlertMessage message = new AlertMessage("Rate Limit", "요청 초과", null);
+    AlertMessage message = new AlertMessage("Rate Limit", "요청 초과", null, "http://test.webhook");
 
     // When: 알림 전송
     boolean result = discordAlertChannel.send(message);
@@ -201,11 +204,9 @@ class DiscordAlertChannelIntegrationTest extends AppIntegrationTestSupport {
     when(responseSpec.toBodilessEntity())
         .thenThrow(
             WebClientResponseException.create(500, "Internal Server Error", null, null, null))
-        .thenReturn(
-            CompletableFuture.completedFuture(
-                org.springframework.http.ResponseEntity.ok().build()));
+        .thenReturn(Mono.just(org.springframework.http.ResponseEntity.ok().build()));
 
-    AlertMessage message = new AlertMessage("재시도 테스트", "일시적 오류", null);
+    AlertMessage message = new AlertMessage("재시도 테스트", "일시적 오류", null, "http://test.webhook");
 
     // When: 알림 전송 (재시도 로직에 의해 2번 시도)
     boolean result = discordAlertChannel.send(message);
@@ -231,7 +232,7 @@ class DiscordAlertChannelIntegrationTest extends AppIntegrationTestSupport {
 
     // When: 연속 실패 발생
     for (int i = 0; i < 15; i++) {
-      discordAlertChannel.send(new AlertMessage("서킷 테스트 " + i, "메시지", null)));
+      discordAlertChannel.send(new AlertMessage("서킷 테스트 " + i, "메시지", null, "http://test.webhook"));
     }
 
     // Then: 서킷이 오픈 상태로 전환
@@ -255,15 +256,13 @@ class DiscordAlertChannelIntegrationTest extends AppIntegrationTestSupport {
     when(requestBodySpec2.body(any())).thenReturn(requestHeadersSpec);
     when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
     when(responseSpec.toBodilessEntity())
-        .thenReturn(
-            CompletableFuture.completedFuture(
-                org.springframework.http.ResponseEntity.ok().build()));
+        .thenReturn(Mono.just(org.springframework.http.ResponseEntity.ok().build()));
 
     // When: 다양한 형식의 메시지 전송
-    AlertMessage textMessage = new AlertMessage("텍스트 메시지", "일반 텍스트", null);
-    AlertMessage multilineMessage = new AlertMessage("멀티라인 메시지", "첫 번째 줄\n두 번째 줄\n세 번째 줄", null);
-    AlertMessage errorMessage =
-        new AlertMessage("에러 메시지", "에러 발생", null)));
+    AlertMessage textMessage = new AlertMessage("텍스트 메시지", "일반 텍스트", null, "http://test.webhook");
+    AlertMessage multilineMessage =
+        new AlertMessage("멀티라인 메시지", "첫 번째 줄\n두 번째 줄\n세 번째 줄", null, "http://test.webhook");
+    AlertMessage errorMessage = new AlertMessage("에러 메시지", "에러 발생", null, "http://test.webhook");
 
     // Then: 모든 메시지가 성공적으로 전송됨
     assertTrue(discordAlertChannel.send(textMessage), "텍스트 메시지 전송 성공");
@@ -297,11 +296,10 @@ class DiscordAlertChannelIntegrationTest extends AppIntegrationTestSupport {
         .thenAnswer(
             invocation -> {
               Thread.sleep(100); // 100ms 지연
-              return CompletableFuture.completedFuture(
-                  org.springframework.http.ResponseEntity.ok().build());
+              return Mono.just(org.springframework.http.ResponseEntity.ok().build());
             });
 
-    AlertMessage message = new AlertMessage("비동기 테스트", "메시지", null);
+    AlertMessage message = new AlertMessage("비동기 테스트", "메시지", null, "http://test.webhook");
 
     // When: 알림 전송
     long startTime = System.currentTimeMillis();
@@ -328,7 +326,7 @@ class DiscordAlertChannelIntegrationTest extends AppIntegrationTestSupport {
   @DisplayName("Null 메시지: 안전한 실패 처리")
   void testNullMessage_SafeFailure() {
     // Given: Null 메시지 (실제로는 AlertMessage 객체가 null이 아니라 내용이 null일 수 있음)
-    AlertMessage message = new AlertMessage(null, null, null);
+    AlertMessage message = new AlertMessage(null, null, null, "http://test.webhook");
 
     // When: 알림 전송
     boolean result = discordAlertChannel.send(message);
@@ -357,11 +355,10 @@ class DiscordAlertChannelIntegrationTest extends AppIntegrationTestSupport {
     when(requestBodySpec2.body(any())).thenReturn(requestHeadersSpec);
     when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
     when(responseSpec.toBodilessEntity())
-        .thenReturn(
-            CompletableFuture.completedFuture(
-                org.springframework.http.ResponseEntity.ok().build()));
+        .thenReturn(Mono.just(org.springframework.http.ResponseEntity.ok().build()));
 
-    AlertMessage message = new AlertMessage("대용량 메시지", longText.toString(), null);
+    AlertMessage message =
+        new AlertMessage("대용량 메시지", longText.toString(), null, "http://test.webhook");
 
     // When: 알림 전송
     boolean result = discordAlertChannel.send(message);
@@ -391,13 +388,11 @@ class DiscordAlertChannelIntegrationTest extends AppIntegrationTestSupport {
     when(requestBodySpec2.body(any())).thenReturn(requestHeadersSpec);
     when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
     when(responseSpec.toBodilessEntity())
-        .thenReturn(
-            CompletableFuture.completedFuture(
-                org.springframework.http.ResponseEntity.ok().build()));
+        .thenReturn(Mono.just(org.springframework.http.ResponseEntity.ok().build()));
 
     // When & Then: 모든 URL 형식이 지원됨
     for (String url : webhookUrls) {
-      AlertMessage message = new AlertMessage("URL 테스트", "메시지", null);
+      AlertMessage message = new AlertMessage("URL 테스트", "메시지", null, "http://test.webhook");
       boolean result = discordAlertChannel.send(message);
       assertTrue(result, "URL 형식 지원: " + url);
     }

@@ -1,7 +1,7 @@
 # ADR-0345: Stateless Alert System Design
 
-## 상태
-Proposed
+## 상태 (Status)
+Proposed -> Accepted
 
 ## 문서 무결성 체크리스트
 ✅ All 30 items verified (Date: 2025-02-12, Issue: #345)
