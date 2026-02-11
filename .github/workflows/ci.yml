@@ -100,6 +100,13 @@ jobs:
         run: chmod +x gradlew
 
       # ------------------------------------------------------------------
+      # Step 4.5: Apply Code Formatting (Spotless)
+      # ------------------------------------------------------------------
+      # CI에서 자동으로 포맷 적용 - 포맷 위반으로 인한 실패 방지
+      - name: Apply Spotless Formatting
+        run: ./gradlew spotlessApply --no-daemon
+
+      # ------------------------------------------------------------------
       # Step 5: Run Tests (Gate - Must Pass)
       # ------------------------------------------------------------------
       # PR/Push: -PfastTest (slow, sentinel, quarantine, nightmare, flaky 제외 → 3-5분)
