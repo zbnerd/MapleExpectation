@@ -125,6 +125,7 @@ jobs:
             # 환경변수 주입
             export DB_USER="${{ secrets.DB_USER }}"
             export DB_PASSWORD="${{ secrets.DB_PASSWORD }}"
+            export JWT_SECRET="${{ secrets.JWT_SECRET }}"
             export NEXON_API_KEY="${{ secrets.NEXON_API_KEY }}"
             export DISCORD_WEBHOOK_URL="${{ secrets.DISCORD_WEBHOOK_URL }}"
 
