@@ -124,7 +124,8 @@ class DeterminismProperties {
    * <p>MapleStory 예: 12성 이상부터 파괴 확률 존재
    */
   @Property(tries = 50)
-  void destruction_rate_is_non_decreasing_after_threshold(@ForAll("highStarLevels") LevelPair pair) {
+  void destruction_rate_is_non_decreasing_after_threshold(
+      @ForAll("highStarLevels") LevelPair pair) {
 
     double rate1 = getDestructionRate(pair.level1());
     double rate2 = getDestructionRate(pair.level2());
