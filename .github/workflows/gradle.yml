@@ -126,8 +126,10 @@ jobs:
             export DB_USER="${{ secrets.DB_USER }}"
             export DB_PASSWORD="${{ secrets.DB_PASSWORD }}"
             export JWT_SECRET="${{ secrets.JWT_SECRET }}"
+            export FINGERPRINT_SECRET="${{ secrets.FINGERPRINT_SECRET }}"
             export NEXON_API_KEY="${{ secrets.NEXON_API_KEY }}"
             export DISCORD_WEBHOOK_URL="${{ secrets.DISCORD_WEBHOOK_URL }}"
+            export CORS_ALLOWED_ORIGINS="${{ secrets.CORS_ALLOWED_ORIGINS }}"
 
             # 실행 권한 부여 및 스크립트 실행
             chmod +x /home/${{ secrets.EC2_USERNAME }}/deploy.sh
