@@ -78,18 +78,18 @@ public class JwtTokenProvider {
    * </ul>
    */
   private void validateSecretKeyForProduction() {
-    // 1. 환경변수 placeholder 감지 (모든 환경에서 fail-fast)
+    // 1. 빈 값 또는 null 감지 (모든 환경에서 fail-fast) - 먼저 체크해야 NPE 방지
+    if (secret == null || secret.isBlank()) {
+      throw new IllegalStateException(
+          "JWT_SECRET must not be null or blank. Please set the JWT_SECRET environment variable.");
+    }
+
+    // 2. 환경변수 placeholder 감지 (모든 환경에서 fail-fast)
     if (secret.contains(PLACEHOLDER_PATTERN)) {
       throw new IllegalStateException(
           "JWT_SECRET environment variable is not set. "
               + "The secret contains an unresolved placeholder: "
               + maskSecretForLogging(secret));
-    }
-
-    // 2. 빈 값 또는 null 감지 (모든 환경에서 fail-fast)
-    if (secret == null || secret.isBlank()) {
-      throw new IllegalStateException(
-          "JWT_SECRET must not be null or blank. Please set the JWT_SECRET environment variable.");
     }
 
     // 3. 프로덕션 환경에서 기본 개발용 secret 사용 거부

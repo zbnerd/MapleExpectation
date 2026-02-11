@@ -10,6 +10,7 @@ plugins {
 	id 'org.gradle.test-retry' version '1.6.0'
 	id 'com.github.spotbugs' version '6.0.25'
 	id 'com.diffplug.spotless' version '6.25.0'
+	id 'idea'
 }
 
 group = 'maple'
@@ -42,7 +43,7 @@ allprojects {
 	    imports {
 	        mavenBom "org.springframework.boot:spring-boot-dependencies:3.5.4"
 	        mavenBom "io.github.resilience4j:resilience4j-bom:2.2.0"
-	        mavenBom "org.testcontainers:testcontainers-bom:1.21.3"
+	        mavenBom "org.testcontainers:testcontainers-bom:1.20.4"
 	    }
 	}
 

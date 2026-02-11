@@ -1,0 +1,269 @@
+// ========================================
+// Module-Chaos-Test: Chaos & Nightmare Testing Module
+// ADR-014/ADR-017: Multi-module Chaos Test Separation
+// ========================================
+//
+// **Purpose**: Dedicated module for chaos engineering and nightmare scenario tests
+// **Tests**: 22 total tests (7 Chaos + 15 Nightmare)
+// **Execution**: Separate from main test suite, controlled via Gradle tasks
+// ========================================
+
+plugins {
+	id 'org.springframework.boot' version '3.5.4'
+	id 'io.spring.dependency-management' version '1.1.7'
+	id 'jacoco'
+}
+
+// ============================================================
+// Chaos Test Configuration (must be before dependencies)
+// ============================================================
+configurations {
+	chaosTestImplementation.extendsFrom testImplementation
+	chaosTestRuntimeOnly.extendsFrom testRuntimeOnly
+	chaosTestCompileOnly
+	chaosTestAnnotationProcessor
+}
+
+dependencies {
+	// ============================================================
+	// Module Dependencies (Test Implementation Only)
+	// ============================================================
+	testImplementation project(':module-core')
+	testImplementation project(':module-infra')
+	testImplementation project(':module-common')
+	testImplementation project(':module-app')
+
+	// ============================================================
+	// Spring Boot Test Dependencies
+	// ============================================================
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-web'
+	testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+
+	// ============================================================
+	// Testcontainers (Chaos Testing Infrastructure)
+	// ============================================================
+	testImplementation "org.testcontainers:testcontainers"
+	testImplementation "org.testcontainers:junit-jupiter"
+	testImplementation "org.testcontainers:mysql"
+	testImplementation "org.testcontainers:toxiproxy"  // Network chaos
+
+	// ============================================================
+	// Chaos Testing Libraries
+	// ============================================================
+	testImplementation 'org.awaitility:awaitility:4.2.0'
+
+	// ============================================================
+	// Monitoring & Observability
+	// ============================================================
+	testImplementation 'io.micrometer:micrometer-core'
+	testImplementation 'io.github.resilience4j:resilience4j-spring-boot3'
+
+	// ============================================================
+	// Test Infrastructure
+	// ============================================================
+	testCompileOnly 'org.projectlombok:lombok:1.18.30'
+	testAnnotationProcessor 'org.projectlombok:lombok:1.18.30'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+	// ============================================================
+	// Chaos Test Additional Dependencies
+	// ============================================================
+	// Lombok for chaosTest source set
+	chaosTestCompileOnly 'org.projectlombok:lombok:1.18.30'
+	chaosTestAnnotationProcessor 'org.projectlombok:lombok:1.18.30'
+
+	// Redisson for distributed locking chaos tests
+	testImplementation 'org.redisson:redisson-spring-boot-starter:3.27.0'
+
+	// Spring Data Redis for RedisTemplate
+	testImplementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
+	// ============================================================
+	// ArchUnit (Architecture Validation for Chaos Tests)
+	// ============================================================
+	testImplementation 'com.tngtech.archunit:archunit:1.3.0'
+}
+
+// ============================================================
+// Chaos Test Source Set Configuration
+// ============================================================
+sourceSets {
+	chaosTest {
+		java.srcDir file('src/chaos-test/java')
+		resources.srcDir file('src/chaos-test/resources')
+		compileClasspath += sourceSets.main.output
+		compileClasspath += sourceSets.test.output
+		runtimeClasspath += sourceSets.main.output
+		runtimeClasspath += sourceSets.test.output
+		annotationProcessorPath += configurations.testAnnotationProcessor
+	}
+}
+
+// ============================================================
+// Chaos Test Task
+// ============================================================
+task chaosTest(type: Test) {
+	description = 'Runs Chaos and Nightmare engineering tests'
+	group = 'verification'
+
+	testClassesDirs = sourceSets.chaosTest.output.classesDirs
+	classpath = sourceSets.chaosTest.runtimeClasspath
+
+	// JVM Configuration for Chaos Tests
+	jvmArgs = [
+		'-Xms512m',
+		'-Xmx2048m',
+		'-XX:+UseG1GC',
+		'-XX:MaxMetaspaceSize=512m',
+		'-Djava.awt.headless=true'
+	]
+
+	// JUnit Platform Configuration
+	useJUnitPlatform {
+		// Include all chaos and nightmare tagged tests
+		includeTags 'chaos', 'nightmare'
+
+		// Exclude quarantine and flaky tests by default
+		excludeTags 'quarantine', 'flaky'
+	}
+
+	// Test Execution Configuration
+	systemProperty 'spring.profiles.active', 'chaos'
+	systemProperty 'java.util.logging.manager', 'org.jboss.logmanager.LogManager'
+	systemProperty 'flaky.logging.enabled', 'true'
+	systemProperty 'flaky.log.dir', "${buildDir}/flaky-chaos"
+
+	// Docker Configuration (Testcontainers)
+	environment "DOCKER_HOST", "unix:///var/run/docker.sock"
+	environment "TESTCONTAINERS_RYUK_DISABLED", "false"  // Enable Ryuk for cleanup
+
+	// Concurrency: Chaos tests require sequential execution
+	maxParallelForks = 1
+
+	// Retry Configuration (Reduced for chaos tests)
+	retry {
+		maxRetries = 0  // No retry for chaos tests (fail-fast)
+		maxFailures = 1
+		failOnPassedAfterRetry = true
+	}
+
+	// Test Logging
+	testLogging {
+		events "started", "passed", "skipped", "failed"
+		exceptionFormat "full"
+		showStandardStreams = false
+
+		// Display test execution time
+		displayGranularity = 0
+
+		// Panic mode: Log slow tests
+		debug {
+			events "started", "passed", "skipped", "failed"
+			exceptionFormat "full"
+		}
+	}
+
+	// Finalize with reports
+	finalizedBy 'chaosTestReport'
+
+	// Timeout protection (15 minutes per test)
+	timeout.set(Duration.ofMinutes(15))
+}
+
+// ============================================================
+// Chaos Test Report (JaCoCo)
+// ============================================================
+task chaosTestReport(type: JacocoReport) {
+	dependsOn chaosTest
+
+	reports {
+		xml.required = true
+		html.required = true
+		csv.required = false
+	}
+
+	def chaosTestsExecFile = "${buildDir}/jacoco/chaosTest.exec"
+
+	executionData(chaosTestsExecFile)
+
+	sourceSets sourceSets.main
+}
+
+// ============================================================
+// Gradle Check Task Integration
+// ============================================================
+// Chaos tests are NOT part of regular 'check' task
+// They must be explicitly invoked via './gradlew chaosTest'
+
+// ============================================================
+// Chaos Test Tasks by Category
+// ============================================================
+task chaosTestNetwork(type: Test) {
+	description = 'Runs Network Chaos Tests (Clock Drift, Split Brain, etc.)'
+	group = 'verification'
+
+	testClassesDirs = sourceSets.chaosTest.output.classesDirs
+	classpath = sourceSets.chaosTest.runtimeClasspath
+
+	useJUnitPlatform {
+		includeTags 'chaos'
+	}
+	systemProperty 'chaos.category', 'network'
+}
+
+task chaosTestResource(type: Test) {
+	description = 'Runs Resource Chaos Tests (OOM, Disk Full, GC Pause)'
+	group = 'verification'
+
+	testClassesDirs = sourceSets.chaosTest.output.classesDirs
+	classpath = sourceSets.chaosTest.runtimeClasspath
+
+	useJUnitPlatform {
+		includeTags 'chaos'
+	}
+	systemProperty 'chaos.category', 'resource'
+}
+
+task chaosTestCore(type: Test) {
+	description = 'Runs Core Infrastructure Chaos Tests'
+	group = 'verification'
+
+	testClassesDirs = sourceSets.chaosTest.output.classesDirs
+	classpath = sourceSets.chaosTest.runtimeClasspath
+
+	useJUnitPlatform {
+		includeTags 'chaos'
+	}
+	systemProperty 'chaos.category', 'core'
+}
+
+task nightmareTest(type: Test) {
+	description = 'Runs Nightmare Scenario Tests (15 extreme scenarios)'
+	group = 'verification'
+
+	testClassesDirs = sourceSets.chaosTest.output.classesDirs
+	classpath = sourceSets.chaosTest.runtimeClasspath
+
+	useJUnitPlatform {
+		includeTags 'nightmare'
+	}
+}
+
+// ============================================================
+// JAR Configuration (Disabled - Test-only Module)
+// ============================================================
+tasks.named("jar") {
+	enabled = false
+}
+
+tasks.named("bootJar") {
+	enabled = false
+}
+
+// ============================================================
+// Build Configuration
+// ============================================================
+bootRun {
+	enabled = false  // This is a test-only module
+}

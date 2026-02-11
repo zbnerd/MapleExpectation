@@ -3,9 +3,39 @@
 // ADR-017: Infrastructure Layer
 // ========================================
 
+// Integration Test Source Set Configuration
+sourceSets {
+	integrationTest {
+		java.srcDir file('src/integrationTest/java')
+		resources.srcDir file('src/integrationTest/resources')
+		compileClasspath += sourceSets.main.output + configurations.testRuntimeClasspath
+		runtimeClasspath += output + compileClasspath
+	}
+}
+
+configurations {
+	integrationTestImplementation.extendsFrom testImplementation
+	integrationTestRuntimeOnly.extendsFrom testRuntimeOnly
+	integrationTestAnnotationProcessor.extendsFrom testAnnotationProcessor
+}
+
+// IntelliJ IDEA Integration
+idea {
+	module {
+		testSourceDirs += sourceSets.integrationTest.java.srcDirs
+		testResourceDirs += sourceSets.integrationTest.resources.srcDirs
+	}
+}
+
 dependencies {
 	implementation project(':module-core')
 	implementation project(':module-common')
+
+	// Lombok
+	compileOnly 'org.projectlombok:lombok:1.18.30'
+	annotationProcessor 'org.projectlombok:lombok:1.18.30'
+	testCompileOnly 'org.projectlombok:lombok:1.18.30'
+	testAnnotationProcessor 'org.projectlombok:lombok:1.18.30'
 
 	// Spring Data JPA
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
@@ -35,4 +65,62 @@ dependencies {
 
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.testcontainers:mysql'
+}
+
+// Integration Test Task
+tasks.register('integrationTest', Test) {
+	description = 'Runs integration tests (Testcontainers, DB, Redis).'
+	group = 'verification'
+
+	testClassesDirs = sourceSets.integrationTest.output.classesDirs
+	classpath = sourceSets.integrationTest.runtimeClasspath
+	useJUnitPlatform()
+
+	shouldRunAfter tasks.test
+
+	// JUnit configuration for integration tests
+	useJUnitPlatform {
+		includeTags 'integration'
+	}
+
+	// JVM settings for integration tests
+	jvmArgs = [
+		'-Xms512m',
+		'-Xmx2048m',
+		'-XX:+UseG1GC',
+		'-XX:MaxMetaspaceSize=512m'
+	]
+
+	// Docker socket for Testcontainers - environment variable AND system property
+	environment "DOCKER_HOST", "unix:///var/run/docker.sock"
+	systemProperty "DOCKER_HOST", "unix:///var/run/docker.sock"
+
+	// Disable Ryuk container for simpler setup (optional, remove if needed)
+	environment "TESTCONTAINERS_RYUK_DISABLED", "true"
+
+	// Testcontainers reuse for faster tests
+	systemProperty "testcontainers.reuse.enable", "true"
+
+	// Test logging
+	testLogging {
+		events "passed", "skipped", "failed"
+		exceptionFormat "full"
+	}
+
+	// Retry flaky tests
+	retry {
+		maxRetries = 1
+		maxFailures = 5
+		failOnPassedAfterRetry = false
+	}
+}
+
+// Fix duplicate resources issue
+tasks.withType(ProcessResources).configureEach {
+	duplicatesStrategy = DuplicatesStrategy.INCLUDE
+}
+
+// Lombok annotation processor for integration tests
+tasks.named('compileIntegrationTestJava') {
+	options.annotationProcessorPath = configurations.annotationProcessor
 }

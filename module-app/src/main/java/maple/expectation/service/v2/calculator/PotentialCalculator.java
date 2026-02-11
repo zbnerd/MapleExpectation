@@ -72,13 +72,48 @@ public class PotentialCalculator {
   }
 
   private void accumulateStat(Map<StatType, Integer> map, String optionStr) {
-    StatType type = StatType.findType(optionStr);
+    // findTypeWithUnit()을 사용하여 퍼센트 스탯도 올바르게 매칭
+    StatType type = StatType.findTypeWithUnit(optionStr);
+
+    // 퍼센트 스탯 타입을 기본 타입으로 변환 (STR_PERCENT -> STR, ALLSTAT_PERCENT -> ALL_STAT)
+    // 이렇게 하면 getEffectiveStat()에서 올바르게 합산 가능
+    StatType baseType = convertToBaseType(type);
 
     // ✅ [해결] 주입받은 statParser 인스턴스를 통해 호출
     int value = statParser.parseNum(optionStr);
 
-    if (type != StatType.UNKNOWN && value != 0) {
-      map.merge(type, value, Integer::sum);
+    if (baseType != StatType.UNKNOWN && value != 0) {
+      map.merge(baseType, value, Integer::sum);
     }
+  }
+
+  /**
+   * 퍼센트 스탯 타입을 기본 타입으로 변환
+   *
+   * <p>STR_PERCENT -> STR, DEX_PERCENT -> DEX, ALLSTAT_PERCENT -> ALL_STAT
+   *
+   * <p>이렇게 하면 잠재능력 계산 시 퍼센트/플랫 구분 없이 합산 가능
+   */
+  private StatType convertToBaseType(StatType type) {
+    if (type == null || type == StatType.UNKNOWN) {
+      return StatType.UNKNOWN;
+    }
+
+    // 퍼센트 타입을 기본 타입으로 변환
+    return switch (type) {
+      case STR_PERCENT, DEX_PERCENT, INT_PERCENT, LUK_PERCENT -> {
+        String keyword = type.getKeyword();
+        // 같은 키워드를 가진 기본 타입 찾기 (STR, DEX, INT, LUK)
+        yield java.util.Arrays.stream(StatType.values())
+            .filter(t -> t.getKeyword().equals(keyword) && !t.isPercent())
+            .findFirst()
+            .orElse(StatType.UNKNOWN);
+      }
+      case ALLSTAT_PERCENT -> StatType.ALL_STAT;
+      case ATTACK_POWER_PERCENT -> StatType.ATTACK_POWER;
+      case MAGIC_POWER_PERCENT -> StatType.MAGIC_POWER;
+      case HP_PERCENT -> StatType.HP;
+      default -> type; // 그 외는 그대로 반환 (BOSS_DAMAGE, IGNORE_DEFENSE 등)
+    };
   }
 }

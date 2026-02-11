@@ -17,12 +17,10 @@ import java.lang.annotation.Target;
  *
  * <h4>사용 예시</h4>
  *
- * <pre>
- * {@code
+ * <pre>{@code
  * @ValidCorsOrigin
  * private List<String> allowedOrigins;
- * }
- * </pre>
+ * }</pre>
  *
  * @see CorsOriginValidator
  */

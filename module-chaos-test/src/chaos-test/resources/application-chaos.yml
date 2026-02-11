@@ -1,0 +1,144 @@
+# ========================================
+# Chaos Test Profile Configuration
+# ========================================
+# Purpose: Dedicated configuration for chaos engineering and nightmare tests
+# Usage: SPRING_PROFILES_ACTIVE=chaos
+# ========================================
+
+spring:
+  application:
+    name: maple-expectation-chaos-test
+
+  # DataSource: H2 in-memory for fast test execution
+  datasource:
+    url: jdbc:h2:mem:chaos_testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  # JPA Configuration
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        format_sql: false
+        show_sql: false
+    open-in-view: false
+
+  # Redis Configuration (Testcontainers-managed)
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 5000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: -1ms
+
+  # Cache Configuration
+  cache:
+    type: redis
+    redis:
+      time-to-live: 300000
+      cache-null-values: false
+
+# Redisson Configuration (Redis Client)
+redisson:
+  config: |
+    singleServerConfig:
+      address: "redis://localhost:6379"
+      connectionPoolSize: 10
+      connectionMinimumIdleSize: 2
+      idleConnectionTimeout: 10000
+      connectTimeout: 10000
+      timeout: 3000
+      retryAttempts: 3
+      retryInterval: 1500
+      subscriptionsPerConnection: 5
+      subscriptionConnectionPoolSize: 2
+    threads: 16
+    nettyThreads: 32
+
+# Resilience4j Configuration
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        sliding-window-size: 50
+        minimum-number-of-calls: 10
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        wait-duration-in-open-state: 5s
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 100
+        slow-call-duration-threshold: 3000ms
+        record-exceptions:
+          - java.lang.NullPointerException
+          - java.io.IOException
+        ignore-exceptions:
+          - maple.expectation.exception.client.DuplicateLikeException
+          - maple.expectation.exception.client.SelfLikeNotAllowedException
+
+  timelimiter:
+    configs:
+      default:
+        timeout-duration: 10s
+
+  retry:
+    configs:
+      default:
+        max-attempts: 3
+        wait-duration: 500ms
+        retry-exceptions:
+          - java.io.IOException
+        ignore-exceptions:
+          - maple.expectation.exception.client.DuplicateLikeException
+          - maple.expectation.exception.client.SelfLikeNotAllowedException
+
+# Actuator Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: maple-expectation-chaos-test
+
+# Logging Configuration
+logging:
+  level:
+    root: INFO
+    maple.expectation: DEBUG
+    org.springframework.test: DEBUG
+    org.testcontainers: INFO
+    com.redis.testcontainers: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+# Testcontainers Configuration
+testcontainers:
+  reuse: false  # Always fresh containers for chaos tests
+  ryuk:
+    container:
+      image: ghcr.io/testcontainers/ryuk:0.11.0
+
+# Chaos Test Specific Configuration
+chaos:
+  test:
+    timeout: 900000  # 15 minutes per test
+    parallel: false  # Sequential execution only
+    cleanup:
+      enabled: true  # Always cleanup after tests
+      docker: true   # Cleanup Docker containers

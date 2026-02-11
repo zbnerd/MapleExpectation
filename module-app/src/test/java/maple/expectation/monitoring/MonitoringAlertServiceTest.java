@@ -7,24 +7,44 @@ import static org.mockito.Mockito.*;
 import maple.expectation.domain.repository.RedisBufferRepository;
 import maple.expectation.global.lock.LockStrategy;
 import maple.expectation.service.v2.alert.DiscordAlertService;
-import maple.expectation.support.IntegrationTestSupport;
+import maple.expectation.support.AppIntegrationTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.TestPropertySource;
 
-@SpringBootTest(
-    classes = maple.expectation.ExpectationApplication.class,
-    properties = "spring.batch.job.enabled=false")
-class MonitoringAlertServiceTest extends IntegrationTestSupport {
+/**
+ * Monitoring Alert Service 테스트
+ *
+ * <p>리더 선출 및 버퍼 포화도 모니터링 로직을 검증합니다.
+ *
+ * <h4>Performance Optimization (SharedContainers)</h4>
+ *
+ * <ul>
+ *   <li>Uses JVM-wide singleton MySQL/Redis containers
+ *   <li>Mock dependencies for faster test execution
+ *   <li>~60-80% faster than per-test container startup
+ * </ul>
+ *
+ * @see maple.expectation.support.SharedContainers
+ */
+@TestPropertySource(
+    properties = {
+      // Disable batch jobs for tests
+      "spring.batch.job.enabled=false",
+    })
+@DisplayName("Monitoring Alert Service 테스트")
+class MonitoringAlertServiceTest extends AppIntegrationTestSupport {
 
   // 💡 실제 MonitoringAlertService를 테스트하기 위해 필요한 의존성들을 Mock으로 오버라이드
-  @MockitoBean private LockStrategy lockStrategy;
+  @org.springframework.test.context.bean.override.mockito.MockitoBean
+  private LockStrategy lockStrategy;
 
-  @MockitoBean private RedisBufferRepository redisBufferRepository;
+  @org.springframework.test.context.bean.override.mockito.MockitoBean
+  private RedisBufferRepository redisBufferRepository;
 
-  @MockitoBean private DiscordAlertService discordAlertService;
+  @org.springframework.test.context.bean.override.mockito.MockitoBean
+  private DiscordAlertService discordAlertService;
 
   @Autowired private MonitoringAlertService monitoringAlertService;
 

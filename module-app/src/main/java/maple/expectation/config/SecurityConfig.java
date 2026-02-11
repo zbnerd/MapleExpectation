@@ -6,11 +6,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.ratelimit.RateLimitingFacade;
-import maple.expectation.global.security.cors.CorsOriginValidator;
-import maple.expectation.global.security.cors.CorsValidationFilter;
 import maple.expectation.global.ratelimit.config.RateLimitProperties;
 import maple.expectation.global.ratelimit.filter.RateLimitingFilter;
 import maple.expectation.global.security.FingerprintGenerator;
+import maple.expectation.global.security.cors.CorsOriginValidator;
+import maple.expectation.global.security.cors.CorsValidationFilter;
 import maple.expectation.global.security.filter.JwtAuthenticationFilter;
 import maple.expectation.global.security.filter.PrometheusSecurityFilter;
 import maple.expectation.global.security.jwt.JwtTokenProvider;
@@ -19,7 +19,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.DependsOn;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
@@ -54,8 +53,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
  *   <li>@Bean으로 수동 등록 + FilterRegistrationBean으로 서블릿 컨테이너 중복 등록 방지
  * </ul>
  *
- * <p>Issue #172: CORS 와일드카드 제거 - CorsProperties로 환경별 설정 분리
- * Issue #21: CORS 오리진 검증 강화 - 시작 시 오리진 유효성 검증 및 감사 로그
+ * <p>Issue #172: CORS 와일드카드 제거 - CorsProperties로 환경별 설정 분리 Issue #21: CORS 오리진 검증 강화 - 시작 시 오리진 유효성
+ * 검증 및 감사 로그
  */
 @Slf4j
 @Configuration
@@ -176,17 +175,11 @@ public class SecurityConfig {
    *   <li>Layer 3 (Role-based Access): ADMIN 역할 필요
    * </ul>
    */
-  @Bean
-  @ConditionalOnProperty(
-      prefix = "prometheus.security",
-      name = "enabled",
-      havingValue = "true",
-      matchIfMissing = true)
-  public PrometheusSecurityFilter prometheusSecurityFilter(LogicExecutor logicExecutor) {
-    return new PrometheusSecurityFilter(logicExecutor);
-  }
-
-  /** Prometheus Security 필터 서블릿 컨테이너 중복 등록 방지 (Issue #20) */
+  /**
+   * Prometheus Security 필터 서블릿 컨테이너 중복 등록 방지 (Issue #20)
+   *
+   * <p>PrometheusSecurityFilter는 @Component로 자동 등록되므로, 여기서는 FilterRegistrationBean만 설정합니다.
+   */
   @Bean
   @ConditionalOnProperty(
       prefix = "prometheus.security",

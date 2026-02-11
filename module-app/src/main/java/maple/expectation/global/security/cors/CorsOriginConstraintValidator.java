@@ -14,8 +14,7 @@ import org.springframework.stereotype.Component;
  *
  * <p>{@link CorsOriginValidator}를 위임하여 오리진 목록을 검증합니다.
  *
- * <p>CRITICAL: Spring Bean 주입이 필요하므로 {@code @Component}와 {@code @RequiredArgsConstructor}를
- * 사용합니다.
+ * <p>CRITICAL: Spring Bean 주입이 필요하므로 {@code @Component}와 {@code @RequiredArgsConstructor}를 사용합니다.
  *
  * @see CorsOriginValidator
  */
@@ -41,8 +40,7 @@ public class CorsOriginConstraintValidator
       context.disableDefaultConstraintViolation();
       String errorMessage = String.join(", ", result.errors());
       context
-          .buildConstraintViolationWithTemplate(
-              "CORS 오리진 검증 실패: " + errorMessage)
+          .buildConstraintViolationWithTemplate("CORS 오리진 검증 실패: " + errorMessage)
           .addConstraintViolation();
       return false;
     }
