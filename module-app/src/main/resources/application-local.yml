@@ -79,3 +79,27 @@ outbox:
   scheduler:
     nexon-api-outbox:
       enabled: false
+
+# ADR-0345: Resilience4j Configuration for Stateless Alert System
+resilience4j:
+  circuitbreaker:
+    instances:
+      discordWebhook:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
+        minimumNumberOfCalls: 5
+        registerHealthIndicator: true
+  retry:
+    instances:
+      discordWebhook:
+        maxAttempts: 3
+        waitDuration: 500ms
+        exponentialBackoffMultiplier: 2.0
+        retryExceptions:
+          - org.springframework.web.reactive.function.client.WebClientRequestException
+          - io.netty.channel.ConnectTimeoutException
+  timelimiter:
+    instances:
+      discordWebhook:
+        timeoutDuration: 5s

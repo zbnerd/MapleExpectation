@@ -10,11 +10,11 @@ import java.time.Instant;
 import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.alert.StatelessAlertService;
 import maple.expectation.global.event.MySQLDownEvent;
 import maple.expectation.global.event.MySQLUpEvent;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
-import maple.expectation.service.v2.alert.DiscordAlertService;
 import org.redisson.api.RBucket;
 import org.redisson.api.RedissonClient;
 import org.springframework.context.ApplicationEventPublisher;
@@ -54,7 +54,7 @@ public class MySQLHealthEventPublisher {
   private final RedissonClient redissonClient;
   private final MySQLFallbackProperties properties;
   private final LogicExecutor executor;
-  private final DiscordAlertService discordAlertService;
+  private final StatelessAlertService statelessAlertService;
   private final MeterRegistry meterRegistry;
 
   /** CircuitBreaker 이벤트 리스너 등록 (P0-N1) */
@@ -253,7 +253,7 @@ public class MySQLHealthEventPublisher {
               String.format(
                   "CircuitBreaker: %s\nTransition: %s → %s\nTimestamp: %s",
                   LIKE_SYNC_DB_CB, fromState, toState, Instant.now());
-          discordAlertService.sendCriticalAlert(title, description, new Exception(event));
+          statelessAlertService.sendCritical(title, description, new Exception(event));
           return null;
         },
         null,

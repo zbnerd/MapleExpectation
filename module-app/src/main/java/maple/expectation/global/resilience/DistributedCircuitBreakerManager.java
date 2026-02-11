@@ -7,9 +7,9 @@ import io.github.resilience4j.core.registry.EntryAddedEvent;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.alert.StatelessAlertService;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
-import maple.expectation.service.v2.alert.DiscordAlertService;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -20,7 +20,7 @@ public class DistributedCircuitBreakerManager {
 
   private final CircuitBreakerRegistry registry;
   private final StringRedisTemplate redisTemplate;
-  private final DiscordAlertService discordAlertService;
+  private final StatelessAlertService statelessAlertService;
   private final LogicExecutor executor; // ✅ 지능형 실행기 주입
   private static final String CHANNEL_NAME = "cb-state-sync";
 
@@ -72,7 +72,7 @@ public class DistributedCircuitBreakerManager {
     // [패턴 5] executeWithRecovery: 알림 실패가 시스템 전체에 영향을 주지 않도록 보호
     executor.executeOrCatch(
         () -> {
-          discordAlertService.sendCriticalAlert(
+          statelessAlertService.sendCritical(
               buildAlertTitle(cbName),
               buildAlertDescription(cbName, fromState, toState),
               new Exception("Circuit breaker state: " + toState));

@@ -10,6 +10,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.alert.StatelessAlertService;
 import maple.expectation.aop.annotation.ObservedTransaction;
 import maple.expectation.config.OutboxProperties;
 import maple.expectation.domain.v2.CharacterEquipment;
@@ -29,7 +30,6 @@ import maple.expectation.global.resilience.RetryBudgetManager;
 import maple.expectation.global.util.ExceptionUtils;
 import maple.expectation.repository.v2.CharacterEquipmentRepository;
 import maple.expectation.repository.v2.NexonApiOutboxRepository;
-import maple.expectation.service.v2.alert.DiscordAlertService;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
@@ -42,7 +42,7 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 public class ResilientNexonApiClient implements NexonApiClient {
 
   private final NexonApiClient delegate;
-  private final DiscordAlertService discordAlertService;
+  private final StatelessAlertService statelessAlertService;
   private final CharacterEquipmentRepository equipmentRepository;
   private final ObjectMapper objectMapper;
   private final CheckedLogicExecutor checkedExecutor;
@@ -67,7 +67,7 @@ public class ResilientNexonApiClient implements NexonApiClient {
 
   public ResilientNexonApiClient(
       @Qualifier("realNexonApiClient") NexonApiClient delegate,
-      DiscordAlertService discordAlertService,
+      StatelessAlertService statelessAlertService,
       CharacterEquipmentRepository equipmentRepository,
       ObjectMapper objectMapper,
       @Qualifier("checkedLogicExecutor") CheckedLogicExecutor checkedExecutor,
@@ -77,7 +77,7 @@ public class ResilientNexonApiClient implements NexonApiClient {
       OutboxProperties outboxProperties,
       RetryBudgetManager retryBudgetManager) {
     this.delegate = delegate;
-    this.discordAlertService = discordAlertService;
+    this.statelessAlertService = statelessAlertService;
     this.equipmentRepository = equipmentRepository;
     this.objectMapper = objectMapper;
     this.checkedExecutor = checkedExecutor;
@@ -339,7 +339,7 @@ public class ResilientNexonApiClient implements NexonApiClient {
             () ->
                 checkedExecutor.executeUncheckedVoid(
                     () ->
-                        discordAlertService.sendCriticalAlert(
+                        statelessAlertService.sendCritical(
                             "외부 API 장애", "OCID: " + ocid, alertCause),
                     TaskContext.of("Alert", "SendCritical", ocid),
                     e -> new ExternalServiceException(SERVICE_DISCORD, e)),
