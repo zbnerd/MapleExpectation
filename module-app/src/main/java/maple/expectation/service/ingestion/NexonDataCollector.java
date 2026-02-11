@@ -7,6 +7,7 @@ import maple.expectation.application.port.EventPublisher;
 import maple.expectation.domain.event.IntegrationEvent;
 import maple.expectation.domain.nexon.NexonApiCharacterData;
 import maple.expectation.global.error.exception.ExternalServiceException;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -60,7 +61,8 @@ import reactor.core.publisher.Mono;
 @RequiredArgsConstructor
 public class NexonDataCollector {
 
-  private final WebClient nexonWebClient;
+  @Qualifier("mapleWebClient") private final WebClient webClient;
+
   private final EventPublisher eventPublisher;
 
   @Value("${nexon.api.key}")
@@ -133,7 +135,7 @@ public class NexonDataCollector {
    * @return Mono that emits parsed character data
    */
   private Mono<NexonApiCharacterData> fetchFromNexonApi(String ocid) {
-    return nexonWebClient
+    return webClient
         .get()
         .uri("/maplestory/v1/character/basic?ocid={ocid}", ocid)
         .header("x-nxopen-api-key", apiKey)
