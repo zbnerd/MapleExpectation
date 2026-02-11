@@ -52,19 +52,21 @@ class ExpectationWriteBackBufferConcurrencyTest {
 
     // Configure LogicExecutor mock to pass through executeWithFinally calls
     when(executor.executeWithFinally(any(), any(), any()))
-        .thenAnswer(invocation -> {
-          var task = invocation.getArgument(0);
-          var finalizer = invocation.getArgument(1);
-          try {
-            Object result = ((maple.expectation.global.common.function.ThrowingSupplier<?>) task).get();
-            if (finalizer != null) {
-              ((java.lang.Runnable) finalizer).run();
-            }
-            return result;
-          } catch (Throwable e) {
-            throw new RuntimeException(e);
-          }
-        });
+        .thenAnswer(
+            invocation -> {
+              var task = invocation.getArgument(0);
+              var finalizer = invocation.getArgument(1);
+              try {
+                Object result =
+                    ((maple.expectation.global.common.function.ThrowingSupplier<?>) task).get();
+                if (finalizer != null) {
+                  ((java.lang.Runnable) finalizer).run();
+                }
+                return result;
+              } catch (Throwable e) {
+                throw new RuntimeException(e);
+              }
+            });
 
     buffer = new ExpectationWriteBackBuffer(properties, meterRegistry, backoffStrategy, executor);
   }
