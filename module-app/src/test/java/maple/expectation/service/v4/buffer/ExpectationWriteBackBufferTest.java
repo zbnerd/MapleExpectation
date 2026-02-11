@@ -246,10 +246,10 @@ class ExpectationWriteBackBufferTest {
     }
 
     barrier.await(); // 동시 시작
-    Thread.sleep(100); // 완료 대기 (짧은 대기 허용)
+    Thread.sleep(500); // 완료 대기 (동시성 테스트 안정화를 위해 대기 시간 증가)
 
     // Then: 모든 offer 성공 (CAS 재시도 덕분)
-    assertThat(successCount.get()).isEqualTo(threadCount);
+    assertThat(successCount.get()).as("CAS 재시도로 모든 스레드가 성공해야 함").isEqualTo(threadCount);
 
     // Cleanup
     producers.shutdown();

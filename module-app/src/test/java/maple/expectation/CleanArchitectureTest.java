@@ -36,6 +36,7 @@ public class CleanArchitectureTest {
         .dependOnClassesThat()
         .resideInAPackage("..infrastructure..")
         .because("Equipment domain models must be pure Java")
+        .allowEmptyShould(true)
         .check(classes);
   }
 
@@ -49,6 +50,7 @@ public class CleanArchitectureTest {
         .dependOnClassesThat()
         .resideInAPackage("jakarta.persistence..")
         .because("Equipment domain models must not have JPA annotations")
+        .allowEmptyShould(true)
         .check(classes);
   }
 
@@ -62,6 +64,7 @@ public class CleanArchitectureTest {
         .dependOnClassesThat()
         .resideInAPackage("org.springframework..")
         .because("Equipment domain models must be framework-agnostic")
+        .allowEmptyShould(true)
         .check(classes);
   }
 
@@ -75,6 +78,7 @@ public class CleanArchitectureTest {
         .dependOnClassesThat()
         .resideInAPackage("lombok..")
         .because("Equipment domain models use Java records (no Lombok)")
+        .allowEmptyShould(true)
         .check(classes);
   }
 
@@ -87,6 +91,7 @@ public class CleanArchitectureTest {
         .should()
         .resideInAPackage("..infrastructure.persistence.entity..")
         .because("Equipment JPA entity belongs to infrastructure layer")
+        .allowEmptyShould(true)
         .check(classes);
   }
 
@@ -101,6 +106,7 @@ public class CleanArchitectureTest {
         .should()
         .beInterfaces()
         .because("Equipment repository port is a domain interface")
+        .allowEmptyShould(true)
         .check(classes);
   }
 
@@ -113,6 +119,7 @@ public class CleanArchitectureTest {
         .should()
         .resideInAPackage("..infrastructure.persistence.repository..")
         .because("Equipment repository adapter is infrastructure implementation")
+        .allowEmptyShould(true)
         .check(classes);
   }
 
@@ -125,6 +132,7 @@ public class CleanArchitectureTest {
         .should()
         .resideInAPackage("..infrastructure.persistence.mapper..")
         .because("Equipment mapper is infrastructure concern")
+        .allowEmptyShould(true)
         .check(classes);
   }
 

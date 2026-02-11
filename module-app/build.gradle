@@ -7,7 +7,35 @@ plugins {
 	id 'org.springframework.boot' version '3.5.4'
 }
 
+// Integration Test Source Set Configuration
+sourceSets {
+	integrationTest {
+		java.srcDir file('src/integrationTest/java')
+		resources.srcDir file('src/integrationTest/resources')
+		compileClasspath += sourceSets.main.output + configurations.testRuntimeClasspath
+		runtimeClasspath += output + compileClasspath
+	}
+}
+
+configurations {
+	integrationTestImplementation.extendsFrom testImplementation
+	integrationTestRuntimeOnly.extendsFrom testRuntimeOnly
+	integrationTestAnnotationProcessor.extendsFrom testAnnotationProcessor
+}
+
+// IntelliJ IDEA Integration
+idea {
+	module {
+		testSourceDirs += sourceSets.integrationTest.java.srcDirs
+		testResourceDirs += sourceSets.integrationTest.resources.srcDirs
+	}
+}
+
 dependencies {
+	// Lombok for integration tests
+	integrationTestCompileOnly 'org.projectlombok:lombok:1.18.30'
+	integrationTestAnnotationProcessor 'org.projectlombok:lombok:1.18.30'
+
 	implementation project(':module-core')
 	implementation project(':module-infra')
 	implementation project(':module-common')
@@ -79,9 +107,11 @@ dependencies {
 	testImplementation 'org.testcontainers:toxiproxy'
 }
 
-// Spring Boot JAR 비활성화 (bootRun만 사용)
+// Enable plain jar for inter-module dependencies (chaos-test module needs it)
+// bootJar remains for execution
 tasks.named("jar") {
-	enabled = false
+	enabled = true
+	archiveClassifier = ""  // Plain jar without dependencies
 }
 
 bootRun {
@@ -90,4 +120,68 @@ bootRun {
 		'-Xmx1024m',
 		'-XX:+UseG1GC'
 	]
+}
+
+// test-legacy는 빌드에서 제외
+tasks.named('test') {
+	exclude '**/test-legacy/**'
+}
+
+// Integration Test Task
+tasks.register('integrationTest', Test) {
+	description = 'Runs integration tests (Testcontainers, DB, Redis).'
+	group = 'verification'
+
+	testClassesDirs = sourceSets.integrationTest.output.classesDirs
+	classpath = sourceSets.integrationTest.runtimeClasspath
+	useJUnitPlatform()
+
+	shouldRunAfter tasks.test
+
+	// JUnit configuration for integration tests
+	useJUnitPlatform {
+		includeTags 'integration'
+	}
+
+	// JVM settings for integration tests
+	jvmArgs = [
+		'-Xms512m',
+		'-Xmx2048m',
+		'-XX:+UseG1GC',
+		'-XX:MaxMetaspaceSize=512m'
+	]
+
+	// Docker socket for Testcontainers - environment variable AND system property
+	environment "DOCKER_HOST", "unix:///var/run/docker.sock"
+	systemProperty "DOCKER_HOST", "unix:///var/run/docker.sock"
+
+	// Disable Ryuk container for simpler setup (optional, remove if needed)
+	environment "TESTCONTAINERS_RYUK_DISABLED", "true"
+
+	// Testcontainers reuse for faster tests
+	systemProperty "testcontainers.reuse.enable", "true"
+
+	// Test logging
+	testLogging {
+		events "passed", "skipped", "failed"
+		exceptionFormat "full"
+	}
+
+	// Retry flaky tests
+	retry {
+		maxRetries = 1
+		maxFailures = 5
+		failOnPassedAfterRetry = false
+	}
+}
+
+// Fix duplicate resources issue
+tasks.withType(ProcessResources).configureEach {
+	duplicatesStrategy = DuplicatesStrategy.INCLUDE
+}
+
+// Lombok annotation processor for integration tests
+// Note: integrationTestAnnotationProcessor extends testAnnotationProcessor, so Lombok is included
+tasks.named('compileIntegrationTestJava') {
+	options.annotationProcessorPath = configurations.integrationTestAnnotationProcessor
 }

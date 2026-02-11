@@ -100,8 +100,7 @@ public class CorsValidationFilter extends OncePerRequestFilter {
     log.warn("[CorsValidation-Rejected] Origin '{}' is not in allowed list", maskedOrigin);
 
     String errorResponse =
-        String.format(
-            "{\"code\":\"CORS_FORBIDDEN\",\"message\":\"허용되지 않는 오리진입니다.\"}");
+        String.format("{\"code\":\"CORS_FORBIDDEN\",\"message\":\"허용되지 않는 오리진입니다.\"}");
 
     response.getWriter().write(errorResponse);
   }
@@ -129,9 +128,7 @@ public class CorsValidationFilter extends OncePerRequestFilter {
       String remaining = withoutProtocol.substring(dotIndex);
       // 첫 2글자만 노출
       String maskedFirst =
-          firstPart.length() > 2
-              ? firstPart.substring(0, 2) + "***"
-              : firstPart + "***";
+          firstPart.length() > 2 ? firstPart.substring(0, 2) + "***" : firstPart + "***";
       return maskedFirst + remaining;
     }
 

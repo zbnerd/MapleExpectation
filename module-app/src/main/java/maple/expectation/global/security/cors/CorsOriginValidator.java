@@ -58,8 +58,7 @@ public class CorsOriginValidator {
 
   /** 사설 IP 대역 패턴 (RFC 1918) */
   private static final Pattern PRIVATE_IP_PATTERN =
-      Pattern.compile(
-          "^https?://(10\\.|172\\.(1[6-9]|2[0-9]|3[01])\\.|192\\.168\\.|127\\.)");
+      Pattern.compile("^https?://(10\\.|172\\.(1[6-9]|2[0-9]|3[01])\\.|192\\.168\\.|127\\.)");
 
   /** 현재 활성화된 프로필 */
   private final String activeProfile;
@@ -89,19 +88,14 @@ public class CorsOriginValidator {
         if (isProductionProfile()) {
           if (isLocalhost(origin)) {
             warnings.add(
-                String.format(
-                    "[SECURITY] '%s' - 프로덕션 환경에서 localhost 오리진은 권장하지 않습니다.",
-                    origin));
+                String.format("[SECURITY] '%s' - 프로덕션 환경에서 localhost 오리진은 권장하지 않습니다.", origin));
           }
           if (isPrivateIp(origin)) {
             warnings.add(
-                String.format(
-                    "[SECURITY] '%s' - 프로덕션 환경에서 사설 IP 오리진은 권장하지 않습니다.",
-                    origin));
+                String.format("[SECURITY] '%s' - 프로덕션 환경에서 사설 IP 오리진은 권장하지 않습니다.", origin));
           }
           if (isHttp(origin)) {
-            warnings.add(
-                String.format("[SECURITY] '%s' - 프로덕션 환경에서는 HTTPS 사용을 권장합니다.", origin));
+            warnings.add(String.format("[SECURITY] '%s' - 프로덕션 환경에서는 HTTPS 사용을 권장합니다.", origin));
           }
         }
       } catch (IllegalArgumentException e) {
@@ -125,8 +119,7 @@ public class CorsOriginValidator {
 
     // 와일드카드 검출 (보안 위험)
     if (WILDCARD_PATTERN.matcher(origin).matches()) {
-      throw new IllegalArgumentException(
-          "와일드카드(*) 오리진은 보안 상의 이유로 금지됩니다. 명시적인 오리진을 사용하세요.");
+      throw new IllegalArgumentException("와일드카드(*) 오리진은 보안 상의 이유로 금지됩니다. 명시적인 오리진을 사용하세요.");
     }
 
     // URL 파싱
@@ -134,8 +127,7 @@ public class CorsOriginValidator {
     try {
       uri = new URI(origin);
     } catch (URISyntaxException e) {
-      throw new IllegalArgumentException(
-          String.format("유효하지 않은 URL 형식입니다: %s", origin), e);
+      throw new IllegalArgumentException(String.format("유효하지 않은 URL 형식입니다: %s", origin), e);
     }
 
     // 스킴(프로토콜) 검증
@@ -146,8 +138,7 @@ public class CorsOriginValidator {
 
     if (!VALID_PROTOCOLS.contains(scheme.toLowerCase())) {
       throw new IllegalArgumentException(
-          String.format(
-              "허용되지 않는 프로토콜입니다: %s (허용: %s)", scheme, VALID_PROTOCOLS));
+          String.format("허용되지 않는 프로토콜입니다: %s (허용: %s)", scheme, VALID_PROTOCOLS));
     }
 
     // 호스트 검증
@@ -198,11 +189,6 @@ public class CorsOriginValidator {
   /** 로컬호스트 오리진 여부 확인 */
   private boolean isLocalhost(String origin) {
     return LOCALHOST_PATTERN.matcher(origin).find();
-  }
-
-  /** 사설 IP 오리진 여부 확인 */
-  private boolean isPrivateIp(String origin) {
-    return PRIVATE_IP_PATTERN.matcher(origin).matches();
   }
 
   /** 사설 IP 오리진 여부 확인 */

@@ -13,8 +13,7 @@ import org.springframework.validation.annotation.Validated;
 /**
  * CORS 설정 프로퍼티 (환경별 분리)
  *
- * <p>Issue #172: CORS 와일드카드 제거 - 환경별 명시적 오리진 설정
- * Issue #21: CORS 오리진 검증 강화 - URL 포맷 검증 및 보안 규칙
+ * <p>Issue #172: CORS 와일드카드 제거 - 환경별 명시적 오리진 설정 Issue #21: CORS 오리진 검증 강화 - URL 포맷 검증 및 보안 규칙
  *
  * <h4>5-Agent Council Round 2 결정</h4>
  *

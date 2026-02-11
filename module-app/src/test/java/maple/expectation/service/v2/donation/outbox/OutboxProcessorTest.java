@@ -54,6 +54,8 @@ class OutboxProcessorTest {
 
   private OutboxProcessor processor;
 
+  private maple.expectation.service.v2.donation.outbox.OutboxFetchFacade fetchFacade;
+
   @BeforeEach
   void setUp() {
     outboxRepository = mock(DonationOutboxRepository.class);
@@ -64,8 +66,7 @@ class OutboxProcessorTest {
     properties = createTestProperties();
 
     // Create mock OutboxFetchFacade
-    maple.expectation.service.v2.donation.outbox.OutboxFetchFacade fetchFacade =
-        mock(maple.expectation.service.v2.donation.outbox.OutboxFetchFacade.class);
+    fetchFacade = mock(maple.expectation.service.v2.donation.outbox.OutboxFetchFacade.class);
 
     processor =
         new OutboxProcessor(
@@ -153,9 +154,8 @@ class OutboxProcessorTest {
       DonationOutbox entry1 = createTestOutbox(1L, "req-001");
       DonationOutbox entry2 = createTestOutbox(2L, "req-002");
 
-      given(outboxRepository.findPendingWithLock(anyList(), any(), any(Pageable.class)))
-          .willReturn(List.of(entry1, entry2));
-      given(outboxRepository.saveAll(anyList())).willReturn(List.of(entry1, entry2));
+      // fetchFacade.fetchAndLock() returns entries
+      given(fetchFacade.fetchAndLock()).willReturn(List.of(entry1, entry2));
 
       // processEntryInTransaction은 TransactionTemplate 사용
       given(transactionTemplate.execute(any(TransactionCallback.class)))
@@ -182,9 +182,8 @@ class OutboxProcessorTest {
       DonationOutbox entry1 = createTestOutbox(1L, "req-001");
       DonationOutbox entry2 = createTestOutbox(2L, "req-002");
 
-      given(outboxRepository.findPendingWithLock(anyList(), any(), any(Pageable.class)))
-          .willReturn(List.of(entry1, entry2));
-      given(outboxRepository.saveAll(anyList())).willReturn(List.of(entry1, entry2));
+      // fetchFacade.fetchAndLock() returns entries
+      given(fetchFacade.fetchAndLock()).willReturn(List.of(entry1, entry2));
 
       // entry1: 실패, entry2: 성공
       given(transactionTemplate.execute(any(TransactionCallback.class)))
@@ -197,6 +196,7 @@ class OutboxProcessorTest {
 
       // recoverFailedEntry에서 사용
       doNothing().when(transactionTemplate).executeWithoutResult(any());
+      given(outboxRepository.findById(1L)).willReturn(Optional.of(entry1));
       given(outboxRepository.findById(2L)).willReturn(Optional.of(entry2));
 
       // when
@@ -215,9 +215,7 @@ class OutboxProcessorTest {
     @DisplayName("Pending 없으면 배치 처리 스킵")
     void shouldSkipWhenNoPending() {
       // given
-      given(outboxRepository.findPendingWithLock(anyList(), any(), any(Pageable.class)))
-          .willReturn(List.of());
-      given(outboxRepository.saveAll(anyList())).willReturn(List.of());
+      given(fetchFacade.fetchAndLock()).willReturn(List.of());
 
       // when
       processor.pollAndProcess();
@@ -232,9 +230,8 @@ class OutboxProcessorTest {
       // given
       DonationOutbox entry = createTestOutbox(1L, "req-001");
 
-      given(outboxRepository.findPendingWithLock(anyList(), any(), any(Pageable.class)))
-          .willReturn(List.of(entry));
-      given(outboxRepository.saveAll(anyList())).willReturn(List.of(entry));
+      // fetchFacade.fetchAndLock() returns entry
+      given(fetchFacade.fetchAndLock()).willReturn(List.of(entry));
       given(transactionTemplate.execute(any(TransactionCallback.class)))
           .willAnswer(
               inv -> {

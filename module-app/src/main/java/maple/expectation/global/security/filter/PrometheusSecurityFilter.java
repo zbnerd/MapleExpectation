@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.executor.LogicExecutor;
+import maple.expectation.global.executor.TaskContext;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
@@ -52,7 +53,8 @@ public class PrometheusSecurityFilter extends OncePerRequestFilter {
    */
   public PrometheusSecurityFilter(
       LogicExecutor logicExecutor,
-      @Value("${prometheus.security.trusted-proxies:127.0.0.1,::1,localhost}") String trustedProxies,
+      @Value("${prometheus.security.trusted-proxies:127.0.0.1,::1,localhost}")
+          String trustedProxies,
       @Value("${prometheus.security.internal-networks:172.16.0.0/12,10.0.0.0/8,192.168.0.0/16}")
           String internalNetworks,
       @Value("${prometheus.security.enabled:true}") boolean enabled) {
@@ -91,7 +93,10 @@ public class PrometheusSecurityFilter extends OncePerRequestFilter {
     // IP 검증
     Boolean isAllowed =
         logicExecutor.executeOrDefault(
-            () -> validateClientIp(request), false, "PrometheusSecurityFilter", "validateClientIp");
+            () -> validateClientIp(request),
+            false,
+            TaskContext.of(
+                "PrometheusSecurityFilter", "validateClientIp", request.getRemoteAddr()));
 
     if (!isAllowed) {
       log.warn(
@@ -101,7 +106,8 @@ public class PrometheusSecurityFilter extends OncePerRequestFilter {
           path);
       response.setStatus(HttpServletResponse.SC_FORBIDDEN);
       response.setContentType("application/json;charset=UTF-8");
-      response.getWriter()
+      response
+          .getWriter()
           .write(
               "{\"code\":\"FORBIDDEN\",\"message\":\"Prometheus metrics access denied. Contact administrator.\"}");
       return;

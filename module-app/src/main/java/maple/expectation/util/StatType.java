@@ -84,6 +84,11 @@ public enum StatType {
       return UNKNOWN;
     }
 
+    // 기존 방식: 퍼센트 스탯은 UNKNOWN 반환 (findTypeWithUnit 사용 필요)
+    if (option.contains("%")) {
+      return UNKNOWN;
+    }
+
     return Arrays.stream(values())
         .filter(type -> type != UNKNOWN) // 기타 제외하고 검색
         .filter(type -> !type.percent) // 기존 방식: non-percent 타입만

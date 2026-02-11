@@ -9,10 +9,8 @@ import static org.mockito.Mockito.when;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletResponse;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.util.List;
 import maple.expectation.global.executor.LogicExecutor;
+import maple.expectation.global.executor.TaskContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -70,14 +68,24 @@ class PrometheusSecurityFilterTest {
       // Arrange
       request.setRequestURI("/actuator/prometheus");
       request.setRemoteAddr("127.0.0.1");
-      when(logicExecutor.executeOrDefault(any(), any(), any(), any())).thenReturn(true);
+      when(logicExecutor.executeOrDefault(
+              any(),
+              any(),
+              eq(
+                  TaskContext.of(
+                      "PrometheusSecurityFilter", "validateClientIp", request.getRemoteAddr()))))
+          .thenReturn(true);
 
       // Act
       filter.doFilter(request, response, filterChain);
 
       // Assert
       verify(filterChain).doFilter(request, response);
-      verify(logicExecutor).executeOrDefault(any(), eq(false), eq("PrometheusSecurityFilter"), eq("validateClientIp"));
+      verify(logicExecutor)
+          .executeOrDefault(
+              any(),
+              eq(false),
+              eq(TaskContext.of("PrometheusSecurityFilter", "validateClientIp", "127.0.0.1")));
     }
 
     @Test
@@ -86,7 +94,13 @@ class PrometheusSecurityFilterTest {
       // Arrange
       request.setRequestURI("/actuator/prometheus");
       request.setRemoteAddr("::1");
-      when(logicExecutor.executeOrDefault(any(), any(), any(), any())).thenReturn(true);
+      when(logicExecutor.executeOrDefault(
+              any(),
+              any(),
+              eq(
+                  TaskContext.of(
+                      "PrometheusSecurityFilter", "validateClientIp", request.getRemoteAddr()))))
+          .thenReturn(true);
 
       // Act
       filter.doFilter(request, response, filterChain);
@@ -101,7 +115,13 @@ class PrometheusSecurityFilterTest {
       // Arrange
       request.setRequestURI("/actuator/prometheus");
       request.setRemoteAddr("172.17.0.1"); // Docker default bridge gateway
-      when(logicExecutor.executeOrDefault(any(), any(), any(), any())).thenReturn(true);
+      when(logicExecutor.executeOrDefault(
+              any(),
+              any(),
+              eq(
+                  TaskContext.of(
+                      "PrometheusSecurityFilter", "validateClientIp", request.getRemoteAddr()))))
+          .thenReturn(true);
 
       // Act
       filter.doFilter(request, response, filterChain);
@@ -122,7 +142,13 @@ class PrometheusSecurityFilterTest {
       request.setRequestURI("/actuator/prometheus");
       request.setRemoteAddr("172.17.0.1"); // 프록시 IP
       request.addHeader("X-Forwarded-For", "127.0.0.1, 172.17.0.1"); // client, proxy
-      when(logicExecutor.executeOrDefault(any(), any(), any(), any())).thenReturn(true);
+      when(logicExecutor.executeOrDefault(
+              any(),
+              any(),
+              eq(
+                  TaskContext.of(
+                      "PrometheusSecurityFilter", "validateClientIp", request.getRemoteAddr()))))
+          .thenReturn(true);
 
       // Act
       filter.doFilter(request, response, filterChain);
@@ -137,7 +163,13 @@ class PrometheusSecurityFilterTest {
       // Arrange
       request.setRequestURI("/actuator/prometheus");
       request.setRemoteAddr("127.0.0.1");
-      when(logicExecutor.executeOrDefault(any(), any(), any(), any())).thenReturn(true);
+      when(logicExecutor.executeOrDefault(
+              any(),
+              any(),
+              eq(
+                  TaskContext.of(
+                      "PrometheusSecurityFilter", "validateClientIp", request.getRemoteAddr()))))
+          .thenReturn(true);
 
       // Act
       filter.doFilter(request, response, filterChain);
@@ -153,7 +185,13 @@ class PrometheusSecurityFilterTest {
       request.setRequestURI("/actuator/prometheus");
       request.setRemoteAddr("172.17.0.1");
       request.addHeader("X-Forwarded-For", "8.8.8.8"); // 외부 IP 스푸핑 시도
-      when(logicExecutor.executeOrDefault(any(), any(), any(), any())).thenReturn(false);
+      when(logicExecutor.executeOrDefault(
+              any(),
+              any(),
+              eq(
+                  TaskContext.of(
+                      "PrometheusSecurityFilter", "validateClientIp", request.getRemoteAddr()))))
+          .thenReturn(false);
 
       // Act
       filter.doFilter(request, response, filterChain);
@@ -174,7 +212,13 @@ class PrometheusSecurityFilterTest {
       // Arrange
       request.setRequestURI("/actuator/prometheus");
       request.setRemoteAddr("172.20.0.5"); // 172.16.0.0/12 범위
-      when(logicExecutor.executeOrDefault(any(), any(), any(), any())).thenReturn(true);
+      when(logicExecutor.executeOrDefault(
+              any(),
+              any(),
+              eq(
+                  TaskContext.of(
+                      "PrometheusSecurityFilter", "validateClientIp", request.getRemoteAddr()))))
+          .thenReturn(true);
 
       // Act
       filter.doFilter(request, response, filterChain);
@@ -189,7 +233,13 @@ class PrometheusSecurityFilterTest {
       // Arrange
       request.setRequestURI("/actuator/prometheus");
       request.setRemoteAddr("10.0.0.5");
-      when(logicExecutor.executeOrDefault(any(), any(), any(), any())).thenReturn(true);
+      when(logicExecutor.executeOrDefault(
+              any(),
+              any(),
+              eq(
+                  TaskContext.of(
+                      "PrometheusSecurityFilter", "validateClientIp", request.getRemoteAddr()))))
+          .thenReturn(true);
 
       // Act
       filter.doFilter(request, response, filterChain);
@@ -204,7 +254,13 @@ class PrometheusSecurityFilterTest {
       // Arrange
       request.setRequestURI("/actuator/prometheus");
       request.setRemoteAddr("192.168.1.5");
-      when(logicExecutor.executeOrDefault(any(), any(), any(), any())).thenReturn(true);
+      when(logicExecutor.executeOrDefault(
+              any(),
+              any(),
+              eq(
+                  TaskContext.of(
+                      "PrometheusSecurityFilter", "validateClientIp", request.getRemoteAddr()))))
+          .thenReturn(true);
 
       // Act
       filter.doFilter(request, response, filterChain);
@@ -224,7 +280,13 @@ class PrometheusSecurityFilterTest {
       // Arrange
       request.setRequestURI("/actuator/prometheus");
       request.setRemoteAddr("8.8.8.8"); // Google DNS
-      when(logicExecutor.executeOrDefault(any(), any(), any(), any())).thenReturn(false);
+      when(logicExecutor.executeOrDefault(
+              any(),
+              any(),
+              eq(
+                  TaskContext.of(
+                      "PrometheusSecurityFilter", "validateClientIp", request.getRemoteAddr()))))
+          .thenReturn(false);
 
       // Act
       filter.doFilter(request, response, filterChain);
@@ -240,7 +302,13 @@ class PrometheusSecurityFilterTest {
       // Arrange
       request.setRequestURI("/actuator/prometheus");
       request.setRemoteAddr("1.2.3.4");
-      when(logicExecutor.executeOrDefault(any(), any(), any(), any())).thenReturn(false);
+      when(logicExecutor.executeOrDefault(
+              any(),
+              any(),
+              eq(
+                  TaskContext.of(
+                      "PrometheusSecurityFilter", "validateClientIp", request.getRemoteAddr()))))
+          .thenReturn(false);
 
       // Act
       filter.doFilter(request, response, filterChain);

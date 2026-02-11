@@ -25,7 +25,23 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mockito;
 
-/** ShutdownDataPersistenceService 테스트 LogicExecutor의 모든 실행 패턴을 모킹하여 실제 로직이 수행되도록 보장합니다. */
+/**
+ * ShutdownDataPersistenceService 테스트
+ *
+ * <p>LogicExecutor의 모든 실행 패턴을 모킹하여 실제 로직이 수행되도록 보장합니다.
+ *
+ * <h4>Note: This is a pure unit test</h4>
+ *
+ * <p>This test does NOT use SharedContainers because:
+ *
+ * <ul>
+ *   <li>It tests file I/O operations only (no DB/Redis needed)
+ *   <li>Uses @TempDir for temporary file management
+ *   <li>Mocks LogicExecutor for deterministic behavior
+ * </ul>
+ *
+ * @since 2.0.0
+ */
 @DisplayName("ShutdownDataPersistenceService 테스트")
 class ShutdownDataPersistenceServiceTest {
 

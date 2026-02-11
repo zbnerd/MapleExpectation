@@ -276,7 +276,8 @@ class JwtTokenProviderTest {
       assertThatThrownBy(
               () -> {
                 JwtTokenProvider placeholderProvider =
-                    new JwtTokenProvider(placeholderSecret, EXPIRATION_SECONDS, environment, executor);
+                    new JwtTokenProvider(
+                        placeholderSecret, EXPIRATION_SECONDS, environment, executor);
                 placeholderProvider.init();
               })
           .isInstanceOf(IllegalStateException.class)

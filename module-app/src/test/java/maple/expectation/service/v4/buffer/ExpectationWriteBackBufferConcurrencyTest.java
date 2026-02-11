@@ -1,7 +1,9 @@
 package maple.expectation.service.v4.buffer;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -12,6 +14,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import lombok.extern.slf4j.Slf4j;
 import maple.expectation.config.BufferProperties;
 import maple.expectation.dto.v4.EquipmentExpectationResponseV4.PresetExpectation;
 import org.junit.jupiter.api.AfterEach;
@@ -24,6 +27,7 @@ import org.junit.jupiter.api.Test;
  * <p>This test verifies that the backpressure mechanism correctly enforces maxQueueSize under high
  * concurrency, preventing the queue from exceeding its intended capacity.
  */
+@Slf4j
 class ExpectationWriteBackBufferConcurrencyTest {
 
   private ExpectationWriteBackBuffer buffer;
@@ -45,6 +49,22 @@ class ExpectationWriteBackBufferConcurrencyTest {
     // BackoffStrategy is no longer needed for atomic implementation
     backoffStrategy = null;
     executor = mock(maple.expectation.global.executor.LogicExecutor.class);
+
+    // Configure LogicExecutor mock to pass through executeWithFinally calls
+    when(executor.executeWithFinally(any(), any(), any()))
+        .thenAnswer(invocation -> {
+          var task = invocation.getArgument(0);
+          var finalizer = invocation.getArgument(1);
+          try {
+            Object result = ((maple.expectation.global.common.function.ThrowingSupplier<?>) task).get();
+            if (finalizer != null) {
+              ((java.lang.Runnable) finalizer).run();
+            }
+            return result;
+          } catch (Throwable e) {
+            throw new RuntimeException(e);
+          }
+        });
 
     buffer = new ExpectationWriteBackBuffer(properties, meterRegistry, backoffStrategy, executor);
   }
@@ -105,12 +125,12 @@ class ExpectationWriteBackBufferConcurrencyTest {
 
     // Then: Queue MUST NOT exceed maxQueueSize
     int actualPending = buffer.getPendingCount();
-    System.out.println("Concurrency test results:");
-    System.out.println("  Max queue size: " + maxQueueSize);
-    System.out.println("  Actual pending: " + actualPending);
-    System.out.println("  Successful offers: " + successCount.get());
-    System.out.println("  Rejected offers: " + rejectedCount.get());
-    System.out.println("  Total attempted: " + (threads * offersPerThread));
+    log.info("Concurrency test results:");
+    log.info("  Max queue size: {}", maxQueueSize);
+    log.info("  Actual pending: {}", actualPending);
+    log.info("  Successful offers: {}", successCount.get());
+    log.info("  Rejected offers: {}", rejectedCount.get());
+    log.info("  Total attempted: {}", (threads * offersPerThread));
 
     // CRITICAL ASSERTION: Atomic backpressure must enforce the limit
     assertThat(actualPending)
@@ -123,8 +143,8 @@ class ExpectationWriteBackBufferConcurrencyTest {
         .isGreaterThan(0);
 
     // Verify the counter matches actual queue size
-    // Drain the queue to verify
-    List<ExpectationWriteTask> drained = buffer.drain(Integer.MAX_VALUE);
+    // Drain the queue to verify (use actualPending as drain size, not Integer.MAX_VALUE)
+    List<ExpectationWriteTask> drained = buffer.drain(actualPending);
     assertThat(drained.size())
         .as("Drained count should match pending counter")
         .isEqualTo(actualPending);
