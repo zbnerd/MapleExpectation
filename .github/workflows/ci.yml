@@ -146,9 +146,10 @@ jobs:
         uses: dorny/test-reporter@v1
         with:
           name: JUnit Test Results
-          path: 'build/test-results/test/*.xml'
+          path: '**/build/test-results/test/*.xml'
           reporter: java-junit
           fail-on-error: true
+          max-annotations: 100  # 너무 많은 annotation 방지
 
       # ------------------------------------------------------------------
       # Step 8: Build JAR (Only if tests pass)
