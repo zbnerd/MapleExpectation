@@ -138,6 +138,11 @@ subprojects {
 			events "passed", "skipped", "failed"
 			exceptionFormat "full"
 		}
+
+		reports {
+			junitXml.required = true
+			html.required = true
+		}
 	}
 
 	jacoco {
