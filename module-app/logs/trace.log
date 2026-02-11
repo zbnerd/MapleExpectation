@@ -1,0 +1,4 @@
+2026-02-11 09:49:21.463 [main] INFO  m.expectation.aop.aspect.TraceAspect : --> [START] CorsOriginConstraintValidator.isValid(args: [Collection(size=6), org.hibernate.validator.internal.engine.constraintvalidation.ConstraintValidatorContextImpl@5b49b1df])
+2026-02-11 09:49:21.465 [main] INFO  m.expectation.aop.aspect.TraceAspect : |  --> [START] CorsOriginValidator.validateOrigins(args: [Collection(size=6)])
+2026-02-11 09:49:21.466 [main] INFO  m.expectation.aop.aspect.TraceAspect : |  <-- [END] CorsOriginValidator.validateOrigins (0 ms)
+2026-02-11 09:49:21.466 [main] INFO  m.expectation.aop.aspect.TraceAspect : <-- [END] CorsOriginConstraintValidator.isValid (2 ms)
