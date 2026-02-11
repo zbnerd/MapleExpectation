@@ -122,12 +122,10 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
           script: |
-            # 환경변수 주입
-            export DB_USER="${{ secrets.DB_USER }}"
-            export DB_PASSWORD="${{ secrets.DB_PASSWORD }}"
-            export NEXON_API_KEY="${{ secrets.NEXON_API_KEY }}" 
+            # 환경변수 주입 (.env 파일에 DB 정보가 있으므로 제외)
+            export NEXON_API_KEY="${{ secrets.NEXON_API_KEY }}"
             export DISCORD_WEBHOOK_URL="${{ secrets.DISCORD_WEBHOOK_URL }}"
-            
+
             # 실행 권한 부여 및 스크립트 실행
             chmod +x /home/${{ secrets.EC2_USERNAME }}/deploy.sh
             /home/${{ secrets.EC2_USERNAME }}/deploy.sh
