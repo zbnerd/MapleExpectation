@@ -111,7 +111,7 @@ dependencies {
 // bootJar remains for execution
 tasks.named("jar") {
 	enabled = true
-	archiveClassifier = ""  // Plain jar without dependencies
+	archiveClassifier = "plain"  // Plain jar without dependencies (don't override bootJar)
 }
 
 bootRun {
