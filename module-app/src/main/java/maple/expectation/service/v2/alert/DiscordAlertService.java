@@ -58,7 +58,7 @@ public class DiscordAlertService {
   private boolean aiSreEnabled;
 
   public DiscordAlertService(
-      @Qualifier("webclient") WebClient webClient,
+      @Qualifier("mapleWebClient") WebClient webClient,
       DiscordMessageFactory messageFactory,
       Optional<AiSreService> aiSreService,
       Optional<SystemContextProvider> contextProvider) {
