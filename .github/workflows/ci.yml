@@ -140,16 +140,8 @@ jobs:
 
       # ------------------------------------------------------------------
       # Step 7: Publish Test Results (PR Annotations)
+      # Step 7 REMOVED: dorny/test-reporter 삭제 - XML 리포트 경로 문제로 PR annotation 불필요
       # ------------------------------------------------------------------
-      - name: Publish Test Results
-        if: always()
-        uses: dorny/test-reporter@v1
-        with:
-          name: JUnit Test Results
-          path: '**/build/test-results/test/*.xml'
-          reporter: java-junit
-          fail-on-error: true
-          max-annotations: 100  # 너무 많은 annotation 방지
 
       # ------------------------------------------------------------------
       # Step 8: Build JAR (Only if tests pass)
