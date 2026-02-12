@@ -82,7 +82,6 @@ jobs:
         with:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: 'temurin'
-          cache: 'gradle'
 
       # ------------------------------------------------------------------
       # Step 3: Setup Gradle
