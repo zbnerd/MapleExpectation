@@ -87,11 +87,9 @@ jobs:
       # ------------------------------------------------------------------
       # Step 3: Setup Gradle
       # ------------------------------------------------------------------
+      # Temporarily disable Gradle build cache to ensure clean rebuild
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-version: wrapper
-          cache-read-only: ${{ github.ref != 'refs/heads/develop' }}
+        run: echo "GRADLE_OPTS=-Dorg.gradle.caching=false" >> $GITHUB_ENV
 
       # ------------------------------------------------------------------
       # Step 4: Grant Execute Permission
