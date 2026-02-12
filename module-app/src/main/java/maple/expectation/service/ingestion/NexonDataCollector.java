@@ -1,7 +1,6 @@
 package maple.expectation.service.ingestion;
 
 import java.time.Duration;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.application.port.EventPublisher;
 import maple.expectation.domain.event.IntegrationEvent;
@@ -58,12 +57,16 @@ import reactor.core.publisher.Mono;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class NexonDataCollector {
 
-  @Qualifier("mapleWebClient") private final WebClient webClient;
-
+  private final WebClient webClient;
   private final EventPublisher eventPublisher;
+
+  public NexonDataCollector(
+      @Qualifier("mapleWebClient") WebClient webClient, EventPublisher eventPublisher) {
+    this.webClient = webClient;
+    this.eventPublisher = eventPublisher;
+  }
 
   @Value("${nexon.api.key}")
   private String apiKey;
