@@ -44,7 +44,8 @@ public class RealNexonAuthClient implements NexonAuthClient {
 
   private static final String CHARACTER_LIST_PATH = "/maplestory/v1/character/list";
 
-  private final WebClient mapleWebClient;
+  @org.springframework.beans.factory.annotation.Qualifier("mapleWebClient") private final WebClient mapleWebClient;
+
   private final LogicExecutor executor;
   private final TimeoutProperties timeoutProperties;
 

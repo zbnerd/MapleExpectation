@@ -2,9 +2,9 @@ package maple.expectation.service.v2.like.listener;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.alert.StatelessAlertService;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
-import maple.expectation.service.v2.alert.DiscordAlertService;
 import maple.expectation.service.v2.like.event.LikeSyncFailedEvent;
 import maple.expectation.service.v2.shutdown.ShutdownDataPersistenceService;
 import org.springframework.context.event.EventListener;
@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
  * <p>금융수준 안전 설계:
  *
  * <ul>
- *   <li>Discord 알림 발송 (운영팀 즉시 인지)
+ *   <li>Stateless 알림 발송 (운영팀 즉시 인지)
  *   <li>파일 백업 (수동 복구 가능)
  *   <li>메트릭 기록 (모니터링)
  * </ul>
@@ -28,17 +28,17 @@ import org.springframework.stereotype.Component;
 @Component
 public class LikeSyncEventListener {
 
-  private final DiscordAlertService discordAlertService;
+  private final StatelessAlertService statelessAlertService;
   private final ShutdownDataPersistenceService persistenceService;
   private final LogicExecutor executor;
   private final MeterRegistry meterRegistry;
 
   public LikeSyncEventListener(
-      DiscordAlertService discordAlertService,
+      StatelessAlertService statelessAlertService,
       ShutdownDataPersistenceService persistenceService,
       LogicExecutor executor,
       MeterRegistry meterRegistry) {
-    this.discordAlertService = discordAlertService;
+    this.statelessAlertService = statelessAlertService;
     this.persistenceService = persistenceService;
     this.executor = executor;
     this.meterRegistry = meterRegistry;
@@ -117,7 +117,7 @@ public class LikeSyncEventListener {
   private void sendDiscordAlert(LikeSyncFailedEvent event, TaskContext context) {
     executor.executeOrCatch(
         () -> {
-          discordAlertService.sendCriticalAlert(
+          statelessAlertService.sendCritical(
               "🚨 좋아요 동기화 DLQ 발생",
               String.format(
                   "유실 위험 데이터: %d건 (%d개 엔트리)\n" + "임시키: %s\n원본키: %s\n" + "⚠️ 파일 백업 완료 - 수동 복구 필요",

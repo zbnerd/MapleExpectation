@@ -6,7 +6,6 @@ import static org.mockito.Mockito.*;
 
 import maple.expectation.domain.repository.RedisBufferRepository;
 import maple.expectation.global.lock.LockStrategy;
-import maple.expectation.service.v2.alert.DiscordAlertService;
 import maple.expectation.support.AppIntegrationTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -44,7 +43,7 @@ class MonitoringAlertServiceTest extends AppIntegrationTestSupport {
   private RedisBufferRepository redisBufferRepository;
 
   @org.springframework.test.context.bean.override.mockito.MockitoBean
-  private DiscordAlertService discordAlertService;
+  private maple.expectation.alert.StatelessAlertService statelessAlertService;
 
   @Autowired private MonitoringAlertService monitoringAlertService;
 
@@ -58,7 +57,8 @@ class MonitoringAlertServiceTest extends AppIntegrationTestSupport {
 
     monitoringAlertService.checkBufferSaturation();
 
-    verify(discordAlertService, times(1)).sendCriticalAlert(anyString(), contains("6000"), any());
+    verify(statelessAlertService, times(1))
+        .sendCritical(eq("🚨 GLOBAL BUFFER SATURATION"), contains("6000"), any());
   }
 
   @Test
@@ -71,7 +71,7 @@ class MonitoringAlertServiceTest extends AppIntegrationTestSupport {
 
     monitoringAlertService.checkBufferSaturation();
 
-    verify(discordAlertService, never()).sendCriticalAlert(anyString(), anyString(), any());
+    verify(statelessAlertService, never()).sendCritical(anyString(), anyString(), any());
   }
 
   @Test
@@ -84,6 +84,6 @@ class MonitoringAlertServiceTest extends AppIntegrationTestSupport {
 
     // Follower는 버퍼 조회 및 알림 발송을 하지 않아야 함
     verify(redisBufferRepository, never()).getTotalPendingCount();
-    verify(discordAlertService, never()).sendCriticalAlert(anyString(), anyString(), any());
+    verify(statelessAlertService, never()).sendCritical(anyString(), anyString(), any());
   }
 }

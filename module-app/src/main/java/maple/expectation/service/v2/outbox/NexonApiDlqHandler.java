@@ -2,12 +2,12 @@ package maple.expectation.service.v2.outbox;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.alert.StatelessAlertService;
 import maple.expectation.domain.v2.NexonApiDlq;
 import maple.expectation.domain.v2.NexonApiOutbox;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.repository.v2.NexonApiDlqRepository;
-import maple.expectation.service.v2.alert.DiscordAlertService;
 import maple.expectation.service.v2.shutdown.ShutdownDataPersistenceService;
 import org.springframework.stereotype.Service;
 
@@ -19,7 +19,7 @@ import org.springframework.stereotype.Service;
  * <ol>
  *   <li><b>1차</b>: DB DLQ INSERT
  *   <li><b>2차</b>: File Backup (DLQ 실패 시)
- *   <li><b>3차</b>: Discord Critical Alert + Metric
+ *   <li><b>3차</b>: Stateless Critical Alert + Metric
  * </ol>
  *
  * <h3>Design Pattern</h3>
@@ -36,7 +36,7 @@ import org.springframework.stereotype.Service;
  *
  * @see NexonApiDlqRepository
  * @see ShutdownDataPersistenceService
- * @see DiscordAlertService
+ * @see StatelessAlertService
  * @see NexonApiOutboxMetrics
  * @see maple.expectation.service.v2.donation.outbox.DlqHandler
  */
@@ -47,7 +47,7 @@ public class NexonApiDlqHandler {
 
   private final NexonApiDlqRepository dlqRepository;
   private final ShutdownDataPersistenceService fileBackupService;
-  private final DiscordAlertService discordAlertService;
+  private final StatelessAlertService statelessAlertService;
   private final LogicExecutor executor;
   private final NexonApiOutboxMetrics metrics;
 
@@ -152,7 +152,7 @@ public class NexonApiDlqHandler {
             "RequestId: %s%nEventType: %s%nReason: %s%nManual intervention required!",
             entry.getRequestId(), entry.getEventType(), reason);
 
-    discordAlertService.sendCriticalAlert(title, description, fileEx);
+    statelessAlertService.sendCritical(title, description, fileEx);
     log.error(
         "[CRITICAL] All safety nets failed for NexonApiOutbox: requestId={}, eventType={} - Manual intervention required!",
         entry.getRequestId(),

@@ -33,8 +33,8 @@ public class MaplestoryApiConfig {
     this.properties = properties;
   }
 
-  @Bean
-  public WebClient webclient() {
+  @Bean("mapleWebClient")
+  public WebClient mapleWebClient() {
     // URI 인코딩 모드 설정 (한글 깨짐 방지)
     DefaultUriBuilderFactory factory = new DefaultUriBuilderFactory("https://open.api.nexon.com");
     factory.setEncodingMode(DefaultUriBuilderFactory.EncodingMode.VALUES_ONLY);

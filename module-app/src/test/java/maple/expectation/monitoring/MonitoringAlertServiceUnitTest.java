@@ -7,13 +7,13 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import maple.expectation.alert.StatelessAlertService;
 import maple.expectation.config.MonitoringThresholdProperties;
 import maple.expectation.domain.repository.RedisBufferRepository;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.global.executor.function.ThrowingRunnable;
 import maple.expectation.global.lock.LockStrategy;
-import maple.expectation.service.v2.alert.DiscordAlertService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -35,7 +35,7 @@ import org.mockito.quality.Strictness;
 class MonitoringAlertServiceUnitTest {
 
   @Mock private RedisBufferRepository redisBufferRepository;
-  @Mock private DiscordAlertService discordAlertService;
+  @Mock private StatelessAlertService statelessAlertService;
   @Mock private LockStrategy lockStrategy;
   @Mock private MonitoringThresholdProperties thresholdProperties;
   @Mock private LogicExecutor logicExecutor;
@@ -67,7 +67,7 @@ class MonitoringAlertServiceUnitTest {
     monitoringAlertService =
         new MonitoringAlertService(
             redisBufferRepository,
-            discordAlertService,
+            statelessAlertService,
             lockStrategy,
             logicExecutor,
             thresholdProperties);
@@ -85,7 +85,7 @@ class MonitoringAlertServiceUnitTest {
     monitoringAlertService.checkBufferSaturation();
 
     // then
-    verify(discordAlertService, times(1)).sendCriticalAlert(any(), any(), any());
+    verify(statelessAlertService, times(1)).sendCritical(any(), any(), any());
   }
 
   @Test
@@ -100,7 +100,7 @@ class MonitoringAlertServiceUnitTest {
     monitoringAlertService.checkBufferSaturation();
 
     // then
-    verify(discordAlertService, never()).sendCriticalAlert(any(), any(), any());
+    verify(statelessAlertService, never()).sendCritical(any(), any(), any());
   }
 
   @Test
@@ -115,7 +115,7 @@ class MonitoringAlertServiceUnitTest {
     // then
     // Follower는 버퍼 조회 및 알림 발송을 하지 않아야 함
     verify(redisBufferRepository, never()).getTotalPendingCount();
-    verify(discordAlertService, never()).sendCriticalAlert(any(), any(), any());
+    verify(statelessAlertService, never()).sendCritical(any(), any(), any());
   }
 
   @Test
@@ -130,7 +130,7 @@ class MonitoringAlertServiceUnitTest {
     monitoringAlertService.checkBufferSaturation();
 
     // then
-    verify(discordAlertService, times(1)).sendCriticalAlert(any(), any(), any());
+    verify(statelessAlertService, times(1)).sendCritical(any(), any(), any());
   }
 
   @Test
@@ -145,7 +145,7 @@ class MonitoringAlertServiceUnitTest {
     monitoringAlertService.checkBufferSaturation();
 
     // then
-    verify(discordAlertService, never()).sendCriticalAlert(any(), any(), any());
+    verify(statelessAlertService, never()).sendCritical(any(), any(), any());
   }
 
   @Test
@@ -159,6 +159,6 @@ class MonitoringAlertServiceUnitTest {
 
     // then
     verify(redisBufferRepository, never()).getTotalPendingCount();
-    verify(discordAlertService, never()).sendCriticalAlert(any(), any(), any());
+    verify(statelessAlertService, never()).sendCritical(any(), any(), any());
   }
 }
