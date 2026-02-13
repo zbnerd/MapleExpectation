@@ -13,6 +13,23 @@ Accepted
 
 ---
 
+## 문맥 (Context)
+
+### 문제 정의
+
+분산 환경에서 락 관리 시 다음 문제가 발생했습니다:
+
+**관찰된 문제:**
+- 고정 leaseTime 설정 시 작업 초과 → 락 조기 해제 → 동시성 버그 [E1]
+- Redis 단일 장애 시 전체 서비스 중단 [E2]
+- 락 획득 실패 시 즉시 MySQL 폴백 → DB 커넥션 풀 고갈 [E3]
+
+**부하테스트 결과 (PERFORMANCE_260105):**
+- Redis 락 경합 시 즉시 폴백 → SQLTransientConnectionException 발생 [P1]
+- Redis Wait Strategy 적용 후 0% Failure 달성 [P2]
+
+---
+
 ## Fail If Wrong
 
 1. **[F1]** Watchdog 미작동으로 leaseTime 초과 시 락 조기 해제
@@ -95,8 +112,6 @@ lock.tryLock(waitTime, TimeUnit.SECONDS);
 - [R1] **고정 leaseTime 실패:** 40초 작업에서 leaseTime 30초 설정 시 동시성 버그로 데이터 오염 (테스트: 2025-11-20)
 - [R2] **수동 연장 실패:** Scheduler unexpected termination으로 락 미갱신 (테스트: 2025-11-22)
 
----
-
 ## 결정 (Decision)
 
 **Redisson Watchdog 모드 + ResilientLockStrategy(Tiered Fallback) + Sentinel HA를 적용합니다.**
@@ -177,8 +192,6 @@ public <T> T executeWithOrderedLocks(
     // ...
 }
 ```
-
----
 
 ## 결과 (Consequences)
 
