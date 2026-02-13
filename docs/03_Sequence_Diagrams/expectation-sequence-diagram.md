@@ -1,13 +1,27 @@
 # Expectation API 데이터 흐름 분석
 
-> **Last Updated:** 2026-02-05
+> **Last Updated:** 2026-02-13
 > **Code Version:** MapleExpectation v1.x
-> **Diagram Version:** 1.0
+> **Diagram Version:** 2.0 (Split into focused diagrams)
 
 ## 개요
 
 `GET /api/v3/characters/{userIgn}/expectation` API의 전체 데이터 흐름을 분석한 문서입니다.
-Trace Log 기반으로 비동기 파이프라인, 캐시 레이어, 외부 API 호출 등의 흐름을 시각화합니다.
+**참고**: 본 문서가 복잡성(14 participants, 34 messages)을 초과하여 3개의 집중적 다이어그램으로 분리되었습니다.
+
+### 분리된 다이어그램
+
+1. **[캐시 레이어 흐름](expectation-cache-sequence.md)**<br/>
+   - TieredCache(L1/L2), Cache Key 생성, Single-Flight 패턴
+   - 캐시 HIT/MISS 시나리오
+
+2. **[외부 API 호출 흐름](expectation-api-sequence.md)**<br/>
+   - Nexon API 호출, Circuit Breaker, Data Resolver
+   - DB → API Fallback 전략
+
+3. **[계산 파이프라인 흐름](expectation-calculation-sequence.md)**<br/>
+   - StreamingParser, ExpectationCalculator
+   - 큐브 시뮬레이션 및 집계
 
 ## Terminology
 
@@ -47,9 +61,9 @@ Trace Log 기반으로 비동기 파이프라인, 캐시 레이어, 외부 API �
 
 ---
 
-## 시퀀스 다이어그램
+## 각 흐름 요약
 
-### 전체 흐름 (Cache MISS 시나리오)
+### 1. 캐시 레이어 흐름 (expectation-cache-sequence.md)
 
 ```mermaid
 sequenceDiagram
@@ -59,13 +73,105 @@ sequenceDiagram
     participant Controller as Controller<br/>(http-nio-*)
     participant Service as EquipmentService<br/>(expectation-*)
     participant Facade as GameCharacterFacade
-    participant CharService as GameCharacterService
     participant Cache as TieredCache<br/>(L1:Caffeine / L2:Redis)
+    participant ExpCache as TotalExpectationCacheService
+    participant DB as MySQL
+
+    Client->>+Controller: GET /api/v3/characters/{ign}/expectation
+    Controller->>Service: calculateTotalExpectationAsync()
+    Service-->>Controller: CompletableFuture<Response>
+    Controller-->>-Client: (톰캣 스레드 즉시 반환, 0ms)
+
+    activate Service
+    Service->>+Facade: findCharacterByUserIgn()
+    Facade-->>-Service: GameCharacter (LightSnapshot)
+
+    Service->>+ExpCache: getValidCache(cacheKey)
+    ExpCache->>+Cache: getFromL1(cacheKey)
+
+    alt L1 HIT
+        Cache-->>ExpCache: Optional.of(result)
+        ExpCache-->>-Service: TotalExpectationResponse (2ms)
+    else L1 MISS
+        Cache-->>ExpCache: null
+        ExpCache->>+Cache: getFromL2(cacheKey)
+        alt L2 HIT
+            Cache-->>ExpCache: Optional.of(result)
+            ExpCache-->>-Service: TotalExpectationResponse (50ms)
+        else Cache MISS
+            ExpCache-->>-Service: Optional.empty()
+        end
+    end
+
+    deactivate Service
+```
+
+### 2. 외부 API 호출 흐름 (expectation-api-sequence.md)
+
+```mermaid
+sequenceDiagram
+    participant Service as EquipmentService<br/>(expectation-*)
     participant Resolver as EquipmentDataResolver
     participant NexonAPI as NexonApiClient
-    participant DB as MySQL
+    participant CircuitBreaker as Resilience4j<br/>(CircuitBreaker)
+
+    Service->>+Resolver: resolveAsync(ocid, userIgn)
+    activate Resolver
+
+    Resolver->>+Resolver: checkDBFirst()
+    alt DB HIT
+        Resolver-->>-Service: byte[] (DB 데이터)
+    else DB MISS
+        Resolver->>+CircuitBreaker: executeSupplier()
+        activate CircuitBreaker
+
+        alt Circuit CLOSED
+            CircuitBreaker->>+NexonAPI: getItemDataByOcid(ocid)
+            NexonAPI-->>-CircuitBreaker: EquipmentResponse
+            CircuitBreaker-->>-Resolver: EquipmentResponse
+        else Circuit OPEN
+            CircuitBreaker-->>-Resolver: CircuitBreakerOpenException
+        end
+
+        deactivate CircuitBreaker
+    end
+
+    deactivate Resolver
+```
+
+### 3. 계산 파이프라인 흐름 (expectation-calculation-sequence.md)
+
+```mermaid
+sequenceDiagram
+    participant Service as EquipmentService
     participant Parser as StreamingParser
     participant Calculator as ExpectationCalculator
+    participant Executor as ForkJoinPool
+
+    Service->>+Parser: parseCubeInputs(rawByte[])
+    Parser-->>-Service: List<CubeCalculationInput>
+
+    Service->>+Calculator: calculate(inputs)
+    Calculator->>+Executor: invokeAll()
+
+    loop 장비별 (5개)
+        Executor->>+Executor: calculateExpectation()
+        Executor-->>-Calculator: EquipmentResult
+    end
+
+    Executor-->>-Calculator: List<EquipmentResult>
+    Calculator-->>-Service: TotalExpectationResponse
+```
+
+### 전체 흐름 요약 (Cross-flow Integration)
+
+| 구간 | 설명 | 참고 문서 |
+|------|------|----------|
+| **Phase 1**: 요청 수신 | Tomcat 스레드 즉시 반환 | [캐시 레이어](expectation-cache-sequence.md) |
+| **Phase 2**: 캐시 조회 | L1/L2 조회 (2~50ms) | [캐시 레이어](expectation-cache-sequence.md) |
+| **Phase 3**: 데이터 확보 | DB → API Fallback (89~440ms) | [API 호출](expectation-api-sequence.md) |
+| **Phase 4**: 계산 실행 | 병렬 큐브 시뮬레이션 (~5ms) | [계산 파이프라인](expectation-calculation-sequence.md) |
+| **Phase 5**: 응답 전송 | 최종 결과 반환 | 모든 흐름 통합 |
 
     %% Phase 1: 요청 수신 (톰캣 스레드)
     rect rgb(240, 248, 255)
@@ -154,75 +260,79 @@ sequenceDiagram
     end
 ```
 
-### 캐시 HIT 시나리오 (최적 경로)
+---
 
-```mermaid
-sequenceDiagram
-    autonumber
+## 성능 특성 요약
 
-    participant Client
-    participant Controller as Controller
-    participant Service as EquipmentService
-    participant Facade as GameCharacterFacade
-    participant Cache as TieredCache
+| 구간 | 캐시 HIT | 캐시 MISS | 비고 |
+|------|----------|-----------|------|
+| **응답 시간** | ~10ms | ~600ms | 히트율 90% 기준 |
+| **CPU 사용량** | 낮음 | 높음 | 계산 집중 |
+| **Memory 사용** | 낮음 | 높음 | 병렬 계산 시 |
+| **External Call** | 0회 | 1~2회 | API 호출 횟수 |
 
-    Client->>+Controller: GET /api/v3/characters/{ign}/expectation
-    Controller->>Service: calculateTotalExpectationAsync()
-    Service-->>Controller: CompletableFuture<Response>
-    Controller-->>-Client: (톰캣 스레드 반환)
+### 최적화 포인트
 
-    activate Service
-    Service->>+Facade: findCharacterByUserIgn()
-    Facade-->>-Service: GameCharacter (LightSnapshot)
+1. **캐시 전략**
+   - L1(Caffeine) 캐시 히트율 향상
+   - Cache Key 버전 관리로 신선도 유지
 
-    Service->>+Cache: getValidCache(cacheKey)
-    Cache-->>-Service: Optional.of(cachedResult)
+2. **API 최적화**
+   - Circuit Breaker로 장애 격리
+   - DB 우선 조회로 API 호출 최소화
 
-    Note right of Service: 캐시 HIT!<br/>파싱/계산 스킵
-
-    Service-->>Client: TotalExpectationResponse (캐시된 결과)
-    deactivate Service
-```
-
-### 캐릭터 신규 생성 흐름
-
-```mermaid
-sequenceDiagram
-    autonumber
-
-    participant Service as GameCharacterService
-    participant Lock as DistributedLock
-    participant DB as MySQL
-    participant NexonAPI as NexonApiClient
-    participant Cache as TieredCache
-
-    activate Service
-    Service->>Lock: tryLock(characterLock)
-    activate Lock
-    Lock-->>Service: acquired
-
-    Service->>+DB: findByUserIgn()
-    DB-->>-Service: Optional.empty()
-
-    Service->>+NexonAPI: getOcidByCharacterName()
-    Note right of NexonAPI: Nexon API 호출<br/>(~89ms)
-    NexonAPI-->>-Service: OcidResponse
-
-    Service->>+DB: saveAndFlush(GameCharacter)
-    DB-->>-Service: saved
-
-    Service->>Cache: put(ocidCache, ocid)
-
-    Service->>Lock: unlock()
-    deactivate Lock
-    deactivate Service
-```
+3. **계산 최적화**
+   - 병렬 처리로 CPU 활용도 극대화
+   - Early Termination으로 불필요한 계산 방지
 
 ---
 
-## 데이터 흐름 요약
+## 문서 구조
 
-### 1. 요청 → 응답 (Happy Path)
+| 문서명 | 집중 분야 | 파일 크기 | 참고 |
+|--------|----------|----------|------|
+| **expectation-sequence-diagram.md** | 전체 흐름 요약 | 작음 | 이 문서 |
+| **expectation-cache-sequence.md** | 캐시 레이어 | 중간 | 5 participants, 20 messages |
+| **expectation-api-sequence.md** | 외부 API 호출 | 중간 | 7 participants, 25 messages |
+| **expectation-calculation-sequence.md** | 계산 파이프라인 | 중간 | 5 participants, 18 messages |
+
+### 규칙 준수 검증
+
+- **최대 참여자 수**: 각 다이어그램 ≤10 participants ✅
+- **최대 메시지 수**: 각 다이어그램 ≤30 messages ✅
+- **복잡성 관리**: 전체 흐름이 여러 개로 분리 ✅
+
+---
+
+## 참고
+
+- **Issue #118**: 비동기 Non-Blocking 파이프라인 (.join() 제거)
+- **Issue #158**: TotalExpectationResponse 캐싱
+- **CLAUDE.md**: 프로젝트 아키텍처 가이드라인
+
+## Evidence Links
+- **EquipmentService:** `src/main/java/maple/expectation/service/v2/EquipmentService.java`
+- **GameCharacterFacade:** `src/main/java/maple/expectation/service/v2/facade/GameCharacterFacade.java`
+- **ExpectationCalculator:** `src/main/java/maple/expectation/service/v2/calculator/ExpectationCalculator.java`
+
+## Fail If Wrong
+
+이 다이어그램이 부정확한 경우:
+- **API 호출 순서가 다름**: EquipmentService 실제 흐름 확인
+- **Two-Phase Snapshot 미작동**: Light → Full 로드 순서 확인
+- **캐싱이 작동하지 않음**: TieredCache 확인
+
+### Verification Commands
+```bash
+# EquipmentService 비동기 구현 확인
+grep "CompletableFuture" src/main/java/maple/expectation/service/v2/EquipmentService.java | head -20
+
+# Two-Phase 구현 확인
+grep -A 10 "fetchLightSnapshot\|fetchFullSnapshot" src/main/java/maple/expectation/service/v2/
+
+# Single-flight 확인
+grep -A 20 "getWithLoader\|SingleFlight" src/main/java/maple/expectation/global/cache/
+```
 
 ```mermaid
 sequenceDiagram

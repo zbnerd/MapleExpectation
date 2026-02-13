@@ -5,7 +5,7 @@
 
 dependencies {
 	// Spring (minimal for HttpStatus)
-	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springframework:spring-web'
 
 	// Jackson
 	implementation 'com.fasterxml.jackson.core:jackson-annotations:2.17.0'
