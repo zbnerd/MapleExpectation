@@ -88,7 +88,7 @@
       "pluginVersion": "8.5.0",
       "targets": [
         {
-          "expr": "scheduler_thread_pool_active_threads",
+          "expr": "executor_active_threads{name=\"scheduler\"}",
           "format": "time_series",
           "instant": false,
           "intervalFactor": 2,
@@ -96,7 +96,7 @@
           "refId": "A"
         },
         {
-          "expr": "scheduler_thread_pool_size",
+          "expr": "executor_pool_size{name=\"scheduler\"}",
           "format": "time_series",
           "instant": false,
           "intervalFactor": 2,
@@ -104,7 +104,7 @@
           "refId": "B"
         },
         {
-          "expr": "scheduler_thread_pool_queued_tasks",
+          "expr": "executor_queued_tasks{name=\"scheduler\"}",
           "format": "time_series",
           "instant": false,
           "intervalFactor": 2,
@@ -112,7 +112,7 @@
           "refId": "C"
         },
         {
-          "expr": "scheduler_thread_pool_completed_tasks",
+          "expr": "executor_completed_tasks{name=\"scheduler\"}",
           "format": "time_series",
           "instant": false,
           "intervalFactor": 2,
@@ -171,7 +171,7 @@
       "pluginVersion": "8.5.0",
       "targets": [
         {
-          "expr": "scheduler_thread_pool_active_threads",
+          "expr": "executor_active_threads{name=\"scheduler\"}",
           "format": "time_series",
           "instant": false,
           "intervalFactor": 2,
@@ -385,35 +385,35 @@
       "pluginVersion": "8.5.0",
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, scheduler_execution_duration_seconds_bucket)",
+          "expr": "rate(scheduler_rejected_total[5m])",
           "format": "time_series",
           "instant": false,
-          "legendFormat": "50th Percentile",
+          "legendFormat": "Rejected Rate (shutdown only)",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, scheduler_execution_duration_seconds_bucket)",
+          "expr": "executor_active_threads{name=\"scheduler\"} / executor_pool_size{name=\"scheduler\"} * 100",
           "format": "time_series",
           "instant": false,
-          "legendFormat": "95th Percentile",
+          "legendFormat": "Pool Utilization %",
           "refId": "B"
         },
         {
-          "expr": "histogram_quantile(0.99, scheduler_execution_duration_seconds_bucket)",
+          "expr": "executor_queued_tasks{name=\"scheduler\"}",
           "format": "time_series",
           "instant": false,
-          "legendFormat": "99th Percentile",
+          "legendFormat": "Queued Tasks",
           "refId": "C"
         },
         {
-          "expr": "sum(rate(scheduler_execution_duration_seconds_bucket[5m])) by (le)",
+          "expr": "rate(executor_completed_tasks{name=\"scheduler\"}[5m])",
           "format": "time_series",
           "instant": false,
-          "legendFormat": "Total Rate",
+          "legendFormat": "Completion Rate",
           "refId": "D"
         }
       ],
-      "title": "Scheduler Execution Duration",
+      "title": "Scheduler Health Metrics (Note: rejected only fires on shutdown - pool is unbounded)",
       "type": "timeseries"
     }
   ],
