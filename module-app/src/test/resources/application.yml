@@ -63,8 +63,9 @@ nexon:
   api:
     key: "test_dummy_key"
 
-discord:
-  webhook-url: "https://discord.com/api/webhooks/dummy/test"
+alert:
+  discord:
+    webhook-url: "https://discord.com/api/webhooks/dummy/test"
 
 app:
   optimization:

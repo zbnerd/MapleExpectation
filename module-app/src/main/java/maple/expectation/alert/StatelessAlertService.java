@@ -37,7 +37,7 @@ public class StatelessAlertService {
   private final AlertChannelStrategy channelStrategy;
   private final LogicExecutor executor;
 
-  @Value("${discord.webhook-url}")
+  @Value("${alert.discord.webhook-url:}")
   private String discordWebhookUrl;
 
   /**

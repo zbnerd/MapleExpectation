@@ -54,7 +54,7 @@ public class DiscordNotifier {
   private final LogicExecutor executor;
   private final maple.expectation.config.DiscordTimeoutProperties timeoutProperties;
 
-  @Value("${app.monitoring.discord.webhook-url:}")
+  @Value("${alert.discord.webhook-url:}")
   private String webhookUrl;
 
   public DiscordNotifier(

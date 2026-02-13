@@ -1,7 +1,13 @@
 package maple.expectation.alert.factory;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Instant;
+import java.util.Collections;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.alert.message.AlertMessage;
+import maple.expectation.service.v2.alert.dto.DiscordMessage;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 
@@ -16,28 +22,61 @@ import org.springframework.http.MediaType;
 @Slf4j
 public class MessageFactory {
 
+  private static final ObjectMapper objectMapper = new ObjectMapper();
+  private static final int COLOR_ERROR = 0xFF0000; // Red
+  private static final int COLOR_INFO = 0x00FF00; // Green
+
   /** Convert AlertMessage to Discord JSON payload */
   public static String toDiscordPayload(AlertMessage message) {
-    StringBuilder content = new StringBuilder();
+    try {
+      DiscordPayload payload = buildDiscordPayload(message);
+      return objectMapper.writeValueAsString(payload);
+    } catch (JsonProcessingException e) {
+      log.error("[MessageFactory] Failed to serialize Discord payload: {}", e.getMessage(), e);
+      return buildFallbackPayload(message);
+    }
+  }
 
-    // Title
-    content.append("## ");
-    content.append(message.getTitle());
-    content.append("\n");
+  /** Build Discord payload object from AlertMessage */
+  private static DiscordPayload buildDiscordPayload(AlertMessage message) {
+    // Build description
+    StringBuilder description = new StringBuilder(message.getMessage());
 
-    // Message
-    content.append(message.getMessage());
-    content.append("\n");
-
-    // Error details (if any)
+    // Add error details if present
     if (message.getError() != null) {
-      content.append("### Error Details\n```\n");
-      content.append("```");
-      content.append(message.getError().toString());
-      content.append("```");
+      description.append("\n\n**Error:**\n```\n");
+      description.append(message.getError().toString());
+      description.append("\n```");
     }
 
-    return content.toString();
+    // Build embed
+    DiscordMessage.Embed embed =
+        new DiscordMessage.Embed(
+            message.getTitle(),
+            description.toString(),
+            message.getError() != null ? COLOR_ERROR : COLOR_INFO,
+            Collections.emptyList(),
+            new DiscordMessage.Footer("MapleExpectation Alert System"),
+            Instant.now().toString());
+
+    // Discord API requires either content OR embeds (not both)
+    // When using embeds, content should be null or empty string
+    return new DiscordPayload("", Collections.singletonList(embed));
+  }
+
+  /** Fallback payload for serialization failure */
+  private static String buildFallbackPayload(AlertMessage message) {
+    return String.format(
+        "{\"content\":\"**%s**\\n%s\"}",
+        escapeJson(message.getTitle()), escapeJson(message.getMessage()));
+  }
+
+  /** Escape special JSON characters */
+  private static String escapeJson(String text) {
+    return text.replace("\\", "\\\\")
+        .replace("\"", "\\\"")
+        .replace("\n", "\\n")
+        .replace("\r", "\\r");
   }
 
   /** Create HTTP headers for Discord webhook */
@@ -46,4 +85,9 @@ public class MessageFactory {
     headers.setContentType(MediaType.APPLICATION_JSON);
     return headers;
   }
+
+  /** Discord Webhook API payload structure */
+  private record DiscordPayload(
+      @JsonProperty("content") String content,
+      @JsonProperty("embeds") java.util.List<DiscordMessage.Embed> embeds) {}
 }

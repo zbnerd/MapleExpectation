@@ -51,7 +51,7 @@ public class DiscordAlertService {
   private final Optional<AiSreService> aiSreService;
   private final Optional<SystemContextProvider> contextProvider;
 
-  @Value("${discord.webhook-url}")
+  @Value("${alert.discord.webhook-url:}")
   private String webhookUrl;
 
   @Value("${ai.sre.enabled:false}")

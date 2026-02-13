@@ -22,8 +22,9 @@ spring:
       host: localhost
       port: 6379
 
-discord:
-  webhook-url: ${DISCORD_WEBHOOK_URL:https://discord.com/api/webhooks/dummy}
+alert:
+  discord:
+    webhook-url: ${ALERT_DISCORD_WEBHOOK_URL:}
 
 # DP 엔진 테이블 검증 설정
 cube:

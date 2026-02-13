@@ -45,6 +45,7 @@ public class LockHikariConfig {
 
   @Bean(name = "lockDataSource")
   public DataSource lockDataSource() {
+    log.info("[Lock Pool] JDBC URL: {}", jdbcUrl);
     HikariConfig config = new HikariConfig();
 
     // 기본 연결 정보

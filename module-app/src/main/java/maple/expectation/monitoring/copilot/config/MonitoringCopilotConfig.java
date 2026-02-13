@@ -66,7 +66,7 @@ public class MonitoringCopilotConfig {
 
   /** Discord webhook notifier. Only created if webhook URL is configured. */
   @Bean
-  @ConditionalOnProperty(name = "app.monitoring.discord.webhook-url")
+  @ConditionalOnProperty(name = "alert.discord.webhook-url")
   public DiscordNotifier discordNotifier(
       HttpClient httpClient,
       ObjectMapper objectMapper,

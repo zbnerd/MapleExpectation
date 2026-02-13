@@ -232,8 +232,6 @@ app:
       dashboards-path: ./grafana/dashboards
     prometheus:
       base-url: http://localhost:9090
-    discord:
-      webhook-url: ${DISCORD_WEBHOOK_URL:}
     interval-seconds: 15
     query-range-seconds: 300
     z-score:
@@ -521,6 +519,8 @@ shutdown:
 
 # Stateless Alert System Feature Flags (Issue #345: ADR-0345 Phase 3)
 alert:
+  discord:
+    webhook-url: ${ALERT_DISCORD_WEBHOOK_URL:}  # Discord Webhook URL (empty = disabled)
   stateless:
     enabled: true                   # Master switch for stateless alert system
     fallback-to-file: true          # Enable file fallback when Discord fails

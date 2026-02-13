@@ -18,7 +18,7 @@ class EnvironmentIntegrationTest {
 
   @Autowired private JdbcTemplate jdbcTemplate;
 
-  @Value("${discord.webhook-url}")
+  @Value("${alert.discord.webhook-url:}")
   private String webhookUrl;
 
   @Test

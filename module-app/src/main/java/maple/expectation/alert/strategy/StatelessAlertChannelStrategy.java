@@ -21,6 +21,14 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class StatelessAlertChannelStrategy implements AlertChannelStrategy {
 
+  /**
+   * Bean name for test compatibility.
+   *
+   * <p>Tests may reference this bean by name. Using @Component ensures the bean is always
+   * available, even when alert.stateless.enabled=false.
+   */
+  public static final String BEAN_NAME = "statelessAlertChannelStrategy";
+
   private final Map<AlertPriority, Supplier<AlertChannel>> channelProviders;
 
   @Override
