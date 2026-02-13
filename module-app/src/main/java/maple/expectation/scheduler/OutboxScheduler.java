@@ -59,8 +59,14 @@ public class OutboxScheduler {
   private final LogicExecutor executor;
   private final OutboxProperties properties;
 
-  /** Outbox 폴링 및 처리 (10초) */
-  @Scheduled(fixedRate = 10000)
+  /**
+   * Outbox 폴링 및 처리 (10초)
+   *
+   * <h4>Issue #344: fixedRate → fixedDelay</h4>
+   *
+   * <p>이전 실행 완료 후 15초 대기, Outbox 폴링 여유 확보로 DB 부하 감소
+   */
+  @Scheduled(fixedDelay = 15000)
   public void pollAndProcess() {
     executor.executeVoid(
         () -> {
@@ -76,8 +82,12 @@ public class OutboxScheduler {
    * <p>Issue #N19: 처리 지연 감지
    *
    * <p>Outbox 크기가 임계값 초과 시 로그 기록
+   *
+   * <h4>Issue #344: fixedRate → fixedDelay</h4>
+   *
+   * <p>이전 실행 완료 후 60초 대기, 모니터링은 덜 빈번해도 충분
    */
-  @Scheduled(fixedRate = 30000)
+  @Scheduled(fixedDelay = 60000)
   public void monitorOutboxSize() {
     executor.executeVoid(
         () -> {
@@ -96,8 +106,12 @@ public class OutboxScheduler {
    * Stalled 상태 복구 (5분)
    *
    * <p>JVM 크래시로 PROCESSING 상태에서 멈춘 항목을 PENDING으로 복원
+   *
+   * <h4>Issue #344: fixedRate → fixedDelay</h4>
+   *
+   * <p>이전 실행 완료 후 5분 대기 (변경 없음, 복구 작업은 빈번하지 않아도 됨)
    */
-  @Scheduled(fixedRate = 300000)
+  @Scheduled(fixedDelay = 300000)
   public void recoverStalled() {
     executor.executeVoid(
         outboxProcessor::recoverStalled, TaskContext.of("Scheduler", "Outbox.RecoverStalled"));

@@ -518,3 +518,13 @@ shutdown:
   backup-directory: /tmp/maple-shutdown
   archive-directory: /tmp/maple-shutdown/processed
   instance-id: ${app.instance-id}   # Scale-out 인스턴스 식별자
+
+# Stateless Alert System Feature Flags (Issue #345: ADR-0345 Phase 3)
+alert:
+  stateless:
+    enabled: true                   # Master switch for stateless alert system
+    fallback-to-file: true          # Enable file fallback when Discord fails
+  in-memory:
+    capacity: 1000                   # Maximum alerts stored in memory (LRU eviction)
+  file:
+    path: /var/log/maple-alerts.log  # File-based alert log path

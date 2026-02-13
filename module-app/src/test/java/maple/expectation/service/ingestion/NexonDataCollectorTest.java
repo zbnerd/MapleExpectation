@@ -34,7 +34,8 @@ import org.springframework.web.reactive.function.client.WebClient;
 @DisplayName("NexonDataCollector Tests (Reactive)")
 class NexonDataCollectorTest {
 
-  @Mock private WebClient webClient;
+  @Mock(name = "mapleWebClient")
+  private WebClient webClient;
 
   @Mock private EventPublisher eventPublisher;
 

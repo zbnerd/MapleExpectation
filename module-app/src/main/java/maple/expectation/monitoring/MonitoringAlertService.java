@@ -2,13 +2,13 @@ package maple.expectation.monitoring;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.alert.StatelessAlertService;
 import maple.expectation.domain.repository.RedisBufferRepository;
 import maple.expectation.global.error.CommonErrorCode;
 import maple.expectation.global.error.exception.MonitoringException;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.global.lock.LockStrategy;
-import maple.expectation.service.v2.alert.DiscordAlertService;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -18,7 +18,7 @@ import org.springframework.stereotype.Component;
 public class MonitoringAlertService {
 
   private final RedisBufferRepository redisBufferRepository;
-  private final DiscordAlertService discordAlertService;
+  private final StatelessAlertService statelessAlertService;
   private final LockStrategy lockStrategy;
   private final LogicExecutor executor; // ✅ 지능형 실행 엔진 주입
   private final maple.expectation.config.MonitoringThresholdProperties thresholdProperties;
@@ -61,7 +61,7 @@ public class MonitoringAlertService {
       // [패턴 1] executeVoid: 외부 알림 발송 과정도 실행기로 보호하여 관측성 확보
       executor.executeVoid(
           () -> {
-            discordAlertService.sendCriticalAlert(
+            statelessAlertService.sendCritical(
                 "🚨 GLOBAL BUFFER SATURATION", exception.getMessage(), exception);
             log.warn("[{}] {}", exception.getErrorCode().getCode(), exception.getMessage());
           },

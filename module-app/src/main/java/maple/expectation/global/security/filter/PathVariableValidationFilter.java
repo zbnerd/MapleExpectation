@@ -1,16 +1,17 @@
 package maple.expectation.global.security.filter;
 
+import jakarta.servlet.Filter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.ServletRequest;
+import jakarta.servlet.ServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
-import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
  * Path Variable 유효성 검사 필터
@@ -42,10 +43,9 @@ import org.springframework.web.filter.OncePerRequestFilter;
  *   <li>/api/v2/characters/{userIgn}/**
  * </ul>
  */
-@Slf4j
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
-public class PathVariableValidationFilter extends OncePerRequestFilter {
+public class PathVariableValidationFilter implements Filter {
 
   private static final String ERROR_RESPONSE =
       """
@@ -53,23 +53,23 @@ public class PathVariableValidationFilter extends OncePerRequestFilter {
       """;
 
   @Override
-  protected void doFilterInternal(
-      HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
-      throws ServletException, IOException {
+  public void doFilter(ServletRequest request, ServletResponse response, FilterChain filterChain)
+      throws IOException, ServletException {
 
-    String requestUri = request.getRequestURI();
+    HttpServletRequest httpRequest = (HttpServletRequest) request;
+    HttpServletResponse httpResponse = (HttpServletResponse) response;
+
+    String requestUri = httpRequest.getRequestURI();
 
     // 빈 Path Variable 감지 (연속된 슬래시)
     if (requestUri.contains("//")) {
-      log.warn("Invalid path variable detected: {}", requestUri);
-      respondWithBadRequest(response);
+      respondWithBadRequest(httpResponse);
       return;
     }
 
     // 특정 경로 패턴에 대한 빈 userIgn 검사
     if (isEmptyUserIgnInPath(requestUri)) {
-      log.warn("Empty userIgn detected in path: {}", requestUri);
-      respondWithBadRequest(response);
+      respondWithBadRequest(httpResponse);
       return;
     }
 

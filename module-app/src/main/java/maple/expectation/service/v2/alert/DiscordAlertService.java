@@ -7,6 +7,7 @@ import maple.expectation.monitoring.ai.AiSreService;
 import maple.expectation.monitoring.ai.AiSreService.AiAnalysisResult;
 import maple.expectation.monitoring.context.SystemContextProvider;
 import maple.expectation.service.v2.alert.dto.DiscordMessage;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -57,7 +58,7 @@ public class DiscordAlertService {
   private boolean aiSreEnabled;
 
   public DiscordAlertService(
-      WebClient webClient,
+      @Qualifier("mapleWebClient") WebClient webClient,
       DiscordMessageFactory messageFactory,
       Optional<AiSreService> aiSreService,
       Optional<SystemContextProvider> contextProvider) {

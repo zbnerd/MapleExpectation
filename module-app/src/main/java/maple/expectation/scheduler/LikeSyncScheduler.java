@@ -78,8 +78,12 @@ public class LikeSyncScheduler {
    *   <li>L1 → L2 Flush는 인스턴스별 로컬 작업
    *   <li>L2 → L3 DB 동기화만 분산 락 필요 (globalSyncCount/Relation)
    * </ul>
+   *
+   * <h4>Issue #344: fixedRate → fixedDelay</h4>
+   *
+   * <p>이전 실행 완료 후 3초 대기하여 스케줄러 겹침 방지, Redis/MySQL 락 경합 감소
    */
-  @Scheduled(fixedRate = 1000)
+  @Scheduled(fixedDelay = 3000)
   public void localFlush() {
     // likeCount 버퍼 동기화
     executor.executeVoid(
@@ -97,8 +101,12 @@ public class LikeSyncScheduler {
    * <h4>P0-10: Partitioned Flush (Redis 모드)</h4>
    *
    * <p>Redis 모드에서는 PartitionedFlushStrategy를 사용하여 파티션 기반 분산 Flush를 수행합니다.
+   *
+   * <h4>Issue #344: fixedRate → fixedDelay</h4>
+   *
+   * <p>이전 실행 완료 후 5초 대기하여 DB 동기화 여유 확보, MySQL 커넥션 풀 부하 감소
    */
-  @Scheduled(fixedRate = 3000)
+  @Scheduled(fixedDelay = 5000)
   public void globalSyncCount() {
     TaskContext context = TaskContext.of("Scheduler", "GlobalSync.Count");
 
@@ -147,8 +155,12 @@ public class LikeSyncScheduler {
    * L2 → L3 DB 동기화 (likeRelation)
    *
    * <p>P1-10: Count(3s)와 Relation(5s)의 동기화 주기를 stagger하여 동시 락 경합을 방지합니다.
+   *
+   * <h4>Issue #344: fixedRate → fixedDelay</h4>
+   *
+   * <p>이전 실행 완료 후 10초 대기, Count(5s)와 stagger하여 동시 락 경합 최소화
    */
-  @Scheduled(fixedRate = 5000)
+  @Scheduled(fixedDelay = 10000)
   public void globalSyncRelation() {
     TaskContext context = TaskContext.of("Scheduler", "GlobalSync.Relation");
 

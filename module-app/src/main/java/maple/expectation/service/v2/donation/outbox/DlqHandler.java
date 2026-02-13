@@ -2,12 +2,12 @@ package maple.expectation.service.v2.donation.outbox;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.alert.StatelessAlertService;
 import maple.expectation.domain.v2.DonationDlq;
 import maple.expectation.domain.v2.DonationOutbox;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.repository.v2.DonationDlqRepository;
-import maple.expectation.service.v2.alert.DiscordAlertService;
 import maple.expectation.service.v2.shutdown.ShutdownDataPersistenceService;
 import org.springframework.stereotype.Service;
 
@@ -19,7 +19,7 @@ import org.springframework.stereotype.Service;
  * <ol>
  *   <li><b>1차</b>: DB DLQ INSERT
  *   <li><b>2차</b>: File Backup (DLQ 실패 시)
- *   <li><b>3차</b>: Discord Critical Alert + Metric
+ *   <li><b>3차</b>: Stateless Critical Alert + Metric
  * </ol>
  *
  * <h3>P0/P1 리팩토링</h3>
@@ -31,7 +31,7 @@ import org.springframework.stereotype.Service;
  *
  * @see DonationDlqRepository
  * @see ShutdownDataPersistenceService
- * @see DiscordAlertService
+ * @see StatelessAlertService
  * @see OutboxMetrics
  */
 @Slf4j
@@ -41,7 +41,7 @@ public class DlqHandler {
 
   private final DonationDlqRepository dlqRepository;
   private final ShutdownDataPersistenceService fileBackupService;
-  private final DiscordAlertService discordAlertService;
+  private final StatelessAlertService statelessAlertService;
   private final LogicExecutor executor;
   private final OutboxMetrics metrics;
 
@@ -107,7 +107,7 @@ public class DlqHandler {
             "RequestId: %s%nReason: %s%nManual intervention required!",
             entry.getRequestId(), reason);
 
-    discordAlertService.sendCriticalAlert(title, description, fileEx);
+    statelessAlertService.sendCritical(title, description, fileEx);
     log.error(
         "[CRITICAL] All safety nets failed for: {} - Manual intervention required!",
         entry.getRequestId());

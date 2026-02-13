@@ -9,13 +9,13 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.alert.StatelessAlertService;
 import maple.expectation.domain.v2.CharacterEquipment;
 import maple.expectation.global.error.exception.CompensationSyncException;
 import maple.expectation.global.event.MySQLUpEvent;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;
 import maple.expectation.repository.v2.CharacterEquipmentRepository;
-import maple.expectation.service.v2.alert.DiscordAlertService;
 import org.redisson.api.StreamMessageId;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
@@ -63,7 +63,7 @@ public class CompensationSyncScheduler {
   private final MySQLFallbackProperties properties;
   private final ObjectMapper objectMapper;
   private final LogicExecutor executor;
-  private final DiscordAlertService discordAlertService;
+  private final StatelessAlertService statelessAlertService;
 
   /** MySQL UP 이벤트 처리 (P0-N4: @Async + @EventListener) */
   @Async
@@ -221,7 +221,7 @@ public class CompensationSyncScheduler {
           String description =
               String.format(
                   "동기화 실패 항목이 DLQ로 이동되었습니다.\n실패 건수: %d\nTimestamp: %s", failedCount, Instant.now());
-          discordAlertService.sendCriticalAlert(
+          statelessAlertService.sendCritical(
               title, description, new CompensationSyncException("DLQ Alert"));
           return null;
         },

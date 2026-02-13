@@ -96,8 +96,12 @@ public class BufferRecoveryScheduler {
    * <h4>분산 락 (Issue #283 P1-7)</h4>
    *
    * <p>waitTime=0으로 락 획득 실패 시 즉시 스킵하여 중복 처리 방지
+   *
+   * <h4>Issue #344: fixedRate → fixedDelay</h4>
+   *
+   * <p>이전 실행 완료 후 10초 대기, 재시도는 급하지 않으므로 여유 있게 처리
    */
-  @Scheduled(fixedRateString = "${scheduler.buffer-recovery.retry-rate:5000}")
+  @Scheduled(fixedDelayString = "${scheduler.buffer-recovery.retry-rate:10000}")
   public void processRetryQueue() {
     executor.executeOrDefault(
         () ->
@@ -144,8 +148,12 @@ public class BufferRecoveryScheduler {
    * <h4>분산 락 (Issue #283 P1-7)</h4>
    *
    * <p>waitTime=0으로 락 획득 실패 시 즉시 스킵하여 중복 처리 방지
+   *
+   * <h4>Issue #344: fixedRate → fixedDelay</h4>
+   *
+   * <p>이전 실행 완료 후 60초 대기, DLQ 처리는 천천히 수행
    */
-  @Scheduled(fixedRateString = "${scheduler.buffer-recovery.redrive-rate:30000}")
+  @Scheduled(fixedDelayString = "${scheduler.buffer-recovery.redrive-rate:60000}")
   public void redriveExpiredInflight() {
     executor.executeOrDefault(
         () ->

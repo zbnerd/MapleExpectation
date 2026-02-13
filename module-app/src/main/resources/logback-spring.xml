@@ -68,7 +68,9 @@
             <appender-ref ref="LOKI" />
         </appender>
 
+        <!-- Console + Loki for prod (debugging) -->
         <root level="INFO">
+            <appender-ref ref="CONSOLE" />
             <appender-ref ref="LOKI_ASYNC" />
         </root>
     </springProfile>

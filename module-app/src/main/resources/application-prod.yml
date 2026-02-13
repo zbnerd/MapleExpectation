@@ -18,12 +18,11 @@ spring:
     hibernate:
       ddl-auto: update
 
-  # Redis Sentinel 설정 (운영 환경)
+  # Redis Standalone 설정 (운영 환경)
   data:
     redis:
-      sentinel:
-        master: mymaster
-        nodes: ${REDIS_SENTINEL_NODES}  # 예: sentinel1:26379,sentinel2:26379,sentinel3:26379
+      host: localhost
+      port: 6379
 
 discord:
   webhook-url: ${DISCORD_WEBHOOK_URL}
@@ -45,9 +44,10 @@ app:
       enabled: true  # Scale-out 모드 활성화
 
 # Issue #284 DoD: Redis 장애 시 1000 RPS fallback 용량
+# NOTE: Main Pool(50) + Lock Pool(50) = 100 total (RDS max_connections 고려)
 lock:
   datasource:
-    pool-size: 150
+    pool-size: 50
 
 # Thread Pool 최적화 (P1-7: t3.small 2vCPU 기준)
 executor:
@@ -78,3 +78,27 @@ springdoc:
     enabled: false
   swagger-ui:
     enabled: false
+
+# ADR-0345: Resilience4j Configuration for Stateless Alert System
+resilience4j:
+  circuitbreaker:
+    instances:
+      discordWebhook:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
+        minimumNumberOfCalls: 5
+        registerHealthIndicator: true
+  retry:
+    instances:
+      discordWebhook:
+        maxAttempts: 3
+        waitDuration: 500ms
+        exponentialBackoffMultiplier: 2.0
+        retryExceptions:
+          - org.springframework.web.reactive.function.client.WebClientRequestException
+          - io.netty.channel.ConnectTimeoutException
+  timelimiter:
+    instances:
+      discordWebhook:
+        timeoutDuration: 5s

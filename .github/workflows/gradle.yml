@@ -22,7 +22,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10  # Unit tests only - 10분이면 충분
 
-    # Services 제거: Unit 테스트는 Mock 사용, Integration은 Nightly에서 실행
+    # Redis 서비스 추가: 테스트에서 Redis 사용
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
 
     steps:
       - uses: actions/checkout@v4
@@ -50,13 +60,13 @@ jobs:
           ./gradlew test -PfastTest --stacktrace
 
       - name: Build JAR
-        run: ./gradlew clean build -x test
+        run: ./gradlew clean :module-app:bootJar -x test
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
           name: maple-app
-          path: build/libs/*.jar
+          path: module-app/build/libs/*.jar
           retention-days: 1
 
   # ==========================================
@@ -115,9 +125,12 @@ jobs:
             # 환경변수 주입
             export DB_USER="${{ secrets.DB_USER }}"
             export DB_PASSWORD="${{ secrets.DB_PASSWORD }}"
-            export NEXON_API_KEY="${{ secrets.NEXON_API_KEY }}" 
+            export JWT_SECRET="${{ secrets.JWT_SECRET }}"
+            export FINGERPRINT_SECRET="${{ secrets.FINGERPRINT_SECRET }}"
+            export NEXON_API_KEY="${{ secrets.NEXON_API_KEY }}"
             export DISCORD_WEBHOOK_URL="${{ secrets.DISCORD_WEBHOOK_URL }}"
-            
+            export CORS_ALLOWED_ORIGINS="${{ secrets.CORS_ALLOWED_ORIGINS }}"
+
             # 실행 권한 부여 및 스크립트 실행
             chmod +x /home/${{ secrets.EC2_USERNAME }}/deploy.sh
             /home/${{ secrets.EC2_USERNAME }}/deploy.sh

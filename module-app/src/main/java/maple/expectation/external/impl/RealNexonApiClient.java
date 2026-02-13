@@ -21,7 +21,8 @@ import reactor.core.publisher.Mono;
 @RequiredArgsConstructor
 public class RealNexonApiClient implements NexonApiClient {
 
-  private final WebClient mapleWebClient;
+  @org.springframework.beans.factory.annotation.Qualifier("mapleWebClient") private final WebClient mapleWebClient;
+
   private final TimeoutProperties timeoutProperties;
 
   @Value("${nexon.api.key}")
