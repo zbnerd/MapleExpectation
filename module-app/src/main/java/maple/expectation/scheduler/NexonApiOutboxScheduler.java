@@ -71,8 +71,12 @@ public class NexonApiOutboxScheduler {
    *   <li>폴링 및 처리: processor.pollAndProcess() 호출
    *   <li>메트릭 갱신: 처리 후 Pending 수 기록
    * </ol>
+   *
+   * <p>Issue #344: fixedRate → fixedDelay to prevent scheduler overlap
+   *
+   * <p>Note: fixedDelay ensures no overlap even if processing takes longer than interval
    */
-  @Scheduled(fixedRate = 10000)
+  @Scheduled(fixedDelay = 10000)
   public void pollAndProcess() {
     executor.executeVoid(
         () -> {
@@ -99,8 +103,12 @@ public class NexonApiOutboxScheduler {
    *   <li>status = PROCESSING
    *   <li>lockedAt < (now - 5분)
    * </ul>
+   *
+   * <p>Issue #344: fixedRate → fixedDelay to prevent scheduler overlap
+   *
+   * <p>Note: fixedDelay ensures no overlap even if processing takes longer than interval
    */
-  @Scheduled(fixedRate = 300000)
+  @Scheduled(fixedDelay = 300000)
   public void recoverStalled() {
     executor.executeVoid(
         outboxProcessor::recoverStalled,
