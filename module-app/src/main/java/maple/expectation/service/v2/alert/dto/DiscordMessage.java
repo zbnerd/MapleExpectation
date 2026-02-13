@@ -24,11 +24,10 @@ import java.util.List;
  * }
  * }</pre>
  *
- * @see <a href="https://discord.com/developers/docs/resources/webhook#execute-webhook">Discord Webhook
- *     API</a>
+ * @see <a href="https://discord.com/developers/docs/resources/webhook#execute-webhook">Discord
+ *     Webhook API</a>
  */
-public record DiscordMessage(
-    @JsonProperty("embeds") List<Embed> embeds) {
+public record DiscordMessage(@JsonProperty("embeds") List<Embed> embeds) {
 
   public record Embed(
       @JsonProperty("title") String title,

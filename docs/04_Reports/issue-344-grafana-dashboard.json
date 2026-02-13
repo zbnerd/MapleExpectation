@@ -1,0 +1,438 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      },
+      {
+        "datasource": "prometheus",
+        "enable": true,
+        "hide": false,
+        "iconColor": "red",
+        "name": "Before Fix",
+        "type": "dashboard",
+        "tags": ["fix"],
+        "query": "time() - 7d",
+        "titleFormat": "Issue #344 Fix Deployment"
+      },
+      {
+        "datasource": "prometheus",
+        "enable": true,
+        "hide": false,
+        "iconColor": "green",
+        "name": "After Fix",
+        "type": "dashboard",
+        "tags": ["fix"],
+        "query": "time()",
+        "titleFormat": "Fix Applied"
+      }
+    ]
+  },
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": "prometheus",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "fieldOptions": {
+          "defaults": {
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "red",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 1
+                },
+                {
+                  "color": "green",
+                  "value": 10
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "text": {}
+      },
+      "pluginVersion": "8.5.0",
+      "targets": [
+        {
+          "expr": "executor_active_threads{name=\"scheduler\"}",
+          "format": "time_series",
+          "instant": false,
+          "intervalFactor": 2,
+          "legendFormat": "Active Threads",
+          "refId": "A"
+        },
+        {
+          "expr": "executor_pool_size{name=\"scheduler\"}",
+          "format": "time_series",
+          "instant": false,
+          "intervalFactor": 2,
+          "legendFormat": "Pool Size",
+          "refId": "B"
+        },
+        {
+          "expr": "executor_queued_tasks{name=\"scheduler\"}",
+          "format": "time_series",
+          "instant": false,
+          "intervalFactor": 2,
+          "legendFormat": "Queued Tasks",
+          "refId": "C"
+        },
+        {
+          "expr": "executor_completed_tasks{name=\"scheduler\"}",
+          "format": "time_series",
+          "instant": false,
+          "intervalFactor": 2,
+          "legendFormat": "Completed Tasks",
+          "refId": "D"
+        }
+      ],
+      "title": "Scheduler Thread Pool Overview",
+      "type": "gauge"
+    },
+    {
+      "datasource": "prometheus",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "fieldOptions": {
+          "defaults": {
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "red",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 10
+                },
+                {
+                  "color": "green",
+                  "value": 20
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "values": true,
+          "calcs": [
+            "mean"
+          ],
+          "fields": ""
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "text": {}
+      },
+      "pluginVersion": "8.5.0",
+      "targets": [
+        {
+          "expr": "executor_active_threads{name=\"scheduler\"}",
+          "format": "time_series",
+          "instant": false,
+          "intervalFactor": 2,
+          "legendFormat": "Active Threads",
+          "refId": "A"
+        }
+      ],
+      "title": "Active Threads - Current",
+      "type": "stat"
+    },
+    {
+      "datasource": "prometheus",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 8
+      },
+      "id": 3,
+      "options": {
+        "fieldOptions": {
+          "defaults": {
+            "custom": {
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "red",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 10
+                },
+                {
+                  "color": "green",
+                  "value": 20
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "orientation": "auto",
+        "showValues": false,
+        "text": {}
+      },
+      "pluginVersion": "8.5.0",
+      "targets": [
+        {
+          "expr": "hikaricp_connections_active",
+          "format": "time_series",
+          "instant": false,
+          "legendFormat": "Active Connections",
+          "refId": "A"
+        },
+        {
+          "expr": "hikaricp_connections_idle",
+          "format": "time_series",
+          "instant": false,
+          "legendFormat": "Idle Connections",
+          "refId": "B"
+        },
+        {
+          "expr": "hikaricp_connections_pending",
+          "format": "time_series",
+          "instant": false,
+          "legendFormat": "Waiting Threads",
+          "refId": "C"
+        },
+        {
+          "expr": "hikaricp_connections_max",
+          "format": "time_series",
+          "instant": false,
+          "legendFormat": "Max Connections",
+          "refId": "D"
+        }
+      ],
+      "title": "MySQL Connection Pool",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "prometheus",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
+      "id": 4,
+      "options": {
+        "fieldOptions": {
+          "defaults": {
+            "custom": {
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "red",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 1
+                },
+                {
+                  "color": "green",
+                  "value": 5
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "orientation": "auto",
+        "showValues": false,
+        "text": {}
+      },
+      "pluginVersion": "8.5.0",
+      "targets": [
+        {
+          "expr": "rate(redis_lock_acquired_total[5m])",
+          "format": "time_series",
+          "instant": false,
+          "legendFormat": "Lock Acquisition Rate",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(redis_lock_failed_total[5m])",
+          "format": "time_series",
+          "instant": false,
+          "legendFormat": "Lock Failures",
+          "refId": "B"
+        },
+        {
+          "expr": "redis_lock_wait_duration_seconds_sum",
+          "format": "time_series",
+          "instant": false,
+          "legendFormat": "Total Wait Time",
+          "refId": "C"
+        },
+        {
+          "expr": "redis_lock_queue_length",
+          "format": "time_series",
+          "instant": false,
+          "legendFormat": "Queue Length",
+          "refId": "D"
+        }
+      ],
+      "title": "Redis Lock Contention",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "prometheus",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "id": 5,
+      "options": {
+        "fieldOptions": {
+          "defaults": {
+            "custom": {
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": 0
+                },
+                {
+                  "color": "yellow",
+                  "value": 100
+                },
+                {
+                  "color": "red",
+                  "value": 500
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "orientation": "auto",
+        "showValues": false,
+        "text": {}
+      },
+      "pluginVersion": "8.5.0",
+      "targets": [
+        {
+          "expr": "rate(scheduler_rejected_total[5m])",
+          "format": "time_series",
+          "instant": false,
+          "legendFormat": "Rejected Rate (shutdown only)",
+          "refId": "A"
+        },
+        {
+          "expr": "executor_active_threads{name=\"scheduler\"} / executor_pool_size{name=\"scheduler\"} * 100",
+          "format": "time_series",
+          "instant": false,
+          "legendFormat": "Pool Utilization %",
+          "refId": "B"
+        },
+        {
+          "expr": "executor_queued_tasks{name=\"scheduler\"}",
+          "format": "time_series",
+          "instant": false,
+          "legendFormat": "Queued Tasks",
+          "refId": "C"
+        },
+        {
+          "expr": "rate(executor_completed_tasks{name=\"scheduler\"}[5m])",
+          "format": "time_series",
+          "instant": false,
+          "legendFormat": "Completion Rate",
+          "refId": "D"
+        }
+      ],
+      "title": "Scheduler Health Metrics (Note: rejected only fires on shutdown - pool is unbounded)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 34,
+  "style": "dark",
+  "tags": ["scheduler", "issue-344", "thread-pool"],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": ["5s", "10s", "30s", "1m", "5m", "15m", "30m", "1h", "2h", "1d"]
+  },
+  "timezone": "browser",
+  "title": "Issue #344: Scheduler Task Pool Configuration",
+  "uid": "issue-344-scheduler-monitoring",
+  "version": 1
+}
