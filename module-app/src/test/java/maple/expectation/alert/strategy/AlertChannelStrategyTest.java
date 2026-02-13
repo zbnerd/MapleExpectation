@@ -3,6 +3,7 @@ package maple.expectation.alert.strategy;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -284,25 +285,20 @@ class AlertChannelStrategyTest extends AppIntegrationTestSupport {
   @Test
   @DisplayName("Null 공급자: 안전한 실패 처리")
   void testNullSupplier_SafeFailure() {
-    // Given: null 공급자가 포함된 맵
-    Map<AlertPriority, Supplier<AlertChannel>> providers =
-        Map.of(AlertPriority.CRITICAL, () -> mockDiscordChannel, AlertPriority.NORMAL, null);
+    // Given: null 공급자가 포함된 맵 (HashMap은 null 허용)
+    // Note: Map.getOrDefault는 키가 존재하면 null 값도 그대로 반환
+    // 따라서 null 공급자가 있는 경우 기본 동작 대신 NullPointerException 발생
+    Map<AlertPriority, Supplier<AlertChannel>> providers = new HashMap<>();
+    providers.put(AlertPriority.CRITICAL, () -> mockDiscordChannel);
+    providers.put(AlertPriority.NORMAL, null);
 
     StatelessAlertChannelStrategy strategy = new StatelessAlertChannelStrategy(providers);
 
-    // When: null 공급자가 있는 우선순위 조회
-    AlertChannel normalChannel = strategy.getChannel(AlertPriority.NORMAL);
-
-    // Then: 안전한 기본 동작 (NullPointerException 방지)
-    // 현재 구현에서는 getOrDefault가 기본 채널을 반환
-    // 기본 채널은 UnsupportedOperationException을 던질 수 있음
-    if (normalChannel != null) {
-      // 기본 채널이 반환되면 예외 발생 가능
-      assertThrows(
-          UnsupportedOperationException.class,
-          normalChannel::getChannelName,
-          "기본 채널은 UnsupportedOperationException을 던져야 함");
-    }
+    // When & Then: null 공급자가 있는 우선순위 조회 시 NullPointerException 발생
+    assertThrows(
+        NullPointerException.class,
+        () -> strategy.getChannel(AlertPriority.NORMAL),
+        "null 공급자의 get() 호출 시 NullPointerException 발생해야 함");
   }
 
   @Test
@@ -312,16 +308,21 @@ class AlertChannelStrategyTest extends AppIntegrationTestSupport {
     Map<AlertPriority, Supplier<AlertChannel>> providers = Map.of();
     StatelessAlertChannelStrategy strategy = new StatelessAlertChannelStrategy(providers);
 
-    // When: 모든 우선순위 조회
-    AlertChannel criticalChannel = strategy.getChannel(AlertPriority.CRITICAL);
-    AlertChannel normalChannel = strategy.getChannel(AlertPriority.NORMAL);
-    AlertChannel backgroundChannel = strategy.getChannel(AlertPriority.BACKGROUND);
-
-    // Then: 모두 기본 채널 반환 (UnsupportedOperationException)
+    // Then: 모든 우선순위 조회 시 UnsupportedOperationException 발생
+    // Note: 현재 구현에서는 getChannel() 자체에서 예외 발생
     assertAll(
-        "기본 채널은 UnsupportedOperationException을 던져야 함",
-        () -> assertThrows(UnsupportedOperationException.class, criticalChannel::getChannelName),
-        () -> assertThrows(UnsupportedOperationException.class, normalChannel::getChannelName),
-        () -> assertThrows(UnsupportedOperationException.class, backgroundChannel::getChannelName));
+        "빈 공급자 맵에서는 getChannel() 시 UnsupportedOperationException을 던져야 함",
+        () ->
+            assertThrows(
+                UnsupportedOperationException.class,
+                () -> strategy.getChannel(AlertPriority.CRITICAL)),
+        () ->
+            assertThrows(
+                UnsupportedOperationException.class,
+                () -> strategy.getChannel(AlertPriority.NORMAL)),
+        () ->
+            assertThrows(
+                UnsupportedOperationException.class,
+                () -> strategy.getChannel(AlertPriority.BACKGROUND)));
   }
 }

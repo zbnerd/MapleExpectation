@@ -1,5 +1,6 @@
 package maple.expectation.config;
 
+import java.nio.file.Path;
 import java.util.Map;
 import java.util.function.Supplier;
 import lombok.RequiredArgsConstructor;
@@ -17,10 +18,11 @@ import org.springframework.context.annotation.Configuration;
  * <p>Defines channel providers mapping for each alert priority level
  *
  * <p>Channel Selection Strategy:
+ *
  * <ul>
- *   <li>CRITICAL: DiscordAlertChannel (immediate external notification)</li>
- *   <li>NORMAL: InMemoryAlertBuffer (buffered for batch processing)</li>
- *   <li>BACKGROUND: InMemoryAlertBuffer (buffered for low-priority batch)</li>
+ *   <li>CRITICAL: DiscordAlertChannel (immediate external notification)
+ *   <li>NORMAL: InMemoryAlertBuffer (buffered for batch processing)
+ *   <li>BACKGROUND: InMemoryAlertBuffer (buffered for low-priority batch)
  * </ul>
  *
  * @author ADR-0345
@@ -32,7 +34,31 @@ public class AlertChannelConfig {
 
   private final DiscordAlertChannel discordAlertChannel;
   private final InMemoryAlertBuffer inMemoryAlertBuffer;
-  private final LocalFileAlertChannel localFileAlertChannel;
+  private final AlertFeatureProperties alertFeatureProperties;
+
+  /**
+   * Alert Log File Path Bean
+   *
+   * <p>Creates Path bean from configured alert file path
+   *
+   * @return Path to alert log file
+   */
+  @Bean
+  public Path alertLogFilePath() {
+    return Path.of(alertFeatureProperties.getFile().getPath());
+  }
+
+  /**
+   * Local File Alert Channel Bean
+   *
+   * <p>Creates file-based alert channel as fallback
+   *
+   * @return LocalFileAlertChannel instance
+   */
+  @Bean
+  public LocalFileAlertChannel localFileAlertChannel(Path alertLogFilePath) {
+    return new LocalFileAlertChannel(alertLogFilePath);
+  }
 
   /**
    * Channel Providers Bean

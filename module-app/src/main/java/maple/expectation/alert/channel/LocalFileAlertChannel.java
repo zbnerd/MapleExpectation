@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import maple.expectation.alert.message.AlertMessage;
+import org.springframework.stereotype.Component;
 
 /**
  * Local File Alert Channel (Tertiary Fallback)
@@ -26,6 +27,7 @@ import maple.expectation.alert.message.AlertMessage;
  * @author ADR-0345
  * @since 2025-02-12
  */
+@Component
 public class LocalFileAlertChannel implements AlertChannel, FallbackSupport {
 
   private static final org.slf4j.Logger log =
