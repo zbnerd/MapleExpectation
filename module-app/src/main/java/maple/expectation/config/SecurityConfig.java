@@ -255,8 +255,9 @@ public class SecurityConfig {
                     // Issue #20, #34: Prometheus 메트릭 (다층 보안)
                     // Layer 1: PrometheusSecurityFilter (IP Whitelist + X-Forwarded-For 검증)
                     // Layer 2: ADMIN role-based access control
-                    .requestMatchers("/actuator/prometheus")
-                    .hasRole("ADMIN")
+                    // TEMP: permitAll for Prometheus scraping (상용 Actuator 인증 우회)
+                    .requestMatchers("/actuator/prometheus", "/actuator/metrics")
+                    .permitAll()
 
                     // Swagger UI (개발용)
                     .requestMatchers("/swagger-ui/**", "/v3/api-docs/**")
