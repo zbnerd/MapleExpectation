@@ -292,7 +292,7 @@ public final class AsyncUtils {
    * @return 비동기 실행 결과를 담은 CompletableFuture
    * @throws InternalSystemException Checked Exception 발생 시
    * @see TaskContext
-   * @see maple.expectation.global.executor.LogicExecutor
+   * @see maple.expectation.infrastructure.executor.LogicExecutor
    */
   public static <T> CompletableFuture<T> executeAsync(
       Callable<T> supplier, Executor executor, TaskContext context) {

@@ -29,8 +29,8 @@ public class RedisBufferRepositoryImpl implements RedisBufferRepository {
   /**
    * 전역 카운터 증가 (L1 -> L2 전송 시 호출)
    *
-   * <p>Note: 원자적 연산은 {@link maple.expectation.global.redis.script.LikeAtomicOperations}를 사용합니다. 이
-   * 메서드는 모니터링/디버깅 용도로 유지됩니다.
+   * <p>Note: 원자적 연산은 {@link maple.expectation.infrastructure.redis.script.LikeAtomicOperations}를
+   * 사용합니다. 이 메서드는 모니터링/디버깅 용도로 유지됩니다.
    */
   public void incrementGlobalCount(long delta) {
     redisTemplate.opsForValue().increment(LuaScripts.Keys.TOTAL_COUNT, delta);
@@ -39,8 +39,8 @@ public class RedisBufferRepositoryImpl implements RedisBufferRepository {
   /**
    * 전역 카운터 감소 (L2 -> L3 동기화 성공 시 호출)
    *
-   * <p>Note: 원자적 연산은 {@link maple.expectation.global.redis.script.LikeAtomicOperations}를 사용합니다. 이
-   * 메서드는 모니터링/디버깅 용도로 유지됩니다.
+   * <p>Note: 원자적 연산은 {@link maple.expectation.infrastructure.redis.script.LikeAtomicOperations}를
+   * 사용합니다. 이 메서드는 모니터링/디버깅 용도로 유지됩니다.
    */
   public void decrementGlobalCount(long delta) {
     redisTemplate.opsForValue().decrement(LuaScripts.Keys.TOTAL_COUNT, delta);

@@ -1,4 +1,4 @@
-package maple.expectation.global.error;
+package maple.expectation.error;
 
 import com.fasterxml.jackson.core.exc.StreamConstraintsException;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;

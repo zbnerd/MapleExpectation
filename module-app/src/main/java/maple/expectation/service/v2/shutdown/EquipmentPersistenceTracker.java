@@ -37,7 +37,8 @@ import org.springframework.stereotype.Component;
  * <p><b>결론: 이미 Strategy 패턴으로 In-Memory/Redis 분리 완료. 추가 변환 불필요.</b>
  *
  * @see PersistenceTrackerStrategy 전략 인터페이스
- * @see maple.expectation.global.queue.persistence.RedisEquipmentPersistenceTracker Redis 구현체
+ * @see maple.expectation.infrastructure.queue.persistence.RedisEquipmentPersistenceTracker Redis
+ *     구현체
  */
 @Slf4j
 @ConditionalOnProperty(name = "app.buffer.redis.enabled", havingValue = "false")

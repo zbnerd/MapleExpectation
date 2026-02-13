@@ -2,6 +2,7 @@ package maple.expectation.scheduler;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.error.exception.DistributedLockException;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.infrastructure.lock.LockStrategy;
@@ -186,7 +187,7 @@ public class LikeSyncScheduler {
 
   /** 동기화 실패 대응 */
   private void handleSyncFailure(Throwable t, String syncType) {
-    if (t instanceof maple.expectation.global.error.exception.DistributedLockException) {
+    if (t instanceof DistributedLockException) {
       log.debug("ℹ️ [LikeSync.{}] 락 획득 스킵: 다른 서버가 동기화 진행 중", syncType);
       return;
     }

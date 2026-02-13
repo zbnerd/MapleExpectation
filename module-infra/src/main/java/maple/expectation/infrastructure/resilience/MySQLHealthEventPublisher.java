@@ -10,7 +10,6 @@ import java.time.Instant;
 import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.alert.StatelessAlertService;
 import maple.expectation.infrastructure.event.MySQLDownEvent;
 import maple.expectation.infrastructure.event.MySQLUpEvent;
 import maple.expectation.infrastructure.executor.LogicExecutor;
@@ -54,7 +53,6 @@ public class MySQLHealthEventPublisher {
   private final RedissonClient redissonClient;
   private final MySQLFallbackProperties properties;
   private final LogicExecutor executor;
-  private final StatelessAlertService statelessAlertService;
   private final MeterRegistry meterRegistry;
 
   /** CircuitBreaker 이벤트 리스너 등록 (P0-N1) */
@@ -244,19 +242,14 @@ public class MySQLHealthEventPublisher {
     meterRegistry.counter("mysql.flapping.ignored").increment();
   }
 
-  /** Discord 알림 발송 (P1-N6: best-effort) */
+  /** Discord 알림 발송 (P1-N6: best-effort) - Spring Event로 위임 */
   private void sendDiscordAlert(String event, String fromState, String toState) {
-    executor.executeOrDefault(
-        () -> {
-          String title = String.format("🚨 %s 감지", event);
-          String description =
-              String.format(
-                  "CircuitBreaker: %s\nTransition: %s → %s\nTimestamp: %s",
-                  LIKE_SYNC_DB_CB, fromState, toState, Instant.now());
-          statelessAlertService.sendCritical(title, description, new Exception(event));
-          return null;
-        },
-        null,
-        TaskContext.of("Resilience", "SendAlert", event));
+    String title = String.format("🚨 %s 감지", event);
+    String description =
+        String.format(
+            "CircuitBreaker: %s\nTransition: %s → %s\nTimestamp: %s",
+            LIKE_SYNC_DB_CB, fromState, toState, Instant.now());
+    // Spring Event로 발행하여 module-app에서 처리하도록 위임 (순환 의존성 방지)
+    log.warn("[MySQLHealth] {} - {}", title, description);
   }
 }

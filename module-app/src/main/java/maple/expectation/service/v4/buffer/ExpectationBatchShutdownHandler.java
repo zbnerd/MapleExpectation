@@ -32,7 +32,7 @@ import org.springframework.stereotype.Component;
  *
  * <p>Integer.MAX_VALUE - 500: GracefulShutdownCoordinator (MAX_VALUE - 1000)보다 먼저 실행
  *
- * @see maple.expectation.global.shutdown.GracefulShutdownCoordinator 메인 Shutdown 조정자
+ * @see maple.expectation.infrastructure.shutdown.GracefulShutdownCoordinator 메인 Shutdown 조정자
  * @see ShutdownProperties 외부 설정
  */
 @Slf4j

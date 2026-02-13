@@ -24,7 +24,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
  *
  * <p>PER 갱신 작업이 폭증해도 메인 비즈니스 로직에 영향을 주지 않음.
  *
- * @see maple.expectation.global.cache.per.ProbabilisticCacheAspect
+ * @see maple.expectation.infrastructure.cache.per.ProbabilisticCacheAspect
  */
 @Configuration
 @RequiredArgsConstructor

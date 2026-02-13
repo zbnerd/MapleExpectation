@@ -65,7 +65,7 @@ public class TraceAspect {
           + "|| execution(* maple.expectation.parser..*.*(..)) "
           + "|| execution(* maple.expectation.provider..*.*(..))"
           + "|| execution(* maple.expectation.repository..*.*(..))"
-          + "|| execution(* maple.expectation.global..*.*(..))"
+          + "|| execution(* maple.expectation.error..*.*(..))"
           + "|| execution(* maple.expectation.util..*.*(..))"
           + "|| execution(* maple.expectation.controller..*.*(..))")
   public void autoLog() {}
@@ -82,8 +82,7 @@ public class TraceAspect {
           + "&& !@annotation(org.springframework.scheduling.annotation.Scheduled) "
           +
           // LogicExecutor 내부 로직은 로깅 대상에서 제외 (재귀 호출 방지)
-          "&& !within(maple.expectation.global.executor..*)"
-          + "&& !within(maple.expectation.global.filter..*) "
+          "&& !within(maple.expectation.infrastructure.executor..*)"
           + "&& !within(*..*LockStrategy*) "
           + "&& !execution(* *..*LockStrategy*.executeWithLock(..))"
           + "&& !execution(* maple.expectation..RedisBufferRepository.getTotalPendingCount(..))"

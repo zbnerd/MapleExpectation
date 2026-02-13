@@ -20,7 +20,7 @@ import org.springframework.core.task.TaskDecorator;
  *
  * <h4>MDCFilter 연계</h4>
  *
- * <p>HTTP 요청 진입 시 {@link maple.expectation.global.filter.MDCFilter}가 설정한 requestId가 이
+ * <p>HTTP 요청 진입 시 {@link maple.expectation.infrastructure.filter.MDCFilter}가 설정한 requestId가 이
  * TaskDecorator를 통해 비동기 워커 스레드로 전파됩니다.
  *
  * <h4>전파 원리 (snapshot/restore 패턴)</h4>
@@ -37,7 +37,7 @@ public class TaskDecoratorFactory {
    * MDC + SkipEquipmentL2CacheContext 전파용 TaskDecorator 생성
    *
    * @return TaskDecorator 인스턴스
-   * @see maple.expectation.global.filter.MDCFilter
+   * @see maple.expectation.infrastructure.filter.MDCFilter
    */
   public TaskDecorator createContextPropagatingDecorator() {
     return runnable -> {
