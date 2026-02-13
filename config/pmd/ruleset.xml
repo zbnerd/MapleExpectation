@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ruleset name="maple-expectation"
+         xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.sourceforge.net/ruleset_2_0_0.xsd">
+
+  <description>
+    PMD ruleset for MapleExpectation project.
+    Focus: Import style, code quality, and architectural rules.
+  </description>
+
+  <!-- 불필요한 FQCN 금지 -->
+  <rule ref="category/java/codestyle.xml/UnnecessaryFullyQualifiedName">
+    <properties>
+      <!-- 1개 이상의 import가 있는 경우에만 검사 -->
+      <property name="statistic" value="1"/>
+    </properties>
+  </rule>
+
+  <!-- 와일드카드 import 금지 -->
+  <rule ref="category/java/codestyle.xml/UnnecessaryImport">
+    <properties>
+      <!-- static import는 허용하지만 와일드카드 import는 금지 -->
+    </properties>
+  </rule>
+
+  <!-- 과도한 static import 제한 -->
+  <rule ref="category/java/codestyle.xml/TooManyStaticImports">
+    <properties>
+      <property name="maximumStaticImports" value="10"/>
+    </properties>
+  </rule>
+
+  <!-- import 순서 (IDE 표준: static, third-party, project) -->
+  <rule ref="category/java/codestyle.xml/ImportOrder">
+    <properties>
+      <property name="importsOrder" value="static,javax,java,org,com"/>
+    </properties>
+  </rule>
+
+  <!-- 사용하지 않는 import 감지 -->
+  <rule ref="category/java/bestpractices.xml/UnusedImports"/>
+
+</ruleset>

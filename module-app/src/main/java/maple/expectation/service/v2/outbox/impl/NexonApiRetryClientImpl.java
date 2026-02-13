@@ -5,6 +5,7 @@ import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.domain.v2.NexonApiOutbox;
+import maple.expectation.error.exception.ExternalServiceException;
 import maple.expectation.external.NexonApiClient;
 import maple.expectation.external.dto.v2.CharacterBasicResponse;
 import maple.expectation.external.dto.v2.CharacterOcidResponse;
@@ -16,6 +17,7 @@ import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.service.v2.outbox.NexonApiOutboxMetrics;
 import maple.expectation.service.v2.outbox.NexonApiRetryClient;
 import maple.expectation.util.ExceptionUtils;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
@@ -51,9 +53,10 @@ public class NexonApiRetryClientImpl implements NexonApiRetryClient {
   private final NexonApiOutboxMetrics metrics;
   private final ObjectMapper objectMapper;
 
-  /** API 호출 타임아웃 (초) */
-  private static final long API_TIMEOUT_SECONDS = 10L;
+  @Value("${app.nexon.api.timeout:10}")
+  private long apiTimeoutSeconds;
 
+  /** API 호출 타임아웃 (초) */
   @Override
   public boolean processOutboxEntry(NexonApiOutbox outbox) {
     TaskContext context = TaskContext.of("NexonApiRetry", "ProcessEntry", outbox.getRequestId());
@@ -62,7 +65,7 @@ public class NexonApiRetryClientImpl implements NexonApiRetryClient {
         () -> doRetry(outbox),
         context,
         e ->
-            new maple.expectation.error.exception.ExternalServiceException(
+            new ExternalServiceException(
                 "Nexon API Outbox retry failed: " + outbox.getRequestId(), e));
   }
 
@@ -105,7 +108,7 @@ public class NexonApiRetryClientImpl implements NexonApiRetryClient {
           CharacterOcidResponse response =
               nexonApiClient
                   .getOcidByCharacterName(characterName)
-                  .orTimeout(API_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                  .orTimeout(apiTimeoutSeconds, TimeUnit.SECONDS)
                   .join();
 
           log.info("[Retry] OCID 조회 성공: name={}, ocid={}", characterName, response.getOcid());
@@ -125,7 +128,7 @@ public class NexonApiRetryClientImpl implements NexonApiRetryClient {
           CharacterBasicResponse response =
               nexonApiClient
                   .getCharacterBasic(ocid)
-                  .orTimeout(API_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                  .orTimeout(apiTimeoutSeconds, TimeUnit.SECONDS)
                   .join();
 
           log.info(
@@ -146,7 +149,7 @@ public class NexonApiRetryClientImpl implements NexonApiRetryClient {
           EquipmentResponse response =
               nexonApiClient
                   .getItemDataByOcid(ocid)
-                  .orTimeout(API_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                  .orTimeout(apiTimeoutSeconds, TimeUnit.SECONDS)
                   .join();
 
           log.info("[Retry] Item Data 조회 성공: ocid={}", ocid);
@@ -166,7 +169,7 @@ public class NexonApiRetryClientImpl implements NexonApiRetryClient {
           CubeHistoryResponse response =
               nexonApiClient
                   .getCubeHistory(ocid)
-                  .orTimeout(API_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                  .orTimeout(apiTimeoutSeconds, TimeUnit.SECONDS)
                   .join();
 
           log.info("[Retry] Cube History 조회 성공: ocid={}", ocid);
