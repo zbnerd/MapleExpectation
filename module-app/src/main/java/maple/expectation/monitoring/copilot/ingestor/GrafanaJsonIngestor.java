@@ -14,8 +14,8 @@ import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.error.exception.InternalSystemException;
-import maple.expectation.global.executor.LogicExecutor;
-import maple.expectation.global.executor.TaskContext;
+import maple.expectation.infrastructure.executor.LogicExecutor;
+import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.monitoring.copilot.model.SeverityMapping;
 import maple.expectation.monitoring.copilot.model.SignalDefinition;
 

@@ -17,9 +17,9 @@ import java.util.zip.GZIPInputStream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.dto.CubeCalculationInput;
-import maple.expectation.global.executor.LogicExecutor;
-import maple.expectation.global.executor.TaskContext;
-import maple.expectation.global.executor.strategy.ExceptionTranslator;
+import maple.expectation.infrastructure.executor.LogicExecutor;
+import maple.expectation.infrastructure.executor.TaskContext;
+import maple.expectation.infrastructure.executor.strategy.ExceptionTranslator;
 import maple.expectation.util.StatParser;
 import org.springframework.stereotype.Component;
 

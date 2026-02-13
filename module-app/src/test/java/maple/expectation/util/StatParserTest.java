@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 
-import maple.expectation.global.common.function.ThrowingSupplier;
-import maple.expectation.global.executor.LogicExecutor;
+import maple.expectation.common.function.ThrowingSupplier;
+import maple.expectation.infrastructure.executor.LogicExecutor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

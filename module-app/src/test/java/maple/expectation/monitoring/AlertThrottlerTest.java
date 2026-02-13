@@ -9,8 +9,8 @@ import static org.mockito.Mockito.*;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
-import maple.expectation.global.executor.LogicExecutor;
-import maple.expectation.global.executor.TaskContext;
+import maple.expectation.infrastructure.executor.LogicExecutor;
+import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.monitoring.throttle.AlertThrottler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -83,8 +83,7 @@ class AlertThrottlerTest {
         .willAnswer(
             inv -> {
               try {
-                return ((maple.expectation.global.common.function.ThrowingSupplier<?>)
-                        inv.getArgument(0))
+                return ((maple.expectation.common.function.ThrowingSupplier<?>) inv.getArgument(0))
                     .get();
               } catch (Exception e) {
                 return inv.getArgument(1);
@@ -92,7 +91,8 @@ class AlertThrottlerTest {
             });
     doAnswer(
             inv -> {
-              ((maple.expectation.global.executor.function.ThrowingRunnable) inv.getArgument(0))
+              ((maple.expectation.infrastructure.executor.function.ThrowingRunnable)
+                      inv.getArgument(0))
                   .run();
               return null;
             })

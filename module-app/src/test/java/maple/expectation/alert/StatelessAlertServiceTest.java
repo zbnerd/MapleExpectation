@@ -8,7 +8,7 @@ import static org.mockito.Mockito.when;
 import maple.expectation.alert.channel.AlertChannel;
 import maple.expectation.alert.message.AlertMessage;
 import maple.expectation.alert.strategy.AlertChannelStrategy;
-import maple.expectation.global.executor.LogicExecutor;
+import maple.expectation.infrastructure.executor.LogicExecutor;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;

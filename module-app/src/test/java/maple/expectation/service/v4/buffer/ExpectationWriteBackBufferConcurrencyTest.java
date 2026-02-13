@@ -34,7 +34,7 @@ class ExpectationWriteBackBufferConcurrencyTest {
   private MeterRegistry meterRegistry;
   private BufferProperties properties;
   private BackoffStrategy backoffStrategy;
-  private maple.expectation.global.executor.LogicExecutor executor;
+  private maple.expectation.infrastructure.executor.LogicExecutor executor;
 
   @BeforeEach
   void setUp() {
@@ -48,7 +48,7 @@ class ExpectationWriteBackBufferConcurrencyTest {
             );
     // BackoffStrategy is no longer needed for atomic implementation
     backoffStrategy = null;
-    executor = mock(maple.expectation.global.executor.LogicExecutor.class);
+    executor = mock(maple.expectation.infrastructure.executor.LogicExecutor.class);
 
     // Configure LogicExecutor mock to pass through executeWithFinally calls
     when(executor.executeWithFinally(any(), any(), any()))
@@ -58,7 +58,7 @@ class ExpectationWriteBackBufferConcurrencyTest {
               var finalizer = invocation.getArgument(1);
               try {
                 Object result =
-                    ((maple.expectation.global.common.function.ThrowingSupplier<?>) task).get();
+                    ((maple.expectation.common.function.ThrowingSupplier<?>) task).get();
                 if (finalizer != null) {
                   ((java.lang.Runnable) finalizer).run();
                 }

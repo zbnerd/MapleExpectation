@@ -1,8 +1,8 @@
 package maple.expectation.controller;
 
 import lombok.RequiredArgsConstructor;
-import maple.expectation.global.executor.LogicExecutor;
-import maple.expectation.global.executor.TaskContext;
+import maple.expectation.infrastructure.executor.LogicExecutor;
+import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.service.v2.alert.DiscordAlertService;
 import org.springframework.context.annotation.Profile;
 import org.springframework.web.bind.annotation.PostMapping;

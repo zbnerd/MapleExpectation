@@ -2,12 +2,12 @@ package maple.expectation.config;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.global.cache.TieredCacheManager;
-import maple.expectation.global.cache.invalidation.CacheInvalidationPublisher;
-import maple.expectation.global.cache.invalidation.CacheInvalidationSubscriber;
-import maple.expectation.global.cache.invalidation.impl.RedisCacheInvalidationPublisher;
-import maple.expectation.global.cache.invalidation.impl.RedisCacheInvalidationSubscriber;
-import maple.expectation.global.executor.LogicExecutor;
+import maple.expectation.infrastructure.cache.TieredCacheManager;
+import maple.expectation.infrastructure.cache.invalidation.CacheInvalidationPublisher;
+import maple.expectation.infrastructure.cache.invalidation.CacheInvalidationSubscriber;
+import maple.expectation.infrastructure.cache.invalidation.impl.RedisCacheInvalidationPublisher;
+import maple.expectation.infrastructure.cache.invalidation.impl.RedisCacheInvalidationSubscriber;
+import maple.expectation.infrastructure.executor.LogicExecutor;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.beans.factory.annotation.Value;

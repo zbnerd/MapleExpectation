@@ -5,8 +5,8 @@ import lombok.extern.slf4j.Slf4j;
 import maple.expectation.alert.channel.AlertChannel;
 import maple.expectation.alert.message.AlertMessage;
 import maple.expectation.alert.strategy.AlertChannelStrategy;
-import maple.expectation.global.executor.LogicExecutor;
-import maple.expectation.global.executor.TaskContext;
+import maple.expectation.infrastructure.executor.LogicExecutor;
+import maple.expectation.infrastructure.executor.TaskContext;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 

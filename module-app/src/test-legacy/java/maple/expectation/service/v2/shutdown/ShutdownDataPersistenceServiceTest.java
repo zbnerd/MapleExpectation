@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
-import maple.expectation.config.ShutdownProperties;
+import maple.expectation.infrastructure.shutdown.ShutdownProperties;
 import maple.expectation.global.common.function.ThrowingSupplier;
 import maple.expectation.global.executor.LogicExecutor;
 import maple.expectation.global.executor.TaskContext;

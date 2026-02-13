@@ -5,7 +5,7 @@ import java.net.http.HttpClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.config.TimeoutProperties;
-import maple.expectation.global.executor.LogicExecutor;
+import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.monitoring.copilot.client.PrometheusClient;
 import maple.expectation.monitoring.copilot.detector.AnomalyDetector;
 import maple.expectation.monitoring.copilot.ingestor.GrafanaJsonIngestor;

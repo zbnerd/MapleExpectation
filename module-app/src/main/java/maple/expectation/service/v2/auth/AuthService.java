@@ -15,9 +15,9 @@ import maple.expectation.external.dto.v2.CharacterListResponse;
 import maple.expectation.global.error.exception.auth.CharacterNotOwnedException;
 import maple.expectation.global.error.exception.auth.InvalidApiKeyException;
 import maple.expectation.global.error.exception.auth.SessionNotFoundException;
-import maple.expectation.global.security.AccountIdGenerator;
-import maple.expectation.global.security.FingerprintGenerator;
-import maple.expectation.global.security.jwt.JwtTokenProvider;
+import maple.expectation.infrastructure.security.AccountIdGenerator;
+import maple.expectation.infrastructure.security.FingerprintGenerator;
+import maple.expectation.infrastructure.security.jwt.JwtTokenProvider;
 import org.springframework.stereotype.Service;
 
 /**

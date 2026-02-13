@@ -6,7 +6,7 @@ import jakarta.validation.constraints.NotNull;
 import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
-import maple.expectation.global.security.cors.ValidCorsOrigin;
+import maple.expectation.infrastructure.security.cors.ValidCorsOrigin;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 

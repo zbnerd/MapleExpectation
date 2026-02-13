@@ -20,8 +20,8 @@ import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.global.error.exception.InternalSystemException;
-import maple.expectation.global.executor.LogicExecutor;
-import maple.expectation.global.executor.TaskContext;
+import maple.expectation.infrastructure.executor.LogicExecutor;
+import maple.expectation.infrastructure.executor.TaskContext;
 
 /**
  * Prometheus HTTP Client for querying metrics. Uses Java 11+ HttpClient with Jackson for JSON

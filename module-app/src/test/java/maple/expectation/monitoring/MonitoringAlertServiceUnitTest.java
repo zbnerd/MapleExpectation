@@ -10,10 +10,10 @@ import static org.mockito.Mockito.verify;
 import maple.expectation.alert.StatelessAlertService;
 import maple.expectation.config.MonitoringThresholdProperties;
 import maple.expectation.domain.repository.RedisBufferRepository;
-import maple.expectation.global.executor.LogicExecutor;
-import maple.expectation.global.executor.TaskContext;
-import maple.expectation.global.executor.function.ThrowingRunnable;
-import maple.expectation.global.lock.LockStrategy;
+import maple.expectation.infrastructure.executor.LogicExecutor;
+import maple.expectation.infrastructure.executor.TaskContext;
+import maple.expectation.infrastructure.executor.function.ThrowingRunnable;
+import maple.expectation.infrastructure.lock.LockStrategy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -49,7 +49,7 @@ class MonitoringAlertServiceUnitTest {
         .willAnswer(
             invocation -> {
               // 첫 번째 인자(ThrowingSupplier)를 실행
-              maple.expectation.global.common.function.ThrowingSupplier<?> task =
+              maple.expectation.common.function.ThrowingSupplier<?> task =
                   invocation.getArgument(0);
               return task.get();
             });

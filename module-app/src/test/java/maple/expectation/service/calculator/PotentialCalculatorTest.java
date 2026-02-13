@@ -8,8 +8,8 @@ import static org.mockito.Mockito.when;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.external.dto.v2.EquipmentResponse;
-import maple.expectation.global.executor.LogicExecutor;
-import maple.expectation.global.executor.TaskContext;
+import maple.expectation.infrastructure.executor.LogicExecutor;
+import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.service.v2.calculator.PotentialCalculator;
 import maple.expectation.util.StatParser;
 import maple.expectation.util.StatType;
@@ -41,7 +41,7 @@ class PotentialCalculatorTest {
             invocation -> {
               try {
                 // 첫 번째 인자인 ThrowingSupplier를 실행
-                maple.expectation.global.common.function.ThrowingSupplier<?> supplier =
+                maple.expectation.common.function.ThrowingSupplier<?> supplier =
                     invocation.getArgument(0);
                 return supplier.get();
               } catch (Throwable e) {

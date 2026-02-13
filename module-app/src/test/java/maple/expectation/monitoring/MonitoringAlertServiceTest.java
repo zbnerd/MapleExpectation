@@ -5,7 +5,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
 import maple.expectation.domain.repository.RedisBufferRepository;
-import maple.expectation.global.lock.LockStrategy;
+import maple.expectation.infrastructure.lock.LockStrategy;
 import maple.expectation.support.AppIntegrationTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

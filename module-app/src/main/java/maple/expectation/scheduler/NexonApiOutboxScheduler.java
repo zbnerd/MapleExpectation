@@ -2,8 +2,8 @@ package maple.expectation.scheduler;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.global.executor.LogicExecutor;
-import maple.expectation.global.executor.TaskContext;
+import maple.expectation.infrastructure.executor.LogicExecutor;
+import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.service.v2.outbox.NexonApiOutboxMetrics;
 import maple.expectation.service.v2.outbox.NexonApiOutboxProcessor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;

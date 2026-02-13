@@ -58,7 +58,7 @@ public class DlqAdminController {
   })
   @GetMapping
   public CompletableFuture<
-          ResponseEntity<maple.expectation.global.response.ApiResponse<Page<DlqEntryResponse>>>>
+          ResponseEntity<maple.expectation.response.ApiResponse<Page<DlqEntryResponse>>>>
       findAll(
           @Parameter(description = "페이지 번호 (0부터 시작)") @RequestParam(defaultValue = "0") int page,
           @Parameter(description = "페이지 크기") @RequestParam(defaultValue = "20") int size) {
@@ -66,7 +66,7 @@ public class DlqAdminController {
     return CompletableFuture.supplyAsync(
         () -> {
           Page<DlqEntryResponse> result = dlqAdminService.findAll(page, size);
-          return ResponseEntity.ok(maple.expectation.global.response.ApiResponse.success(result));
+          return ResponseEntity.ok(maple.expectation.response.ApiResponse.success(result));
         });
   }
 
@@ -79,13 +79,13 @@ public class DlqAdminController {
   })
   @GetMapping("/{id}")
   public CompletableFuture<
-          ResponseEntity<maple.expectation.global.response.ApiResponse<DlqDetailResponse>>>
+          ResponseEntity<maple.expectation.response.ApiResponse<DlqDetailResponse>>>
       findById(@Parameter(description = "DLQ ID") @PathVariable Long id) {
 
     return CompletableFuture.supplyAsync(
         () -> {
           DlqDetailResponse result = dlqAdminService.findById(id);
-          return ResponseEntity.ok(maple.expectation.global.response.ApiResponse.success(result));
+          return ResponseEntity.ok(maple.expectation.response.ApiResponse.success(result));
         });
   }
 
@@ -99,13 +99,13 @@ public class DlqAdminController {
   })
   @PostMapping("/{id}/reprocess")
   public CompletableFuture<
-          ResponseEntity<maple.expectation.global.response.ApiResponse<DlqReprocessResult>>>
+          ResponseEntity<maple.expectation.response.ApiResponse<DlqReprocessResult>>>
       reprocess(@Parameter(description = "DLQ ID") @PathVariable Long id) {
 
     return CompletableFuture.supplyAsync(
         () -> {
           DlqReprocessResult result = dlqAdminService.reprocess(id);
-          return ResponseEntity.ok(maple.expectation.global.response.ApiResponse.success(result));
+          return ResponseEntity.ok(maple.expectation.response.ApiResponse.success(result));
         });
   }
 
@@ -117,14 +117,14 @@ public class DlqAdminController {
     @ApiResponse(responseCode = "403", description = "권한 없음")
   })
   @DeleteMapping("/{id}")
-  public CompletableFuture<ResponseEntity<maple.expectation.global.response.ApiResponse<String>>>
-      discard(@Parameter(description = "DLQ ID") @PathVariable Long id) {
+  public CompletableFuture<ResponseEntity<maple.expectation.response.ApiResponse<String>>> discard(
+      @Parameter(description = "DLQ ID") @PathVariable Long id) {
 
     return CompletableFuture.supplyAsync(
         () -> {
           dlqAdminService.discard(id);
           return ResponseEntity.ok(
-              maple.expectation.global.response.ApiResponse.success(
+              maple.expectation.response.ApiResponse.success(
                   "DLQ entry discarded successfully: " + id));
         });
   }
@@ -133,12 +133,11 @@ public class DlqAdminController {
   @Operation(summary = "DLQ 총 건수", description = "현재 DLQ에 쌓인 총 항목 수를 조회합니다.")
   @ApiResponse(responseCode = "200", description = "조회 성공")
   @GetMapping("/count")
-  public CompletableFuture<ResponseEntity<maple.expectation.global.response.ApiResponse<Long>>>
-      count() {
+  public CompletableFuture<ResponseEntity<maple.expectation.response.ApiResponse<Long>>> count() {
     return CompletableFuture.supplyAsync(
         () -> {
           long count = dlqAdminService.count();
-          return ResponseEntity.ok(maple.expectation.global.response.ApiResponse.success(count));
+          return ResponseEntity.ok(maple.expectation.response.ApiResponse.success(count));
         });
   }
 
@@ -171,7 +170,7 @@ public class DlqAdminController {
   @GetMapping("/v2")
   public CompletableFuture<
           ResponseEntity<
-              maple.expectation.global.response.ApiResponse<CursorPageResponse<DlqEntryResponse>>>>
+              maple.expectation.response.ApiResponse<CursorPageResponse<DlqEntryResponse>>>>
       findAllByCursor(
           @Parameter(description = "이전 페이지의 마지막 ID (첫 페이지는 생략)") @RequestParam(required = false)
               Long cursor,
@@ -180,7 +179,7 @@ public class DlqAdminController {
         () -> {
           CursorPageRequest request = CursorPageRequest.of(cursor, size);
           CursorPageResponse<DlqEntryResponse> result = dlqAdminService.findAllByCursor(request);
-          return ResponseEntity.ok(maple.expectation.global.response.ApiResponse.success(result));
+          return ResponseEntity.ok(maple.expectation.response.ApiResponse.success(result));
         });
   }
 }

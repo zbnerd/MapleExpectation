@@ -6,8 +6,8 @@ import static org.mockito.Mockito.*;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
-import maple.expectation.global.executor.LogicExecutor;
-import maple.expectation.global.queue.RedisKey;
+import maple.expectation.infrastructure.executor.LogicExecutor;
+import maple.expectation.infrastructure.queue.RedisKey;
 import maple.expectation.service.v2.like.realtime.dto.LikeEvent;
 import maple.expectation.service.v2.like.realtime.impl.RedisLikeEventPublisher;
 import org.junit.jupiter.api.BeforeEach;
@@ -55,7 +55,7 @@ class RedisLikeEventPublisherTest {
         .thenAnswer(
             invocation -> {
               try {
-                maple.expectation.global.common.function.ThrowingSupplier<?> task =
+                maple.expectation.common.function.ThrowingSupplier<?> task =
                     invocation.getArgument(0);
                 return task.get();
               } catch (Throwable e) {

@@ -2,7 +2,7 @@ package maple.expectation.repository.v2;
 
 import lombok.RequiredArgsConstructor;
 import maple.expectation.domain.repository.RedisBufferRepository;
-import maple.expectation.global.redis.script.LuaScripts;
+import maple.expectation.infrastructure.redis.script.LuaScripts;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Repository;
 

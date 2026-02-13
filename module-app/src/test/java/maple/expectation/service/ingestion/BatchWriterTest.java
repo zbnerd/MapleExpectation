@@ -6,9 +6,9 @@ import static org.mockito.Mockito.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import maple.expectation.application.port.MessageQueue;
-import maple.expectation.global.common.function.ThrowingSupplier;
-import maple.expectation.global.executor.LogicExecutor;
-import maple.expectation.global.executor.TaskContext;
+import maple.expectation.common.function.ThrowingSupplier;
+import maple.expectation.infrastructure.executor.LogicExecutor;
+import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.repository.v2.NexonCharacterRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -57,7 +57,7 @@ class BatchWriterTest {
     // Setup LogicExecutor to execute directly (synchronous for testing)
     doAnswer(
             invocation -> {
-              maple.expectation.global.executor.function.ThrowingRunnable task =
+              maple.expectation.infrastructure.executor.function.ThrowingRunnable task =
                   invocation.getArgument(0);
               task.run(); // Execute the lambda
               return null;

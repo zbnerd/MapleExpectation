@@ -2,7 +2,7 @@ package maple.expectation.config;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.global.executor.LogicExecutor;
+import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.service.v2.like.strategy.AtomicFetchStrategy;
 import maple.expectation.service.v2.like.strategy.LuaScriptAtomicFetchStrategy;
 import maple.expectation.service.v2.like.strategy.RenameAtomicFetchStrategy;

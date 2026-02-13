@@ -12,8 +12,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.config.BufferProperties;
 import maple.expectation.dto.v4.EquipmentExpectationResponseV4.PresetExpectation;
-import maple.expectation.global.executor.LogicExecutor;
-import maple.expectation.global.executor.TaskContext;
+import maple.expectation.infrastructure.executor.LogicExecutor;
+import maple.expectation.infrastructure.executor.TaskContext;
 import org.springframework.stereotype.Component;
 
 /**

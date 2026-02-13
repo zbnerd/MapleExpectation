@@ -18,11 +18,11 @@ import java.util.Optional;
 import java.util.stream.Stream;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.config.ShutdownProperties;
-import maple.expectation.global.executor.LogicExecutor;
-import maple.expectation.global.executor.TaskContext;
-import maple.expectation.global.executor.strategy.ExceptionTranslator;
-import maple.expectation.global.shutdown.dto.ShutdownData;
+import maple.expectation.infrastructure.executor.LogicExecutor;
+import maple.expectation.infrastructure.executor.TaskContext;
+import maple.expectation.infrastructure.executor.strategy.ExceptionTranslator;
+import maple.expectation.infrastructure.shutdown.ShutdownProperties;
+import maple.expectation.infrastructure.shutdown.dto.ShutdownData;
 import org.springframework.stereotype.Service;
 
 /**
