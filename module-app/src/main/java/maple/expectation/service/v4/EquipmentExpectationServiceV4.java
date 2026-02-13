@@ -15,7 +15,7 @@ import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.dto.v4.EquipmentExpectationResponseV4;
 import maple.expectation.dto.v4.EquipmentExpectationResponseV4.CostBreakdownDto;
 import maple.expectation.dto.v4.EquipmentExpectationResponseV4.PresetExpectation;
-import maple.expectation.global.error.exception.StarforceNotInitializedException;
+import maple.expectation.error.exception.StarforceNotInitializedException;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.parser.EquipmentStreamingParser;

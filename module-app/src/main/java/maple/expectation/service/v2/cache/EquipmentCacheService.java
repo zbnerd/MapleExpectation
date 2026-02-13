@@ -2,9 +2,9 @@ package maple.expectation.service.v2.cache;
 
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.error.exception.CachePersistenceException;
+import maple.expectation.error.exception.base.BaseException;
 import maple.expectation.external.dto.v2.EquipmentResponse;
-import maple.expectation.global.error.exception.CachePersistenceException;
-import maple.expectation.global.error.exception.base.BaseException;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.service.v2.worker.EquipmentDbWorker;

@@ -8,7 +8,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.global.error.exception.ApiTimeoutException;
+import maple.expectation.error.exception.ApiTimeoutException;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.provider.EquipmentDataProvider;

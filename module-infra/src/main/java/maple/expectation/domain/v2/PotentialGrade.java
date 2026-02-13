@@ -6,7 +6,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import maple.expectation.global.error.exception.InvalidPotentialGradeException;
+import maple.expectation.error.exception.InvalidPotentialGradeException;
 
 /**
  * 잠재능력 등급 Enum

@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import maple.expectation.alert.channel.AlertChannel;
 import maple.expectation.alert.message.AlertMessage;
 import maple.expectation.alert.strategy.AlertChannelStrategy;
+import maple.expectation.application.port.AlertPublisher;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,7 +14,7 @@ import org.springframework.stereotype.Service;
 /**
  * Stateless Alert Service
  *
- * <p>DIP (Dependency Inversion): Depends on AlertChannelStrategy interface, not concrete channels
+ * <p>DIP (Dependency Inversion): Implements {@link AlertPublisher} interface from module-core
  *
  * <p>SRP: Single responsibility - orchestrate alert sending
  *
@@ -32,7 +33,7 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class StatelessAlertService {
+public class StatelessAlertService implements AlertPublisher {
 
   private final AlertChannelStrategy channelStrategy;
   private final LogicExecutor executor;
@@ -47,6 +48,7 @@ public class StatelessAlertService {
    * @param message Alert message
    * @param error Throwable (optional)
    */
+  @Override
   public void sendCritical(String title, String message, Throwable error) {
     AlertChannel channel = channelStrategy.getChannel(AlertPriority.CRITICAL);
     executor.executeVoid(

@@ -11,7 +11,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.global.error.exception.MapleDataProcessingException;
+import maple.expectation.error.exception.MapleDataProcessingException;
 import maple.expectation.infrastructure.executor.CheckedLogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import org.redisson.api.RStream;

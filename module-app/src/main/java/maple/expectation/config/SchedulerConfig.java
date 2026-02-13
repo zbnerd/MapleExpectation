@@ -8,6 +8,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import maple.expectation.infrastructure.shutdown.ShutdownProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -92,7 +93,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
  */
 @Configuration
 @EnableScheduling
-@EnableConfigurationProperties(SchedulerProperties.class)
+@EnableConfigurationProperties({SchedulerProperties.class, ShutdownProperties.class})
 public class SchedulerConfig {
 
   private static final Logger log = LoggerFactory.getLogger(SchedulerConfig.class);

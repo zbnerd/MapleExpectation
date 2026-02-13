@@ -9,8 +9,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.global.error.exception.ApiTimeoutException;
-import maple.expectation.global.error.exception.InternalSystemException;
+import maple.expectation.error.exception.ApiTimeoutException;
+import maple.expectation.error.exception.InternalSystemException;
 import maple.expectation.infrastructure.executor.TaskContext;
 
 /**

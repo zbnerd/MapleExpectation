@@ -2,8 +2,8 @@ package maple.expectation.error.dto;
 
 import java.time.LocalDateTime;
 import lombok.Builder;
-import maple.expectation.global.error.ErrorCode;
-import maple.expectation.global.error.exception.base.BaseException;
+import maple.expectation.error.ErrorCode;
+import maple.expectation.error.exception.base.BaseException;
 import org.springframework.http.ResponseEntity;
 
 public record ErrorResponse(int status, String code, String message, LocalDateTime timestamp) {

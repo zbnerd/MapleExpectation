@@ -7,7 +7,7 @@ import static org.mockito.Mockito.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import maple.expectation.application.port.MessageQueue;
 import maple.expectation.domain.event.IntegrationEvent;
-import maple.expectation.global.error.exception.QueuePublishException;
+import maple.expectation.error.exception.QueuePublishException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

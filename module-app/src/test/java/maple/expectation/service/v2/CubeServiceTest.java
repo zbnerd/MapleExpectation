@@ -14,7 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import maple.expectation.domain.repository.CubeProbabilityRepository;
 import maple.expectation.domain.v2.CubeType;
 import maple.expectation.dto.CubeCalculationInput;
-import maple.expectation.global.error.exception.UnsupportedCalculationEngineException;
+import maple.expectation.error.exception.UnsupportedCalculationEngineException;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.service.v2.calculator.CubeRateCalculator;

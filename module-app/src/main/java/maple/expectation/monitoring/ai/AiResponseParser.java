@@ -2,7 +2,10 @@ package maple.expectation.monitoring.ai;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.infrastructure.executor.LogicExecutor;
+import maple.expectation.infrastructure.executor.TaskContext;
 import org.springframework.stereotype.Component;
 
 /**
@@ -17,10 +20,20 @@ import org.springframework.stereotype.Component;
  *   <li>Markdown 코드 블록 처리
  *   <li>파싱 실패 시 안전한 기본값 반환
  * </ul>
+ *
+ * <h3>CLAUDE.md Section 12 준수</h3>
+ *
+ * <ul>
+ *   <li>LogicExecutor.executeWithFallback()로 예외 처리
+ *   <li>Raw try-catch 사용 금지
+ * </ul>
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class AiResponseParser {
+
+  private final LogicExecutor executor;
 
   /** AI 응답 파싱 (에러 분석) */
   public AiSreService.AiAnalysisResult parseAiResponse(
@@ -66,6 +79,8 @@ public class AiResponseParser {
   /**
    * JSON 응답 파싱 (인시던트 완화 계획)
    *
+   * <p>CLAUDE.md Section 12: LogicExecutor.executeWithFallback() 패턴 사용
+   *
    * @param jsonResponse OpenAI 응답 (JSON 형식)
    * @param incidentId 인시던트 ID
    * @return 파싱된 완화 계획
@@ -75,51 +90,56 @@ public class AiResponseParser {
     // Markdown 코드 블록 제거 (ChatGPT가 ```json ... ```으로 감싸는 경우 대응)
     String cleanedResponse = removeMarkdownCodeBlocks(jsonResponse);
 
-    try {
-      ObjectMapper mapper = new ObjectMapper();
-      var planNode = mapper.readTree(cleanedResponse);
+    return executor.executeWithFallback(
+        () -> parseMitigationPlanInternal(cleanedResponse, incidentId),
+        e -> createFallbackMitigationPlan(incidentId, e),
+        TaskContext.of("AiResponseParser", "ParseMitigationPlan", incidentId));
+  }
 
-      // hypotheses 파싱
-      List<AiSreService.Hypothesis> hypotheses =
-          mapper.convertValue(
-              planNode.get("hypotheses"),
-              mapper
-                  .getTypeFactory()
-                  .constructCollectionType(List.class, AiSreService.Hypothesis.class));
+  /**
+   * 내부 JSON 파싱 로직 (checked exception 발생 가능)
+   *
+   * <p>LogicExecutor.executeWithFallback()로 래핑되어 예외 처리
+   */
+  private AiSreService.MitigationPlan parseMitigationPlanInternal(
+      String cleanedResponse, String incidentId) throws Exception {
+    ObjectMapper mapper = new ObjectMapper();
+    var planNode = mapper.readTree(cleanedResponse);
 
-      // actions 파싱
-      List<AiSreService.Action> actions =
-          mapper.convertValue(
-              planNode.get("actions"),
-              mapper
-                  .getTypeFactory()
-                  .constructCollectionType(List.class, AiSreService.Action.class));
+    // hypotheses 파싱
+    List<AiSreService.Hypothesis> hypotheses =
+        mapper.convertValue(
+            planNode.get("hypotheses"),
+            mapper
+                .getTypeFactory()
+                .constructCollectionType(List.class, AiSreService.Hypothesis.class));
 
-      // questions 파싱
-      List<AiSreService.ClarifyingQuestion> questions =
-          mapper.convertValue(
-              planNode.get("questions"),
-              mapper
-                  .getTypeFactory()
-                  .constructCollectionType(List.class, AiSreService.ClarifyingQuestion.class));
+    // actions 파싱
+    List<AiSreService.Action> actions =
+        mapper.convertValue(
+            planNode.get("actions"),
+            mapper.getTypeFactory().constructCollectionType(List.class, AiSreService.Action.class));
 
-      // rollbackPlan 파싱
-      AiSreService.RollbackPlan rollbackPlan =
-          mapper.convertValue(planNode.get("rollbackPlan"), AiSreService.RollbackPlan.class);
+    // questions 파싱
+    List<AiSreService.ClarifyingQuestion> questions =
+        mapper.convertValue(
+            planNode.get("questions"),
+            mapper
+                .getTypeFactory()
+                .constructCollectionType(List.class, AiSreService.ClarifyingQuestion.class));
 
-      return new AiSreService.MitigationPlan(
-          incidentId,
-          "AI_GPT4O_MINI",
-          hypotheses,
-          actions,
-          questions,
-          rollbackPlan,
-          "AI가 생성한 완화 계획입니다. 검증 후 실행을 권장합니다.");
+    // rollbackPlan 파싱
+    AiSreService.RollbackPlan rollbackPlan =
+        mapper.convertValue(planNode.get("rollbackPlan"), AiSreService.RollbackPlan.class);
 
-    } catch (Exception e) {
-      log.error("[AiResponseParser] JSON 파싱 실패, 기본 계획 반환: {}", e.getMessage());
-      return createFallbackMitigationPlan(incidentId, e);
-    }
+    return new AiSreService.MitigationPlan(
+        incidentId,
+        "AI_GPT4O_MINI",
+        hypotheses,
+        actions,
+        questions,
+        rollbackPlan,
+        "AI가 생성한 완화 계획입니다. 검증 후 실행을 권장합니다.");
   }
 
   /** Markdown 코드 블록 제거 */
@@ -144,8 +164,9 @@ public class AiResponseParser {
     return cleaned;
   }
 
-  /** 파싱 실패 시 기본 완화 계획 생성 */
-  private AiSreService.MitigationPlan createFallbackMitigationPlan(String incidentId, Exception e) {
+  /** 파싱 실패 시 기본 완화 계획 생성 (executeWithFallback의 fallback 람다) */
+  private AiSreService.MitigationPlan createFallbackMitigationPlan(String incidentId, Throwable e) {
+    log.error("[AiResponseParser] JSON 파싱 실패, 기본 계획 반환: {}", e.getMessage());
     return new AiSreService.MitigationPlan(
         incidentId,
         "AI_PARSE_FAILED",

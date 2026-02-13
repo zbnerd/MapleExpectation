@@ -35,6 +35,7 @@ public class AlertChannelConfig {
   private final DiscordAlertChannel discordAlertChannel;
   private final InMemoryAlertBuffer inMemoryAlertBuffer;
   private final AlertFeatureProperties alertFeatureProperties;
+  private final maple.expectation.infrastructure.executor.LogicExecutor logicExecutor;
 
   /**
    * Alert Log File Path Bean
@@ -57,7 +58,7 @@ public class AlertChannelConfig {
    */
   @Bean
   public LocalFileAlertChannel localFileAlertChannel(Path alertLogFilePath) {
-    return new LocalFileAlertChannel(alertLogFilePath);
+    return new LocalFileAlertChannel(alertLogFilePath, logicExecutor);
   }
 
   /**

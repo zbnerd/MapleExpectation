@@ -15,7 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import maple.expectation.domain.repository.CubeProbabilityRepository;
 import maple.expectation.domain.v2.CubeProbability;
 import maple.expectation.domain.v2.CubeType;
-import maple.expectation.global.error.exception.CubeDataInitializationException;
+import maple.expectation.error.exception.CubeDataInitializationException;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Repository;
 

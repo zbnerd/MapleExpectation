@@ -62,7 +62,7 @@ public class NexonApiRetryClientImpl implements NexonApiRetryClient {
         () -> doRetry(outbox),
         context,
         e ->
-            new maple.expectation.global.error.exception.ExternalServiceException(
+            new maple.expectation.error.exception.ExternalServiceException(
                 "Nexon API Outbox retry failed: " + outbox.getRequestId(), e));
   }
 

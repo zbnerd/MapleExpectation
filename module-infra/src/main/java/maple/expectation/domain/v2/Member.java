@@ -12,7 +12,7 @@ import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import maple.expectation.global.error.exception.InsufficientPointException;
+import maple.expectation.error.exception.InsufficientPointException;
 
 /**
  * Member 엔티티 (Rich Domain Model)

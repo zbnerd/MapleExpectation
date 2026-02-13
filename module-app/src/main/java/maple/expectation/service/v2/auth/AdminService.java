@@ -7,7 +7,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.global.error.exception.InvalidAdminFingerprintException;
+import maple.expectation.error.exception.InvalidAdminFingerprintException;
 import maple.expectation.util.StringMaskingUtils;
 import org.redisson.api.RSet;
 import org.redisson.api.RedissonClient;

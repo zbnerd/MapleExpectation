@@ -4,7 +4,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import lombok.RequiredArgsConstructor;
 import maple.expectation.alert.message.AlertMessage;
+import maple.expectation.infrastructure.executor.LogicExecutor;
+import maple.expectation.infrastructure.executor.TaskContext;
 import org.springframework.stereotype.Component;
 
 /**
@@ -24,52 +27,63 @@ import org.springframework.stereotype.Component;
  *   <li>Implements FallbackSupport for chaining
  * </ul>
  *
+ * <h3>CLAUDE.md Section 12 Compliance</h3>
+ *
+ * <ul>
+ *   <li>Uses LogicExecutor.executeOrDefault() for exception handling
+ *   <li>No raw try-catch blocks in business logic
+ * </ul>
+ *
  * @author ADR-0345
  * @since 2025-02-12
  */
 @Component
+@RequiredArgsConstructor
 public class LocalFileAlertChannel implements AlertChannel, FallbackSupport {
 
   private static final org.slf4j.Logger log =
       org.slf4j.LoggerFactory.getLogger(LocalFileAlertChannel.class);
 
   private final Path logFilePath;
+  private final LogicExecutor executor;
   private AlertChannel fallback;
-
-  public LocalFileAlertChannel(Path logFilePath) {
-    this.logFilePath = logFilePath;
-  }
 
   @Override
   public boolean send(AlertMessage message) {
-    try {
-      // Create parent directories if not exist
-      if (Files.notExists(logFilePath.getParent())) {
-        Files.createDirectories(logFilePath.getParent());
-      }
+    return executor.executeOrDefault(
+        () -> writeToFile(message),
+        false,
+        TaskContext.of("LocalFileAlertChannel", "Send", message.getTitle()));
+  }
 
-      // Append to log file (atomic operation)
-      String logEntry =
-          String.format(
-              "[%s] %s\n```\n%s", message.getTitle(), message.getFormattedMessage(), "LocalFile");
-
-      Files.writeString(
-          logFilePath,
-          logEntry,
-          StandardOpenOption.CREATE,
-          StandardOpenOption.WRITE,
-          StandardOpenOption.APPEND);
-
-      if (log.isInfoEnabled()) {
-        log.info("[LocalFileAlertChannel] Alert written to file: {}", logFilePath);
-      }
-      return true;
-
-    } catch (IOException e) {
-      log.error(
-          "[LocalFileAlertChannel] Failed to write alert to file: {}", logFilePath, e.getMessage());
-      return false;
+  /**
+   * Write alert to file with checked exceptions.
+   *
+   * <p>Wrapped by LogicExecutor.executeOrDefault() which translates IOException to
+   * InternalSystemException and returns false on failure.
+   */
+  private boolean writeToFile(AlertMessage message) throws IOException {
+    // Create parent directories if not exist
+    if (Files.notExists(logFilePath.getParent())) {
+      Files.createDirectories(logFilePath.getParent());
     }
+
+    // Append to log file (atomic operation)
+    String logEntry =
+        String.format(
+            "[%s] %s\n```\n%s", message.getTitle(), message.getFormattedMessage(), "LocalFile");
+
+    Files.writeString(
+        logFilePath,
+        logEntry,
+        StandardOpenOption.CREATE,
+        StandardOpenOption.WRITE,
+        StandardOpenOption.APPEND);
+
+    if (log.isInfoEnabled()) {
+      log.info("[LocalFileAlertChannel] Alert written to file: {}", logFilePath);
+    }
+    return true;
   }
 
   @Override

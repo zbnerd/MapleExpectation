@@ -81,7 +81,7 @@ public class DistributedSingleFlightService {
           5,
           30,
           () -> computeAndCache(key, cacheKey, computation, cacheTtl));
-    } catch (maple.expectation.global.error.exception.DistributedLockException e) {
+    } catch (maple.expectation.error.exception.DistributedLockException e) {
       log.debug("[DistributedSingleFlight] Lock timeout, retrying cache read: {}", key);
       return retryCacheRead(cacheKey, key);
     }
@@ -117,7 +117,7 @@ public class DistributedSingleFlightService {
         Thread.sleep(delayMs);
       } catch (InterruptedException ie) {
         Thread.currentThread().interrupt();
-        throw new maple.expectation.global.error.exception.DistributedLockException(
+        throw new maple.expectation.error.exception.DistributedLockException(
             "Cache read retry interrupted [key=" + originalKey + "]", ie);
       }
     }
@@ -132,7 +132,7 @@ public class DistributedSingleFlightService {
     log.error(
         "[DistributedSingleFlight] Cache miss after all retries, computation may have failed: {}",
         originalKey);
-    throw new maple.expectation.global.error.exception.DistributedLockException(
+    throw new maple.expectation.error.exception.DistributedLockException(
         "Failed to acquire lock and no cached result available after "
             + maxRetries
             + " retries [key="

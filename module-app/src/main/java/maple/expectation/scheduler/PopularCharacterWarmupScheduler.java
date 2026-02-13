@@ -135,7 +135,7 @@ public class PopularCharacterWarmupScheduler {
           return null;
         },
         e -> {
-          if (e instanceof maple.expectation.global.error.exception.DistributedLockException) {
+          if (e instanceof maple.expectation.error.exception.DistributedLockException) {
             log.debug("[Warmup] {} skipped: another instance is warming up", warmupType);
           } else {
             log.error("[Warmup] {} failed: {}", warmupType, e.getMessage());

@@ -1,7 +1,5 @@
 package maple.expectation.service.v2.cache;
 
-import java.util.Set;
-
 /**
  * 좋아요 관계 버퍼 전략 인터페이스 (#271 V5 Stateless Architecture)
  *
@@ -9,7 +7,8 @@ import java.util.Set;
  *
  * <ul>
  *   <li>{@link LikeRelationBuffer}: In-Memory + Redis 하이브리드 (기존)
- *   <li>{@link maple.expectation.global.queue.like.RedisLikeRelationBuffer}: Redis Only (V5)
+ *   <li>{@link maple.expectation.infrastructure.queue.like.RedisLikeRelationBuffer}: Redis Only
+ *       (V5)
  * </ul>
  *
  * <h3>Feature Flag</h3>
@@ -19,6 +18,11 @@ import java.util.Set;
  * app.buffer.redis.enabled=false → LikeRelationBuffer (기본)
  * </pre>
  *
+ * <h3>DIP 준수 (ADR-014)</h3>
+ *
+ * <p>이 인터페이스는 {@link maple.expectation.application.port.LikeRelationBufferStrategy}를 확장하여 호환성을
+ * 유지합니다. 새로운 코드는 Core 인터페이스를 직접 사용하십시오.
+ *
  * <h3>5-Agent Council 합의</h3>
  *
  * <ul>
@@ -27,80 +31,8 @@ import java.util.Set;
  *   <li>Purple (Auditor): 인터페이스 계약으로 동작 보장
  * </ul>
  */
-public interface LikeRelationBufferStrategy {
-
-  /** 전략 유형 */
-  enum StrategyType {
-    /** In-Memory + Redis 하이브리드 (기존) */
-    IN_MEMORY,
-    /** Redis Only (V5 Stateless) */
-    REDIS
-  }
-
-  /** 현재 전략 유형 반환 */
-  StrategyType getType();
-
-  /**
-   * 좋아요 관계 추가
-   *
-   * @param accountId 좋아요를 누른 계정의 캐릭터명
-   * @param targetOcid 대상 캐릭터의 OCID
-   * @return true: 신규 추가, false: 중복, null: Redis 장애
-   */
-  Boolean addRelation(String accountId, String targetOcid);
-
-  /**
-   * 좋아요 관계 존재 여부 확인
-   *
-   * @param accountId 좋아요를 누른 계정의 캐릭터명
-   * @param targetOcid 대상 캐릭터의 OCID
-   * @return true: 존재, false: 미존재, null: Redis 장애
-   */
-  Boolean exists(String accountId, String targetOcid);
-
-  /**
-   * 좋아요 관계 삭제
-   *
-   * @param accountId 좋아요를 누른 계정의 캐릭터명
-   * @param targetOcid 대상 캐릭터의 OCID
-   * @return true: 삭제 성공, false: 미존재
-   */
-  Boolean removeRelation(String accountId, String targetOcid);
-
-  /**
-   * DB 동기화 대기 중인 관계 조회 + 제거 (원자적)
-   *
-   * @param limit 최대 조회 건수
-   * @return 대기 중인 관계 Set (accountId:targetOcid 형식)
-   */
-  Set<String> fetchAndRemovePending(int limit);
-
-  /** 관계 키 생성 Format: {accountId}:{targetOcid} */
-  String buildRelationKey(String accountId, String targetOcid);
-
-  /**
-   * 관계 키 파싱
-   *
-   * @return [accountId, targetOcid]
-   */
-  String[] parseRelationKey(String relationKey);
-
-  /**
-   * Unlike 관계 존재 여부 확인 (명시적 unlike 추적)
-   *
-   * <p>Unlike 된 관계를 추적하여 cold start(Redis 비어있음)와 실제 unlike를 구분합니다.
-   *
-   * @param accountId 좋아요를 누른 계정의 캐릭터명
-   * @param targetOcid 대상 캐릭터의 OCID
-   * @return true: 명시적 unlike됨, false: unlike 기록 없음, null: Redis 장애
-   */
-  default Boolean existsInUnliked(String accountId, String targetOcid) {
-    return null;
-  }
-
-  /** 전체 관계 수 조회 */
-  int getRelationsSize();
-
-  /** 대기 중인 관계 수 조회 */
-  int getPendingSize();
+@Deprecated(since = "ADR-014", forRemoval = false)
+public interface LikeRelationBufferStrategy
+    extends maple.expectation.application.port.LikeRelationBufferStrategy {
+  // All methods inherited from CoreLikeRelationBufferStrategy
 }

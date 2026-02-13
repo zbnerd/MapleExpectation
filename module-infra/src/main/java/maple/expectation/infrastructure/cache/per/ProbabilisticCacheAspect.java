@@ -6,7 +6,6 @@ import java.lang.reflect.Method;
 import java.time.Duration;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
@@ -16,6 +15,7 @@ import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
 import org.redisson.api.RBucket;
 import org.redisson.api.RedissonClient;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.DefaultParameterNameDiscoverer;
 import org.springframework.core.ParameterNameDiscoverer;
 import org.springframework.expression.EvaluationContext;
@@ -70,13 +70,23 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Aspect
 @Component
-@RequiredArgsConstructor
 public class ProbabilisticCacheAspect {
 
   private final RedissonClient redissonClient;
   private final Executor perCacheExecutor;
   private final ObjectMapper objectMapper;
   private final LogicExecutor executor;
+
+  public ProbabilisticCacheAspect(
+      RedissonClient redissonClient,
+      @Qualifier("perCacheExecutor") Executor perCacheExecutor,
+      ObjectMapper objectMapper,
+      LogicExecutor executor) {
+    this.redissonClient = redissonClient;
+    this.perCacheExecutor = perCacheExecutor;
+    this.objectMapper = objectMapper;
+    this.executor = executor;
+  }
 
   private final ExpressionParser parser = new SpelExpressionParser();
   private final ParameterNameDiscoverer paramDiscoverer = new DefaultParameterNameDiscoverer();

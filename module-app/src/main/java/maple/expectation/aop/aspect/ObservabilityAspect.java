@@ -5,7 +5,7 @@ import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.aop.annotation.ObservedTransaction;
-import maple.expectation.global.error.exception.ObservabilityException;
+import maple.expectation.error.exception.ObservabilityException;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import org.aspectj.lang.ProceedingJoinPoint;

@@ -19,7 +19,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
-import maple.expectation.global.error.exception.InvalidCharacterStateException;
+import maple.expectation.error.exception.InvalidCharacterStateException;
 import org.hibernate.annotations.NotFound;
 import org.hibernate.annotations.NotFoundAction;
 

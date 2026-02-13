@@ -1,9 +1,9 @@
 package maple.expectation.infrastructure.ratelimit.exception;
 
 import lombok.Getter;
-import maple.expectation.global.error.CommonErrorCode;
-import maple.expectation.global.error.exception.base.ClientBaseException;
-import maple.expectation.global.error.exception.marker.CircuitBreakerIgnoreMarker;
+import maple.expectation.error.CommonErrorCode;
+import maple.expectation.error.exception.base.ClientBaseException;
+import maple.expectation.error.exception.marker.CircuitBreakerIgnoreMarker;
 
 /**
  * Rate Limit 초과 예외 (429 Too Many Requests)

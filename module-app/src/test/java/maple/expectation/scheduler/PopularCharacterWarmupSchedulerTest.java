@@ -9,7 +9,7 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.List;
 import java.util.function.Function;
 import maple.expectation.common.function.ThrowingSupplier;
-import maple.expectation.global.error.exception.DistributedLockException;
+import maple.expectation.error.exception.DistributedLockException;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.infrastructure.lock.LockStrategy;

@@ -2,7 +2,7 @@ package maple.expectation.service.v2.cube.component;
 
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import maple.expectation.global.error.exception.OptionParseException;
+import maple.expectation.error.exception.OptionParseException;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.util.StatParser;

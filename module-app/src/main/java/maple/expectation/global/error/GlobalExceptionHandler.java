@@ -10,7 +10,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.error.dto.ErrorResponse;
-import maple.expectation.global.error.exception.base.BaseException;
+import maple.expectation.error.exception.base.BaseException;
 import maple.expectation.infrastructure.ratelimit.exception.RateLimitExceededException;
 import org.springframework.cache.Cache;
 import org.springframework.http.HttpStatus;
@@ -121,7 +121,8 @@ public class GlobalExceptionHandler {
 
     // 4. 그 외 시스템 예외 → 500 (cause를 로깅)
     log.error("CompletionException unwrapped - cause: ", cause);
-    return ErrorResponse.toResponseEntity(CommonErrorCode.INTERNAL_SERVER_ERROR);
+    return ErrorResponse.toResponseEntity(
+        maple.expectation.error.CommonErrorCode.INTERNAL_SERVER_ERROR);
   }
 
   /**
@@ -135,9 +136,9 @@ public class GlobalExceptionHandler {
   private ResponseEntity<ErrorResponse> buildServiceUnavailableResponse(int retryAfterSeconds) {
     ErrorResponse body =
         ErrorResponse.builder()
-            .status(CommonErrorCode.SERVICE_UNAVAILABLE.getStatus().value())
-            .code(CommonErrorCode.SERVICE_UNAVAILABLE.getCode())
-            .message(CommonErrorCode.SERVICE_UNAVAILABLE.getMessage())
+            .status(maple.expectation.error.CommonErrorCode.SERVICE_UNAVAILABLE.getStatus().value())
+            .code(maple.expectation.error.CommonErrorCode.SERVICE_UNAVAILABLE.getCode())
+            .message(maple.expectation.error.CommonErrorCode.SERVICE_UNAVAILABLE.getMessage())
             .timestamp(LocalDateTime.now())
             .build();
     return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
@@ -170,7 +171,8 @@ public class GlobalExceptionHandler {
     }
 
     log.error("Cache value retrieval failure: ", e);
-    return ErrorResponse.toResponseEntity(CommonErrorCode.INTERNAL_SERVER_ERROR);
+    return ErrorResponse.toResponseEntity(
+        maple.expectation.error.CommonErrorCode.INTERNAL_SERVER_ERROR);
   }
 
   // ==================== Issue #168: Executor 관련 예외 처리 ====================
@@ -245,9 +247,11 @@ public class GlobalExceptionHandler {
         .body(
             ErrorResponse.builder()
                 .status(HttpStatus.BAD_REQUEST.value())
-                .code(CommonErrorCode.INVALID_INPUT_VALUE.getCode())
+                .code(maple.expectation.error.CommonErrorCode.INVALID_INPUT_VALUE.getCode())
                 .message(
-                    String.format(CommonErrorCode.INVALID_INPUT_VALUE.getMessage(), errorMessage))
+                    String.format(
+                        maple.expectation.error.CommonErrorCode.INVALID_INPUT_VALUE.getMessage(),
+                        errorMessage))
                 .timestamp(LocalDateTime.now())
                 .build());
   }
@@ -282,9 +286,11 @@ public class GlobalExceptionHandler {
         .body(
             ErrorResponse.builder()
                 .status(HttpStatus.BAD_REQUEST.value())
-                .code(CommonErrorCode.INVALID_INPUT_VALUE.getCode())
+                .code(maple.expectation.error.CommonErrorCode.INVALID_INPUT_VALUE.getCode())
                 .message(
-                    String.format(CommonErrorCode.INVALID_INPUT_VALUE.getMessage(), errorMessage))
+                    String.format(
+                        maple.expectation.error.CommonErrorCode.INVALID_INPUT_VALUE.getMessage(),
+                        errorMessage))
                 .timestamp(LocalDateTime.now())
                 .build());
   }
@@ -330,7 +336,7 @@ public class GlobalExceptionHandler {
         .body(
             ErrorResponse.builder()
                 .status(HttpStatus.BAD_REQUEST.value())
-                .code(CommonErrorCode.INVALID_INPUT_VALUE.getCode())
+                .code(maple.expectation.error.CommonErrorCode.INVALID_INPUT_VALUE.getCode())
                 .message(message)
                 .timestamp(LocalDateTime.now())
                 .build());
@@ -343,6 +349,7 @@ public class GlobalExceptionHandler {
     log.error("Unexpected System Failure: ", e);
 
     // 500 에러는 보안상 상세 메시지를 숨기고 규격화된 공통 코드를 넘깁니다.
-    return ErrorResponse.toResponseEntity(CommonErrorCode.INTERNAL_SERVER_ERROR);
+    return ErrorResponse.toResponseEntity(
+        maple.expectation.error.CommonErrorCode.INTERNAL_SERVER_ERROR);
   }
 }

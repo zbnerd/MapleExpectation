@@ -9,7 +9,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.global.error.exception.InternalSystemException;
+import maple.expectation.error.exception.InternalSystemException;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.monitoring.copilot.model.SignalDefinition;

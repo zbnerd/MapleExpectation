@@ -103,9 +103,9 @@ resilience4j:
         permittedNumberOfCallsInHalfOpenState: 3
         ignoreExceptions:
           # 비즈니스 예외(404 등)는 실패로 카운트하지 않음
-          - maple.expectation.global.error.exception.marker.CircuitBreakerIgnoreMarker
+          - maple.expectation.error.exception.marker.CircuitBreakerIgnoreMarker
         recordExceptions:
-          - maple.expectation.global.error.exception.marker.CircuitBreakerRecordMarker
+          - maple.expectation.error.exception.marker.CircuitBreakerRecordMarker
     instances:
       nexonApi:
         baseConfig: default
@@ -155,7 +155,7 @@ resilience4j:
           - io.netty.handler.timeout.ReadTimeoutException  # Reactor Netty responseTimeout 발생 시
           - org.springframework.web.reactive.function.client.WebClientRequestException # 네트워크 단절 대응
           - java.net.UnknownHostException
-          - maple.expectation.global.error.exception.ExternalServiceException  # Issue #202: 외부 서비스 장애 시 재시도
+          - maple.expectation.error.exception.ExternalServiceException  # Issue #202: 외부 서비스 장애 시 재시도
       likeSyncRetry:  # P1-2: ResilienceConfig → YAML 이관
         maxAttempts: 3             # 최대 3번 시도 (처음 1번 + 재시도 2번)
         waitDuration: 1s           # 1초부터 시작
@@ -170,7 +170,7 @@ resilience4j:
         maxAttempts: 5             # 최대 5번 시도 (락 경합이 심할 때를 대비해 조금 넓넉히)
         waitDuration: 200ms        # 0.2초 간격으로 다시 시도
         retryExceptions:           # 이 예외가 발생했을 때만 재시도함
-          - maple.expectation.global.error.exception.DistributedLockException
+          - maple.expectation.error.exception.DistributedLockException
 
   timelimiter:
     timelimiter-aspect-order: 398 # TimeLimiter → Retry → CircuitBreaker 순서

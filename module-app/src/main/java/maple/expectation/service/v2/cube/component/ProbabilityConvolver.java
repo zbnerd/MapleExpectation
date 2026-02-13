@@ -2,7 +2,7 @@ package maple.expectation.service.v2.cube.component;
 
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import maple.expectation.global.error.exception.ProbabilityInvariantException;
+import maple.expectation.error.exception.ProbabilityInvariantException;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.service.v2.cube.dto.DensePmf;

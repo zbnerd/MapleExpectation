@@ -2,7 +2,7 @@ package maple.expectation.service.v2.worker;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.global.error.exception.CharacterNotFoundException;
+import maple.expectation.error.exception.CharacterNotFoundException;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.service.v2.GameCharacterService;

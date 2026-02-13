@@ -3,7 +3,7 @@ package maple.expectation.service.v2.auth;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.aop.annotation.ObservedTransaction;
-import maple.expectation.global.error.exception.auth.SelfLikeNotAllowedException;
+import maple.expectation.error.exception.auth.SelfLikeNotAllowedException;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.infrastructure.queue.like.AtomicLikeToggleExecutor;

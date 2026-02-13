@@ -64,7 +64,7 @@ public class CubeCostPolicy {
    * @param level 장비 레벨
    * @param grade 잠재능력 등급 (한글: "레어", "에픽", "유니크", "레전드리")
    * @return 큐브 1회 사용 비용
-   * @throws maple.expectation.global.error.exception.InvalidPotentialGradeException 유효하지 않은 등급명인 경우
+   * @throws maple.expectation.error.exception.InvalidPotentialGradeException 유효하지 않은 등급명인 경우
    * @throws IllegalStateException 유효하지 않은 CubeType인 경우
    */
   public long getCubeCost(CubeType type, int level, String grade) {

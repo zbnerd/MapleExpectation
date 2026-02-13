@@ -3,7 +3,7 @@ package maple.expectation.scheduler;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.global.error.exception.DistributedLockException;
+import maple.expectation.error.exception.DistributedLockException;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.infrastructure.lock.LockStrategy;

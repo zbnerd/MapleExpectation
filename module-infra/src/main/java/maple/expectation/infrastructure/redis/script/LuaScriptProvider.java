@@ -5,7 +5,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.global.error.exception.RedisScriptExecutionException;
+import maple.expectation.error.exception.RedisScriptExecutionException;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import org.redisson.api.RScript;

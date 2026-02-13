@@ -16,7 +16,12 @@ import org.springframework.context.annotation.Configuration;
  * </ul>
  */
 @Configuration
-@EnableConfigurationProperties(BufferProperties.class)
+@EnableConfigurationProperties({
+  BatchProperties.class,
+  BufferProperties.class,
+  DiscordTimeoutProperties.class,
+  MonitoringThresholdProperties.class
+})
 public class BufferConfig {
 
   /**

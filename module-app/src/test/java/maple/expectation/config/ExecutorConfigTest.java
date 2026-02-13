@@ -9,7 +9,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -24,13 +23,11 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
  */
 class ExecutorConfigTest {
 
-  private ExecutorConfig executorConfig;
   private MeterRegistry meterRegistry;
   private TaskDecorator noOpDecorator;
 
   @BeforeEach
   void setUp() {
-    executorConfig = new ExecutorConfig();
     meterRegistry = new SimpleMeterRegistry();
     noOpDecorator = runnable -> runnable; // 테스트용 No-Op Decorator
   }
@@ -39,7 +36,8 @@ class ExecutorConfigTest {
   @DisplayName("expectationComputeExecutor 큐 포화 시 RejectedExecutionException 발생")
   void expectationComputeExecutor_QueueFull_ThrowsRejected() throws InterruptedException {
     // Given: Executor 생성
-    Executor executor = executorConfig.expectationComputeExecutor(noOpDecorator, meterRegistry);
+    ExecutorConfig executorConfig = new ExecutorConfig(meterRegistry);
+    Executor executor = executorConfig.expectationComputeExecutor(noOpDecorator);
     ThreadPoolTaskExecutor taskExecutor = (ThreadPoolTaskExecutor) executor;
 
     // 설정 확인: maxPoolSize=8, queueCapacity=200
@@ -48,8 +46,6 @@ class ExecutorConfigTest {
 
     // CountDownLatch로 모든 스레드를 블로킹
     CountDownLatch blocker = new CountDownLatch(1);
-    CountDownLatch allTasksSubmitted = new CountDownLatch(1);
-    AtomicInteger submittedCount = new AtomicInteger(0);
 
     // When: 큐 + maxPoolSize만큼 작업 제출 (208개)
     int totalCapacity = taskExecutor.getMaxPoolSize() + taskExecutor.getQueueCapacity();
@@ -63,7 +59,6 @@ class ExecutorConfigTest {
               Thread.currentThread().interrupt();
             }
           });
-      submittedCount.incrementAndGet();
     }
 
     // Then: 다음 작업 제출 시 TaskRejectedException 발생 (Spring이 RejectedExecutionException 래핑)
@@ -83,7 +78,8 @@ class ExecutorConfigTest {
   @DisplayName("alertTaskExecutor 큐 포화 시 TaskRejectedException 발생")
   void alertTaskExecutor_QueueFull_ThrowsRejected() throws InterruptedException {
     // Given: Executor 생성
-    Executor executor = executorConfig.alertTaskExecutor(noOpDecorator, meterRegistry);
+    ExecutorConfig executorConfig = new ExecutorConfig(meterRegistry);
+    Executor executor = executorConfig.alertTaskExecutor(noOpDecorator);
     ThreadPoolTaskExecutor taskExecutor = (ThreadPoolTaskExecutor) executor;
 
     // 설정 확인: maxPoolSize=4, queueCapacity=200
@@ -124,7 +120,8 @@ class ExecutorConfigTest {
   @DisplayName("expectationComputeExecutor rejected Counter 증가 검증")
   void expectationComputeExecutor_RejectedCounter_Increments() throws InterruptedException {
     // Given: Executor 생성
-    Executor executor = executorConfig.expectationComputeExecutor(noOpDecorator, meterRegistry);
+    ExecutorConfig executorConfig = new ExecutorConfig(meterRegistry);
+    Executor executor = executorConfig.expectationComputeExecutor(noOpDecorator);
     ThreadPoolTaskExecutor taskExecutor = (ThreadPoolTaskExecutor) executor;
 
     CountDownLatch blocker = new CountDownLatch(1);
@@ -167,7 +164,8 @@ class ExecutorConfigTest {
   @DisplayName("alertTaskExecutor rejected Counter 증가 검증")
   void alertTaskExecutor_RejectedCounter_Increments() throws InterruptedException {
     // Given: Executor 생성
-    Executor executor = executorConfig.alertTaskExecutor(noOpDecorator, meterRegistry);
+    ExecutorConfig executorConfig = new ExecutorConfig(meterRegistry);
+    Executor executor = executorConfig.alertTaskExecutor(noOpDecorator);
     ThreadPoolTaskExecutor taskExecutor = (ThreadPoolTaskExecutor) executor;
 
     CountDownLatch blocker = new CountDownLatch(1);
@@ -208,7 +206,8 @@ class ExecutorConfigTest {
   @DisplayName("ExecutorServiceMetrics 등록 검증 (expectation.compute)")
   void expectationComputeExecutor_MetricsRegistered() {
     // Given & When
-    executorConfig.expectationComputeExecutor(noOpDecorator, meterRegistry);
+    ExecutorConfig executorConfig = new ExecutorConfig(meterRegistry);
+    executorConfig.expectationComputeExecutor(noOpDecorator);
 
     // Then: ExecutorServiceMetrics 메트릭 등록 확인
     assertThat(meterRegistry.find("executor.pool.size").tag("name", "expectation.compute").gauge())
@@ -222,7 +221,8 @@ class ExecutorConfigTest {
   @DisplayName("ExecutorServiceMetrics 등록 검증 (alert)")
   void alertTaskExecutor_MetricsRegistered() {
     // Given & When
-    executorConfig.alertTaskExecutor(noOpDecorator, meterRegistry);
+    ExecutorConfig executorConfig = new ExecutorConfig(meterRegistry);
+    executorConfig.alertTaskExecutor(noOpDecorator);
 
     // Then: ExecutorServiceMetrics 메트릭 등록 확인
     assertThat(meterRegistry.find("executor.pool.size").tag("name", "alert").gauge()).isNotNull();

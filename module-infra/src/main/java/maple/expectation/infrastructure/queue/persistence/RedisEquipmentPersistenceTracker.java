@@ -1,0 +1,315 @@
+package maple.expectation.infrastructure.queue.persistence;
+
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import lombok.extern.slf4j.Slf4j;
+import maple.expectation.application.port.PersistenceTrackerStrategy;
+import maple.expectation.infrastructure.executor.LogicExecutor;
+import maple.expectation.infrastructure.executor.TaskContext;
+import maple.expectation.infrastructure.queue.RedisKey;
+import org.redisson.api.RSet;
+import org.redisson.api.RedissonClient;
+
+/**
+ * Redis 기반 Equipment 비동기 저장 작업 추적기 (#271 V5 Stateless Architecture)
+ *
+ * <h3>역할</h3>
+ *
+ * <p>Scale-out 환경에서 Equipment 비동기 저장 작업을 분산 추적합니다. Redis SET를 사용하여 여러 인스턴스에서 pending OCID를 공유합니다.
+ *
+ * <h3>기존 EquipmentPersistenceTracker 대비 개선</h3>
+ *
+ * <ul>
+ *   <li>기존: ConcurrentHashMap (In-Memory) → 인스턴스별 분산
+ *   <li>개선: Redis SET (Distributed) → 전역 가시성
+ * </ul>
+ *
+ * <h3>Redis 구조</h3>
+ *
+ * <pre>
+ * {persistence}:tracking (SET)
+ * ├── ocid1
+ * ├── ocid2
+ * └── ...
+ * </pre>
+ *
+ * <h3>로컬 상태</h3>
+ *
+ * <p>CompletableFuture는 JVM 런타임 객체이므로 로컬에서 관리합니다. OCID만 Redis로 추적하여 분산 환경에서도 pending 상태를 확인할 수
+ * 있습니다.
+ *
+ * <h3>5-Agent Council 합의</h3>
+ *
+ * <ul>
+ *   <li>Blue (Architect): 전략 패턴으로 In-Memory/Redis 교체 가능
+ *   <li>Green (Performance): SADD/SREM O(1) 복잡도
+ *   <li>Red (SRE): 인스턴스 장애 시 다른 인스턴스에서 pending 확인 가능
+ *   <li>Purple (Auditor): Shutdown 시 로컬 Future 완료 대기 + Redis 정리
+ * </ul>
+ *
+ * @see RedisKey#PERSISTENCE_TRACKING Redis 키 정의
+ */
+@Slf4j
+public class RedisEquipmentPersistenceTracker implements PersistenceTrackerStrategy {
+
+  private final RedissonClient redissonClient;
+  private final LogicExecutor executor;
+  private final MeterRegistry meterRegistry;
+  private final String trackingKey;
+
+  /**
+   * 로컬 CompletableFuture 추적
+   *
+   * <p>CompletableFuture는 직렬화 불가능한 JVM 런타임 객체이므로 로컬에서 관리합니다. awaitAllCompletion()에서 사용됩니다.
+   */
+  private final ConcurrentHashMap<String, CompletableFuture<Void>> localFutures =
+      new ConcurrentHashMap<>();
+
+  /**
+   * Shutdown 진행 플래그
+   *
+   * <p>CAS 연산으로 원자적 전환 보장
+   */
+  private final AtomicBoolean shutdownInProgress = new AtomicBoolean(false);
+
+  public RedisEquipmentPersistenceTracker(
+      RedissonClient redissonClient, LogicExecutor executor, MeterRegistry meterRegistry) {
+    this.redissonClient = redissonClient;
+    this.executor = executor;
+    this.meterRegistry = meterRegistry;
+    this.trackingKey = RedisKey.PERSISTENCE_TRACKING.getKey();
+
+    registerMetrics();
+    log.info("[RedisEquipmentPersistenceTracker] Initialized with key: {}", trackingKey);
+  }
+
+  private void registerMetrics() {
+    // 로컬 pending 수 (현재 인스턴스)
+    Gauge.builder("persistence.tracker.local.pending", localFutures, ConcurrentHashMap::size)
+        .description("현재 인스턴스의 pending 작업 수")
+        .register(meterRegistry);
+
+    // 전역 pending 수 (Redis SET 크기)
+    Gauge.builder("persistence.tracker.global.pending", this, tracker -> getGlobalPendingCount())
+        .description("전역 pending 작업 수 (모든 인스턴스)")
+        .register(meterRegistry);
+  }
+
+  /**
+   * 비동기 저장 작업 추적 등록
+   *
+   * <p>OCID를 Redis SET에 추가하고 로컬 Future를 등록합니다. 작업 완료 시 자동으로 Redis와 로컬에서 제거됩니다.
+   *
+   * @param ocid 캐릭터 OCID
+   * @param future 비동기 작업 Future
+   * @throws IllegalStateException Shutdown 진행 중인 경우
+   */
+  @Override
+  public void trackOperation(String ocid, CompletableFuture<Void> future) {
+    if (shutdownInProgress.get()) {
+      meterRegistry.counter("persistence.tracker.rejected", "reason", "shutdown").increment();
+      log.warn("[PersistenceTracker] Shutdown 진행 중 - 작업 거부: {}", ocid);
+      throw new IllegalStateException("Shutdown 진행 중에는 등록할 수 없습니다.");
+    }
+
+    // 1. Redis SET에 OCID 추가 (분산 추적)
+    addToRedisTracking(ocid);
+
+    // 2. 로컬 Future 등록
+    localFutures.put(ocid, future);
+
+    // 3. 완료 시 자동 정리
+    future.whenComplete(
+        (result, throwable) ->
+            executor.executeVoid(
+                () -> {
+                  // Redis에서 제거
+                  removeFromRedisTracking(ocid);
+
+                  // 로컬에서 제거
+                  localFutures.remove(ocid);
+
+                  if (throwable != null) {
+                    meterRegistry.counter("persistence.tracker.failed").increment();
+                    log.error("[PersistenceTracker] 비동기 저장 실패: {}", ocid, throwable);
+                    return;
+                  }
+
+                  meterRegistry.counter("persistence.tracker.completed").increment();
+                  log.debug("[PersistenceTracker] 비동기 저장 완료: {}", ocid);
+                },
+                TaskContext.of("PersistenceTracker", "CompleteOperation", ocid)));
+
+    meterRegistry.counter("persistence.tracker.registered").increment();
+    log.debug("[PersistenceTracker] 작업 등록: {}", ocid);
+  }
+
+  /**
+   * 모든 로컬 작업 완료 대기 (Shutdown용)
+   *
+   * <p>현재 인스턴스의 pending 작업만 대기합니다. 다른 인스턴스의 작업은 해당 인스턴스에서 처리합니다.
+   *
+   * @param timeout 최대 대기 시간
+   * @return true: 모든 작업 완료, false: 타임아웃 또는 이미 Shutdown 중
+   */
+  @Override
+  public boolean awaitAllCompletion(Duration timeout) {
+    // CAS로 Shutdown 상태 원자적 전환
+    if (!shutdownInProgress.compareAndSet(false, true)) {
+      log.warn("[PersistenceTracker] Shutdown 이미 진행 중");
+      return false;
+    }
+    log.info("[PersistenceTracker] Shutdown 시작 - 새로운 작업 등록 차단");
+
+    if (localFutures.isEmpty()) {
+      log.info("[PersistenceTracker] 대기 중인 로컬 작업 없음");
+      return true;
+    }
+
+    TaskContext context =
+        TaskContext.of("PersistenceTracker", "AwaitAll", String.valueOf(localFutures.size()));
+
+    return executor.executeWithFallback(
+        () -> {
+          log.info(
+              "[PersistenceTracker] {}건 로컬 작업 대기 중... (timeout: {}s)",
+              localFutures.size(),
+              timeout.getSeconds());
+
+          // 모든 로컬 Future 완료 대기
+          CompletableFuture.allOf(localFutures.values().toArray(new CompletableFuture[0]))
+              .get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+
+          log.info("[PersistenceTracker] 모든 로컬 작업 완료");
+          return true;
+        },
+        e -> {
+          if (e instanceof java.util.concurrent.TimeoutException) {
+            log.warn("[PersistenceTracker] Timeout 발생. 미완료 로컬 작업: {}건", localFutures.size());
+          } else {
+            log.error("[PersistenceTracker] 작업 대기 중 예외 발생: {}", e.getMessage());
+          }
+          return false;
+        },
+        context);
+  }
+
+  /**
+   * Pending OCID 목록 조회 (인터페이스 구현 - 로컬 반환)
+   *
+   * @return 로컬 pending OCID 리스트
+   */
+  @Override
+  public List<String> getPendingOcids() {
+    return getLocalPendingOcids();
+  }
+
+  /**
+   * Pending 작업 수 조회 (인터페이스 구현 - 로컬 반환)
+   *
+   * @return 로컬 pending 작업 수
+   */
+  @Override
+  public int getPendingCount() {
+    return getLocalPendingCount();
+  }
+
+  /** 전략 유형 반환 */
+  @Override
+  public StrategyType getType() {
+    return StrategyType.REDIS;
+  }
+
+  /**
+   * 로컬 pending OCID 목록 조회 (현재 인스턴스)
+   *
+   * @return 로컬 pending OCID 리스트
+   */
+  public List<String> getLocalPendingOcids() {
+    return new ArrayList<>(localFutures.keySet());
+  }
+
+  /**
+   * 전역 pending OCID 목록 조회 (모든 인스턴스)
+   *
+   * @return 전역 pending OCID 리스트
+   */
+  public List<String> getGlobalPendingOcids() {
+    return executor.executeOrDefault(
+        () -> {
+          RSet<String> tracking = getTrackingSet();
+          Set<String> members = tracking.readAll();
+          return new ArrayList<>(members);
+        },
+        List.of(),
+        TaskContext.of("PersistenceTracker", "GetGlobalPending"));
+  }
+
+  /** 로컬 pending 수 (현재 인스턴스) */
+  public int getLocalPendingCount() {
+    return localFutures.size();
+  }
+
+  /** 전역 pending 수 (모든 인스턴스) */
+  public int getGlobalPendingCount() {
+    return executor.executeOrDefault(
+        () -> getTrackingSet().size(), 0, TaskContext.of("PersistenceTracker", "GetGlobalCount"));
+  }
+
+  /**
+   * 특정 OCID가 전역에서 pending 상태인지 확인
+   *
+   * @param ocid 확인할 OCID
+   * @return true: pending 상태, false: 완료 또는 미등록
+   */
+  public boolean isGloballyPending(String ocid) {
+    return executor.executeOrDefault(
+        () -> getTrackingSet().contains(ocid),
+        false,
+        TaskContext.of("PersistenceTracker", "IsPending", ocid));
+  }
+
+  /** 테스트용 리셋 */
+  @Override
+  public void resetForTesting() {
+    shutdownInProgress.set(false);
+    localFutures.clear();
+
+    executor.executeVoid(
+        () -> getTrackingSet().clear(), TaskContext.of("PersistenceTracker", "ResetForTesting"));
+
+    log.debug("[PersistenceTracker] 테스트용 리셋 완료");
+  }
+
+  // ==================== Private Helpers ====================
+
+  private void addToRedisTracking(String ocid) {
+    executor.executeVoid(
+        () -> {
+          getTrackingSet().add(ocid);
+          log.debug("[PersistenceTracker] Redis 추적 등록: {}", ocid);
+        },
+        TaskContext.of("PersistenceTracker", "AddToRedis", ocid));
+  }
+
+  private void removeFromRedisTracking(String ocid) {
+    executor.executeVoid(
+        () -> {
+          getTrackingSet().remove(ocid);
+          log.debug("[PersistenceTracker] Redis 추적 제거: {}", ocid);
+        },
+        TaskContext.of("PersistenceTracker", "RemoveFromRedis", ocid));
+  }
+
+  private RSet<String> getTrackingSet() {
+    return redissonClient.getSet(trackingKey);
+  }
+}

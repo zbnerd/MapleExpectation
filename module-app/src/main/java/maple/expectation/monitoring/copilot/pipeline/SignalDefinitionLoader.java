@@ -1,6 +1,10 @@
 package maple.expectation.monitoring.copilot.pipeline;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.stats.CacheStats;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,19 +17,20 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 /**
- * Signal Definition Loader (Issue #251)
+ * Signal Definition Loader (Stateless Design - Issue #285)
  *
  * <h3>Responsibility</h3>
  *
  * <p>Loads and caches signal definitions from Grafana dashboard JSON files. Provides a single
  * source of truth for monitoring signal catalog with 5-minute cache TTL.
  *
- * <h3>Cache Strategy</h3>
+ * <h3>Stateless Cache Strategy</h3>
  *
  * <ul>
+ *   <li>Cache: Caffeine (L1 in-memory) with automatic expiration
  *   <li>Cache duration: 5 minutes (configurable via {@code monitoring.copilot.cache-ttl-ms})
- *   <li>Cache invalidation: Time-based expiration
- *   <li>Thread safety: volatile fields with double-checked locking pattern
+ *   <li>Thread safety: Caffeine's concurrent data structures (no volatile fields)
+ *   <li>Stateless: No instance-level mutable state except the cache itself
  * </ul>
  *
  * <h3>LogicExecutor Compliance</h3>
@@ -41,6 +46,8 @@ import org.springframework.stereotype.Service;
 @ConditionalOnProperty(name = "monitoring.copilot.enabled", havingValue = "true")
 public class SignalDefinitionLoader {
 
+  private static final String CACHE_KEY = "signalCatalog";
+
   private final GrafanaJsonIngestor ingestor;
   private final LogicExecutor executor;
 
@@ -50,28 +57,19 @@ public class SignalDefinitionLoader {
   @Value("${monitoring.copilot.cache-ttl-ms:300000}")
   private long cacheTtlMs;
 
-  // Cached signal catalog with volatile visibility
-  private volatile List<SignalDefinition> signalCatalogCache = List.of();
-  private volatile long catalogLastUpdated = 0L;
+  /** Caffeine cache with TTL-based expiration (thread-safe by design) */
+  private final Cache<String, List<SignalDefinition>> signalCatalogCache =
+      Caffeine.newBuilder().expireAfterWrite(Duration.ofMillis(cacheTtlMs)).recordStats().build();
 
   /**
    * Load signal definitions from Grafana dashboards with caching.
    *
-   * <p>Returns cached catalog if within TTL, otherwise reloads from disk.
+   * <p>Returns cached catalog if available and not expired, otherwise reloads from disk.
    *
-   * @param currentTimestamp Current timestamp in milliseconds for cache validation
    * @return List of signal definitions, empty list if loading fails
    */
-  public List<SignalDefinition> loadSignalDefinitions(long currentTimestamp) {
-    // Cache hit: return cached data if still valid
-    if (isCacheValid(currentTimestamp)) {
-      log.debug(
-          "[SignalDefinitionLoader] Cache hit - returning {} signals", signalCatalogCache.size());
-      return signalCatalogCache;
-    }
-
-    // Cache miss: reload from disk
-    return reloadSignalCatalog(currentTimestamp);
+  public List<SignalDefinition> loadSignalDefinitions() {
+    return signalCatalogCache.get(CACHE_KEY, key -> loadSignalDefinitionsFromDisk());
   }
 
   /**
@@ -82,8 +80,8 @@ public class SignalDefinitionLoader {
    * @return Freshly loaded signal definitions
    */
   public List<SignalDefinition> forceReload() {
-    long now = System.currentTimeMillis();
-    return reloadSignalCatalog(now);
+    signalCatalogCache.invalidate(CACHE_KEY);
+    return loadSignalDefinitions();
   }
 
   /**
@@ -92,41 +90,34 @@ public class SignalDefinitionLoader {
    * @return Number of signals currently cached
    */
   public int getCacheSize() {
-    return signalCatalogCache.size();
+    List<SignalDefinition> cached = signalCatalogCache.getIfPresent(CACHE_KEY);
+    return cached != null ? cached.size() : 0;
   }
 
   /**
-   * Check if cache is populated and valid.
+   * Check if cache is populated.
    *
-   * @param currentTimestamp Current timestamp in milliseconds
-   * @return true if cache is valid, false otherwise
+   * @return true if cache contains data, false otherwise
    */
-  public boolean isCacheValid(long currentTimestamp) {
-    return currentTimestamp - catalogLastUpdated < cacheTtlMs && !signalCatalogCache.isEmpty();
+  public boolean isCached() {
+    return signalCatalogCache.getIfPresent(CACHE_KEY) != null;
   }
 
   /**
-   * Get cache age in milliseconds.
+   * Get cache statistics for monitoring.
    *
-   * @return Age of cache in milliseconds, or -1 if cache is empty
+   * @return Cache statistics
    */
-  public long getCacheAge(long currentTimestamp) {
-    if (signalCatalogCache.isEmpty()) {
-      return -1L;
-    }
-    return currentTimestamp - catalogLastUpdated;
+  public CacheStats getCacheStats() {
+    return signalCatalogCache.stats();
   }
 
-  /** Reload signal catalog from Grafana dashboard JSON files. */
-  private List<SignalDefinition> reloadSignalCatalog(long currentTimestamp) {
+  /** Load signal catalog from Grafana dashboard JSON files. */
+  private List<SignalDefinition> loadSignalDefinitionsFromDisk() {
     return executor.executeOrDefault(
         () -> {
           Path dashboardPath = Path.of(dashboardDir);
           List<SignalDefinition> signals = ingestor.ingestDashboards(dashboardPath);
-
-          // Update cache atomically
-          signalCatalogCache = signals;
-          catalogLastUpdated = currentTimestamp;
 
           log.info(
               "[SignalDefinitionLoader] Signal catalog refreshed: {} signals from {}",

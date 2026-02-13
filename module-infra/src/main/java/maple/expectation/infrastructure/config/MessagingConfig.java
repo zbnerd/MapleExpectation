@@ -30,4 +30,15 @@ public class MessagingConfig {
   public MessageQueue<String> nexonDataQueue(RedissonClient redissonClient) {
     return new RedisMessageQueue<>(redissonClient, "nexon-data");
   }
+
+  /**
+   * Event queue for RedisEventPublisher to publish IntegrationEvent messages.
+   *
+   * <p>Separate from characterJobQueue and nexonDataQueue to avoid ambiguity. This queue is
+   * specifically for domain events published through EventPublisher interface.
+   */
+  @Bean("integrationEventQueue")
+  public MessageQueue<String> integrationEventQueue(RedissonClient redissonClient) {
+    return new RedisMessageQueue<>(redissonClient, "integration_event_queue");
+  }
 }

@@ -76,9 +76,6 @@ public class MonitoringCopilotScheduler {
   @Value("${monitoring.copilot.top-signals:10}")
   private int topSignalsCount;
 
-  // Signal catalog cache for signal prioritization and annotation
-  private volatile List<SignalDefinition> signalCatalogCache = List.of();
-
   /**
    * Main scheduled task: runs every monitoring.interval-seconds (default 15 seconds)
    *
@@ -93,15 +90,12 @@ public class MonitoringCopilotScheduler {
           long now = System.currentTimeMillis();
 
           // 1. Load signal catalog (with 5min cache)
-          List<SignalDefinition> signals = signalLoader.loadSignalDefinitions(now);
+          List<SignalDefinition> signals = signalLoader.loadSignalDefinitions();
 
           if (signals.isEmpty()) {
             log.debug("[MonitoringCopilot] No signals loaded, skipping detection cycle");
             return;
           }
-
-          // Update cache for annotation and prioritization
-          signalCatalogCache = signals;
 
           // 2. Select top N priority signals
           List<SignalDefinition> topSignals = selectTopPrioritySignals(signals);
@@ -143,11 +137,14 @@ public class MonitoringCopilotScheduler {
 
   /** Compose incident context and trigger alert notification */
   private void processIncident(List<AnomalyEvent> anomalies, long now) {
+    // Load fresh signal catalog for annotation
+    List<SignalDefinition> signalCatalog = signalLoader.loadSignalDefinitions();
+
     // Build incident context using orchestrator
     IncidentContext context =
-        detectionOrchestrator.buildIncidentContext(anomalies, signalCatalogCache, Map.of());
+        detectionOrchestrator.buildIncidentContext(anomalies, signalCatalog, Map.of());
 
     // Send alert via notification service (includes AI analysis internally)
-    alertService.sendAlert(context, Optional.of(aiSreService), signalCatalogCache);
+    alertService.sendAlert(context, Optional.of(aiSreService), signalCatalog);
   }
 }

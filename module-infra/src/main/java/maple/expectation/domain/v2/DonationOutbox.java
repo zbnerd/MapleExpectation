@@ -10,7 +10,7 @@ import java.util.HexFormat;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import maple.expectation.global.error.exception.InternalSystemException;
+import maple.expectation.error.exception.InternalSystemException;
 
 /**
  * Transactional Outbox 엔티티 (Issue #80)

@@ -47,7 +47,7 @@ resilience4j:
         waitDuration: 50ms  # 테스트 환경: 빠른 재시도
         retryExceptions:
           - java.util.concurrent.TimeoutException
-          - maple.expectation.global.error.exception.ExternalServiceException
+          - maple.expectation.error.exception.ExternalServiceException
 
   # Issue #202: 테스트 환경 TimeLimiter 설정
   timelimiter:

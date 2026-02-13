@@ -9,7 +9,7 @@ import maple.expectation.controller.dto.dlq.DlqEntryResponse;
 import maple.expectation.controller.dto.dlq.DlqReprocessResult;
 import maple.expectation.domain.v2.DonationDlq;
 import maple.expectation.domain.v2.DonationOutbox;
-import maple.expectation.global.error.exception.DlqNotFoundException;
+import maple.expectation.error.exception.DlqNotFoundException;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.repository.v2.DonationDlqRepository;

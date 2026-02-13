@@ -3,7 +3,7 @@ package maple.expectation.util.converter;
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
 import java.io.IOException;
-import maple.expectation.global.error.exception.CompressionException;
+import maple.expectation.error.exception.CompressionException;
 import maple.expectation.util.GzipUtils;
 
 @Converter

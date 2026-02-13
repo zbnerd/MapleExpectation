@@ -5,7 +5,9 @@ import lombok.extern.slf4j.Slf4j;
 import maple.expectation.application.port.EventPublisher;
 import maple.expectation.application.port.MessageQueue;
 import maple.expectation.domain.event.IntegrationEvent;
-import maple.expectation.global.error.exception.QueuePublishException;
+import maple.expectation.error.exception.QueuePublishException;
+import maple.expectation.infrastructure.executor.LogicExecutor;
+import maple.expectation.infrastructure.executor.TaskContext;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -25,6 +27,13 @@ import org.springframework.stereotype.Component;
  *   <li><b>DIP:</b> Implements {@link EventPublisher} interface
  *   <li><b>SRP:</b> Single responsibility - Redis publishing logic
  *   <li><b>OCP:</b> Can be replaced by KafkaEventPublisher without changing business logic
+ * </ul>
+ *
+ * <h3>CLAUDE.md Section 12 Compliance</h3>
+ *
+ * <ul>
+ *   <li>Uses LogicExecutor.executeWithTranslation() for exception handling
+ *   <li>No raw try-catch blocks in business logic
  * </ul>
  *
  * <h3>Redis vs Kafka Trade-off:</h3>
@@ -55,58 +64,60 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 @ConditionalOnProperty(
-    name = "app.event-publisher-type", // Fix: Use kebab-case with hyphen for YAML property
+    prefix = "app.event-publisher",
+    name = "type",
     havingValue = "redis",
     matchIfMissing = true)
 public class RedisEventPublisher implements EventPublisher {
 
   private final MessageQueue<String> messageQueue;
   private final ObjectMapper objectMapper;
+  private final LogicExecutor executor;
 
   public RedisEventPublisher(
-      @Qualifier("nexonDataQueue") MessageQueue<String> messageQueue, ObjectMapper objectMapper) {
+      @Qualifier("integrationEventQueue") MessageQueue<String> messageQueue,
+      ObjectMapper objectMapper,
+      LogicExecutor executor) {
     this.messageQueue = messageQueue;
     this.objectMapper = objectMapper;
+    this.executor = executor;
   }
 
   @Override
   public void publish(String topic, IntegrationEvent<?> event) {
-    try {
-      // Serialize IntegrationEvent to JSON
-      String jsonPayload = objectMapper.writeValueAsString(event);
+    executor.executeVoid(
+        () -> publishInternal(topic, event),
+        TaskContext.of("RedisEventPublisher", "Publish", topic));
+  }
 
-      // Offer to Redis queue
-      boolean offered = messageQueue.offer(jsonPayload);
+  /**
+   * Internal publish implementation with checked exceptions.
+   *
+   * <p>Wrapped by LogicExecutor.executeWithTranslation() which translates checked exceptions to
+   * QueuePublishException.
+   */
+  private void publishInternal(String topic, IntegrationEvent<?> event) throws Exception {
+    // Serialize IntegrationEvent to JSON
+    String jsonPayload = objectMapper.writeValueAsString(event);
 
-      if (!offered) {
-        log.warn(
-            "[RedisEventPublisher] Queue full, could not publish to topic {}: eventId={}, eventType={}",
-            topic,
-            event.getEventId(),
-            event.getEventType());
-        throw new QueuePublishException(
-            String.format("Redis queue full: topic=%s, eventType=%s", topic, event.getEventType()));
-      }
+    // Offer to Redis queue
+    boolean offered = messageQueue.offer(jsonPayload);
 
-      log.debug(
-          "[RedisEventPublisher] Published to queue {}: eventId={}, eventType={}",
+    if (!offered) {
+      log.warn(
+          "[RedisEventPublisher] Queue full, could not publish to topic {}: eventId={}, eventType={}",
           topic,
           event.getEventId(),
           event.getEventType());
-
-    } catch (Exception e) {
-      log.error(
-          "[RedisEventPublisher] Failed to publish to queue {}: eventId={}, eventType={}",
-          topic,
-          event.getEventId(),
-          event.getEventType(),
-          e);
-
       throw new QueuePublishException(
-          String.format(
-              "Redis publish failed: topic=%s, eventType=%s", topic, event.getEventType()),
-          e);
+          String.format("Redis queue full: topic=%s, eventType=%s", topic, event.getEventType()));
     }
+
+    log.debug(
+        "[RedisEventPublisher] Published to queue {}: eventId={}, eventType={}",
+        topic,
+        event.getEventId(),
+        event.getEventType());
   }
 
   @Override

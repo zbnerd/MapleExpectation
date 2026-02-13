@@ -73,7 +73,7 @@ public class EquipmentStreamingParser {
    *   <li>STARFORCE_SCROLL_FLAG: starforce_scroll_flag (놀장 여부)
    * </ul>
    */
-  private enum JsonField {
+  public enum JsonField {
     // 기본 정보
     SLOT("item_equipment_slot"),
     PART("item_equipment_part"),
