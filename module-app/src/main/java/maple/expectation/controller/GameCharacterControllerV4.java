@@ -11,6 +11,7 @@ import maple.expectation.service.v4.warmup.PopularCharacterTracker;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -89,6 +90,7 @@ public class GameCharacterControllerV4 {
    * @return V4 기대값 응답 (GZIP 또는 JSON)
    */
   @GetMapping("/{userIgn}/expectation")
+  @PreAuthorize("hasRole('ADMIN') or hasRole('USER')")
   public CompletableFuture<ResponseEntity<?>> getExpectation(
       @PathVariable @NotBlank String userIgn,
       @RequestParam(defaultValue = "false") boolean force,
@@ -149,6 +151,7 @@ public class GameCharacterControllerV4 {
    * @return V4 기대값 응답 (해당 프리셋만)
    */
   @GetMapping("/{userIgn}/expectation/preset/{presetNo}")
+  @PreAuthorize("hasRole('ADMIN') or hasRole('USER')")
   public CompletableFuture<ResponseEntity<EquipmentExpectationResponseV4>> getExpectationByPreset(
       @PathVariable String userIgn, @PathVariable Integer presetNo) {
 
@@ -167,6 +170,7 @@ public class GameCharacterControllerV4 {
    * @return V4 기대값 응답 (새로 계산된 결과)
    */
   @PostMapping("/{userIgn}/expectation/recalculate")
+  @PreAuthorize("hasRole('ADMIN') or hasRole('USER')")
   public CompletableFuture<ResponseEntity<EquipmentExpectationResponseV4>> recalculateExpectation(
       @PathVariable String userIgn) {
 

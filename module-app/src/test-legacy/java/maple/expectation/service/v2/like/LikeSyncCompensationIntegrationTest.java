@@ -5,7 +5,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.reset;
 
-import maple.expectation.service.v2.LikeSyncExecutor;
+import maple.expectation.infrastructure.queue.like.LikeSyncExecutor;
 import maple.expectation.service.v2.LikeSyncService;
 import maple.expectation.service.v2.cache.LikeBufferStorage;
 import maple.expectation.support.IntegrationTestSupport;

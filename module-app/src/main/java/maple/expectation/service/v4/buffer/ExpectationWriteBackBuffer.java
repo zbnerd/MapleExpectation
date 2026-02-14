@@ -198,22 +198,16 @@ public class ExpectationWriteBackBuffer {
     }
 
     // 3. Capacity reserved - enqueue items
-    try {
-      for (PresetExpectation preset : presets) {
-        queue.offer(ExpectationWriteTask.from(characterId, preset));
-      }
-      meterRegistry.counter("expectation.buffer.cas.success").increment();
-      log.debug(
-          "[ExpectationBuffer] Buffered {} presets for character {}, pending={}",
-          presets.size(),
-          characterId,
-          newCount);
-      return true;
-    } catch (Exception e) {
-      // Rollback on enqueue failure (should never happen with ConcurrentLinkedQueue)
-      pendingCount.addAndGet(-required);
-      throw e;
+    for (PresetExpectation preset : presets) {
+      queue.offer(ExpectationWriteTask.from(characterId, preset));
     }
+    meterRegistry.counter("expectation.buffer.cas.success").increment();
+    log.debug(
+        "[ExpectationBuffer] Buffered {} presets for character {}, pending={}",
+        presets.size(),
+        characterId,
+        newCount);
+    return true;
   }
 
   /**

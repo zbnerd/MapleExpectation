@@ -1,38 +1,43 @@
 package maple.expectation.service.v2.auth;
 
-import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.controller.dto.auth.LoginRequest;
 import maple.expectation.controller.dto.auth.LoginResponse;
 import maple.expectation.controller.dto.auth.TokenResponse;
-import maple.expectation.domain.RefreshToken;
 import maple.expectation.domain.Session;
-import maple.expectation.error.exception.auth.CharacterNotOwnedException;
-import maple.expectation.error.exception.auth.InvalidApiKeyException;
-import maple.expectation.error.exception.auth.SessionNotFoundException;
-import maple.expectation.external.NexonAuthClient;
-import maple.expectation.external.dto.v2.CharacterListResponse;
 import maple.expectation.infrastructure.security.AccountIdGenerator;
 import maple.expectation.infrastructure.security.FingerprintGenerator;
-import maple.expectation.infrastructure.security.jwt.JwtTokenProvider;
 import org.springframework.stereotype.Service;
 
 /**
  * 인증 서비스 (Facade)
  *
+ * <p>책임 (Single Responsibility Principle):
+ *
+ * <ul>
+ *   <li>로그인 흐름 조율 (Orchestration)
+ *   <li>로그아웃 처리
+ *   <li>Token Refresh 처리
+ * </ul>
+ *
+ * <p>위임된 책임 (Delegation):
+ *
+ * <ul>
+ *   <li>API Key 검증: {@link ApiKeyValidator}
+ *   <li>세션 관리: {@link SessionManager}
+ *   <li>토큰 생성/갱신: {@link TokenService}
+ * </ul>
+ *
  * <p>로그인 흐름:
  *
  * <ol>
- *   <li>Nexon API로 캐릭터 목록 조회 (API Key 검증)
- *   <li>userIgn이 캐릭터 목록에 있는지 확인 (소유권 검증)
+ *   <li>API Key 검증 및 캐릭터 소유권 확인 ({@link ApiKeyValidator})
  *   <li>Fingerprint 생성 (HMAC-SHA256)
+ *   <li>Account ID 생성 (넥슨 계정 식별자)
  *   <li>ADMIN 여부 판별 (fingerprint allowlist)
- *   <li>Redis 세션 생성
- *   <li>JWT 토큰 발급
- *   <li>Refresh Token 발급 (Issue #279)
+ *   <li>세션 생성 ({@link SessionManager})
+ *   <li>JWT + Refresh Token 발급 ({@link TokenService})
  * </ol>
  */
 @Slf4j
@@ -40,81 +45,63 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class AuthService {
 
-  private final NexonAuthClient nexonAuthClient;
+  private final ApiKeyValidator apiKeyValidator;
   private final FingerprintGenerator fingerprintGenerator;
   private final AccountIdGenerator accountIdGenerator;
-  private final SessionService sessionService;
-  private final JwtTokenProvider jwtTokenProvider;
+  private final SessionManager sessionManager;
+  private final TokenService tokenService;
   private final AdminService adminService;
-  private final RefreshTokenService refreshTokenService;
 
   /**
    * 로그인 처리
    *
    * @param request 로그인 요청 (apiKey, userIgn)
    * @return 로그인 응답 (accessToken, expiresIn, role, refreshToken)
-   * @throws InvalidApiKeyException API Key가 유효하지 않은 경우
-   * @throws CharacterNotOwnedException 캐릭터가 사용자 소유가 아닌 경우
    */
   public LoginResponse login(LoginRequest request) {
     String apiKey = request.apiKey();
     String userIgn = request.userIgn();
 
-    // 1. Nexon API로 캐릭터 목록 조회
-    CharacterListResponse characterList =
-        nexonAuthClient.getCharacterList(apiKey).orElseThrow(InvalidApiKeyException::new);
+    // 1. API Key 검증 및 캐릭터 소유권 확인
+    ApiKeyValidator.CharacterOwnershipValidationResult validation =
+        apiKeyValidator.validateAndVerifyOwnership(apiKey, userIgn);
 
-    // 2. userIgn이 캐릭터 목록에 있는지 확인
-    List<CharacterListResponse.CharacterInfo> characters = characterList.getAllCharacters();
-    boolean ownsCharacter =
-        characters.stream().anyMatch(c -> c.characterName().equalsIgnoreCase(userIgn));
-
-    if (!ownsCharacter) {
-      throw new CharacterNotOwnedException(userIgn);
-    }
-
-    // 3. 모든 캐릭터 OCID 수집
-    Set<String> myOcids =
-        characters.stream()
-            .map(CharacterListResponse.CharacterInfo::ocid)
-            .collect(Collectors.toSet());
-
-    // 4. Fingerprint 생성
+    // 2. Fingerprint 생성
     String fingerprint = fingerprintGenerator.generate(apiKey);
 
-    // 5. Account ID 생성 (넥슨 계정 식별자 - 좋아요 중복 방지용)
-    String accountId = accountIdGenerator.generate(myOcids);
+    // 3. Account ID 생성 (넥슨 계정 식별자 - 좋아요 중복 방지용)
+    String accountId = accountIdGenerator.generate(validation.myOcids());
 
-    // 6. ADMIN 여부 판별 (AdminService에서 Bootstrap + Redis 확인)
+    // 4. ADMIN 여부 판별
     String role = adminService.isAdmin(fingerprint) ? Session.ROLE_ADMIN : Session.ROLE_USER;
 
-    // 7. 세션 생성
+    // 5. 세션 생성
     Session session =
-        sessionService.createSession(fingerprint, userIgn, accountId, apiKey, myOcids, role);
+        sessionManager.createSession(
+            fingerprint, userIgn, accountId, apiKey, validation.myOcids(), role);
 
-    // 8. JWT 발급
-    String accessToken =
-        jwtTokenProvider.generateToken(session.sessionId(), session.fingerprint(), session.role());
-
-    // 9. Refresh Token 발급 (Issue #279)
-    RefreshToken refreshToken =
-        refreshTokenService.createRefreshToken(session.sessionId(), session.fingerprint());
+    // 6. JWT + Refresh Token 발급
+    TokenService.TokenPair tokens = tokenService.createTokens(session);
 
     // fingerprint는 로컬에서만 로깅 (운영환경 보안)
+    logLoginSuccess(userIgn, role, fingerprint);
+
+    return LoginResponse.of(
+        tokens.accessToken(),
+        tokens.accessTokenExpiresIn(),
+        role,
+        fingerprint,
+        tokens.refreshTokenId(),
+        tokens.refreshTokenExpiresIn());
+  }
+
+  private void logLoginSuccess(String userIgn, String role, String fingerprint) {
     if (log.isDebugEnabled()) {
       log.debug(
           "Login successful: userIgn={}, role={}, fingerprint={}", userIgn, role, fingerprint);
     } else {
       log.info("Login successful: userIgn={}, role={}", userIgn, role);
     }
-
-    return LoginResponse.of(
-        accessToken,
-        jwtTokenProvider.getExpirationSeconds(),
-        role,
-        fingerprint,
-        refreshToken.refreshTokenId(),
-        refreshTokenService.getExpirationSeconds());
   }
 
   /**
@@ -123,60 +110,43 @@ public class AuthService {
    * @param sessionId 세션 ID
    */
   public void logout(String sessionId) {
-    // Refresh Token 삭제 (Issue #279)
-    refreshTokenService.deleteBySessionId(sessionId);
-    // 세션 삭제
-    sessionService.deleteSession(sessionId);
+    sessionManager.deleteSession(sessionId);
     log.info("Logout successful: sessionId={}", sessionId);
   }
 
   /**
-   * Token Refresh 처리 (Issue #279)
+   * Token Refresh 처리
    *
    * <p>Token Rotation 패턴:
    *
    * <ol>
-   *   <li>기존 Refresh Token 검증
+   *   <li>기존 Refresh Token 검증 및 무효화
    *   <li>연결된 세션 유효성 확인
    *   <li>새 Access Token + Refresh Token 발급
-   *   <li>기존 Refresh Token 무효화
+   *   <li>세션 TTL 갱신 (Sliding Window)
    * </ol>
    *
    * @param refreshTokenId 기존 Refresh Token ID
    * @return 새 TokenResponse (accessToken, refreshToken)
-   * @throws SessionNotFoundException 세션이 만료된 경우
    */
   public TokenResponse refresh(String refreshTokenId) {
-    // 1. Token Rotation (기존 토큰 무효화 + 새 토큰 발급)
-    RefreshToken newRefreshToken = refreshTokenService.rotateRefreshToken(refreshTokenId);
+    TokenService.TokenPair tokens = tokenService.rotateTokens(refreshTokenId);
 
-    // 2. 세션 유효성 확인
-    Session session =
-        sessionService
-            .getSession(newRefreshToken.sessionId())
-            .orElseThrow(
-                () -> {
-                  // 세션이 만료되었으면 새로 발급된 Refresh Token도 정리
-                  refreshTokenService.deleteBySessionId(newRefreshToken.sessionId());
-                  return new SessionNotFoundException();
-                });
-
-    // 3. 세션 TTL 갱신 (Sliding Window)
-    sessionService.refreshSession(session.sessionId());
-
-    // 4. 새 Access Token 발급
-    String newAccessToken =
-        jwtTokenProvider.generateToken(session.sessionId(), session.fingerprint(), session.role());
-
-    log.info(
-        "Token refreshed: sessionId={}, newRefreshTokenId={}",
-        session.sessionId(),
-        newRefreshToken.refreshTokenId());
+    log.info("Token refreshed: refreshTokenId={}", maskRefreshTokenId(refreshTokenId));
 
     return TokenResponse.of(
-        newAccessToken,
-        jwtTokenProvider.getExpirationSeconds(),
-        newRefreshToken.refreshTokenId(),
-        refreshTokenService.getExpirationSeconds());
+        tokens.accessToken(),
+        tokens.accessTokenExpiresIn(),
+        tokens.refreshTokenId(),
+        tokens.refreshTokenExpiresIn());
+  }
+
+  private String maskRefreshTokenId(String refreshTokenId) {
+    if (refreshTokenId == null || refreshTokenId.length() < 8) {
+      return "***";
+    }
+    return refreshTokenId.substring(0, 4)
+        + "..."
+        + refreshTokenId.substring(refreshTokenId.length() - 4);
   }
 }

@@ -2,10 +2,11 @@ package maple.expectation.repository.v2;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
-import maple.expectation.domain.v2.CharacterEquipment;
+import maple.expectation.infrastructure.persistence.entity.CharacterEquipmentJpaEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-public interface CharacterEquipmentRepository extends JpaRepository<CharacterEquipment, String> {
+public interface CharacterEquipmentRepository
+    extends JpaRepository<CharacterEquipmentJpaEntity, String> {
 
   /**
    * 15분 TTL 체크를 포함한 유효 데이터 조회
@@ -16,5 +17,6 @@ public interface CharacterEquipmentRepository extends JpaRepository<CharacterEqu
    * @param threshold 유효 기준 시간 (예: now - 15분)
    * @return 유효한 장비 데이터 (없거나 만료되면 empty)
    */
-  Optional<CharacterEquipment> findByOcidAndUpdatedAtAfter(String ocid, LocalDateTime threshold);
+  Optional<CharacterEquipmentJpaEntity> findByOcidAndUpdatedAtAfter(
+      String ocid, LocalDateTime threshold);
 }

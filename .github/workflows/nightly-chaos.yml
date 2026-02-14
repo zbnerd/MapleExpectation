@@ -1,0 +1,232 @@
+# =============================================================================
+# MapleExpectation Nightly Chaos Test Pipeline
+# =============================================================================
+# ADR-025: Chaos Test CI/CD Integration
+#
+# Purpose: Run chaos and nightmare tests on a nightly schedule
+# - Chaos Tests: Network, resource, core infrastructure failure injection
+# - Nightmare Tests: Extreme scenarios (N01-N18)
+#
+# Execution: Uses module-chaos-test Gradle tasks
+# - chaosTest: All chaos tests
+# - nightmareTest: All nightmare tests
+# - Separate from nightly.yml which focuses on unit/integration tests
+#
+# Schedule: Daily at 00:30 KST (UTC 15:30) - 30min after main nightly.yml
+# =============================================================================
+# =============================================================================
+
+name: Nightly Chaos Test
+
+on:
+  schedule:
+    # 매일 KST 00:30 (UTC 15:30) - main nightly.yml 실행 30분 후
+    - cron: '30 15 * * *'
+  workflow_dispatch:  # 수동 실행 가능
+    inputs:
+      skip_chaos:
+        description: 'Skip Chaos Tests'
+        type: boolean
+        default: false
+      skip_nightmare:
+        description: 'Skip Nightmare Tests'
+        type: boolean
+        default: false
+      chaos_category:
+        description: 'Chaos Category (all, network, resource, core)'
+        type: choice
+        options:
+          - all
+          - network
+          - resource
+          - core
+        default: 'all'
+
+permissions:
+  contents: read
+  checks: write
+
+env:
+  JAVA_VERSION: '21'
+  GRADLE_OPTS: '-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.jvmargs=-Xmx2g'
+
+jobs:
+  # ==========================================================================
+  # STEP 1: Chaos Tests
+  # ==========================================================================
+  chaos-tests:
+    name: 'Chaos Tests (${{ github.event.inputs.chaos_category || 'all' }})'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: ${{ github.event.inputs.skip_chaos != 'true' }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          cache-read-only: false
+
+      - name: Grant Execute Permission
+        run: chmod +x gradlew
+
+      - name: Run Chaos Tests
+        run: |
+          echo "💥 Running Chaos Tests"
+
+          # Select chaos category
+          CATEGORY="${{ github.event.inputs.chaos_category || 'all' }}"
+
+          case "$CATEGORY" in
+            network)
+              echo "Category: Network Chaos (Clock Drift, Split Brain, etc.)"
+              ./gradlew :module-chaos-test:chaosTestNetwork --no-daemon --stacktrace
+              ;;
+            resource)
+              echo "Category: Resource Chaos (OOM, Disk Full, GC Pause)"
+              ./gradlew :module-chaos-test:chaosTestResource --no-daemon --stacktrace
+              ;;
+            core)
+              echo "Category: Core Infrastructure Chaos"
+              ./gradlew :module-chaos-test:chaosTestCore --no-daemon --stacktrace
+              ;;
+            *)
+              echo "Category: All Chaos Tests"
+              ./gradlew :module-chaos-test:chaosTest --no-daemon --stacktrace
+              ;;
+          esac
+        env:
+          SPRING_PROFILES_ACTIVE: chaos
+          DOCKER_HOST: unix:///var/run/docker.sock
+          TESTCONTAINERS_RYUK_DISABLED: false
+          CI: true
+
+      - name: Upload Chaos Test Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chaos-test-reports
+          path: |
+            module-chaos-test/build/reports/tests/
+            module-chaos-test/build/test-results/
+            module-chaos-test/build/flaky-chaos/
+          retention-days: 30
+
+      - name: Upload JaCoCo Coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chaos-jacoco
+          path: module-chaos-test/build/reports/jacoco/
+          retention-days: 14
+        continue-on-error: true
+
+  # ==========================================================================
+  # STEP 2: Nightmare Tests
+  # ==========================================================================
+  nightmare-tests:
+    name: 'Nightmare Tests (N01-N18)'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: chaos-tests
+    if: ${{ github.event.inputs.skip_nightmare != 'true' && (success() || github.event.inputs.skip_chaos == 'true') }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Grant Execute Permission
+        run: chmod +x gradlew
+
+      - name: Run Nightmare Tests
+        run: |
+          echo "😱 Running Nightmare Tests (N01-N18 Extreme Scenarios)"
+          ./gradlew :module-chaos-test:nightmareTest --no-daemon --stacktrace
+        env:
+          SPRING_PROFILES_ACTIVE: chaos
+          DOCKER_HOST: unix:///var/run/docker.sock
+          TESTCONTAINERS_RYUK_DISABLED: false
+          CI: true
+
+      - name: Upload Nightmare Test Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightmare-test-reports
+          path: |
+            module-chaos-test/build/reports/tests/
+            module-chaos-test/build/test-results/
+            module-chaos-test/build/flaky-chaos/
+          retention-days: 30
+
+  # ==========================================================================
+  # FINAL: Summary & Notification
+  # ==========================================================================
+  summary:
+    name: 'Chaos Test Summary'
+    runs-on: ubuntu-latest
+    needs: [chaos-tests, nightmare-tests]
+    if: always()
+
+    steps:
+      - name: Download All Reports
+        uses: actions/download-artifact@v4
+        with:
+          path: all-reports
+        continue-on-error: true
+
+      - name: Test Summary
+        run: |
+          echo "📊 Nightly Chaos Test Summary"
+          echo "=============================="
+          echo "Chaos Tests: ${{ needs.chaos-tests.result }}"
+          echo "Nightmare Tests: ${{ needs.nightmare-tests.result }}"
+          echo ""
+          echo "Scenario Categories:"
+          echo "- Network Chaos: Clock Drift, Split Brain, Gray Failure"
+          echo "- Resource Chaos: OOM, Disk Full, GC Pause"
+          echo "- Core Chaos: MySQL/Redis Death"
+          echo "- Nightmare: N01-N18 Extreme Scenarios"
+
+      - name: Upload Combined Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-chaos-combined
+          path: all-reports/
+          retention-days: 30
+        continue-on-error: true
+
+      - name: Publish Test Results
+        uses: dorny/test-reporter@v1
+        with:
+          name: Nightly Chaos Results
+          path: 'all-reports/**/test/*.xml'
+          reporter: java-junit
+          fail-on-error: false
+        continue-on-error: true
+
+      - name: Fail on Critical Failures
+        if: |
+          (needs.chaos-tests.result == 'failure' || needs.nightmare-tests.result == 'failure')
+        run: |
+          echo "::error::Critical chaos or nightmare tests failed!"
+          exit 1

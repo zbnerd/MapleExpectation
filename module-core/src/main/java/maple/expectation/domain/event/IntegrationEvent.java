@@ -71,18 +71,4 @@ public class IntegrationEvent<T> {
     return new IntegrationEvent<>(
         UUID.randomUUID().toString(), type, Instant.now().toEpochMilli(), payload);
   }
-
-  /**
-   * Create a new event with explicit metadata (for testing/replay).
-   *
-   * @param eventId Event ID
-   * @param eventType Event type
-   * @param timestamp Event timestamp
-   * @param payload Event payload
-   * @return New IntegrationEvent instance
-   */
-  public static <T> IntegrationEvent<T> of(
-      String eventId, String eventType, long timestamp, T payload) {
-    return new IntegrationEvent<T>(eventId, eventType, timestamp, payload);
-  }
 }

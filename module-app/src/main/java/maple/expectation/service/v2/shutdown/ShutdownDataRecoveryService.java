@@ -9,8 +9,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
+import maple.expectation.infrastructure.queue.like.LikeSyncExecutor;
 import maple.expectation.infrastructure.shutdown.dto.ShutdownData;
-import maple.expectation.service.v2.LikeSyncExecutor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 

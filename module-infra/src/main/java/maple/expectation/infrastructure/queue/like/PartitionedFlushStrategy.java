@@ -11,7 +11,6 @@ import lombok.extern.slf4j.Slf4j;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.infrastructure.queue.RedisKey;
-import maple.expectation.service.v2.LikeSyncExecutor;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 
@@ -58,7 +57,7 @@ public class PartitionedFlushStrategy {
   private final RedisLikeBufferStorage bufferStorage;
   private final LogicExecutor executor;
   private final MeterRegistry meterRegistry;
-  private final LikeSyncExecutor syncExecutor;
+  private final BiConsumer<String, Long> syncProcessor;
 
   /** 파티션 수 (기본값: 4) */
   private final int partitionCount;
@@ -77,13 +76,13 @@ public class PartitionedFlushStrategy {
       RedisLikeBufferStorage bufferStorage,
       LogicExecutor executor,
       MeterRegistry meterRegistry,
-      LikeSyncExecutor syncExecutor) {
+      BiConsumer<String, Long> syncProcessor) {
     this(
         redissonClient,
         bufferStorage,
         executor,
         meterRegistry,
-        syncExecutor,
+        syncProcessor,
         4,
         100L,
         30000L,
@@ -95,7 +94,7 @@ public class PartitionedFlushStrategy {
       RedisLikeBufferStorage bufferStorage,
       LogicExecutor executor,
       MeterRegistry meterRegistry,
-      LikeSyncExecutor syncExecutor,
+      BiConsumer<String, Long> syncProcessor,
       int partitionCount,
       long lockWaitMs,
       long lockLeaseMs,
@@ -104,7 +103,7 @@ public class PartitionedFlushStrategy {
     this.bufferStorage = bufferStorage;
     this.executor = executor;
     this.meterRegistry = meterRegistry;
-    this.syncExecutor = syncExecutor;
+    this.syncProcessor = syncProcessor;
     this.partitionCount = partitionCount;
     this.lockWaitMs = lockWaitMs;
     this.lockLeaseMs = lockLeaseMs;
@@ -133,7 +132,7 @@ public class PartitionedFlushStrategy {
    * @return 처리 결과 (acquiredPartitions, processedEntries, totalDelta)
    */
   public FlushResult flushAssignedPartitions() {
-    return flushWithPartitions(syncExecutor::executeIncrement);
+    return flushWithPartitions(syncProcessor);
   }
 
   /**

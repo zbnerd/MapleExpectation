@@ -71,8 +71,11 @@ public final class CharacterEquipmentMapper {
     }
 
     return CharacterEquipmentJpaEntity.builder()
-        .ocid(domainEntity.getCharacterId().value())
-        .jsonContent(domainEntity.getEquipmentData().jsonContent())
+        .ocid(domainEntity.characterId() != null ? domainEntity.characterId().value() : null)
+        .jsonContent(
+            domainEntity.equipmentData() != null
+                ? domainEntity.equipmentData().jsonContent()
+                : null)
         .build();
   }
 
@@ -96,7 +99,7 @@ public final class CharacterEquipmentMapper {
     }
 
     // Use JPA entity's updateData method to preserve entity lifecycle
-    jpaEntity.updateData(domainEntity.getEquipmentData().jsonContent());
+    jpaEntity.updateData(domainEntity.equipmentData().jsonContent());
   }
 
   /**

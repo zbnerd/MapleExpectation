@@ -13,6 +13,7 @@ import maple.expectation.aop.annotation.ObservedTransaction;
 import maple.expectation.domain.repository.RedisBufferRepository;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
+import maple.expectation.infrastructure.queue.like.LikeSyncExecutor;
 import maple.expectation.infrastructure.shutdown.dto.FlushResult;
 import maple.expectation.service.v2.cache.LikeBufferStrategy;
 import maple.expectation.service.v2.like.compensation.CompensationCommand;

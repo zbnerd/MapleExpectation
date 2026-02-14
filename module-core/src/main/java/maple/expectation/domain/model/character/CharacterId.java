@@ -1,29 +1,21 @@
 package maple.expectation.domain.model.character;
 
+import java.util.Objects;
+
 /**
- * Value Object representing a unique character identifier.
+ * 캐릭터 식별자 (Value Object)
  *
- * <p>This Value Object is immutable and validates that the OCID is not blank. Used throughout the
- * domain layer to ensure type safety.
- *
- * @param value the OCID (Original Character ID) string
- * @throws IllegalArgumentException if value is blank
+ * <p>순수 도메인 모델 - JPA 의존 없음
  */
 public record CharacterId(String value) {
 
-  /** Compact constructor that validates the OCID. */
   public CharacterId {
-    if (value == null || value.isBlank()) {
-      throw new IllegalArgumentException("CharacterId cannot be null or blank");
+    Objects.requireNonNull(value, "CharacterId value cannot be null");
+    if (value.isBlank()) {
+      throw new IllegalArgumentException("CharacterId value cannot be blank");
     }
   }
 
-  /**
-   * Factory method to create CharacterId.
-   *
-   * @param value the OCID string
-   * @return validated CharacterId
-   */
   public static CharacterId of(String value) {
     return new CharacterId(value);
   }

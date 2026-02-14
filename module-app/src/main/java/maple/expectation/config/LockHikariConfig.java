@@ -29,19 +29,23 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @Profile({"!test", "container"})
 public class LockHikariConfig {
 
-  @Value("${spring.datasource.url}")
-  private String jdbcUrl;
-
-  @Value("${spring.datasource.username}")
-  private String username;
-
-  @Value("${spring.datasource.password}")
-  private String password;
+  private final String jdbcUrl;
+  private final String username;
+  private final String password;
+  private final int poolSize;
 
   // Issue #284 DoD: Pool Size 외부화 (기본 40, prod에서 150으로 오버라이드)
   // AI SRE 제안 (INC-29506518): Lock Pool 병목 방지를 위해 최댓값 증가
-  @Value("${lock.datasource.pool-size:40}")
-  private int poolSize;
+  public LockHikariConfig(
+      @Value("${spring.datasource.url}") String jdbcUrl,
+      @Value("${spring.datasource.username}") String username,
+      @Value("${spring.datasource.password}") String password,
+      @Value("${lock.datasource.pool-size:40}") int poolSize) {
+    this.jdbcUrl = jdbcUrl;
+    this.username = username;
+    this.password = password;
+    this.poolSize = poolSize;
+  }
 
   @Bean(name = "lockDataSource")
   public DataSource lockDataSource() {

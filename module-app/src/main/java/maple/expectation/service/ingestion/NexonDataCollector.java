@@ -6,6 +6,8 @@ import maple.expectation.application.port.EventPublisher;
 import maple.expectation.domain.event.IntegrationEvent;
 import maple.expectation.domain.nexon.NexonApiCharacterData;
 import maple.expectation.error.exception.ExternalServiceException;
+import maple.expectation.infrastructure.executor.LogicExecutor;
+import maple.expectation.infrastructure.executor.TaskContext;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -61,11 +63,15 @@ public class NexonDataCollector {
 
   private final WebClient webClient;
   private final EventPublisher eventPublisher;
+  private final LogicExecutor executor;
 
   public NexonDataCollector(
-      @Qualifier("mapleWebClient") WebClient webClient, EventPublisher eventPublisher) {
+      @Qualifier("mapleWebClient") WebClient webClient,
+      EventPublisher eventPublisher,
+      LogicExecutor executor) {
     this.webClient = webClient;
     this.eventPublisher = eventPublisher;
+    this.executor = executor;
   }
 
   @Value("${nexon.api.key}")
@@ -155,22 +161,20 @@ public class NexonDataCollector {
    * Publish event to queue (fire-and-forget).
    *
    * <p><strong>Note:</strong> This method is called from doOnNext() and must not throw exceptions.
-   * Publishing failures are logged but don't affect the main reactive chain.
+   * Publishing failures are logged but don't affect main reactive chain.
+   *
+   * <h4>CLAUDE.md Section 12 준수</h4>
+   *
+   * <p>Raw try-catch 금지 → LogicExecutor.executeVoid() 사용
    *
    * @param data Character data to publish
    */
   private void publishEvent(NexonApiCharacterData data) {
     IntegrationEvent<NexonApiCharacterData> event = IntegrationEvent.of(NEXON_DATA_COLLECTED, data);
 
-    try {
-      eventPublisher.publishAsync("nexon-data", event);
-    } catch (Exception ex) {
-      log.error(
-          "[NexonDataCollector] Failed to publish event: ocid={}, characterName={}",
-          data.getOcid(),
-          data.getCharacterName(),
-          ex);
-    }
+    executor.executeVoid(
+        () -> eventPublisher.publishAsync("nexon-data", event),
+        TaskContext.of("NexonDataCollector", "PublishEvent", data.getOcid()));
   }
 
   /**

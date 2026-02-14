@@ -1,4 +1,4 @@
-package maple.expectation.service.v2;
+package maple.expectation.infrastructure.queue.like;
 
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import java.sql.PreparedStatement;
@@ -8,7 +8,7 @@ import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.error.exception.LikeSyncCircuitOpenException;
-import maple.expectation.repository.v2.GameCharacterRepository;
+import maple.expectation.infrastructure.persistence.repository.GameCharacterRepository;
 import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -25,7 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li><b>Green</b>: JDBC batchUpdate()로 JPA 대비 10x 성능 향상
  *   <li><b>Blue</b>: SRP 준수 - DB 저장만 담당
  *   <li><b>Red</b>: CircuitBreaker 적용으로 연속 실패 보호
- *   <li><b>Purple</b>: REQUIRES_NEW + READ_COMMITTED으로 트랜잭션 안전성
+ *   <li><b>Purple</b>: REQUIRES_NEW + READ_COMMITTED로 트랜잭션 안전성
  * </ul>
  */
 @Slf4j

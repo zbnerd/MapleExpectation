@@ -1,7 +1,7 @@
 package maple.expectation.application.dto;
 
 import java.time.LocalDateTime;
-import maple.expectation.domain.v2.CharacterEquipment;
+import maple.expectation.domain.model.equipment.CharacterEquipment;
 
 /**
  * CharacterEquipment Data Transfer Object
@@ -82,8 +82,7 @@ public class CharacterEquipmentDto extends BaseDto {
     if (entity == null) {
       throw new IllegalArgumentException("Entity must not be null");
     }
-    return new CharacterEquipmentDto(
-        entity.getOcid(), entity.getJsonContent(), entity.getUpdatedAt());
+    return new CharacterEquipmentDto(entity.ocid(), entity.jsonContent(), entity.updatedAt());
   }
 
   /**
@@ -113,7 +112,7 @@ public class CharacterEquipmentDto extends BaseDto {
    * @return the domain entity
    */
   public CharacterEquipment toEntity() {
-    return CharacterEquipment.builder().ocid(this.ocid).jsonContent(this.jsonContent).build();
+    return CharacterEquipment.of(this.ocid, this.jsonContent);
   }
 
   // ==================== Getters/Setters ====================

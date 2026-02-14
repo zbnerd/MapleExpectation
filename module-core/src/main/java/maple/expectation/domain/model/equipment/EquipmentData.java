@@ -1,98 +1,53 @@
 package maple.expectation.domain.model.equipment;
 
 /**
- * Value Object representing equipment data in JSON format.
+ * 장비 데이터 도메인 모델
  *
- * <p>This Value Object is immutable and validates that the JSON content is not blank. It provides
- * JSON validation through {@link #isValidJson()} method.
+ * <p>순수 도메인 - JPA 의존 없음
  *
- * <p>As a pure domain model, this class has NO dependencies on Spring or JPA annotations. JSON
- * validation uses a lightweight heuristic approach without external dependencies.
+ * <h3>SOLID 준수</h3>
  *
- * <h3>JSON Validation Strategy</h3>
- *
- * <p>Uses lightweight syntax checking (braces/brackets matching) rather than full parsing to
- * maintain domain purity. Full validation should be performed by infrastructure layer mappers when
- * needed.
- *
- * @param jsonContent the JSON string containing equipment data
- * @throws IllegalArgumentException if jsonContent is null or blank
+ * <ul>
+ *   <li>SRP: 장비 JSON 데이터 표현만 담당
+ *   <li>OCP: 불변 record로 안전한 상태 보장
+ * </ul>
  */
-public record EquipmentData(String jsonContent) {
+public record EquipmentData(String json) {
 
-  /** Compact constructor that validates the JSON content. */
+  /** 빈 JSON 생성자 (null 허용 안됨) */
   public EquipmentData {
-    if (jsonContent == null || jsonContent.isBlank()) {
-      throw new IllegalArgumentException("EquipmentData cannot be null or blank");
+    if (json == null) {
+      throw new IllegalArgumentException("json cannot be null");
     }
   }
 
-  /**
-   * Factory method to create EquipmentData.
-   *
-   * @param jsonContent the JSON string
-   * @return validated EquipmentData
-   */
-  public static EquipmentData of(String jsonContent) {
-    return new EquipmentData(jsonContent);
+  /** 빈 장비 데이터 생성 */
+  public static EquipmentData empty() {
+    return new EquipmentData("{}");
   }
 
-  /**
-   * Lightweight JSON validation using syntax checking.
-   *
-   * <p>This is a heuristic validation that checks basic JSON syntax:
-   *
-   * <ul>
-   *   <li>Non-empty content
-   *   <li>Balanced braces and brackets
-   *   <li>Valid JSON structure markers
-   * </ul>
-   *
-   * <p><b>Note:</b> For full JSON schema validation, use infrastructure layer mappers with Jackson
-   * ObjectMapper. This method keeps the domain layer dependency-free.
-   *
-   * @return true if content appears to be valid JSON, false otherwise
-   */
-  public boolean isValidJson() {
-    if (jsonContent == null || jsonContent.isBlank()) {
-      return false;
-    }
-
-    String trimmed = jsonContent.trim();
-
-    // Check JSON structure markers
-    if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
-      return false;
-    }
-
-    // Check balanced braces and brackets
-    int braceCount = 0;
-    int bracketCount = 0;
-
-    for (char c : trimmed.toCharArray()) {
-      if (c == '{') braceCount++;
-      else if (c == '}') braceCount--;
-      else if (c == '[') bracketCount++;
-      else if (c == ']') bracketCount--;
-
-      // Early exit if unbalanced
-      if (braceCount < 0 || bracketCount < 0) {
-        return false;
-      }
-    }
-
-    return braceCount == 0 && bracketCount == 0;
+  /** JSON으로부터 생성 */
+  public static EquipmentData of(String json) {
+    return new EquipmentData(json);
   }
 
-  /**
-   * Returns the raw JSON content.
-   *
-   * <p>This method is provided for infrastructure layer mappers to convert between domain and
-   * persistence models.
-   *
-   * @return the JSON string
-   */
+  /** JSON 컨텐츠 반환 */
   public String jsonContent() {
-    return jsonContent;
+    return json;
+  }
+
+  /** 비어있는지 여부 확인 */
+  public boolean isEmpty() {
+    return json == null || json.isBlank() || "{}".equals(json.trim());
+  }
+
+  /** 비어있지 않은지 여부 확인 */
+  public boolean isNotEmpty() {
+    return !isEmpty();
+  }
+
+  /** JSON 길이 반환 */
+  public int length() {
+    return json != null ? json.length() : 0;
   }
 }

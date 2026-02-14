@@ -2,11 +2,11 @@ package maple.expectation.service.v2.cube.component;
 
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import maple.expectation.domain.model.calculator.DensePmf;
+import maple.expectation.domain.model.calculator.SparsePmf;
 import maple.expectation.error.exception.ProbabilityInvariantException;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
-import maple.expectation.service.v2.cube.dto.DensePmf;
-import maple.expectation.service.v2.cube.dto.SparsePmf;
 import org.springframework.stereotype.Component;
 
 /**

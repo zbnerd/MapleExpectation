@@ -58,7 +58,7 @@ class IdempotencyGuardTest {
     // LogicExecutor Mocks
     setupExecutorMocks();
 
-    guard = new IdempotencyGuard(redissonClient, executor, meterRegistry);
+    guard = new IdempotencyGuard(redissonClient, executor, meterRegistry, 24);
 
     // Reflection으로 ttlHours 설정 (테스트용)
     try {

@@ -1,24 +1,13 @@
-package maple.expectation.domain;
+package maple.expectation.infrastructure.persistence.entity;
 
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import maple.expectation.domain.model.like.CharacterLike;
 import org.hibernate.annotations.CreationTimestamp;
 
-/**
- * 캐릭터 좋아요 Entity
- *
- * <p>중복 방지 전략:
- *
- * <ul>
- *   <li>UNIQUE 제약조건: (target_ocid, liker_account_id)
- *   <li>동일 넥슨 계정(accountId)이 같은 캐릭터(ocid)에 중복 좋아요 불가
- * </ul>
- *
- * <p>Self-Like 방지는 서비스 레이어에서 myOcids 검증으로 처리
- */
 @Entity
 @Table(
     name = "character_like",
@@ -32,7 +21,7 @@ import org.hibernate.annotations.CreationTimestamp;
     })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class CharacterLike {
+public class CharacterLikeJpaEntity {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -48,19 +37,33 @@ public class CharacterLike {
   @Column(name = "created_at", nullable = false, updatable = false)
   private LocalDateTime createdAt;
 
-  /**
-   * 좋아요 생성
-   *
-   * @param targetOcid 좋아요 대상 캐릭터 OCID
-   * @param likerAccountId 좋아요를 누른 넥슨 계정 식별자
-   */
-  public CharacterLike(String targetOcid, String likerAccountId) {
+  public CharacterLikeJpaEntity(String targetOcid, String likerAccountId) {
     this.targetOcid = targetOcid;
     this.likerAccountId = likerAccountId;
+    this.createdAt = LocalDateTime.now();
   }
 
-  /** 팩토리 메서드 */
-  public static CharacterLike of(String targetOcid, String likerAccountId) {
-    return new CharacterLike(targetOcid, likerAccountId);
+  public CharacterLike toDomain() {
+    // Create CharacterLike with data using static factory
+    CharacterLike like =
+        CharacterLike.restore(this.id, this.targetOcid, this.likerAccountId, this.createdAt);
+    return like;
+  }
+
+  public static CharacterLikeJpaEntity fromDomain(CharacterLike domain) {
+    if (domain == null) {
+      throw new IllegalArgumentException("Domain cannot be null");
+    }
+    CharacterLikeJpaEntity entity;
+    if (domain.id() == null) {
+      entity = new CharacterLikeJpaEntity(domain.targetOcid(), domain.likerAccountId());
+    } else {
+      entity = new CharacterLikeJpaEntity();
+      entity.id = domain.id();
+      entity.targetOcid = domain.targetOcid();
+      entity.likerAccountId = domain.likerAccountId();
+      entity.createdAt = domain.createdAt();
+    }
+    return entity;
   }
 }

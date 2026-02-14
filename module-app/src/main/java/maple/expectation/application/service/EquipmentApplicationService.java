@@ -106,7 +106,7 @@ public class EquipmentApplicationService {
 
     if (existing.isPresent()) {
       // Update existing equipment
-      CharacterEquipment updated = existing.get().updateData(equipmentData);
+      CharacterEquipment updated = existing.get().withUpdatedData(equipmentData);
       return equipmentRepository.save(updated);
     } else {
       // Create new equipment
@@ -139,7 +139,7 @@ public class EquipmentApplicationService {
             .orElseThrow(() -> new IllegalArgumentException("Equipment not found: " + characterId));
 
     EquipmentData newData = EquipmentData.of(jsonData);
-    CharacterEquipment updated = equipment.updateData(newData);
+    CharacterEquipment updated = equipment.withUpdatedData(newData);
     return equipmentRepository.save(updated);
   }
 

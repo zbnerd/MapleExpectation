@@ -6,6 +6,7 @@ import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.dto.response.CharacterResponse;
 import maple.expectation.service.v2.facade.GameCharacterFacade;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -33,6 +34,7 @@ public class GameCharacterControllerV1 {
    * <p>Issue #128: Entity → DTO 변환으로 응답 크기 최적화 (350KB → 4KB)
    */
   @GetMapping("/{userIgn}")
+  @PreAuthorize("hasRole('ADMIN') or hasRole('USER')")
   public CompletableFuture<ResponseEntity<CharacterResponse>> findCharacterByUserIgn(
       @PathVariable String userIgn) {
     return CompletableFuture.supplyAsync(

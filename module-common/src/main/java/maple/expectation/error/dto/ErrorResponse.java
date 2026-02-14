@@ -1,15 +1,50 @@
 package maple.expectation.error.dto;
 
 import java.time.LocalDateTime;
-import lombok.Builder;
 import maple.expectation.error.ErrorCode;
 import maple.expectation.error.exception.base.BaseException;
 import org.springframework.http.ResponseEntity;
 
 public record ErrorResponse(int status, String code, String message, LocalDateTime timestamp) {
 
-  @Builder
-  public ErrorResponse {}
+  public static ErrorResponseBuilder builder() {
+    return new ErrorResponseBuilder();
+  }
+
+  public static class ErrorResponseBuilder {
+    private Integer status;
+    private String code;
+    private String message;
+    private LocalDateTime timestamp;
+
+    public ErrorResponseBuilder status(int status) {
+      this.status = status;
+      return this;
+    }
+
+    public ErrorResponseBuilder code(String code) {
+      this.code = code;
+      return this;
+    }
+
+    public ErrorResponseBuilder message(String message) {
+      this.message = message;
+      return this;
+    }
+
+    public ErrorResponseBuilder timestamp(LocalDateTime timestamp) {
+      this.timestamp = timestamp;
+      return this;
+    }
+
+    public ErrorResponse build() {
+      return new ErrorResponse(
+          status != null ? status : 500,
+          code != null ? code : "E000",
+          message != null ? message : "Unknown error",
+          timestamp != null ? timestamp : LocalDateTime.now());
+    }
+  }
 
   /**
    * [방법 1] BaseException을 받는 경우 (비즈니스 예외) e.getMessage()를 통해 동적으로 가공된 메시지(예: 어떤 유저가 없는지)를 전달합니다.

@@ -3,7 +3,6 @@ package maple.expectation.infrastructure.queue;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
@@ -62,7 +61,6 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class IdempotencyGuard {
 
   private static final String STATUS_PROCESSING = "PROCESSING";
@@ -71,10 +69,19 @@ public class IdempotencyGuard {
   private final RedissonClient redissonClient;
   private final LogicExecutor executor;
   private final MeterRegistry meterRegistry;
+  private final int ttlHours;
 
   /** 멱등성 키 TTL (기본값: 24시간) */
-  @Value("${idempotency.ttl-hours:24}")
-  private int ttlHours;
+  public IdempotencyGuard(
+      RedissonClient redissonClient,
+      LogicExecutor executor,
+      MeterRegistry meterRegistry,
+      @Value("${idempotency.ttl-hours:24}") int ttlHours) {
+    this.redissonClient = redissonClient;
+    this.executor = executor;
+    this.meterRegistry = meterRegistry;
+    this.ttlHours = ttlHours;
+  }
 
   /**
    * 처리 시작 시도 (SETNX 패턴)

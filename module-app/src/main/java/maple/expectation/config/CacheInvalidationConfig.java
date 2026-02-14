@@ -96,11 +96,12 @@ public class CacheInvalidationConfig implements SmartInitializingSingleton {
       log.warn(
           "[CacheInvalidationConfig] CacheManager is not TieredCacheManager, "
               + "cache invalidation subscriber will not work properly");
-      return new RedisCacheInvalidationSubscriber(redissonClient, null, executor, meterRegistry);
+      return new RedisCacheInvalidationSubscriber(
+          redissonClient, null, executor, meterRegistry, instanceId);
     }
 
     return new RedisCacheInvalidationSubscriber(
-        redissonClient, tieredManager, executor, meterRegistry);
+        redissonClient, tieredManager, executor, meterRegistry, instanceId);
   }
 
   /**

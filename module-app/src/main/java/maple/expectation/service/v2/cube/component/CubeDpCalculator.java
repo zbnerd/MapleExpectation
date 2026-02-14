@@ -4,10 +4,10 @@ import java.util.List;
 import java.util.stream.IntStream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.domain.model.calculator.DensePmf;
+import maple.expectation.domain.model.calculator.SparsePmf;
 import maple.expectation.domain.v2.CubeType;
 import maple.expectation.dto.CubeCalculationInput;
-import maple.expectation.service.v2.cube.dto.DensePmf;
-import maple.expectation.service.v2.cube.dto.SparsePmf;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Component;
 

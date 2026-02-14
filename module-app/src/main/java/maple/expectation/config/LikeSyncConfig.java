@@ -38,12 +38,15 @@ public class LikeSyncConfig {
 
   private static final String STRATEGY_LUA = "lua";
   private static final String STRATEGY_RENAME = "rename";
+  private final String strategyType;
+  private final int tempKeyTtlSeconds;
 
-  @Value("${like.sync.strategy:lua}")
-  private String strategyType;
-
-  @Value("${like.sync.temp-key-ttl-seconds:3600}")
-  private int tempKeyTtlSeconds;
+  public LikeSyncConfig(
+      @Value("${like.sync.strategy:lua}") String strategyType,
+      @Value("${like.sync.temp-key-ttl-seconds:3600}") int tempKeyTtlSeconds) {
+    this.strategyType = strategyType;
+    this.tempKeyTtlSeconds = tempKeyTtlSeconds;
+  }
 
   /**
    * AtomicFetchStrategy Bean 등록

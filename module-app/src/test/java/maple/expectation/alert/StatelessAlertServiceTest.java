@@ -38,7 +38,9 @@ class StatelessAlertServiceTest {
     // Inject mock strategy
     when(channelStrategy.getChannel(AlertPriority.CRITICAL)).thenReturn(mockChannel);
 
-    StatelessAlertService service = new StatelessAlertService(channelStrategy, logicExecutor);
+    StatelessAlertService service =
+        new StatelessAlertService(
+            channelStrategy, logicExecutor, "https://discord.example.com/webhook");
 
     // Should not throw exception
     service.sendCritical("Test Critical", "Test message", null);
@@ -52,7 +54,9 @@ class StatelessAlertServiceTest {
 
     when(channelStrategy.getChannel(AlertPriority.CRITICAL)).thenReturn(mockChannel);
 
-    StatelessAlertService service = new StatelessAlertService(channelStrategy, logicExecutor);
+    StatelessAlertService service =
+        new StatelessAlertService(
+            channelStrategy, logicExecutor, "https://discord.example.com/webhook");
 
     // Should log warning but not throw exception
     service.sendCritical("Test Critical", "Test message", null);
@@ -66,7 +70,9 @@ class StatelessAlertServiceTest {
 
     when(channelStrategy.getChannel(AlertPriority.CRITICAL)).thenReturn(discordChannel);
 
-    StatelessAlertService service = new StatelessAlertService(channelStrategy, logicExecutor);
+    StatelessAlertService service =
+        new StatelessAlertService(
+            channelStrategy, logicExecutor, "https://discord.example.com/webhook");
 
     AlertChannel result = channelStrategy.getChannel(AlertPriority.CRITICAL);
     assertEquals("discord", result.getChannelName());

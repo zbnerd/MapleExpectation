@@ -2,20 +2,15 @@ package maple.expectation.service.v2;
 
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.aop.annotation.ObservedTransaction;
 import maple.expectation.domain.v2.GameCharacter;
-import maple.expectation.error.exception.ApiTimeoutException;
 import maple.expectation.error.exception.CharacterNotFoundException;
-import maple.expectation.error.exception.InternalSystemException;
-import maple.expectation.error.exception.base.BaseException;
 import maple.expectation.external.NexonApiClient;
 import maple.expectation.external.dto.v2.CharacterBasicResponse;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.repository.v2.GameCharacterRepository;
-import maple.expectation.util.ExceptionUtils;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
@@ -157,30 +152,17 @@ public class GameCharacterService {
     CharacterBasicResponse basicInfo =
         cache.get(
             ocid,
-            () -> {
-              try {
-                log.info("🔄 [Enrich] 캐릭터 기본 정보 API 호출: {} (캐시 MISS)", character.getUserIgn());
-                return nexonApiClient
-                    .getCharacterBasic(ocid)
-                    .orTimeout(API_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-                    .join();
-              } catch (Exception e) {
-                Throwable unwrapped = ExceptionUtils.unwrapAsyncException(e);
-                // Issue #284 P0: TimeoutException 감지 → 서킷브레이커 기록
-                if (unwrapped instanceof TimeoutException) {
-                  throw new ApiTimeoutException("NexonCharacterBasicAPI", unwrapped);
-                }
-                // BaseException 또는 RuntimeException인 경우 재전파
-                if (e instanceof BaseException be) {
-                  throw be;
-                }
-                if (e instanceof RuntimeException re) {
-                  throw re;
-                }
-                throw new InternalSystemException(
-                    "GameCharacterService.fetchAndUpdateBasicInfo", e);
-              }
-            });
+            () ->
+                executor.execute(
+                    () -> {
+                      log.info(
+                          "🔄 [Enrich] 캐릭터 기본 정보 API 호출: {} (캐시 MISS)", character.getUserIgn());
+                      return nexonApiClient
+                          .getCharacterBasic(ocid)
+                          .orTimeout(API_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                          .join();
+                    },
+                    TaskContext.of("Cache", "LoadCharacterBasic", ocid)));
 
     // 엔티티 업데이트 (메모리)
     updateCharacterWithBasicInfo(character, basicInfo);

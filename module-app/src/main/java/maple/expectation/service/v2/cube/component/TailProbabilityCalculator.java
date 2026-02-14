@@ -1,6 +1,6 @@
 package maple.expectation.service.v2.cube.component;
 
-import maple.expectation.service.v2.cube.dto.DensePmf;
+import maple.expectation.domain.model.calculator.DensePmf;
 import org.springframework.stereotype.Component;
 
 /**

@@ -17,6 +17,7 @@ import maple.expectation.domain.repository.RedisBufferRepository;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.infrastructure.executor.function.ThrowingRunnable;
+import maple.expectation.infrastructure.queue.like.LikeSyncExecutor;
 import maple.expectation.service.v2.cache.LikeBufferStrategy;
 import maple.expectation.service.v2.like.dto.FetchResult;
 import maple.expectation.service.v2.like.metrics.LikeSyncMetricsRecorder;

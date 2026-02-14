@@ -13,6 +13,7 @@ import maple.expectation.infrastructure.security.AuthenticatedUser;
 import maple.expectation.response.ApiResponse;
 import maple.expectation.service.v2.DonationService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -55,6 +56,7 @@ public class DonationController {
    * @return 후원 결과
    */
   @PostMapping("/coffee")
+  @PreAuthorize("hasRole('ADMIN') or hasRole('USER')")
   @Operation(summary = "커피 후원", description = "Admin(개발자)에게 커피를 후원합니다.")
   public CompletableFuture<ResponseEntity<ApiResponse<SendCoffeeResponse>>> sendCoffee(
       @AuthenticationPrincipal AuthenticatedUser user,

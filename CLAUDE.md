@@ -444,3 +444,32 @@ private List<Dto> processActiveUser(Long id) {
 - **Chaos_Report_Template.md**: 카오스 리포트 양식
 - **ISSUE_TEMPLATE.md**: GitHub 이슈 양식
 - **PR_TEMPLATE.md**: Pull Request 양식
+
+## Skills
+
+| 스킬 | 설명 |
+|------|------|
+| verify-module-structure | 멀티 모듈 의존성 방향 검증 (DIP 준수) |
+| verify-package-structure | 패키지 구조 규칙 검증 (global → infrastructure 이관) |
+| verify-circular-dependencies | 순환 의존성 감지 및 해결 추적 |
+| verify-import-style | 불필요한 FQCN 사용 검출 및 import 스타일 준수 검증 |
+| verify-adr | ADR 형식, 상태, 관련 문서 준수 검증 |
+| verify-sequence-diagram | Mermaid 시퀀스 다이어그램 검증 (참여자, 메시지 흐름) |
+| verify-7-core-modules | 7대 핵심 모듈 아키텍처 검증 (Facade, Executor 등) |
+| verify-issue-dod | 이슈 DoD 100% 달성 검증 (체크리스트, 테스트, 문서) |
+| verify-clean-architecture | 클린 아키텍처 준수 검증 (계층 분리, 의존성 방향) |
+| verify-clean-code | 클린 코드 준수 검증 (명명, 함수 길이, 중첩) |
+| verify-solids | SOLID 원칙 준수 검증 (SRP, OCP, LSP, ISP, DIP) |
+| verify-claude-rules | CLAUDE.md와 하위 문서 규칙 위반 검증 |
+| verify-stateless | Stateless 설계 준수 검증 (In-Memory 상태 제거) |
+| verify-scaleout | Scale-out 측면 적절성 검증 (확장 가능성) |
+| verify-security | 보안 취약점 검증 (OWASP Top 10) |
+| verify-concurrency | 동시성 위험성 검증 (Race Condition, Deadlock) |
+| verify-logic-executor | try-catch-finally 사용 시 LogicExecutor/CheckedLogicExecutor 사용 여부 검증 |
+| verify-transactional-aop | @Transactional이나 커스텀 AOP 사용 시 메서드 내부호출 존재 여부 검증 |
+| verify-compilation | 정적 분석으로 컴파일 오류와 테스트 실패 패턴을 사전에 검증 |
+| verify-optional-chaining | Optional 체이닝, Tap 패턴, Checked Exception 구조적 분리 준수 검증 |
+| verify-lambda-hell | 람다 3줄 초과, 중첩 람다, Method Reference 미사용 탐지 |
+| verify-circuit-breaker | Circuit Breaker Marker Interface, Logging Level, Resilience4j 준수 검증 |
+| verify-deprecated-api | @deprecated 기능 사용 탐지, 최신 Best Practice API 사용 확인 |
+| verify-global-error | @RestControllerAdvice, ErrorResponse 형식, Exception Chaining 준수 검증 |

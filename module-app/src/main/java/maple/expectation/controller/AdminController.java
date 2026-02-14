@@ -10,6 +10,7 @@ import maple.expectation.response.ApiResponse;
 import maple.expectation.service.v2.auth.AdminService;
 import maple.expectation.util.StringMaskingUtils;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -51,6 +52,7 @@ public class AdminController {
 
   /** 전체 Admin 목록 조회 */
   @GetMapping("/admins")
+  @PreAuthorize("hasRole('ADMIN')")
   public CompletableFuture<ResponseEntity<ApiResponse<Set<String>>>> getAdmins() {
     return CompletableFuture.supplyAsync(
         () -> {
@@ -69,6 +71,7 @@ public class AdminController {
    * @param request fingerprint가 담긴 요청 (검증됨)
    */
   @PostMapping("/admins")
+  @PreAuthorize("hasRole('ADMIN')")
   public CompletableFuture<ResponseEntity<ApiResponse<String>>> addAdmin(
       @Valid @RequestBody AddAdminRequest request, // ✅ @Valid 추가
       @AuthenticationPrincipal AuthenticatedUser currentUser) {
@@ -90,6 +93,7 @@ public class AdminController {
    * @param fingerprint 제거할 Admin의 fingerprint
    */
   @DeleteMapping("/admins/{fingerprint}")
+  @PreAuthorize("hasRole('ADMIN')")
   public CompletableFuture<ResponseEntity<ApiResponse<String>>> removeAdmin(
       @PathVariable String fingerprint, @AuthenticationPrincipal AuthenticatedUser currentUser) {
 

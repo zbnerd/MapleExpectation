@@ -8,6 +8,7 @@ import java.util.concurrent.CompletableFuture;
 import maple.expectation.application.port.EventPublisher;
 import maple.expectation.domain.event.IntegrationEvent;
 import maple.expectation.domain.nexon.NexonApiCharacterData;
+import maple.expectation.infrastructure.executor.LogicExecutor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -43,7 +44,119 @@ class NexonDataCollectorTest {
 
   @BeforeEach
   void setUp() {
-    collector = new NexonDataCollector(webClient, eventPublisher);
+    // Simple executor that directly executes task (no error handling for test)
+    LogicExecutor executor =
+        new maple.expectation.infrastructure.executor.LogicExecutor() {
+          @Override
+          public <T> T executeOrCatch(
+              maple.expectation.common.function.ThrowingSupplier<T> task,
+              java.util.function.Function<Throwable, T> recovery,
+              maple.expectation.infrastructure.executor.TaskContext context) {
+            try {
+              return task.get();
+            } catch (Throwable t) {
+              return recovery.apply(t);
+            }
+          }
+
+          @Override
+          public <T> T execute(
+              maple.expectation.common.function.ThrowingSupplier<T> task,
+              maple.expectation.infrastructure.executor.TaskContext context) {
+            try {
+              return task.get();
+            } catch (Throwable t) {
+              if (t instanceof RuntimeException) {
+                throw (RuntimeException) t;
+              } else if (t instanceof Exception) {
+                throw new RuntimeException(t);
+              } else {
+                throw new RuntimeException(t);
+              }
+            }
+          }
+
+          @Override
+          public <T> T executeOrDefault(
+              maple.expectation.common.function.ThrowingSupplier<T> task,
+              T defaultValue,
+              maple.expectation.infrastructure.executor.TaskContext context) {
+            try {
+              return task.get();
+            } catch (Throwable t) {
+              return defaultValue;
+            }
+          }
+
+          @Override
+          public void executeVoid(
+              maple.expectation.infrastructure.executor.function.ThrowingRunnable task,
+              maple.expectation.infrastructure.executor.TaskContext context) {
+            try {
+              task.run();
+            } catch (Throwable t) {
+              if (t instanceof RuntimeException) {
+                throw (RuntimeException) t;
+              } else if (t instanceof Exception) {
+                throw new RuntimeException(t);
+              } else {
+                throw new RuntimeException(t);
+              }
+            }
+          }
+
+          @Override
+          public <T> T executeWithFinally(
+              maple.expectation.common.function.ThrowingSupplier<T> task,
+              Runnable finallyBlock,
+              maple.expectation.infrastructure.executor.TaskContext context) {
+            try {
+              return task.get();
+            } catch (Throwable t) {
+              if (t instanceof RuntimeException) {
+                throw (RuntimeException) t;
+              } else if (t instanceof Exception) {
+                throw new RuntimeException(t);
+              } else {
+                throw new RuntimeException(t);
+              }
+            } finally {
+              finallyBlock.run();
+            }
+          }
+
+          @Override
+          public <T> T executeWithTranslation(
+              maple.expectation.common.function.ThrowingSupplier<T> task,
+              maple.expectation.infrastructure.executor.strategy.ExceptionTranslator translator,
+              maple.expectation.infrastructure.executor.TaskContext context) {
+            try {
+              return task.get();
+            } catch (Throwable t) {
+              if (t instanceof RuntimeException) {
+                throw (RuntimeException) t;
+              } else if (t instanceof Exception) {
+                throw new RuntimeException(t);
+              } else {
+                throw new RuntimeException(t);
+              }
+            }
+          }
+
+          @Override
+          public <T> T executeWithFallback(
+              maple.expectation.common.function.ThrowingSupplier<T> task,
+              java.util.function.Function<Throwable, T> fallback,
+              maple.expectation.infrastructure.executor.TaskContext context) {
+            try {
+              return task.get();
+            } catch (Throwable t) {
+              return fallback.apply(t);
+            }
+          }
+        };
+
+    collector = new NexonDataCollector(webClient, eventPublisher, null);
     ReflectionTestUtils.setField(collector, "apiKey", "test-api-key");
   }
 
@@ -70,7 +183,7 @@ class NexonDataCollectorTest {
     // Mock WebClient to return expected data
     // Note: In real testing, we'd mock WebClient internals, but for unit test simplicity
     // we'll rely on integration tests to verify WebClient behavior
-    // This test focuses on the reactive chain structure
+    // This test focuses on reactive chain structure
 
     // For now, we'll test with a mock that returns a Mono
     // In practice, you'd use MockWebServer or similar for full WebClient testing
@@ -89,7 +202,7 @@ class NexonDataCollectorTest {
 
     // Mock WebClient to return error
     // Note: This requires WebClient mocking infrastructure
-    // For now, we'll test the reactive error handling structure
+    // For now, we'll test reactive error handling structure
 
     // When & Then
     // This test requires proper WebClient mocking
@@ -117,5 +230,5 @@ class NexonDataCollectorTest {
   }
 
   // Note: Full reactive testing requires MockWebServer or similar infrastructure
-  // These tests verify the structure is in place. Integration tests will verify behavior.
+  // These tests verify that structure is in place. Integration tests will verify behavior.
 }

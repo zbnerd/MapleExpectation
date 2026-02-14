@@ -4,7 +4,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import java.util.stream.Collectors;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
@@ -41,12 +40,14 @@ import org.springframework.util.StopWatch;
 @Slf4j
 @Aspect
 @Component
-@RequiredArgsConstructor
 @Order(-1)
 public class TraceAspect {
 
-  @Value("${app.aop.trace.enabled:false}")
-  private boolean isTraceEnabled;
+  private final boolean isTraceEnabled;
+
+  public TraceAspect(@Value("${app.aop.trace.enabled:false}") boolean isTraceEnabled) {
+    this.isTraceEnabled = isTraceEnabled;
+  }
 
   private static final int MAX_ARG_LENGTH = 100;
 

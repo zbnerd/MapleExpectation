@@ -67,6 +67,7 @@ public class AiSreService {
   private final AiPromptBuilder promptBuilder;
   private final AiResponseParser responseParser;
   private final AiAnalysisFormatter formatter;
+  private final boolean aiEnabled;
 
   public AiSreService(
       ChatLanguageModel chatModel,
@@ -77,7 +78,8 @@ public class AiSreService {
       @Qualifier("aiTaskExecutor") Executor aiTaskExecutor,
       AiPromptBuilder promptBuilder,
       AiResponseParser responseParser,
-      AiAnalysisFormatter formatter) {
+      AiAnalysisFormatter formatter,
+      @Value("${ai.sre.enabled:false}") boolean aiEnabled) {
     this.chatModel = chatModel;
     this.contextProvider = contextProvider;
     this.piiFilter = piiFilter;
@@ -87,10 +89,8 @@ public class AiSreService {
     this.promptBuilder = promptBuilder;
     this.responseParser = responseParser;
     this.formatter = formatter;
+    this.aiEnabled = aiEnabled;
   }
-
-  @Value("${ai.sre.enabled:false}")
-  private boolean aiEnabled;
 
   /**
    * 에러 분석 수행 (비동기)

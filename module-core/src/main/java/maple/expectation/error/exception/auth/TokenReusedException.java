@@ -25,6 +25,6 @@ public class TokenReusedException extends ClientBaseException
     implements CircuitBreakerIgnoreMarker {
 
   public TokenReusedException() {
-    super(CommonErrorCode.TOKEN_REUSED);
+    super(CommonErrorCode.TOKEN_USED);
   }
 }

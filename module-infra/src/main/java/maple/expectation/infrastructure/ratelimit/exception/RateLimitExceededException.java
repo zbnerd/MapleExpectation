@@ -49,4 +49,33 @@ public class RateLimitExceededException extends ClientBaseException
     super(CommonErrorCode.RATE_LIMIT_EXCEEDED, retryAfterSeconds);
     this.retryAfterSeconds = retryAfterSeconds;
   }
+
+  /**
+   * Rate Limit 초과 예외 생성 (상세 포함)
+   *
+   * @param userId 사용자 ID
+   * @param retryAfterSeconds 재시도까지 대기 시간 (초)
+   * @param capacity 버킷 용량
+   * @param refillRate 리필 속도
+   */
+  public RateLimitExceededException(
+      String userId, int retryAfterSeconds, int capacity, int refillRate) {
+    super(CommonErrorCode.RATE_LIMIT_EXCEEDED, retryAfterSeconds);
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+
+  /**
+   * Rate Limit 초과 예외 생성 (원인 포함)
+   *
+   * @param userId 사용자 ID
+   * @param retryAfterSeconds 재시도까지 대기 시간 (초)
+   * @param capacity 버킷 용량
+   * @param refillRate 리필 속도
+   * @param cause 원인 예외
+   */
+  public RateLimitExceededException(
+      String userId, int retryAfterSeconds, int capacity, int refillRate, Throwable cause) {
+    super(CommonErrorCode.RATE_LIMIT_EXCEEDED, retryAfterSeconds, cause);
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
 }

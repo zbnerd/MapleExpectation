@@ -5,6 +5,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.lang.reflect.Field;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import maple.expectation.domain.model.character.CharacterId;
+import maple.expectation.domain.model.equipment.CharacterEquipment;
+import maple.expectation.domain.model.equipment.EquipmentData;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -13,22 +16,20 @@ import org.junit.jupiter.api.Test;
 /**
  * CharacterEquipment Entity Pure Unit Test Suite
  *
- * <p><b>Purpose:</b> Tests the business logic methods of CharacterEquipment entity without any
+ * <p><b>Purpose:</b> Tests business logic methods of CharacterEquipment entity without any
  * Spring/database dependencies.
  *
  * <p><b>Test Coverage:</b>
  *
  * <ul>
- *   <li>Expiration logic: {@code isExpired()} threshold behavior
- *   <li>Freshness logic: {@code isFresh()} as inverse of {@code isExpired()}
+ *   <li>Expiration logic: {@code isStale()} threshold behavior
+ *   <li>Freshness logic: {@code isFresh()} as inverse of {@code isStale()}
  *   <li>Data presence: {@code hasData()} for various content states
- *   <li>Timestamp behavior: {@code updateData()} updates {@code updatedAt}
+ *   <li>Timestamp behavior: {@code withUpdatedData()} creates new instance
  * </ul>
  *
  * <p><b>Pure Unit Test:</b> No Spring, no database, no @SpringBootTest. Uses reflection to set
  * timestamps for deterministic testing.
- *
- * @see <a href="https://github.com/zbnerd/probabilistic-valuation-engine/issues/120">Issue #120</a>
  */
 @Tag("unit")
 @Tag("characterization")
@@ -40,71 +41,70 @@ class CharacterEquipmentTest {
   // ==================== Test Suite 1: Expiration Logic ====================
 
   @Nested
-  @DisplayName("Expiration logic behavior (isExpired)")
-  class ExpirationLogicTests {
+  @DisplayName("Stale logic behavior (isStale)")
+  class StaleLogicTests {
 
     @Test
     @DisplayName(
-        "GIVEN: updatedAt 25 hours ago WHEN: Check isExpired(Duration.ofHours(24)) THEN: Returns true")
-    void given_dataOlderThanTtl_when_checkExpired_shouldReturnTrue() {
+        "GIVEN: updatedAt 25 hours ago WHEN: Check isStale(Duration.ofHours(24)) THEN: Returns true")
+    void given_dataOlderThanTtl_when_checkStale_shouldReturnTrue() {
       // GIVEN: Equipment updated 25 hours ago
       CharacterEquipment equipment =
           createEquipmentWithTimestamp(TEST_JSON_CONTENT, Duration.ofHours(-25));
 
-      // WHEN: Check if expired with 24-hour TTL
-      boolean isExpired = equipment.isExpired(Duration.ofHours(24));
+      // WHEN: Check if stale with 24-hour TTL
+      boolean isStale = equipment.isStale(Duration.ofHours(24));
 
-      // THEN: Should be expired (25 hours > 24 hours TTL)
-      assertThat(isExpired).as("Data older than TTL (25h > 24h) should be expired").isTrue();
+      // THEN: Should be stale (25 hours > 24 hours TTL)
+      assertThat(isStale).as("Data older than TTL (25h > 24h) should be stale").isTrue();
     }
 
     @Test
     @DisplayName(
-        "GIVEN: updatedAt exactly 24 hours ago WHEN: Check isExpired(Duration.ofHours(24)) THEN: Returns true (boundary is inclusive)")
-    void given_dataExactlyAtThreshold_when_checkExpired_shouldReturnTrue() {
+        "GIVEN: updatedAt exactly 24 hours ago WHEN: Check isStale(Duration.ofHours(24)) THEN: Returns true (boundary is inclusive)")
+    void given_dataExactlyAtThreshold_when_checkStale_shouldReturnTrue() {
       // GIVEN: Equipment updated exactly 24 hours ago
       CharacterEquipment equipment =
           createEquipmentWithTimestamp(TEST_JSON_CONTENT, Duration.ofHours(-24));
 
-      // WHEN: Check if expired with 24-hour TTL
-      boolean isExpired = equipment.isExpired(Duration.ofHours(24));
+      // WHEN: Check if stale with 24-hour TTL
+      boolean isStale = equipment.isStale(Duration.ofHours(24));
 
-      // THEN: Current behavior: EXPIRED at exact threshold
-      // Documents that isBefore() makes boundary inclusive (age >= TTL means expired)
-      assertThat(isExpired)
-          .as("Data at exactly threshold (24h = 24h) is EXPIRED. Boundary is inclusive.")
+      // THEN: Current behavior: STALE at exact threshold
+      assertThat(isStale)
+          .as("Data at exactly threshold (24h = 24h) is STALE. Boundary is inclusive.")
           .isTrue();
     }
 
     @Test
     @DisplayName(
-        "GIVEN: updatedAt 1 minute ago WHEN: Check isExpired(Duration.ofHours(1)) THEN: Returns false (fresh)")
-    void given_recentData_when_checkExpired_shouldReturnFalse() {
+        "GIVEN: updatedAt 1 minute ago WHEN: Check isStale(Duration.ofHours(1)) THEN: Returns false (fresh)")
+    void given_recentData_when_checkStale_shouldReturnFalse() {
       // GIVEN: Equipment updated 1 minute ago
       CharacterEquipment equipment =
           createEquipmentWithTimestamp(TEST_JSON_CONTENT, Duration.ofMinutes(-1));
 
-      // WHEN: Check if expired with 1-hour TTL
-      boolean isExpired = equipment.isExpired(Duration.ofHours(1));
+      // WHEN: Check if stale with 1-hour TTL
+      boolean isStale = equipment.isStale(Duration.ofHours(1));
 
-      // THEN: Should NOT be expired (1 minute < 1 hour)
-      assertThat(isExpired).as("Recent data (1min < 1hour) should be fresh").isFalse();
+      // THEN: Should NOT be stale (1 minute < 1 hour)
+      assertThat(isStale).as("Recent data (1min < 1hour) should be fresh").isFalse();
     }
 
     @Test
     @DisplayName(
-        "GIVEN: null updatedAt WHEN: Check isExpired(any TTL) THEN: Returns true (defensive)")
-    void given_nullUpdatedAt_when_checkExpired_shouldReturnTrue() {
+        "GIVEN: null updatedAt WHEN: Check isStale(any TTL) THEN: Returns true (defensive)")
+    void given_nullUpdatedAt_when_checkStale_shouldReturnTrue() {
       // GIVEN: Equipment with null updatedAt
       CharacterEquipment equipment = createEquipmentWithTimestamp(TEST_JSON_CONTENT, Duration.ZERO);
       setUpdatedAt(equipment, null);
 
-      // WHEN: Check if expired with any TTL
-      boolean isExpired = equipment.isExpired(Duration.ofDays(30));
+      // WHEN: Check if stale with any TTL
+      boolean isStale = equipment.isStale(Duration.ofDays(30));
 
-      // THEN: Should be expired (null treated as expired)
-      assertThat(isExpired)
-          .as("Null updatedAt should be treated as expired regardless of TTL")
+      // THEN: Should be stale (null treated as stale)
+      assertThat(isStale)
+          .as("Null updatedAt should be treated as stale regardless of TTL")
           .isTrue();
     }
   }
@@ -117,14 +117,14 @@ class CharacterEquipmentTest {
 
     @Test
     @DisplayName(
-        "GIVEN: Various ages WHEN: Check isFresh() vs isExpired() THEN: Always returns opposite values")
-    void given_variousAges_when_checkFreshVsExpired_shouldBeOpposite() {
+        "GIVEN: Various ages WHEN: Check isFresh() vs isStale() THEN: Always returns opposite values")
+    void given_variousAges_when_checkFreshVsStale_shouldBeOpposite() {
       // Test cases: (age, ttl) pairs
       Duration[][] testCases = {
         {Duration.ofMinutes(5), Duration.ofHours(1)}, // Fresh
-        {Duration.ofHours(2), Duration.ofHours(1)}, // Expired
+        {Duration.ofHours(2), Duration.ofHours(1)}, // Stale
         {Duration.ofHours(24), Duration.ofHours(24)}, // Boundary (fresh)
-        {Duration.ofHours(25), Duration.ofHours(24)}, // Expired
+        {Duration.ofHours(25), Duration.ofHours(24)}, // Stale
       };
 
       for (Duration[] testCase : testCases) {
@@ -136,21 +136,21 @@ class CharacterEquipmentTest {
             createEquipmentWithTimestamp(TEST_JSON_CONTENT, age.negated());
 
         // WHEN & THEN: Check consistency
-        boolean expired = equipment.isExpired(ttl);
+        boolean stale = equipment.isStale(ttl);
         boolean fresh = equipment.isFresh(ttl);
 
         assertThat(fresh)
             .as(
-                "isFresh(%s) should equal !isExpired(%s) for age %s. Found: fresh=%s, expired=%s",
-                ttl, ttl, age, fresh, expired)
-            .isEqualTo(!expired);
+                "isFresh(%s) should equal !isStale(%s) for age %s. Found: fresh=%s, stale=%s",
+                ttl, ttl, age, fresh, stale)
+            .isEqualTo(!stale);
       }
     }
 
     @Test
-    @DisplayName("GIVEN: Data in the past WHEN: Check isFresh(Duration.ZERO) THEN: Returns false")
+    @DisplayName("GIVEN: Data in past WHEN: Check isFresh(Duration.ZERO) THEN: Returns false")
     void given_pastData_when_checkFreshWithZeroTtl_shouldReturnFalse() {
-      // GIVEN: Equipment updated 1 nanosecond ago (in the past)
+      // GIVEN: Equipment updated 1 nanosecond ago (in past)
       CharacterEquipment equipment =
           createEquipmentWithTimestamp(TEST_JSON_CONTENT, Duration.ofNanos(-1));
 
@@ -171,13 +171,12 @@ class CharacterEquipmentTest {
     @Test
     @DisplayName("GIVEN: null jsonContent WHEN: Check hasData() THEN: Returns false")
     void given_nullJsonContent_when_checkHasData_shouldReturnFalse() {
-      // GIVEN: Equipment with null content
-      CharacterEquipment equipment =
-          CharacterEquipment.builder().ocid("test-ocid").jsonContent(null).build();
+      // GIVEN: Equipment with null content via createEmpty
+      CharacterEquipment equipment = CharacterEquipment.createEmpty(CharacterId.of("test-ocid"));
 
       // WHEN & THEN
       assertThat(equipment.hasData())
-          .as("null jsonContent should return false from hasData()")
+          .as("Empty equipment should return false from hasData()")
           .isFalse();
     }
 
@@ -185,8 +184,7 @@ class CharacterEquipmentTest {
     @DisplayName("GIVEN: empty jsonContent WHEN: Check hasData() THEN: Returns false")
     void given_emptyJsonContent_when_checkHasData_shouldReturnFalse() {
       // GIVEN: Equipment with empty content
-      CharacterEquipment equipment =
-          CharacterEquipment.builder().ocid("test-ocid").jsonContent("").build();
+      CharacterEquipment equipment = createEquipmentWithContent("");
 
       // WHEN & THEN
       assertThat(equipment.hasData())
@@ -198,8 +196,7 @@ class CharacterEquipmentTest {
     @DisplayName("GIVEN: whitespace-only jsonContent WHEN: Check hasData() THEN: Returns false")
     void given_whitespaceJsonContent_when_checkHasData_shouldReturnFalse() {
       // GIVEN: Equipment with whitespace content
-      CharacterEquipment equipment =
-          CharacterEquipment.builder().ocid("test-ocid").jsonContent("   \t\n   ").build();
+      CharacterEquipment equipment = createEquipmentWithContent("   \t\n   ");
 
       // WHEN & THEN
       assertThat(equipment.hasData())
@@ -211,12 +208,23 @@ class CharacterEquipmentTest {
     @DisplayName("GIVEN: valid jsonContent WHEN: Check hasData() THEN: Returns true")
     void given_validJsonContent_when_checkHasData_shouldReturnTrue() {
       // GIVEN: Equipment with valid content
-      CharacterEquipment equipment =
-          CharacterEquipment.builder().ocid("test-ocid").jsonContent(TEST_JSON_CONTENT).build();
+      CharacterEquipment equipment = createEquipmentWithContent(TEST_JSON_CONTENT);
 
       // WHEN & THEN
       assertThat(equipment.hasData())
           .as("Valid jsonContent should return true from hasData()")
+          .isTrue();
+    }
+
+    @Test
+    @DisplayName("GIVEN: empty equipment WHEN: Check isEmpty() THEN: Returns true")
+    void given_emptyEquipment_when_checkIsEmpty_shouldReturnTrue() {
+      // GIVEN: Empty equipment
+      CharacterEquipment equipment = CharacterEquipment.createEmpty(CharacterId.of("test-ocid"));
+
+      // WHEN & THEN
+      assertThat(equipment.isEmpty())
+          .as("Empty equipment should return true from isEmpty()")
           .isTrue();
     }
   }
@@ -224,24 +232,22 @@ class CharacterEquipmentTest {
   // ==================== Test Suite 4: Update Data Behavior ====================
 
   @Nested
-  @DisplayName("Update data behavior")
+  @DisplayName("Update data behavior (immutable withUpdatedData)")
   class UpdateDataTests {
 
     @Test
-    @DisplayName(
-        "GIVEN: New equipment via builder WHEN: Check updatedAt THEN: Is set to current time")
-    void given_newEquipment_viaBuilder_when_checkUpdatedAt_shouldBeSet() {
-      // WHEN: Create equipment via builder
+    @DisplayName("GIVEN: New equipment WHEN: Check updatedAt THEN: Is set to current time")
+    void given_newEquipment_when_checkUpdatedAt_shouldBeSet() {
+      // WHEN: Create equipment via factory
       LocalDateTime beforeCreate = LocalDateTime.now();
-      CharacterEquipment equipment =
-          CharacterEquipment.builder().ocid("test-ocid").jsonContent(TEST_JSON_CONTENT).build();
+      CharacterEquipment equipment = createEquipmentWithContent(TEST_JSON_CONTENT);
       LocalDateTime afterCreate = LocalDateTime.now();
 
       // THEN: updatedAt should be set and within time window
-      assertThat(equipment.getUpdatedAt())
-          .as("Builder should auto-set updatedAt to current time")
+      assertThat(equipment.updatedAt())
+          .as("Factory should auto-set updatedAt to current time")
           .isNotNull();
-      assertThat(equipment.getUpdatedAt())
+      assertThat(equipment.updatedAt())
           .as("updatedAt should be between before and after create time")
           .isAfterOrEqualTo(beforeCreate.minusSeconds(1))
           .isBeforeOrEqualTo(afterCreate.plusSeconds(1));
@@ -249,52 +255,55 @@ class CharacterEquipmentTest {
 
     @Test
     @DisplayName(
-        "GIVEN: Existing equipment WHEN: Call updateData() THEN: updatedAt advances and content updates")
-    void given_existingEquipment_when_updateData_shouldAdvanceTimestamp() {
+        "GIVEN: Existing equipment WHEN: Call withUpdatedData() THEN: Creates new instance with advanced timestamp")
+    void given_existingEquipment_when_withUpdatedData_shouldAdvanceTimestamp() {
       // GIVEN: Existing equipment
-      CharacterEquipment equipment =
-          CharacterEquipment.builder().ocid("test-ocid").jsonContent(TEST_JSON_CONTENT).build();
+      CharacterEquipment equipment = createEquipmentWithContent(TEST_JSON_CONTENT);
 
-      LocalDateTime originalUpdatedAt = equipment.getUpdatedAt();
+      LocalDateTime originalUpdatedAt = equipment.updatedAt();
 
       // Wait a tiny bit to ensure timestamp difference (avoid flaky test)
       // Actually, with reflection we can set a specific timestamp
       setUpdatedAt(equipment, LocalDateTime.now().minusHours(1));
-      originalUpdatedAt = equipment.getUpdatedAt();
+      originalUpdatedAt = equipment.updatedAt();
 
-      // WHEN: Call updateData() to change content
+      // WHEN: Call withUpdatedData() to change content
       String newJson = "{\"updated\": true}";
-      equipment.updateData(newJson);
+      CharacterEquipment updated = equipment.withUpdatedData(newJson);
 
-      // THEN: updatedAt should be newer and content updated
-      assertThat(equipment.getUpdatedAt())
-          .as("updateData() should advance updatedAt timestamp")
+      // THEN: New instance should have newer timestamp and updated content
+      assertThat(updated.updatedAt())
+          .as("withUpdatedData() should advance updatedAt timestamp")
           .isAfter(originalUpdatedAt);
-      assertThat(equipment.getJsonContent())
-          .as("updateData() should update jsonContent")
+      assertThat(updated.jsonContent())
+          .as("withUpdatedData() should update jsonContent")
           .isEqualTo(newJson);
+      // Verify original instance is unchanged (immutability)
+      assertThat(equipment.jsonContent())
+          .as("Original instance should remain unchanged (immutability)")
+          .isEqualTo(TEST_JSON_CONTENT);
     }
 
     @Test
     @DisplayName(
-        "GIVEN: Equipment with specific timestamp WHEN: Check isExpired() THEN: Correctly evaluates based on that timestamp")
-    void given_specificTimestamp_when_checkExpired_shouldUseThatTimestamp() {
+        "GIVEN: Equipment with specific timestamp WHEN: Check isStale() THEN: Correctly evaluates based on that timestamp")
+    void given_specificTimestamp_when_checkStale_shouldUseThatTimestamp() {
       // GIVEN: Equipment with timestamp 10 minutes ago
       CharacterEquipment equipment =
           createEquipmentWithTimestamp(TEST_JSON_CONTENT, Duration.ofMinutes(-10));
 
       // WHEN: Check with 15-minute threshold (should be fresh)
-      boolean with15Min = equipment.isExpired(Duration.ofMinutes(15));
+      boolean with15Min = equipment.isStale(Duration.ofMinutes(15));
 
-      // WHEN: Check with 5-minute threshold (should be expired)
-      boolean with5Min = equipment.isExpired(Duration.ofMinutes(5));
+      // WHEN: Check with 5-minute threshold (should be stale)
+      boolean with5Min = equipment.isStale(Duration.ofMinutes(5));
 
       // THEN: Correct evaluation
       assertThat(with15Min)
-          .as("Equipment updated 10min ago should NOT be expired with 15min threshold")
+          .as("Equipment updated 10min ago should NOT be stale with 15min threshold")
           .isFalse();
       assertThat(with5Min)
-          .as("Equipment updated 10min ago SHOULD be expired with 5min threshold")
+          .as("Equipment updated 10min ago SHOULD be stale with 5min threshold")
           .isTrue();
     }
   }
@@ -310,7 +319,7 @@ class CharacterEquipmentTest {
    */
   private CharacterEquipment createEquipmentWithTimestamp(String jsonContent, Duration offset) {
     CharacterEquipment equipment =
-        CharacterEquipment.builder().ocid("test-ocid").jsonContent(jsonContent).build();
+        CharacterEquipment.create(CharacterId.of("test-ocid"), EquipmentData.of(jsonContent));
 
     LocalDateTime targetTime = LocalDateTime.now().plus(offset);
     setUpdatedAt(equipment, targetTime);
@@ -319,13 +328,13 @@ class CharacterEquipmentTest {
   }
 
   /**
-   * Creates CharacterEquipment with current timestamp.
+   * Creates CharacterEquipment with specific content.
    *
    * @param jsonContent The JSON content
    * @return CharacterEquipment
    */
-  private CharacterEquipment createEquipmentWithTimestamp(String jsonContent) {
-    return CharacterEquipment.builder().ocid("test-ocid").jsonContent(jsonContent).build();
+  private CharacterEquipment createEquipmentWithContent(String jsonContent) {
+    return CharacterEquipment.create(CharacterId.of("test-ocid"), EquipmentData.of(jsonContent));
   }
 
   /**

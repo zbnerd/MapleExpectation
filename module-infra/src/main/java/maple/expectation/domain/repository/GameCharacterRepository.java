@@ -2,7 +2,7 @@ package maple.expectation.domain.repository;
 
 import java.util.List;
 import java.util.Optional;
-import maple.expectation.domain.v2.GameCharacter;
+import maple.expectation.domain.model.character.GameCharacter;
 
 /**
  * GameCharacter Repository Interface (Port)

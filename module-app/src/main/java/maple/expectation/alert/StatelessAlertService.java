@@ -1,6 +1,5 @@
 package maple.expectation.alert;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.alert.channel.AlertChannel;
 import maple.expectation.alert.message.AlertMessage;
@@ -31,15 +30,21 @@ import org.springframework.stereotype.Service;
  * @since 2025-02-12
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class StatelessAlertService implements AlertPublisher {
 
   private final AlertChannelStrategy channelStrategy;
   private final LogicExecutor executor;
+  private final String discordWebhookUrl;
 
-  @Value("${alert.discord.webhook-url:}")
-  private String discordWebhookUrl;
+  public StatelessAlertService(
+      AlertChannelStrategy channelStrategy,
+      LogicExecutor executor,
+      @Value("${alert.discord.webhook-url:}") String discordWebhookUrl) {
+    this.channelStrategy = channelStrategy;
+    this.executor = executor;
+    this.discordWebhookUrl = discordWebhookUrl;
+  }
 
   /**
    * Send CRITICAL alert - Stateless, no Redis/DB dependency

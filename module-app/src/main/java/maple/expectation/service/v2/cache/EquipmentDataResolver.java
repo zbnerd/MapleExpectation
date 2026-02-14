@@ -2,7 +2,6 @@ package maple.expectation.service.v2.cache;
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -152,6 +151,10 @@ public class EquipmentDataResolver {
    *
    * <p>fire-and-forget 비동기 처리
    *
+   * <h4>CLAUDE.md Section 12 준수</h4>
+   *
+   * <p>Raw try-catch 금지 → LogicExecutor.executeWithTranslation() 사용
+   *
    * @see ApiTimeoutException 서킷브레이커 기록되는 타임아웃 예외
    */
   private CompletableFuture<byte[]> fetchFromNexonApiAndSave(String ocid) {
@@ -163,28 +166,34 @@ public class EquipmentDataResolver {
         // P2 Fix: thenApplyAsync로 ThreadLocal 전파 보장 (PR #160 Codex 지적)
         // expectationExecutor에 contextPropagatingDecorator가 설정되어 있음
         .thenApplyAsync(
-            compressedData -> {
-              // DB 저장용 decompress (GzipStringConverter가 저장 시 다시 compress)
-              // fire-and-forget: 비동기 + non-blocking
-              try {
-                String json = GzipUtils.decompress(compressedData);
-                dbWorker
-                    .persistRawJson(ocid, json)
-                    .exceptionally(
-                        ex -> {
-                          log.warn(
-                              "[DataResolver] DB save failed (non-blocking): {}", ex.getMessage());
-                          dbSaveFailCounter.increment();
-                          return null;
-                        });
-              } catch (IOException e) {
-                log.warn("[DataResolver] Decompress failed (non-blocking): {}", e.getMessage());
-              }
+            compressedData ->
+                executor.executeWithFallback(
+                    () -> {
+                      // DB 저장용 decompress (GzipStringConverter가 저장 시 다시 compress)
+                      String json = GzipUtils.decompress(compressedData);
+                      // fire-and-forget: 비동기 + non-blocking
+                      dbWorker
+                          .persistRawJson(ocid, json)
+                          .exceptionally(
+                              ex -> {
+                                log.warn(
+                                    "[DataResolver] DB save failed (non-blocking): {}",
+                                    ex.getMessage());
+                                dbSaveFailCounter.increment();
+                                return null;
+                              });
 
-              // Parser에게는 압축 상태로 전달 (스트리밍 의도 유지)
-              // EquipmentStreamingParser가 GZIPInputStream으로 스트리밍 해제
-              return compressedData;
-            },
+                      // Parser에게는 압축 상태로 전달 (스트리밍 의도 유지)
+                      // EquipmentStreamingParser가 GZIPInputStream으로 스트리밍 해제
+                      return compressedData;
+                    },
+                    ex -> {
+                      // IOException 발생 시 로그만 남기고 compressedData 반환
+                      log.warn(
+                          "[DataResolver] Decompress failed (non-blocking): {}", ex.getMessage());
+                      return compressedData;
+                    },
+                    TaskContext.of("DataResolver", "DecompressAndSave", ocid)),
             expectationExecutor);
   }
 }

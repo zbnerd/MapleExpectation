@@ -12,6 +12,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
+import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
@@ -20,6 +21,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
 import maple.expectation.error.exception.InvalidCharacterStateException;
+import maple.expectation.infrastructure.persistence.entity.CharacterEquipmentJpaEntity;
 import org.hibernate.annotations.NotFound;
 import org.hibernate.annotations.NotFoundAction;
 
@@ -27,8 +29,12 @@ import org.hibernate.annotations.NotFoundAction;
  * GameCharacter 엔티티 (Rich Domain Model)
  *
  * <p>Issue #120: 캐릭터 상태 검증 로직 캡슐화
+ *
+ * <p><b>NOTE:</b> Legacy v2 entity - table name renamed to avoid conflict with clean architecture
+ * {@code GameCharacterJpaEntity}
  */
 @Entity
+@Table(name = "game_character_v2")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @ToString(exclude = "equipment")
@@ -89,7 +95,7 @@ public class GameCharacter {
       updatable = false,
       foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
   @NotFound(action = NotFoundAction.IGNORE)
-  private CharacterEquipment equipment;
+  private CharacterEquipmentJpaEntity equipment;
 
   @Version private Long version;
 

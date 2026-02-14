@@ -4,7 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.concurrent.CompletableFuture;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.domain.v2.CharacterEquipment;
+import maple.expectation.domain.model.equipment.CharacterEquipment;
+import maple.expectation.domain.repository.CharacterEquipmentRepository;
 import maple.expectation.error.exception.CharacterNotFoundException;
 import maple.expectation.error.exception.EquipmentDataProcessingException;
 import maple.expectation.error.exception.ExternalServiceException;
@@ -12,7 +13,6 @@ import maple.expectation.error.exception.marker.CircuitBreakerIgnoreMarker;
 import maple.expectation.external.dto.v2.EquipmentResponse;
 import maple.expectation.infrastructure.executor.CheckedLogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
-import maple.expectation.repository.v2.CharacterEquipmentRepository;
 import maple.expectation.util.ExceptionUtils;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
@@ -124,7 +124,10 @@ public class FallbackHandler {
     // 1. DB에서 만료된 캐시라도 찾기 (Scenario A)
     // convertToResponse 내부에서 CheckedLogicExecutor로 JSON 역직렬화 관측성 확보
     EquipmentResponse cachedData =
-        equipmentRepository.findById(ocid).map(this::convertToResponse).orElse(null);
+        equipmentRepository
+            .findById(maple.expectation.domain.model.character.CharacterId.of(ocid))
+            .map(entity -> convertToResponse(entity))
+            .orElse(null);
 
     if (cachedData != null) {
       log.warn("[Scenario A] 만료된 캐시 데이터 반환 (Degrade)");
@@ -155,11 +158,11 @@ public class FallbackHandler {
    */
   private EquipmentResponse convertToResponse(CharacterEquipment entity) {
     return checkedExecutor.executeUnchecked(
-        () -> objectMapper.readValue(entity.getJsonContent(), EquipmentResponse.class),
-        TaskContext.of("NexonApi", "DeserializeCache", entity.getOcid()),
+        () -> objectMapper.readValue(entity.jsonContent(), EquipmentResponse.class),
+        TaskContext.of("NexonApi", "DeserializeCache", entity.ocid()),
         e ->
             new EquipmentDataProcessingException(
-                "JSON 역직렬화 실패 [ocid=" + entity.getOcid() + "]: " + e.getMessage(), e));
+                "JSON 역직렬화 실패 [ocid=" + entity.ocid() + "]: " + e.getMessage(), e));
   }
 
   /**

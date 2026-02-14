@@ -8,7 +8,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.domain.v2.CharacterEquipment;
+import maple.expectation.domain.model.equipment.CharacterEquipment;
 import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.dto.v4.EquipmentExpectationResponseV4;
 import maple.expectation.parser.EquipmentStreamingParser;
@@ -66,13 +66,18 @@ class EquipmentExpectationServiceV4SingleflightTest extends IntegrationTestSuppo
               characterRepository.save(character);
 
               // CharacterEquipment는 ocid로 연결 (동일 ocid 사용)
-              CharacterEquipment equipment =
-                  CharacterEquipment.builder()
-                      .ocid(TEST_OCID)
-                      .jsonContent(createMinimalEquipmentJson())
-                      .build();
+              CharacterEquipment domainEquipment =
+                  CharacterEquipment.create(
+                      maple.expectation.domain.model.character.CharacterId.of(TEST_OCID),
+                      maple.expectation.domain.model.equipment.EquipmentData.of(
+                          createMinimalEquipmentJson()));
 
-              character.setEquipment(equipment);
+              maple.expectation.infrastructure.persistence.entity.CharacterEquipmentJpaEntity
+                  jpaEntity =
+                      new maple.expectation.infrastructure.persistence.entity
+                          .CharacterEquipmentJpaEntity(TEST_OCID, domainEquipment.jsonContent());
+
+              character.setEquipment(jpaEntity);
               characterRepository.save(character);
             });
   }

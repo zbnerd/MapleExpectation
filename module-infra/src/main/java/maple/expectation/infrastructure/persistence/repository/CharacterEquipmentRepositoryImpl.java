@@ -43,7 +43,7 @@ public class CharacterEquipmentRepositoryImpl
       throw new IllegalArgumentException("Equipment cannot be null");
     }
 
-    CharacterId id = equipment.getCharacterId();
+    CharacterId id = equipment.characterId();
     Optional<CharacterEquipmentJpaEntity> existing = jpaRepo.findById(id.value());
 
     if (existing.isPresent()) {

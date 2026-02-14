@@ -226,7 +226,10 @@ app:
     archive-directory: /tmp/maple-shutdown/processed
   buffer:
     redis:
-      enabled: true  # V5 Stateless (#271): Redis Only 모드 활성화
+      # Redis Only 모드 활성화 (필수: true)
+      # Scale-out 환경에서 데이터 유실 방지를 위해 반드시 true 유지
+      # false 설정 시 In-Memory 버퍼 사용 → 인스턴스 장애 시 데이터 유실
+      enabled: true
   monitoring:
     grafana:
       dashboards-path: ./grafana/dashboards

@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.domain.model.calculator.SparsePmf;
 import maple.expectation.domain.repository.CubeProbabilityRepository;
 import maple.expectation.domain.v2.CubeProbability;
 import maple.expectation.domain.v2.CubeType;
@@ -12,7 +13,6 @@ import maple.expectation.error.exception.ProbabilityInvariantException;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.service.v2.cube.config.TableMassConfig;
-import maple.expectation.service.v2.cube.dto.SparsePmf;
 import maple.expectation.util.StatType;
 import org.springframework.stereotype.Component;
 

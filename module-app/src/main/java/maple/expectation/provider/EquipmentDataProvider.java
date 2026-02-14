@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.external.dto.v2.EquipmentResponse;
 import maple.expectation.infrastructure.executor.LogicExecutor;
@@ -16,15 +15,23 @@ import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class EquipmentDataProvider {
 
   private final EquipmentFetchProvider fetchProvider;
   private final ObjectMapper objectMapper;
   private final LogicExecutor executor; // ✅ 지능형 실행 엔진 주입
+  private final boolean USE_COMPRESSION;
 
-  @Value("${app.optimization.use-compression:true}")
-  private boolean USE_COMPRESSION;
+  public EquipmentDataProvider(
+      EquipmentFetchProvider fetchProvider,
+      ObjectMapper objectMapper,
+      LogicExecutor executor,
+      @Value("${app.optimization.use-compression:true}") boolean useCompression) {
+    this.fetchProvider = fetchProvider;
+    this.objectMapper = objectMapper;
+    this.executor = executor;
+    this.USE_COMPRESSION = useCompression;
+  }
 
   /** ✅ [V3] 원본 데이터 획득 (비동기 및 실행기 통합) */
   public CompletableFuture<byte[]> getRawEquipmentData(String ocid) {

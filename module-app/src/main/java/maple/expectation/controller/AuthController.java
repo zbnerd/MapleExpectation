@@ -12,6 +12,7 @@ import maple.expectation.infrastructure.security.AuthenticatedUser;
 import maple.expectation.response.ApiResponse;
 import maple.expectation.service.v2.auth.AuthService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -85,6 +86,7 @@ public class AuthController {
    * @param user 인증된 사용자 정보
    */
   @DeleteMapping("/logout")
+  @PreAuthorize("hasRole('ADMIN') or hasRole('USER')")
   public ResponseEntity<ApiResponse<Void>> logout(@AuthenticationPrincipal AuthenticatedUser user) {
 
     authService.logout(user.sessionId());
@@ -99,6 +101,7 @@ public class AuthController {
    * @return 사용자 정보 (apiKey 제외)
    */
   @GetMapping("/me")
+  @PreAuthorize("hasRole('ADMIN') or hasRole('USER')")
   public ResponseEntity<ApiResponse<UserInfoResponse>> me(
       @AuthenticationPrincipal AuthenticatedUser user) {
 

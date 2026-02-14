@@ -37,19 +37,14 @@ import org.springframework.stereotype.Component;
     matchIfMissing = true)
 public class AlertConfigurationValidator implements ApplicationListener<ContextStartedEvent> {
 
-  @Value("${alert.discord.webhook-url:}")
-  private String discordWebhookUrl;
+  private final String discordWebhookUrl;
+  private final boolean alertEnabled;
 
-  @Value("${alert.stateless.enabled:true}")
-  private boolean alertEnabled;
-
-  /**
-   * Constructor for dependency injection.
-   *
-   * <p>ApplicationListener receives events after all properties are loaded.
-   */
-  public AlertConfigurationValidator() {
-    // Default constructor for @Component
+  public AlertConfigurationValidator(
+      @Value("${alert.discord.webhook-url:}") String discordWebhookUrl,
+      @Value("${alert.stateless.enabled:true}") boolean alertEnabled) {
+    this.discordWebhookUrl = discordWebhookUrl;
+    this.alertEnabled = alertEnabled;
   }
 
   /**

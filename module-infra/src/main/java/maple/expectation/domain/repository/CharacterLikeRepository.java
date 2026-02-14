@@ -2,7 +2,7 @@ package maple.expectation.domain.repository;
 
 import java.util.List;
 import java.util.Optional;
-import maple.expectation.domain.CharacterLike;
+import maple.expectation.domain.model.like.CharacterLike;
 
 /**
  * CharacterLike Repository Interface (Port)

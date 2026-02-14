@@ -29,20 +29,21 @@ public enum CommonErrorCode implements ErrorCode {
   SENDER_MEMBER_NOT_FOUND("A009", "발신자 Member 계정이 존재하지 않습니다 (uuid: %s)", HttpStatus.NOT_FOUND),
   INVALID_REFRESH_TOKEN("A010", "유효하지 않은 Refresh Token입니다.", HttpStatus.UNAUTHORIZED),
   REFRESH_TOKEN_EXPIRED("A011", "Refresh Token이 만료되었습니다. 다시 로그인해주세요.", HttpStatus.UNAUTHORIZED),
-  TOKEN_REUSED("A012", "이미 사용된 토큰입니다. 보안을 위해 재로그인이 필요합니다.", HttpStatus.UNAUTHORIZED),
+  TOKEN_USED("A012", "이미 사용된 토큰입니다. 보안을 위해 재로그인이 필요합니다.", HttpStatus.UNAUTHORIZED),
   SESSION_NOT_FOUND("A013", "세션이 만료되었습니다. 다시 로그인해주세요.", HttpStatus.UNAUTHORIZED),
 
   // === DLQ Errors (4xx) ===
   DLQ_NOT_FOUND("D001", "해당 DLQ 항목을 찾을 수 없습니다 (ID: %s)", HttpStatus.NOT_FOUND),
-  DLQ_ALREADY_REPROCESSED("D002", "이미 재처리된 DLQ 항목입니다 (requestId: %s)", HttpStatus.CONFLICT),
+  DLQ_ALREADY_PROCESSED("D002", "이미 재처리된 DLQ 항목입니다 (requestId: %s)", HttpStatus.CONFLICT),
 
   // === Server Errors (5xx) ===
   INTERNAL_SERVER_ERROR("S001", "서버 내부 오류가 발생했습니다. (%s)", HttpStatus.INTERNAL_SERVER_ERROR),
   DATABASE_TRANSACTION_FAILURE(
-      "S002", "치명적인 트랜잭션 오류가 발생했습니다: %s", HttpStatus.INTERNAL_SERVER_ERROR),
+      "S002", "치명적인 트랜잭션 오류가 발생했습니다. (%s)", HttpStatus.INTERNAL_SERVER_ERROR),
   DATA_INITIALIZATION_FAILED("S003", "데이터 초기화 실패 (대상: %s)", HttpStatus.INTERNAL_SERVER_ERROR),
   DATA_PROCESSING_ERROR("S004", "데이터 처리 중 오류 발생 (%s)", HttpStatus.INTERNAL_SERVER_ERROR),
   EXTERNAL_API_ERROR("S005", "외부 API 호출 실패 (%s)", HttpStatus.SERVICE_UNAVAILABLE),
+  COMPRESSION_ERROR("S998", "압축/압축 해제 오류가 발생했습니다.", HttpStatus.INTERNAL_SERVER_ERROR),
   SYSTEM_CAPACITY_EXCEEDED(
       "S006", "시스템 부하가 임계치를 초과했습니다. (현재 대기량: %s)", HttpStatus.SERVICE_UNAVAILABLE),
   SERVICE_UNAVAILABLE(
@@ -69,7 +70,11 @@ public enum CommonErrorCode implements ErrorCode {
   STARFORCE_TABLE_NOT_INITIALIZED(
       "S015", "스타포스 테이블 초기화가 완료되지 않았습니다.", HttpStatus.SERVICE_UNAVAILABLE),
   CACHE_DATA_NOT_FOUND("S016", "캐시 데이터를 찾을 수 없습니다 (key: %s)", HttpStatus.INTERNAL_SERVER_ERROR),
-  COMPRESSION_ERROR("S998", "압축/압축 해제 오류가 발생했습니다.", HttpStatus.INTERNAL_SERVER_ERROR);
+
+  // === Event Handler Errors ===
+  EVENT_HANDLER_ERROR("E001", "이벤트 핸들러가 잘못되었습니다. (%s)", HttpStatus.INTERNAL_SERVER_ERROR),
+  EVENT_CONSUMER_ERROR("E002", "이벤트 컨슈머가 잘못되었습니다. (%s)", HttpStatus.INTERNAL_SERVER_ERROR),
+  COMMON_ERROR("U999", "알 수 없는 에러 코드입니다.", HttpStatus.INTERNAL_SERVER_ERROR);
 
   private final String code;
   private final String message;

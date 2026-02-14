@@ -50,22 +50,22 @@ public class DiscordAlertService {
   private final DiscordMessageFactory messageFactory;
   private final Optional<AiSreService> aiSreService;
   private final Optional<SystemContextProvider> contextProvider;
-
-  @Value("${alert.discord.webhook-url:}")
-  private String webhookUrl;
-
-  @Value("${ai.sre.enabled:false}")
-  private boolean aiSreEnabled;
+  private final String webhookUrl;
+  private final boolean aiSreEnabled;
 
   public DiscordAlertService(
       @Qualifier("mapleWebClient") WebClient webClient,
       DiscordMessageFactory messageFactory,
       Optional<AiSreService> aiSreService,
-      Optional<SystemContextProvider> contextProvider) {
+      Optional<SystemContextProvider> contextProvider,
+      @Value("${alert.discord.webhook-url:}") String webhookUrl,
+      @Value("${ai.sre.enabled:false}") boolean aiSreEnabled) {
     this.webClient = webClient;
     this.messageFactory = messageFactory;
     this.aiSreService = aiSreService;
     this.contextProvider = contextProvider;
+    this.webhookUrl = webhookUrl;
+    this.aiSreEnabled = aiSreEnabled;
   }
 
   /** Critical Alert 전송 (기존 호환) */

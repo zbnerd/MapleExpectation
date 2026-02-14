@@ -6,12 +6,12 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.domain.v2.CharacterEquipment;
+import maple.expectation.domain.model.equipment.CharacterEquipment;
+import maple.expectation.domain.repository.CharacterEquipmentRepository;
 import maple.expectation.external.dto.v2.EquipmentResponse;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.infrastructure.executor.strategy.ExceptionTranslator;
-import maple.expectation.repository.v2.CharacterEquipmentRepository;
 import maple.expectation.service.v2.shutdown.PersistenceTrackerStrategy;
 import maple.expectation.util.StringMaskingUtils;
 import org.springframework.scheduling.annotation.Async;
@@ -82,10 +82,16 @@ public class EquipmentDbWorker {
             context);
 
     CharacterEquipment entity =
-        repository.findById(ocid).orElseGet(() -> CharacterEquipment.builder().ocid(ocid).build());
+        repository
+            .findById(maple.expectation.domain.model.character.CharacterId.of(ocid))
+            .orElseGet(
+                () ->
+                    CharacterEquipment.createEmpty(
+                        maple.expectation.domain.model.character.CharacterId.of(ocid)));
 
-    entity.updateData(json);
-    repository.saveAndFlush(entity); // 즉시 물리적 저장 보장
+    CharacterEquipment updated =
+        entity.withUpdatedData(maple.expectation.domain.model.equipment.EquipmentData.of(json));
+    repository.save(updated); // 즉시 물리적 저장 보장
   }
 
   // ==================== DB 조회 API (SRP: DB 계층 전담) ====================
@@ -104,7 +110,7 @@ public class EquipmentDbWorker {
         () -> {
           Optional<CharacterEquipment> result =
               repository
-                  .findById(ocid)
+                  .findById(maple.expectation.domain.model.character.CharacterId.of(ocid))
                   .filter(equipment -> equipment.isFresh(DB_TTL)); // Rich Domain
 
           if (result.isPresent()) {
@@ -117,7 +123,7 @@ public class EquipmentDbWorker {
 
           return result
               .filter(CharacterEquipment::hasData) // Rich Domain
-              .map(CharacterEquipment::getJsonContent);
+              .map(CharacterEquipment::jsonContent);
         },
         TaskContext.of("EquipmentDb", "FindValid", ocid));
   }
@@ -164,9 +170,14 @@ public class EquipmentDbWorker {
   /** 헬퍼: Raw JSON 저장 로직 */
   private void performRawSave(String ocid, String json) {
     CharacterEquipment entity =
-        repository.findById(ocid).orElseGet(() -> CharacterEquipment.builder().ocid(ocid).build());
+        repository
+            .findById(maple.expectation.domain.model.character.CharacterId.of(ocid))
+            .orElseGet(
+                () ->
+                    CharacterEquipment.createEmpty(
+                        maple.expectation.domain.model.character.CharacterId.of(ocid)));
 
-    entity.updateData(json);
-    repository.saveAndFlush(entity);
+    CharacterEquipment updated = entity.withUpdatedData(json);
+    repository.save(updated);
   }
 }

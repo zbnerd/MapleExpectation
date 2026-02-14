@@ -14,6 +14,7 @@ import org.springframework.context.annotation.Configuration;
  *   <li>BatchProperties - Batch sizes across services
  *   <li>DiscordTimeoutProperties - Discord webhook timeouts
  *   <li>MonitoringThresholdProperties - Monitoring alert thresholds
+ *   <li>AppProperties - Application-wide properties (buffer mode enforcement)
  * </ul>
  *
  * <h3>Configuration in application.yml</h3>
@@ -37,7 +38,8 @@ import org.springframework.context.annotation.Configuration;
 @EnableConfigurationProperties({
   BatchProperties.class,
   DiscordTimeoutProperties.class,
-  MonitoringThresholdProperties.class
+  MonitoringThresholdProperties.class,
+  AppProperties.class
 })
 @RequiredArgsConstructor
 public class PropertiesConfig {

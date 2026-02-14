@@ -3,7 +3,6 @@ package maple.expectation.infrastructure.cache.invalidation.impl;
 import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.infrastructure.cache.TieredCacheManager;
 import maple.expectation.infrastructure.cache.invalidation.CacheInvalidationEvent;
@@ -43,16 +42,26 @@ import org.springframework.cache.Cache;
  * <p>모든 캐시 작업은 executeVoid로 예외 처리
  */
 @Slf4j
-@RequiredArgsConstructor
 public class RedisCacheInvalidationSubscriber implements CacheInvalidationSubscriber {
 
   private final RedissonClient redissonClient;
   private final TieredCacheManager tieredCacheManager;
   private final LogicExecutor executor;
   private final MeterRegistry meterRegistry;
+  private final String instanceId;
 
-  @Value("${app.instance-id:${HOSTNAME:unknown}}")
-  private String instanceId;
+  public RedisCacheInvalidationSubscriber(
+      RedissonClient redissonClient,
+      TieredCacheManager tieredCacheManager,
+      LogicExecutor executor,
+      MeterRegistry meterRegistry,
+      @Value("${app.instance-id:${HOSTNAME:unknown}}") String instanceId) {
+    this.redissonClient = redissonClient;
+    this.tieredCacheManager = tieredCacheManager;
+    this.executor = executor;
+    this.meterRegistry = meterRegistry;
+    this.instanceId = instanceId;
+  }
 
   /** 구독 해제용 리스너 ID */
   private volatile Integer listenerId;

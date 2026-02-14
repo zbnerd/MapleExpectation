@@ -1,7 +1,7 @@
 package maple.expectation.application.dto;
 
 import java.time.LocalDateTime;
-import maple.expectation.domain.CharacterLike;
+import maple.expectation.domain.model.like.CharacterLike;
 
 /**
  * CharacterLike Data Transfer Object
@@ -88,7 +88,7 @@ public class CharacterLikeDto extends BaseDto {
       throw new IllegalArgumentException("Entity must not be null");
     }
     return new CharacterLikeDto(
-        entity.getId(), entity.getTargetOcid(), entity.getLikerAccountId(), entity.getCreatedAt());
+        entity.id(), entity.targetOcid(), entity.likerAccountId(), entity.createdAt());
   }
 
   /**
