@@ -66,3 +66,15 @@ scripts/*
 # Claude Code OMC state files
 .claude/
 .omc/
+
+# Patch/build artifacts
+*.orig
+*.rej
+
+# Verification/analysis reports (temporary)
+claude-rules-verification-report.md
+scaleout-verification-report.md
+
+# Compressed log files
+**/logs/*.gz
+**/logs/**.log.gz
