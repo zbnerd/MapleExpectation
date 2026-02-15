@@ -94,9 +94,7 @@ public class ExpectationCalculationScheduler {
                     () -> {
                       org.springframework.data.domain.PageRequest pageRequest =
                           org.springframework.data.domain.PageRequest.of(currentPage, pageSize);
-                      return gameCharacterRepository
-                          .findAll(pageRequest)
-                          .stream()
+                      return gameCharacterRepository.findAll(pageRequest).stream()
                           .map(character -> addTaskForUser(character.getUserIgn()))
                           .toList()
                           .contains(true);

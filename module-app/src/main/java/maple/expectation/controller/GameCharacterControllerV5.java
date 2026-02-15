@@ -8,7 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.mongodb.CharacterValuationView;
 import maple.expectation.infrastructure.mongodb.CharacterViewQueryService;
-import maple.expectation.service.v5.event.MongoSyncEventPublisher;
+import maple.expectation.service.v5.event.MongoSyncEventPublisherInterface;
 import maple.expectation.service.v5.queue.ExpectationCalculationTask;
 import maple.expectation.service.v5.queue.PriorityCalculationQueue;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -48,7 +48,7 @@ public class GameCharacterControllerV5 {
 
   private final CharacterViewQueryService queryService;
   private final PriorityCalculationQueue queue;
-  private final MongoSyncEventPublisher eventPublisher;
+  private final MongoSyncEventPublisherInterface eventPublisher;
   private final LogicExecutor executor;
 
   /**

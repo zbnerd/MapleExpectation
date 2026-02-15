@@ -44,6 +44,14 @@ spring:
     discord:
       webhook-url: ${ALERT_DISCORD_WEBHOOK_URL:}
 
+  # MongoDB Configuration (V5 CQRS)
+  data:
+    mongodb:
+      host: localhost
+      port: 27017
+      database: maple_expectation_v5
+      auto-index-creation: true
+
 # DP 엔진 테이블 검증 설정
 cube:
   table-mass:

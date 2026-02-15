@@ -35,13 +35,15 @@ public class PriorityCalculationQueue {
 
   public PriorityCalculationQueue(LogicExecutor executor) {
     this.executor = executor;
+    // FIXED: Priority ordering - HIGH (ordinal=0) processed before LOW (ordinal=1)
+    // PriorityBlockingQueue is a min-heap, so smaller ordinal values are processed first
+    // No .reversed() needed - would cause priority inversion
     this.queue =
         new PriorityBlockingQueue<>(
             MAX_QUEUE_SIZE,
             Comparator.comparingInt(
                     (ExpectationCalculationTask task) -> task.getPriority().ordinal())
-                .thenComparing(ExpectationCalculationTask::getCreatedAt)
-                .reversed());
+                .thenComparing(ExpectationCalculationTask::getCreatedAt));
   }
 
   /**
@@ -55,16 +57,23 @@ public class PriorityCalculationQueue {
     return executor.executeOrDefault(
         () -> {
           if (task.getPriority() == QueuePriority.HIGH) {
-            int current = highPriorityCount.get();
-            if (current >= HIGH_PRIORITY_CAPACITY) {
-              log.warn("[Queue] High priority queue full: {}, rejecting", task.getUserIgn());
-              return false;
-            }
+            // FIXED: Atomic check-and-increment to prevent race condition
+            // Use compareAndSet loop to ensure highPriorityCount never exceeds capacity
+            int current;
+            do {
+              current = highPriorityCount.get();
+              if (current >= HIGH_PRIORITY_CAPACITY) {
+                log.warn("[Queue] High priority queue full: {}, rejecting", task.getUserIgn());
+                return false;
+              }
+            } while (!highPriorityCount.compareAndSet(current, current + 1));
           }
 
           boolean added = queue.offer(task);
-          if (added && task.getPriority() == QueuePriority.HIGH) {
-            highPriorityCount.incrementAndGet();
+          if (!added && task.getPriority() == QueuePriority.HIGH) {
+            // Rollback counter if queue rejected the task
+            highPriorityCount.decrementAndGet();
+            log.warn("[Queue] Queue full, rejecting: {}", task.getUserIgn());
           }
           return added;
         },
