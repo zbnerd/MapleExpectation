@@ -7,11 +7,11 @@ import maple.expectation.application.port.LikeRelationBufferStrategy;
 import maple.expectation.application.port.PersistenceTrackerStrategy;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.queue.like.AtomicLikeToggleExecutor;
+import maple.expectation.infrastructure.queue.like.LikeSyncExecutor;
 import maple.expectation.infrastructure.queue.like.PartitionedFlushStrategy;
 import maple.expectation.infrastructure.queue.like.RedisLikeBufferStorage;
 import maple.expectation.infrastructure.queue.like.RedisLikeRelationBuffer;
 import maple.expectation.infrastructure.queue.persistence.RedisEquipmentPersistenceTracker;
-import maple.expectation.service.v2.LikeSyncExecutor;
 import org.redisson.api.RedissonClient;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -116,8 +116,9 @@ public class LikeBufferConfig {
     }
 
     log.info("[LikeBufferConfig] Partitioned Flush Strategy ENABLED");
+    // LikeSyncExecutor.executeIncrement(String, Long)를 BiConsumer<String, Long>로 래핑
     return new PartitionedFlushStrategy(
-        redissonClient, redisBuffer, executor, meterRegistry, syncExecutor);
+        redissonClient, redisBuffer, executor, meterRegistry, syncExecutor::executeIncrement);
   }
 
   /**
