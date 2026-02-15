@@ -6,7 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
-import maple.expectation.repository.v2.GameCharacterRepository;
+import maple.expectation.infrastructure.persistence.repository.GameCharacterRepository;
 import maple.expectation.service.ingestion.NexonDataCollector;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;

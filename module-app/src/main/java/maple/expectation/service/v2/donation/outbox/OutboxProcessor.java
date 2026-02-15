@@ -8,7 +8,7 @@ import maple.expectation.config.OutboxProperties;
 import maple.expectation.domain.v2.DonationOutbox;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
-import maple.expectation.repository.v2.DonationOutboxRepository;
+import maple.expectation.infrastructure.persistence.repository.DonationOutboxRepository;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;

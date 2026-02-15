@@ -15,7 +15,7 @@ import maple.expectation.error.exception.DistributedLockException;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.infrastructure.lock.LockStrategy;
-import maple.expectation.repository.v2.EquipmentExpectationSummaryRepository;
+import maple.expectation.infrastructure.persistence.repository.EquipmentExpectationSummaryRepository;
 import maple.expectation.service.v4.buffer.ExpectationWriteBackBuffer;
 import maple.expectation.service.v4.buffer.ExpectationWriteTask;
 import org.junit.jupiter.api.BeforeEach;

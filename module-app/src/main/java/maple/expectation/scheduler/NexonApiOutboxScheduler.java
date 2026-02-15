@@ -22,7 +22,8 @@ import org.springframework.stereotype.Component;
  *
  * <h3>분산 환경 안전</h3>
  *
- * <p><b>분산 락 미적용 사유</b>: {@link maple.expectation.repository.v2.NexonApiOutboxRepository}의 {@code
+ * <p><b>분산 락 미적용 사유</b>: {@link
+ * maple.expectation.infrastructure.persistence.repository.NexonApiOutboxRepository}의 {@code
  * findPendingWithLock()} 및 {@code findStalledProcessing()} 메서드는 {@code PESSIMISTIC_WRITE} + {@code
  * SKIP LOCKED} 쿼리를 사용하여 DB 레벨에서 중복 처리를 방지합니다.
  *
@@ -42,8 +43,10 @@ import org.springframework.stereotype.Component;
  * </ul>
  *
  * @see NexonApiOutboxProcessor
- * @see maple.expectation.repository.v2.NexonApiOutboxRepository#findPendingWithLock
- * @see maple.expectation.repository.v2.NexonApiOutboxRepository#findStalledProcessing
+ * @see
+ *     maple.expectation.infrastructure.persistence.repository.NexonApiOutboxRepository#findPendingWithLock
+ * @see
+ *     maple.expectation.infrastructure.persistence.repository.NexonApiOutboxRepository#findStalledProcessing
  * @see <a
  *     href="../../../../docs/01_Chaos_Engineering/06_Nightmare/Scenarios/N19-outbox-replay.md">N19
  *     Scenario</a>

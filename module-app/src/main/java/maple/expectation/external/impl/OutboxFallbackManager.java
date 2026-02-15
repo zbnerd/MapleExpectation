@@ -7,7 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import maple.expectation.domain.v2.NexonApiOutbox;
 import maple.expectation.infrastructure.executor.CheckedLogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
-import maple.expectation.repository.v2.NexonApiOutboxRepository;
+import maple.expectation.infrastructure.persistence.repository.NexonApiOutboxRepository;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**

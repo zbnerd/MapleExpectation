@@ -1,4 +1,4 @@
-package maple.expectation.repository.v2;
+package maple.expectation.infrastructure.persistence.repository;
 
 import maple.expectation.domain.v2.DonationHistory;
 import org.springframework.data.jpa.repository.JpaRepository;

@@ -6,13 +6,12 @@ import io.micrometer.core.instrument.Timer;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.domain.v2.DonationOutbox;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
+import maple.expectation.infrastructure.persistence.repository.DonationOutboxRepository;
 import maple.expectation.infrastructure.shutdown.ShutdownProperties;
-import maple.expectation.repository.v2.DonationOutboxRepository;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Component;
 
@@ -46,11 +45,10 @@ import org.springframework.stereotype.Component;
  *
  * @see maple.expectation.infrastructure.shutdown.GracefulShutdownCoordinator
  * @see maple.expectation.service.v2.donation.outbox.OutboxProcessor
- * @see maple.expectation.repository.v2.DonationOutboxRepository
+ * @see maple.expectation.infrastructure.persistence.repository.DonationOutboxRepository
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class OutboxDrainOnShutdown implements SmartLifecycle {
 
   private final DonationOutboxRepository outboxRepository;

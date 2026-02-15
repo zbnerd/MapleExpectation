@@ -9,8 +9,8 @@ import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
+import maple.expectation.infrastructure.persistence.repository.EquipmentExpectationSummaryRepository;
 import maple.expectation.infrastructure.shutdown.ShutdownProperties;
-import maple.expectation.repository.v2.EquipmentExpectationSummaryRepository;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Component;
 

@@ -13,7 +13,7 @@ import maple.expectation.error.exception.base.BaseException;
 import maple.expectation.external.NexonApiClient;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
-import maple.expectation.repository.v2.GameCharacterRepository;
+import maple.expectation.infrastructure.persistence.repository.GameCharacterRepository;
 import maple.expectation.util.ExceptionUtils;
 import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;

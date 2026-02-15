@@ -1,4 +1,4 @@
-package maple.expectation.repository.v2;
+package maple.expectation.infrastructure.persistence.repository;
 
 import java.sql.PreparedStatement;
 import java.sql.SQLException;

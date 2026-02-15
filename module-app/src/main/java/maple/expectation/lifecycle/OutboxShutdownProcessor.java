@@ -7,8 +7,8 @@ import lombok.extern.slf4j.Slf4j;
 import maple.expectation.domain.v2.DonationOutbox;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
+import maple.expectation.infrastructure.persistence.repository.DonationOutboxRepository;
 import maple.expectation.infrastructure.shutdown.ShutdownProperties;
-import maple.expectation.repository.v2.DonationOutboxRepository;
 import org.springframework.stereotype.Component;
 
 /**

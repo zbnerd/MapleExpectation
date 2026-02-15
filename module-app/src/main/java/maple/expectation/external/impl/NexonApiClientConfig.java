@@ -6,7 +6,7 @@ import lombok.RequiredArgsConstructor;
 import maple.expectation.alert.StatelessAlertService;
 import maple.expectation.domain.repository.CharacterEquipmentRepository;
 import maple.expectation.infrastructure.executor.CheckedLogicExecutor;
-import maple.expectation.repository.v2.NexonApiOutboxRepository;
+import maple.expectation.infrastructure.persistence.repository.NexonApiOutboxRepository;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.transaction.support.TransactionTemplate;
