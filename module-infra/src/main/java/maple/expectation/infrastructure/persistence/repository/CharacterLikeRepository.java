@@ -1,7 +1,7 @@
 package maple.expectation.infrastructure.persistence.repository;
 
 import java.util.Optional;
-import maple.expectation.domain.model.like.CharacterLike;
+import maple.expectation.infrastructure.persistence.entity.CharacterLikeJpaEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.stereotype.Repository;
@@ -13,7 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>중복 좋아요 검사 및 통계 조회 기능 제공
  */
 @Repository
-public interface CharacterLikeRepository extends JpaRepository<CharacterLike, Long> {
+public interface CharacterLikeRepository extends JpaRepository<CharacterLikeJpaEntity, Long> {
 
   /**
    * 특정 캐릭터에 대해 특정 계정이 이미 좋아요를 눌렀는지 확인
@@ -31,7 +31,7 @@ public interface CharacterLikeRepository extends JpaRepository<CharacterLike, Lo
    * @param likerAccountId 좋아요를 누른 넥슨 계정 식별자
    * @return 좋아요 (Optional)
    */
-  Optional<CharacterLike> findByTargetOcidAndLikerAccountId(
+  Optional<CharacterLikeJpaEntity> findByTargetOcidAndLikerAccountId(
       String targetOcid, String likerAccountId);
 
   /**

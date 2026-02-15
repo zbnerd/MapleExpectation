@@ -10,8 +10,7 @@ import org.springframework.web.reactive.function.client.WebClient;
  *
  * <p>Provides test-specific configuration for alert channel tests
  *
- * <p>This configuration creates only the alertWebClient bean to avoid conflicts with the main
- * webclient bean
+ * <p>This configuration creates test-specific beans to avoid conflicts with the main webclient bean
  *
  * @author ADR-0345
  * @since 2025-02-12

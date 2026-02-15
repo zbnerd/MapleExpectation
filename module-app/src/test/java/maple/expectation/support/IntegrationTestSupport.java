@@ -1,6 +1,8 @@
 package maple.expectation.support;
 
+import maple.expectation.config.GlobalTestConfig;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
@@ -13,6 +15,7 @@ import org.springframework.test.context.ActiveProfiles;
  */
 @SpringBootTest(classes = maple.expectation.ExpectationApplication.class)
 @ActiveProfiles("test")
+@Import(GlobalTestConfig.class)
 public abstract class IntegrationTestSupport {
   // Base class for Spring Boot integration tests
   // All test configuration is inherited via annotations
