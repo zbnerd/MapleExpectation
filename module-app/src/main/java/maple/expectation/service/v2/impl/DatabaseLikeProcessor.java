@@ -1,8 +1,8 @@
 package maple.expectation.service.v2.impl;
 
 import lombok.RequiredArgsConstructor;
+import maple.expectation.application.port.LikeBufferStrategy;
 import maple.expectation.service.v2.LikeProcessor;
-import maple.expectation.service.v2.cache.LikeBufferStrategy;
 import org.springframework.stereotype.Component;
 
 /**

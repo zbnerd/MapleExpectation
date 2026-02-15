@@ -7,6 +7,8 @@ spring:
   autoconfigure:
     exclude:
       - dev.langchain4j.openai.spring.AutoConfig
+      - org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
+      - org.springframework.boot.actuate.autoconfigure.security.servlet.ManagementWebSecurityAutoConfiguration
   profiles:
     active: local # [Safety Guard] 별도 설정 없으면 무조건 로컬 모드
   lifecycle:
@@ -519,6 +521,10 @@ shutdown:
   backup-directory: /tmp/maple-shutdown
   archive-directory: /tmp/maple-shutdown/processed
   instance-id: ${app.instance-id}   # Scale-out 인스턴스 식별자
+
+# V5 CQRS Configuration
+v5:
+  enabled: false
 
 # Stateless Alert System Feature Flags (Issue #345: ADR-0345 Phase 3)
 alert:

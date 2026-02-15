@@ -42,8 +42,15 @@ dependencies {
 	runtimeOnly 'com.mysql:mysql-connector-j'
 	runtimeOnly 'com.h2database:h2'
 
+	// MongoDB
+	implementation 'org.springframework.boot:spring-boot-starter-data-mongodb'
+	implementation 'org.mongodb:mongodb-driver-sync:5.2.1'
+
 	// Redis
 	implementation 'org.redisson:redisson-spring-boot-starter:3.48.0'
+
+	// Caffeine Cache
+	implementation 'com.github.ben-manes.caffeine:caffeine:3.1.8'
 
 	// Spring Boot (minimal)
 	implementation 'org.springframework.boot:spring-boot'

@@ -289,6 +289,14 @@ public class SecurityConfig {
                     .requestMatchers(HttpMethod.POST, "/api/v4/characters/**/recalculate")
                     .permitAll()
 
+                    // ★ v5 API (인증 없이 접근 가능 - CQRS)
+                    // GET /api/v5/characters/{userIgn}/expectation - 기대값 조회 (MongoDB)
+                    // POST /api/v5/characters/{userIgn}/expectation/recalculate - 재계산
+                    .requestMatchers(HttpMethod.GET, "/api/v5/characters/**")
+                    .permitAll()
+                    .requestMatchers(HttpMethod.POST, "/api/v5/characters/**/recalculate")
+                    .permitAll()
+
                     // 기존 v1/v2 API (인증 없이 접근 가능 - 점진적 마이그레이션)
                     .requestMatchers(HttpMethod.GET, "/api/v1/characters/**")
                     .permitAll()

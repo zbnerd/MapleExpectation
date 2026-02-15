@@ -10,7 +10,6 @@ import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.repository.v2.CharacterLikeRepository;
 import maple.expectation.service.v2.cache.LikeRelationBuffer;
-import maple.expectation.service.v2.cache.LikeRelationBufferStrategy;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;

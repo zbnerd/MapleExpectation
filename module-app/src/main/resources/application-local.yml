@@ -78,7 +78,7 @@ app:
 # ACL Phase 2: Scheduler Configuration
 scheduler:
   nexon-data-collection:
-    enabled: true
+    enabled: false  # 로컬 개발에서 비활성화
     rate: 600000  # 10 minutes (default)
     initial-delay: 30000  # 30 seconds
 
@@ -95,6 +95,10 @@ outbox:
   scheduler:
     nexon-api-outbox:
       enabled: false
+
+# V5 CQRS Configuration
+v5:
+  enabled: true
 
 # ADR-0345: Resilience4j Configuration for Stateless Alert System
 resilience4j:
