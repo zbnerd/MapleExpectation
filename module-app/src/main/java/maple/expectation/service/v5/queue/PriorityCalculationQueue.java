@@ -72,9 +72,42 @@ public class PriorityCalculationQueue {
         context);
   }
 
+  /**
+   * Add HIGH priority task (user-initiated request)
+   *
+   * @return true if queued, false if rejected (backpressure)
+   */
+  public boolean addHighPriorityTask(String userIgn, boolean forceRecalculation) {
+    return offer(ExpectationCalculationTask.highPriority(userIgn, forceRecalculation));
+  }
+
+  /**
+   * Add LOW priority task (batch/scheduled update)
+   *
+   * @return true if queued, false if rejected (backpressure)
+   */
+  public boolean addLowPriorityTask(String userIgn) {
+    return offer(ExpectationCalculationTask.lowPriority(userIgn));
+  }
+
   /** Poll next task (blocking with timeout) */
   public ExpectationCalculationTask poll() throws InterruptedException {
     return queue.take();
+  }
+
+  /**
+   * Poll next task with timeout (non-blocking when timeout expires)
+   *
+   * @param timeoutMs timeout in milliseconds
+   * @return task or null if timeout
+   */
+  public ExpectationCalculationTask poll(long timeoutMs) {
+    try {
+      return queue.poll(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      return null;
+    }
   }
 
   /** Get current queue size */

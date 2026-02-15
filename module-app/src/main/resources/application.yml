@@ -380,6 +380,10 @@ scheduler:
     enabled: false  # ACL Pipeline: Nexon API 데이터 수집 (Issue #300)
     rate: 600000     # 10분마다 실행 (밀리초)
     initial-delay: 30000  # 시작 30초 후 첫 실행
+  expectation-calculation:
+    enabled: false  # V5 CQRS: 전체 유저 기대값 갱신 스케줄러 (v5.enabled=true时 활성화)
+    fixed-delay-ms: 3600000  # 이전 실행 완료 후 대기 시간 (밀리초, 기본값 1시간)
+    batch-size: 100  # 한 번에 처리할 유저 수 (페이지 단위)
 
 # CORS 설정 (Issue #172: 환경별 분리)
 # 주의: 반드시 환경별 프로필(local/prod)에서 allowed-origins 오버라이드 필요
