@@ -53,7 +53,7 @@ import org.springframework.core.annotation.Order;
  * }</pre>
  *
  * @since 2.4.0
- * @see maple.expectation.global.executor.CheckedLogicExecutor#executeWithFinallyUnchecked
+ * @see maple.expectation.infrastructure.executor.CheckedLogicExecutor#executeWithFinallyUnchecked
  */
 @Slf4j
 @Order(PolicyOrder.FINALLY)

@@ -1,7 +1,6 @@
-package maple.expectation.service.v2.flame.config;
+package maple.expectation.core.domain.flame;
 
 import java.util.Map;
-import maple.expectation.service.v2.flame.FlameType;
 
 /**
  * 환생의 불꽃 단계별 확률 분포

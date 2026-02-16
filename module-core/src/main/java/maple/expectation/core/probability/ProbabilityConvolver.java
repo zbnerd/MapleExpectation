@@ -1,13 +1,8 @@
-package maple.expectation.service.v2.cube.component;
+package maple.expectation.core.probability;
 
 import java.util.List;
-import lombok.RequiredArgsConstructor;
 import maple.expectation.domain.model.calculator.DensePmf;
 import maple.expectation.domain.model.calculator.SparsePmf;
-import maple.expectation.error.exception.ProbabilityInvariantException;
-import maple.expectation.infrastructure.executor.LogicExecutor;
-import maple.expectation.infrastructure.executor.TaskContext;
-import org.springframework.stereotype.Component;
 
 /**
  * DP 합성곱 기반 확률 계산 컴포넌트
@@ -35,11 +30,7 @@ import org.springframework.stereotype.Component;
  *   <li>결과적으로 O(slots × target × K) 보장
  * </ul>
  */
-@Component
-@RequiredArgsConstructor
 public class ProbabilityConvolver {
-
-  private final LogicExecutor executor;
 
   private static final double MASS_TOLERANCE = 1e-12;
   private static final double NEGATIVE_TOLERANCE = -1e-15;
@@ -59,12 +50,10 @@ public class ProbabilityConvolver {
    * @param target 목표 합계
    * @param enableTailClamp Tail Clamp 활성화 여부
    * @return 합성된 DensePmf
-   * @throws ProbabilityInvariantException 불변식 위반 시
+   * @throws IllegalArgumentException 불변식 위반 시
    */
   public DensePmf convolveAll(List<SparsePmf> slotPmfs, int target, boolean enableTailClamp) {
-    return executor.execute(
-        () -> doConvolveWithClamp(slotPmfs, target, enableTailClamp),
-        TaskContext.of("Convolver", "ConvolveAll", "target=" + target));
+    return doConvolveWithClamp(slotPmfs, target, enableTailClamp);
   }
 
   private DensePmf doConvolveWithClamp(
@@ -107,7 +96,7 @@ public class ProbabilityConvolver {
       // P2 Fix (PR #159 Codex 지적): 음수 contribution 가드
       // 상위 파서/추출기 버그 시 ArrayIndexOutOfBoundsException 방지
       if (value < 0) {
-        throw new ProbabilityInvariantException(
+        throw new IllegalArgumentException(
             "음수 contribution 감지: value=" + value + " (slot index=" + k + ")");
       }
 
@@ -126,21 +115,21 @@ public class ProbabilityConvolver {
    * <p>DoD 1e-12 기준 충족을 위해 Kahan summation 사용
    *
    * @param pmf 검증 대상
-   * @throws ProbabilityInvariantException 불변식 위반 시
+   * @throws IllegalArgumentException 불변식 위반 시
    */
   private void validateInvariants(DensePmf pmf) {
     double sum = pmf.totalMassKahan();
     if (Math.abs(sum - 1.0) > MASS_TOLERANCE) {
-      throw new ProbabilityInvariantException("질량 보존 위반: Σp=" + sum);
+      throw new IllegalArgumentException("질량 보존 위반: Σp=" + sum);
     }
     if (pmf.hasNegative(NEGATIVE_TOLERANCE)) {
-      throw new ProbabilityInvariantException("음수 확률 감지");
+      throw new IllegalArgumentException("음수 확률 감지");
     }
     if (pmf.hasNaNOrInf()) {
-      throw new ProbabilityInvariantException("NaN/Inf 감지");
+      throw new IllegalArgumentException("NaN/Inf 감지");
     }
     if (pmf.hasValueExceedingOne()) {
-      throw new ProbabilityInvariantException("확률 > 1 감지");
+      throw new IllegalArgumentException("확률 > 1 감지");
     }
   }
 }

@@ -1,13 +1,9 @@
-package maple.expectation.service.v2.flame.component;
+package maple.expectation.core.probability;
 
 import java.util.List;
 import java.util.Map;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import maple.expectation.service.v2.flame.FlameEquipCategory;
-import maple.expectation.service.v2.flame.FlameType;
-import org.springframework.cache.annotation.Cacheable;
-import org.springframework.stereotype.Component;
+import maple.expectation.core.domain.flame.FlameEquipCategory;
+import maple.expectation.core.domain.flame.FlameType;
 
 /**
  * 환생의 불꽃 DP 기반 기대값 계산 컴포넌트
@@ -28,12 +24,7 @@ import org.springframework.stereotype.Component;
  *
  * @see FlameScoreCalculator PMF 생성
  */
-@Slf4j
-@Component
-@RequiredArgsConstructor
 public class FlameDpCalculator {
-
-  private final FlameScoreCalculator scoreCalculator;
 
   /**
    * 환생의 불꽃 기대 시도 횟수 계산
@@ -45,13 +36,9 @@ public class FlameDpCalculator {
    * @param target 목표 환산치 (스케일 10 적용된 정수)
    * @param baseAtt 무기 기본 공격력 (무기 아닐 경우 0)
    * @param baseMag 무기 기본 마력 (무기 아닐 경우 0)
+   * @param optionPmfs 옵션별 PMF 리스트 (FlameScoreCalculator.buildOptionPmfs로 생성)
    * @return 기대 시도 횟수 (1/p), 불가능하면 null
    */
-  @Cacheable(
-      value = "flameTrials",
-      key =
-          "#category.name() + ':' + #flameType.name() + ':' + #level + ':' + "
-              + "#weights.hashCode() + ':' + #target + ':' + #baseAtt + ':' + #baseMag")
   public Double calculateExpectedTrials(
       FlameEquipCategory category,
       FlameType flameType,
@@ -59,10 +46,8 @@ public class FlameDpCalculator {
       FlameScoreCalculator.JobWeights weights,
       int target,
       int baseAtt,
-      int baseMag) {
-
-    List<Map<Integer, Double>> optionPmfs =
-        scoreCalculator.buildOptionPmfs(category, flameType, level, weights, baseAtt, baseMag);
+      int baseMag,
+      List<Map<Integer, Double>> optionPmfs) {
 
     int n = optionPmfs.size();
     if (n == 0) {

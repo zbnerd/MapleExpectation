@@ -45,7 +45,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
  * </ul>
  *
  * @see maple.expectation.config.ExecutorConfig#contextPropagatingDecorator()
- * @see maple.expectation.global.filter.MDCFilter
+ * @see maple.expectation.infrastructure.filter.MDCFilter
  */
 @Slf4j
 @Tag("nightmare")

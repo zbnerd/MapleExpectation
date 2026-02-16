@@ -11,4 +11,13 @@ public enum CubeType {
   ADDITIONAL("에디셔널큐브");
 
   private final String description;
+
+  /** Convert to core CubeType */
+  public maple.expectation.core.domain.model.CubeType toCore() {
+    return switch (this) {
+      case BLACK -> maple.expectation.core.domain.model.CubeType.BLACK;
+      case RED -> maple.expectation.core.domain.model.CubeType.RED;
+      case ADDITIONAL -> maple.expectation.core.domain.model.CubeType.ADDITIONAL;
+    };
+  }
 }

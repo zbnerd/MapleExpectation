@@ -2,11 +2,11 @@ package maple.expectation.service.v2.cube.component;
 
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import maple.expectation.core.domain.stat.StatParser;
+import maple.expectation.core.domain.stat.StatType;
 import maple.expectation.error.exception.OptionParseException;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
-import maple.expectation.util.StatParser;
-import maple.expectation.util.StatType;
 import org.springframework.stereotype.Component;
 
 /**

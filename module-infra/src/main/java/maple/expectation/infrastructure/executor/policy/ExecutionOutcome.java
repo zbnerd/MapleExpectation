@@ -15,9 +15,12 @@ package maple.expectation.infrastructure.executor.policy;
  * </ul>
  *
  * @since 2.4.0
- * @see ExecutionPolicy#onSuccess(Object, long, maple.expectation.global.executor.TaskContext)
- * @see ExecutionPolicy#onFailure(Throwable, long, maple.expectation.global.executor.TaskContext)
- * @see ExecutionPolicy#after(ExecutionOutcome, long, maple.expectation.global.executor.TaskContext)
+ * @see ExecutionPolicy#onSuccess(Object, long,
+ *     maple.expectation.infrastructure.executor.TaskContext)
+ * @see ExecutionPolicy#onFailure(Throwable, long,
+ *     maple.expectation.infrastructure.executor.TaskContext)
+ * @see ExecutionPolicy#after(ExecutionOutcome, long,
+ *     maple.expectation.infrastructure.executor.TaskContext)
  * @see ExecutionPipeline
  */
 public enum ExecutionOutcome {

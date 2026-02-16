@@ -48,7 +48,7 @@ import org.springframework.boot.test.context.SpringBootTest;
  *   <li>Fail Fast: GC 문제 시 즉시 감지
  * </ul>
  *
- * @see maple.expectation.global.executor.LogicExecutor
+ * @see maple.expectation.infrastructure.executor.LogicExecutor
  * @see java.lang.management.GarbageCollectorMXBean
  */
 @Tag("chaos")

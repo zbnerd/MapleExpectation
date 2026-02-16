@@ -1,10 +1,8 @@
-package maple.expectation.global.lock;
+package maple.expectation.infrastructure.lock;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.concurrent.atomic.AtomicInteger;
-import maple.expectation.infrastructure.lock.MySqlNamedLockStrategy;
-import maple.expectation.infrastructure.lock.RedisDistributedLockStrategy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -36,7 +34,7 @@ import org.springframework.test.context.ActiveProfiles;
  *
  * <pre>
  * # Dual-Run 테스트 실행
- * ./gradlew test --tests "maple.expectation.global.lock.DualRunLockTest"
+ * ./gradlew test --tests "maple.expectation.infrastructure.lock.DualRunLockTest"
  *
  * # 메트릭 확인
  * curl -s http://localhost:8080/actuator/metrics/lock.wait.time | jq

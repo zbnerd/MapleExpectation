@@ -54,7 +54,7 @@ import org.springframework.boot.test.context.SpringBootTest;
  * ./gradlew test --tests "*DiskFull*" --tags "chaos"
  * </pre>
  *
- * @see maple.expectation.global.executor.LogicExecutor
+ * @see maple.expectation.infrastructure.executor.LogicExecutor
  * @see java.nio.file.Files
  */
 @Tag("chaos")

@@ -6,7 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import maple.expectation.util.StatType;
+import maple.expectation.core.domain.stat.StatType;
 
 /**
  * 큐브 기대값 계산 입력 DTO

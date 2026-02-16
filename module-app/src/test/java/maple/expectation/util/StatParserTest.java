@@ -2,21 +2,18 @@ package maple.expectation.util;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import maple.expectation.infrastructure.executor.LogicExecutor;
-import maple.expectation.support.TestLogicExecutors;
+import maple.expectation.core.domain.stat.StatParser;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 class StatParserTest {
 
-  private LogicExecutor executor;
   private StatParser statParser;
 
   @BeforeEach
   void setUp() {
-    executor = TestLogicExecutors.passThrough();
-    statParser = new StatParser(executor);
+    statParser = new StatParser();
   }
 
   @Test

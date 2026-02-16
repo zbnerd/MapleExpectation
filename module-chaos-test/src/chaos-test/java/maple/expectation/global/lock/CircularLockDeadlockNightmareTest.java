@@ -1,4 +1,4 @@
-package maple.expectation.global.lock;
+package maple.expectation.infrastructure.lock;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -7,8 +7,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.sql.DataSource;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.infrastructure.lock.LockStrategy;
-import maple.expectation.infrastructure.lock.MySqlNamedLockStrategy;
 import maple.expectation.support.AbstractContainerBaseTest;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;

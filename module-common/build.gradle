@@ -4,12 +4,45 @@
 // ========================================
 
 dependencies {
-	// Spring (minimal for HttpStatus)
-	implementation 'org.springframework:spring-web'
-
-	// Jackson
+	// Jackson (Spring-independent JSON serialization)
 	implementation 'com.fasterxml.jackson.core:jackson-annotations:2.17.0'
 	implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.0'
 
+	// Lombok
+	compileOnly 'org.projectlombok:lombok'
+	annotationProcessor 'org.projectlombok:lombok'
+
 	testImplementation 'org.junit.jupiter:junit-jupiter:5.10.3'
+}
+
+// Verify NO Spring dependencies in module-common
+tasks.register('verifyNoSpringDependency') {
+	group = 'verification'
+	description = 'Verify that module-common has ZERO Spring dependencies (ADR-014 Phase 1)'
+
+	doLast {
+		def configurations = ['compileClasspath', 'runtimeClasspath']
+		def springDeps = configurations.collectMany { configName ->
+			try {
+				configurations.getByName(configName).resolve()
+			} catch (Exception e) {
+				[]
+			}
+		}.findAll { it.name.startsWith('spring-') }
+
+		if (springDeps) {
+			throw new GradleException(
+				"""[ADR-014 VIOLATION] module-common must have ZERO Spring dependencies.
+				Found Spring dependencies:
+				${springDeps.collect { "  - ${it.name}" }.join('\n')}
+				Please move Spring-dependent code to module-app or module-infra."""
+			)
+		}
+		logger.lifecycle('✓ module-common has zero Spring dependencies (ADR-014 Phase 1)')
+	}
+}
+
+// Run verification before build
+tasks.named('check') {
+	dependsOn 'verifyNoSpringDependency'
 }

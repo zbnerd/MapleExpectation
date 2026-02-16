@@ -1,4 +1,4 @@
-package maple.expectation.global.lock;
+package maple.expectation.infrastructure.lock;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -6,9 +6,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
-import maple.expectation.infrastructure.lock.LockMetrics;
-import maple.expectation.infrastructure.lock.MySqlNamedLockStrategy;
-import maple.expectation.infrastructure.lock.RedisDistributedLockStrategy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -40,7 +37,7 @@ import org.springframework.test.context.ActiveProfiles;
  *
  * <pre>
  * # 일관성 테스트 실행
- * ./gradlew test --tests "maple.expectation.global.lock.RedisLockConsistencyTest" \
+ * ./gradlew test --tests "maple.expectation.infrastructure.lock.RedisLockConsistencyTest" \
  *   -Dtest.dual.run.enabled=true
  * </pre>
  *

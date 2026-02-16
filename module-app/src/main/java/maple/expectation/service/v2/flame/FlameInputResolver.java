@@ -1,8 +1,8 @@
 package maple.expectation.service.v2.flame;
 
 import lombok.RequiredArgsConstructor;
+import maple.expectation.core.probability.FlameScoreCalculator.JobWeights;
 import maple.expectation.dto.CubeCalculationInput;
-import maple.expectation.service.v2.flame.component.FlameScoreCalculator.JobWeights;
 import maple.expectation.service.v2.flame.component.FlameScoreResolver;
 import maple.expectation.service.v2.flame.config.BossEquipmentRegistry;
 import maple.expectation.service.v2.flame.config.JobStatMapping;

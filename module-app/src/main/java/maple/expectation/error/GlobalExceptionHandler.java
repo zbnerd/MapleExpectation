@@ -39,13 +39,7 @@ public class GlobalExceptionHandler {
     return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
         .header("Retry-After", String.valueOf(e.getRetryAfterSeconds()))
         .header("X-RateLimit-Remaining", "0")
-        .body(
-            ErrorResponse.builder()
-                .status(HttpStatus.TOO_MANY_REQUESTS.value())
-                .code(e.getErrorCode().getCode())
-                .message(e.getMessage())
-                .timestamp(LocalDateTime.now())
-                .build());
+        .body(ErrorResponse.from(e));
   }
 
   /**
@@ -63,19 +57,13 @@ public class GlobalExceptionHandler {
     log.warn("Business Exception: {} | Message: {}", e.getErrorCode().getCode(), e.getMessage());
 
     // Issue #169: 503 응답에 Retry-After 헤더 추가 (Red Agent P0-2)
-    if (e.getErrorCode().getStatus() == HttpStatus.SERVICE_UNAVAILABLE) {
+    if (e.getErrorCode().getStatusCode() == HttpStatus.SERVICE_UNAVAILABLE.value()) {
       return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
           .header("Retry-After", "30")
-          .body(
-              ErrorResponse.builder()
-                  .status(e.getErrorCode().getStatus().value())
-                  .code(e.getErrorCode().getCode())
-                  .message(e.getMessage())
-                  .timestamp(LocalDateTime.now())
-                  .build());
+          .body(ErrorResponse.from(e));
     }
 
-    return ErrorResponse.toResponseEntity(e);
+    return ResponseEntity.status(e.getErrorCode().getStatusCode()).body(ErrorResponse.from(e));
   }
 
   /**
@@ -121,8 +109,8 @@ public class GlobalExceptionHandler {
 
     // 4. 그 외 시스템 예외 → 500 (cause를 로깅)
     log.error("CompletionException unwrapped - cause: ", cause);
-    return ErrorResponse.toResponseEntity(
-        maple.expectation.error.CommonErrorCode.INTERNAL_SERVER_ERROR);
+    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+        .body(ErrorResponse.from(maple.expectation.error.CommonErrorCode.INTERNAL_SERVER_ERROR));
   }
 
   /**
@@ -134,16 +122,9 @@ public class GlobalExceptionHandler {
    * @return 503 응답 + Retry-After 헤더
    */
   private ResponseEntity<ErrorResponse> buildServiceUnavailableResponse(int retryAfterSeconds) {
-    ErrorResponse body =
-        ErrorResponse.builder()
-            .status(maple.expectation.error.CommonErrorCode.SERVICE_UNAVAILABLE.getStatus().value())
-            .code(maple.expectation.error.CommonErrorCode.SERVICE_UNAVAILABLE.getCode())
-            .message(maple.expectation.error.CommonErrorCode.SERVICE_UNAVAILABLE.getMessage())
-            .timestamp(LocalDateTime.now())
-            .build();
     return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
         .header("Retry-After", String.valueOf(retryAfterSeconds))
-        .body(body);
+        .body(ErrorResponse.from(maple.expectation.error.CommonErrorCode.SERVICE_UNAVAILABLE));
   }
 
   // ==================== Cache.ValueRetrievalException 처리 ====================
@@ -171,8 +152,8 @@ public class GlobalExceptionHandler {
     }
 
     log.error("Cache value retrieval failure: ", e);
-    return ErrorResponse.toResponseEntity(
-        maple.expectation.error.CommonErrorCode.INTERNAL_SERVER_ERROR);
+    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+        .body(ErrorResponse.from(maple.expectation.error.CommonErrorCode.INTERNAL_SERVER_ERROR));
   }
 
   // ==================== Issue #168: Executor 관련 예외 처리 ====================
@@ -349,7 +330,7 @@ public class GlobalExceptionHandler {
     log.error("Unexpected System Failure: ", e);
 
     // 500 에러는 보안상 상세 메시지를 숨기고 규격화된 공통 코드를 넘깁니다.
-    return ErrorResponse.toResponseEntity(
-        maple.expectation.error.CommonErrorCode.INTERNAL_SERVER_ERROR);
+    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+        .body(ErrorResponse.from(maple.expectation.error.CommonErrorCode.INTERNAL_SERVER_ERROR));
   }
 }

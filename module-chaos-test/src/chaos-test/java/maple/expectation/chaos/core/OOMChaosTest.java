@@ -45,8 +45,8 @@ import org.springframework.boot.test.context.SpringBootTest;
  *   <li>Fail Fast: OOM 발생 시 빠른 실패 및 재시작
  * </ul>
  *
- * @see maple.expectation.global.executor.LogicExecutor
- * @see maple.expectation.global.executor.strategy.ExceptionTranslator
+ * @see maple.expectation.infrastructure.executor.LogicExecutor
+ * @see maple.expectation.infrastructure.executor.strategy.ExceptionTranslator
  */
 @Tag("chaos")
 @SpringBootTest

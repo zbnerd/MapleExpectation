@@ -1,4 +1,4 @@
-package maple.expectation.global.lock;
+package maple.expectation.infrastructure.lock;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

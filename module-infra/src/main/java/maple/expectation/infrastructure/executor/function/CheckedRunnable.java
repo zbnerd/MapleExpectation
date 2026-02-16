@@ -3,8 +3,8 @@ package maple.expectation.infrastructure.executor.function;
 /**
  * Exception을 던질 수 있는 Runnable (IO 경계 전용)
  *
- * <p>{@link maple.expectation.global.executor.CheckedLogicExecutor}와 함께 사용하여 checked 예외를 던지는 람다를 타입
- * 시스템으로 제한합니다.
+ * <p>{@link maple.expectation.infrastructure.executor.CheckedLogicExecutor}와 함께 사용하여 checked 예외를
+ * 던지는 람다를 타입 시스템으로 제한합니다.
  *
  * <h3>컴파일 타임 경계 강제</h3>
  *
@@ -25,7 +25,7 @@ package maple.expectation.infrastructure.executor.function;
  * }</pre>
  *
  * @since 2.4.0
- * @see maple.expectation.global.executor.CheckedLogicExecutor
+ * @see maple.expectation.infrastructure.executor.CheckedLogicExecutor
  * @see java.lang.Runnable
  * @see CheckedSupplier
  */

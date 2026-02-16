@@ -1,7 +1,6 @@
-package maple.expectation.service.v2.cube.component;
+package maple.expectation.core.probability;
 
 import maple.expectation.domain.model.calculator.DensePmf;
-import org.springframework.stereotype.Component;
 
 /**
  * 꼬리 확률 및 기대값 계산 컴포넌트
@@ -17,7 +16,6 @@ import org.springframework.stereotype.Component;
  *
  * <p>Tail Clamp가 적용된 DensePmf의 경우 mass[target]이 곧 P(X >= target)이므로 별도 합산 불필요 (성능 + 정밀도 이점)
  */
-@Component
 public class TailProbabilityCalculator {
 
   /**

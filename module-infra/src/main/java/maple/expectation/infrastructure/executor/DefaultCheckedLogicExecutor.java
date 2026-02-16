@@ -109,7 +109,8 @@ public class DefaultCheckedLogicExecutor implements CheckedLogicExecutor {
    * <h4>ADR: finalizer 중복 등록 금지</h4>
    *
    * <p>이 메서드는 자체 try-finally로 finalizer를 1회 실행합니다. 동일한 finalizer를 {@link
-   * maple.expectation.global.executor.policy.FinallyPolicy}에 중복 등록하면 2회 실행되어 예기치 않은 동작이 발생할 수 있습니다.
+   * maple.expectation.infrastructure.executor.policy.FinallyPolicy}에 중복 등록하면 2회 실행되어 예기치 않은 동작이 발생할
+   * 수 있습니다.
    */
   @Override
   public <T> T executeWithFinallyUnchecked(

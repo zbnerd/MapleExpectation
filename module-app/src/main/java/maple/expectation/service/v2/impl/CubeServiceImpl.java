@@ -5,14 +5,15 @@ import java.util.List;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.core.calculator.CubeRateCalculator;
 import maple.expectation.domain.repository.CubeProbabilityRepository;
+import maple.expectation.domain.v2.CubeProbability;
 import maple.expectation.domain.v2.CubeType;
 import maple.expectation.dto.CubeCalculationInput;
 import maple.expectation.error.exception.UnsupportedCalculationEngineException;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.service.v2.CubeTrialsProvider;
-import maple.expectation.service.v2.calculator.CubeRateCalculator;
 import maple.expectation.service.v2.cube.component.CubeDpCalculator;
 import maple.expectation.service.v2.cube.component.DpModeInferrer;
 import maple.expectation.service.v2.cube.config.CubeEngineFeatureFlag;
@@ -150,11 +151,37 @@ public class CubeServiceImpl implements CubeTrialsProvider {
 
   private double calculateCaseProbability(
       CubeCalculationInput input, CubeType type, List<String> caseOptions) {
+    // Fetch probabilities for this cube type and level
+    var coreType = type.toCore();
+    List<CubeProbability> v2Probabilities =
+        repository.findProbabilities(type, input.getLevel(), input.getPart(), input.getGrade(), 0);
+
+    // Convert v2.CubeProbability to core.CubeRate
+    List<maple.expectation.core.domain.model.CubeRate> coreRates =
+        v2Probabilities.stream()
+            .map(
+                p ->
+                    new maple.expectation.core.domain.model.CubeRate(
+                        coreType,
+                        p.getOptionName(),
+                        p.getRate(),
+                        p.getSlot(),
+                        p.getGrade(),
+                        p.getLevel(),
+                        p.getPart()))
+            .toList();
+
     double caseProb = 1.0;
     for (int i = 0; i < 3; i++) {
       caseProb *=
           rateCalculator.getOptionRate(
-              type, input.getLevel(), input.getPart(), input.getGrade(), i + 1, caseOptions.get(i));
+              coreType,
+              input.getLevel(),
+              input.getPart(),
+              input.getGrade(),
+              i + 1,
+              caseOptions.get(i),
+              coreRates);
     }
     return caseProb;
   }

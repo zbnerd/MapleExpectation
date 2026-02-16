@@ -1,4 +1,4 @@
-package maple.expectation.service.v2.flame;
+package maple.expectation.core.domain.flame;
 
 /** 환생의 불꽃 추가옵션 종류 */
 public enum FlameOptionType {

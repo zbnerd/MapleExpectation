@@ -1,22 +1,20 @@
-package maple.expectation.service.v2.flame.component;
+package maple.expectation.core.probability;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import maple.expectation.service.v2.flame.FlameEquipCategory;
-import maple.expectation.service.v2.flame.FlameOptionType;
-import maple.expectation.service.v2.flame.FlameType;
-import maple.expectation.service.v2.flame.config.FlameStageProbability;
-import maple.expectation.service.v2.flame.config.FlameStatTable;
-import org.springframework.stereotype.Component;
+import maple.expectation.core.domain.flame.FlameEquipCategory;
+import maple.expectation.core.domain.flame.FlameOptionType;
+import maple.expectation.core.domain.flame.FlameStageProbability;
+import maple.expectation.core.domain.flame.FlameStatTable;
+import maple.expectation.core.domain.flame.FlameType;
 
 /**
  * 환생의 불꽃 환산치 계산 컴포넌트
  *
  * <p>각 옵션 종류별 "1줄 환산치 PMF"를 생성한다. 스케일 팩터 10을 적용하여 모든 환산치를 정수로 처리.
  */
-@Component
 public class FlameScoreCalculator {
 
   private static final int SCALE = 10;

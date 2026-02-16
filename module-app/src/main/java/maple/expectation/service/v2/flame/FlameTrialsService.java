@@ -1,8 +1,10 @@
 package maple.expectation.service.v2.flame;
 
 import lombok.RequiredArgsConstructor;
-import maple.expectation.service.v2.flame.component.FlameDpCalculator;
-import maple.expectation.service.v2.flame.component.FlameScoreCalculator;
+import maple.expectation.core.domain.flame.FlameEquipCategory;
+import maple.expectation.core.domain.flame.FlameType;
+import maple.expectation.core.probability.FlameDpCalculator;
+import maple.expectation.core.probability.FlameScoreCalculator;
 import org.springframework.stereotype.Service;
 
 /**
@@ -25,6 +27,7 @@ import org.springframework.stereotype.Service;
 public class FlameTrialsService implements FlameTrialsProvider {
 
   private final FlameDpCalculator dpCalculator;
+  private final FlameScoreCalculator scoreCalculator;
 
   @Override
   public Double calculateExpectedTrials(
@@ -35,7 +38,10 @@ public class FlameTrialsService implements FlameTrialsProvider {
       int target,
       int baseAtt,
       int baseMag) {
+    // Build option PMFs first using scoreCalculator
+    var optionPmfs =
+        scoreCalculator.buildOptionPmfs(category, flameType, level, weights, baseAtt, baseMag);
     return dpCalculator.calculateExpectedTrials(
-        category, flameType, level, weights, target, baseAtt, baseMag);
+        category, flameType, level, weights, target, baseAtt, baseMag, optionPmfs);
   }
 }

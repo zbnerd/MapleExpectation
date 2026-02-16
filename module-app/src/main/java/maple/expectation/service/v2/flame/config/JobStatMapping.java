@@ -2,7 +2,7 @@ package maple.expectation.service.v2.flame.config;
 
 import java.util.Map;
 import java.util.Set;
-import maple.expectation.service.v2.flame.component.FlameScoreCalculator.JobWeights;
+import maple.expectation.core.probability.FlameScoreCalculator.JobWeights;
 
 /**
  * 직업명 → 주스탯/부스탯 매핑 유틸리티

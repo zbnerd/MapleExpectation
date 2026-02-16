@@ -1,0 +1,212 @@
+{
+  "dashboard": {
+    "title": "MapleExpectation - After Refactoring (Target)",
+    "tags": ["maple", "refactoring", "target"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 0,
+    "refresh": "5s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Module Size (Files) - Target",
+        "type": "gauge",
+        "targets": [
+          {
+            "expr": "module_files_total{module=\"app\"}",
+            "legendFormat": "module-app: <150 (-56%)"
+          },
+          {
+            "expr": "module_files_total{module=\"infra\"}",
+            "legendFormat": "module-infra: <250 (+41%)"
+          },
+          {
+            "expr": "module_files_total{module=\"core\"}",
+            "legendFormat": "module-core: <80 (+36%)"
+          },
+          {
+            "expr": "module_files_total{module=\"common\"}",
+            "legendFormat": "module-common: <50 (+43%)"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "min": 0,
+            "max": 400,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 150, "color": "yellow"},
+                {"value": 300, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Configuration Class Distribution - Target",
+        "type": "piechart",
+        "targets": [
+          {
+            "expr": "config_classes_total{module=\"app\"}",
+            "legendFormat": "module-app: <5 (91% reduction)"
+          },
+          {
+            "expr": "config_classes_total{module=\"infra\"}",
+            "legendFormat": "module-infra: ~50 (all moved)"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Module Dependency Violations - Target",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "dependency_violations{type=\"circular\"}",
+            "legendFormat": "Circular Dependencies: 0 ✓"
+          },
+          {
+            "expr": "dependency_violations{type=\"spring_in_core\"}",
+            "legendFormat": "Spring in Core: 0 ✓"
+          },
+          {
+            "expr": "dependency_violations{type=\"reverse\"}",
+            "legendFormat": "Reverse Dependencies: 0 ✓"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 1, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Build Performance Improvement",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(build_duration_seconds{phase=\"compile\"}[5m])",
+            "legendFormat": "Compile Time: 30% faster"
+          },
+          {
+            "expr": "rate(build_duration_seconds{phase=\"test\"}[5m])",
+            "legendFormat": "Test Time: 20% faster"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Test Pass Rate - Target",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "rate(test_count{status=\"passed\"}[1h]) / rate(test_count[1h]) * 100",
+            "legendFormat": "Pass Rate: 100%"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "max": 100,
+            "min": 0,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 95, "color": "yellow"},
+                {"value": 99, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "Architecture Compliance Score - Target",
+        "type": "gauge",
+        "targets": [
+          {
+            "expr": "architecture_compliance_score",
+            "legendFormat": "Compliance: 100%"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 70, "color": "yellow"},
+                {"value": 90, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 7,
+        "title": "Stateless Design Compliance - Target",
+        "type": "gauge",
+        "targets": [
+          {
+            "expr": "stateless_compliance_score",
+            "legendFormat": "Stateless: 100%"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 90, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 8,
+        "title": "Improvement Delta",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "module_files_total{module=\"app\"} - 150",
+            "legendFormat": "Files to remove: -192 (-56%)"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": -999, "color": "green"},
+                {"value": 0, "color": "red"}
+              ]
+            }
+          }
+        }
+      }
+    ]
+  },
+  "overwrite": true,
+  "message": "After Refactoring Target - module-app reduced to <150 files with clean architecture"
+}

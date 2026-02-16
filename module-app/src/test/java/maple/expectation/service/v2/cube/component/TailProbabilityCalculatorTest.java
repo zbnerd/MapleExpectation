@@ -3,6 +3,7 @@ package maple.expectation.service.v2.cube.component;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 
+import maple.expectation.core.probability.TailProbabilityCalculator;
 import maple.expectation.domain.model.calculator.DensePmf;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

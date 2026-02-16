@@ -1,4 +1,4 @@
-package maple.expectation.util;
+package maple.expectation.core.domain.stat;
 
 import java.util.ArrayList;
 import java.util.Arrays;

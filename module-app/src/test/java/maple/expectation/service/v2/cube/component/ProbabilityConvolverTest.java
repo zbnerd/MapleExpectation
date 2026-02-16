@@ -5,16 +5,14 @@ import static org.assertj.core.api.Assertions.within;
 
 import java.util.List;
 import java.util.Map;
+import maple.expectation.core.probability.ProbabilityConvolver;
+import maple.expectation.core.probability.TailProbabilityCalculator;
 import maple.expectation.domain.model.calculator.DensePmf;
 import maple.expectation.domain.model.calculator.SparsePmf;
-import maple.expectation.infrastructure.executor.LogicExecutor;
-import maple.expectation.support.TestLogicExecutors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
  * DP Convolution 기반 확률 계산 테스트
@@ -28,10 +26,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
  *   <li>경계값 테스트
  * </ul>
  */
-@ExtendWith(MockitoExtension.class)
 class ProbabilityConvolverTest {
-
-  private LogicExecutor executor;
 
   private ProbabilityConvolver convolver;
   private TailProbabilityCalculator tailCalculator;
@@ -40,9 +35,7 @@ class ProbabilityConvolverTest {
 
   @BeforeEach
   void setUp() {
-    executor = TestLogicExecutors.passThrough();
-
-    convolver = new ProbabilityConvolver(executor);
+    convolver = new ProbabilityConvolver();
     tailCalculator = new TailProbabilityCalculator();
   }
 

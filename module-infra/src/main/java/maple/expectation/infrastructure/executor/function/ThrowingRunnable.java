@@ -21,7 +21,7 @@ package maple.expectation.infrastructure.executor.function;
  * }</pre>
  *
  * @see java.lang.Runnable
- * @see maple.expectation.global.common.function.ThrowingSupplier
+ * @see maple.expectation.common.function.ThrowingSupplier
  * @since 1.0.0
  */
 @FunctionalInterface

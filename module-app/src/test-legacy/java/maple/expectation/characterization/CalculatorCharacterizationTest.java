@@ -7,9 +7,9 @@ import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.Map;
-import maple.expectation.global.common.function.ThrowingSupplier;
-import maple.expectation.global.executor.LogicExecutor;
-import maple.expectation.global.executor.TaskContext;
+import maple.expectation.common.function.ThrowingSupplier;
+import maple.expectation.infrastructure.executor.LogicExecutor;
+import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.service.v2.cube.component.ProbabilityConvolver;
 import maple.expectation.domain.model.calculator.DensePmf;
 import maple.expectation.domain.model.calculator.SparsePmf;

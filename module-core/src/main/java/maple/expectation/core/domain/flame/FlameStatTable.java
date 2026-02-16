@@ -1,10 +1,9 @@
-package maple.expectation.service.v2.flame.config;
+package maple.expectation.core.domain.flame;
 
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.TreeMap;
-import maple.expectation.service.v2.flame.FlameOptionType;
 
 /**
  * 환생의 불꽃 추가옵션 수치 테이블

@@ -1,6 +1,6 @@
 package maple.expectation.service.v2.flame.component;
 
-import maple.expectation.service.v2.flame.component.FlameScoreCalculator.JobWeights;
+import maple.expectation.core.probability.FlameScoreCalculator.JobWeights;
 import org.springframework.stereotype.Component;
 
 /**

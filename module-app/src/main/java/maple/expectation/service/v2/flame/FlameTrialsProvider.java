@@ -1,6 +1,8 @@
 package maple.expectation.service.v2.flame;
 
-import maple.expectation.service.v2.flame.component.FlameScoreCalculator;
+import maple.expectation.core.domain.flame.FlameEquipCategory;
+import maple.expectation.core.domain.flame.FlameType;
+import maple.expectation.core.probability.FlameScoreCalculator;
 
 /**
  * 환생의 불꽃 기대 시도 횟수 제공 인터페이스
