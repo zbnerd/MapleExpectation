@@ -71,7 +71,7 @@ class CubeServiceTest {
 
   @BeforeEach
   void setUp() {
-    executor = TestLogicExecutors.passThrough();
+    executor = TestLogicExecutors.mock();
 
     cubeService =
         new CubeServiceImpl(

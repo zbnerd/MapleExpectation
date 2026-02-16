@@ -48,6 +48,19 @@ public final class TestLogicExecutors {
    *
    * @return LogicExecutor mock that passes through all method calls to actual execution
    */
+  /**
+   * Creates a plain LogicExecutor mock for tests that need to stub specific return values.
+   *
+   * <p>Use this when your test needs to control what the executor returns (e.g., testing service
+   * behavior with mocked calculator results). For most cases where you want actual execution, use
+   * {@link #passThrough()} instead.
+   *
+   * @return LogicExecutor mock that can be stubbed with when().thenReturn()
+   */
+  public static LogicExecutor mock() {
+    return Mockito.mock(LogicExecutor.class);
+  }
+
   public static LogicExecutor passThrough() {
     LogicExecutor mock = Mockito.mock(LogicExecutor.class);
 
