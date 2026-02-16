@@ -142,8 +142,9 @@ task chaosTest(type: Test) {
 	systemProperty 'flaky.log.dir', "${buildDir}/flaky-chaos"
 
 	// Docker Configuration (Testcontainers)
+	systemProperty 'DOCKER_HOST', 'unix:///var/run/docker.sock'
 	environment "DOCKER_HOST", "unix:///var/run/docker.sock"
-	environment "TESTCONTAINERS_RYUK_DISABLED", "false"  // Enable Ryuk for cleanup
+	environment "TESTCONTAINERS_RYUK_DISABLED", "true"  // Disable Ryuk for simpler setup
 
 	// Concurrency: Chaos tests require sequential execution
 	maxParallelForks = 1
