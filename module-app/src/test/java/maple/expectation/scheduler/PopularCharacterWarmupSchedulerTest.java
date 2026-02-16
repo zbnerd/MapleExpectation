@@ -7,11 +7,9 @@ import static org.mockito.Mockito.*;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.List;
-import java.util.function.Function;
 import maple.expectation.common.function.ThrowingSupplier;
 import maple.expectation.error.exception.DistributedLockException;
 import maple.expectation.infrastructure.executor.LogicExecutor;
-import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.infrastructure.lock.LockStrategy;
 import maple.expectation.service.v4.EquipmentExpectationServiceV4;
 import maple.expectation.service.v4.warmup.PopularCharacterTracker;
@@ -127,8 +125,7 @@ class PopularCharacterWarmupSchedulerTest {
                 ThrowingSupplier<?> supplier = invocation.getArgument(3);
                 return supplier.get();
               });
-      given(popularCharacterTracker.getYesterdayTopCharacters(50))
-          .willReturn(List.of("InitUser1"));
+      given(popularCharacterTracker.getYesterdayTopCharacters(50)).willReturn(List.of("InitUser1"));
 
       // when
       scheduler.initialWarmup();
@@ -185,8 +182,7 @@ class PopularCharacterWarmupSchedulerTest {
       scheduler.dailyWarmup();
 
       // then - 각 캐릭터에 대해 시도
-      verify(expectationService, times(3))
-          .calculateExpectation(anyString(), eq(false));
+      verify(expectationService, times(3)).calculateExpectation(anyString(), eq(false));
     }
 
     @Test
@@ -228,8 +224,7 @@ class PopularCharacterWarmupSchedulerTest {
       // 첫 번째 호출은 예외, 두 번째는 성공, 세 번째는 예외
       given(expectationService.calculateExpectation(eq("Fail1"), eq(false)))
           .willThrow(new RuntimeException("API Error"));
-      given(expectationService.calculateExpectation(eq("Success2"), eq(false)))
-          .willReturn(null);
+      given(expectationService.calculateExpectation(eq("Success2"), eq(false))).willReturn(null);
       given(expectationService.calculateExpectation(eq("Fail3"), eq(false)))
           .willThrow(new RuntimeException("API Error"));
 
@@ -237,8 +232,7 @@ class PopularCharacterWarmupSchedulerTest {
       scheduler.dailyWarmup();
 
       // then - 모든 캐릭터에 대해 시도
-      verify(expectationService, times(3))
-          .calculateExpectation(anyString(), eq(false));
+      verify(expectationService, times(3)).calculateExpectation(anyString(), eq(false));
     }
   }
 }

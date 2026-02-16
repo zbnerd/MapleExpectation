@@ -53,7 +53,8 @@ import net.jqwik.api.constraints.IntRange;
  * }
  * }</pre>
  */
-@Disabled("Template - wire to domain classes (StarforceCalculator, CubeCostCalculator) before enabling")
+@Disabled(
+    "Template - wire to domain classes (StarforceCalculator, CubeCostCalculator) before enabling")
 class ProbabilityContractsProperties {
 
   private static final double EPSILON = 1e-12;

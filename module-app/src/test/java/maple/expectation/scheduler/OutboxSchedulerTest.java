@@ -1,8 +1,6 @@
 package maple.expectation.scheduler;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
 import maple.expectation.config.OutboxProperties;
@@ -78,10 +76,7 @@ class OutboxSchedulerTest {
       scheduler.pollAndProcess();
 
       // then
-      verify(executor)
-          .executeVoid(
-              any(ThrowingRunnable.class),
-              any(TaskContext.class));
+      verify(executor).executeVoid(any(ThrowingRunnable.class), any(TaskContext.class));
     }
 
     @Test
@@ -91,10 +86,7 @@ class OutboxSchedulerTest {
       scheduler.pollAndProcess();
 
       // then
-      verify(executor)
-          .executeVoid(
-              any(ThrowingRunnable.class),
-              any(TaskContext.class));
+      verify(executor).executeVoid(any(ThrowingRunnable.class), any(TaskContext.class));
     }
   }
 
@@ -119,10 +111,7 @@ class OutboxSchedulerTest {
       scheduler.recoverStalled();
 
       // then
-      verify(executor)
-          .executeVoid(
-              any(ThrowingRunnable.class),
-              any(TaskContext.class));
+      verify(executor).executeVoid(any(ThrowingRunnable.class), any(TaskContext.class));
     }
 
     @Test
@@ -132,10 +121,7 @@ class OutboxSchedulerTest {
       scheduler.recoverStalled();
 
       // then
-      verify(executor)
-          .executeVoid(
-              any(ThrowingRunnable.class),
-              any(TaskContext.class));
+      verify(executor).executeVoid(any(ThrowingRunnable.class), any(TaskContext.class));
     }
   }
 
@@ -160,10 +146,7 @@ class OutboxSchedulerTest {
       scheduler.monitorOutboxSize();
 
       // then
-      verify(executor)
-          .executeVoid(
-              any(ThrowingRunnable.class),
-              any(TaskContext.class));
+      verify(executor).executeVoid(any(ThrowingRunnable.class), any(TaskContext.class));
     }
 
     @Test
@@ -173,10 +156,7 @@ class OutboxSchedulerTest {
       scheduler.monitorOutboxSize();
 
       // then
-      verify(executor)
-          .executeVoid(
-              any(ThrowingRunnable.class),
-              any(TaskContext.class));
+      verify(executor).executeVoid(any(ThrowingRunnable.class), any(TaskContext.class));
     }
 
     @Test

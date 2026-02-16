@@ -6,8 +6,6 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.*;
 
-import java.util.function.Function;
-import maple.expectation.common.function.ThrowingSupplier;
 import maple.expectation.error.exception.AdminNotFoundException;
 import maple.expectation.error.exception.CriticalTransactionFailureException;
 import maple.expectation.infrastructure.executor.LogicExecutor;

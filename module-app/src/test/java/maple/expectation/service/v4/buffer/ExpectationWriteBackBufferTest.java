@@ -14,15 +14,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
-import maple.expectation.common.function.ThrowingSupplier;
 import maple.expectation.config.BufferProperties;
 import maple.expectation.dto.v4.EquipmentExpectationResponseV4.CostBreakdownDto;
 import maple.expectation.dto.v4.EquipmentExpectationResponseV4.PresetExpectation;
 import maple.expectation.infrastructure.executor.LogicExecutor;
-import maple.expectation.infrastructure.executor.TaskContext;
-import maple.expectation.infrastructure.executor.function.ThrowingRunnable;
-import maple.expectation.infrastructure.executor.strategy.ExceptionTranslator;
 import maple.expectation.support.TestLogicExecutors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -67,7 +62,6 @@ class ExpectationWriteBackBufferTest {
             properties, meterRegistry, new BackoffStrategy.NoOpBackoff(), executor);
   }
 
-  
   @Test
   @DisplayName("P0: Shutdown Race - 데이터 유실 없음 검증")
   void shutdownRace_shouldNotLoseData() throws Exception {

@@ -7,14 +7,10 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
-import java.util.function.Function;
 import maple.expectation.alert.StatelessAlertService;
-import maple.expectation.common.function.ThrowingSupplier;
 import maple.expectation.domain.v2.DonationDlq;
 import maple.expectation.domain.v2.DonationOutbox;
 import maple.expectation.infrastructure.executor.LogicExecutor;
-import maple.expectation.infrastructure.executor.TaskContext;
-import maple.expectation.infrastructure.executor.function.ThrowingRunnable;
 import maple.expectation.infrastructure.persistence.repository.DonationDlqRepository;
 import maple.expectation.service.v2.shutdown.ShutdownDataPersistenceService;
 import maple.expectation.support.TestLogicExecutors;

@@ -14,9 +14,7 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import maple.expectation.common.function.ThrowingSupplier;
 import maple.expectation.infrastructure.executor.LogicExecutor;
-import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.infrastructure.queue.QueueMessage;
 import maple.expectation.infrastructure.queue.QueueType;
 import maple.expectation.infrastructure.queue.script.BufferLuaScriptProvider;
@@ -28,7 +26,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.stubbing.Answer;
 import org.redisson.api.RBucket;
 import org.redisson.api.RDeque;
 import org.redisson.api.RMap;
@@ -121,7 +118,6 @@ class RedisBufferStrategyTest {
               return scriptExecutor.apply("mock-sha");
             });
   }
-
 
   @Nested
   @DisplayName("publish() 테스트")

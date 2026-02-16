@@ -51,6 +51,12 @@ spring:
       port: 27017
       database: maple_expectation_v5
       auto-index-creation: true
+      # Connection pool settings for optimal performance
+      # connect-timeout: 10000
+      # socket-timeout: 30000
+      # max-connection-per-host: 50
+      # max-connection-idle-time: 60000
+      # max-connection-life-time: 120000
 
 # DP 엔진 테이블 검증 설정
 cube:

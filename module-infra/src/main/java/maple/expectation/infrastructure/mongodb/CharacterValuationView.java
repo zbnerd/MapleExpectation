@@ -33,7 +33,8 @@ import org.springframework.data.mongodb.core.mapping.Document;
  *
  * <h3>TTL Strategy</h3>
  *
- * <p>24-hour automatic expiry. Stale data removed without manual invalidation.
+ * <p>24-hour automatic expiry. Stale data removed without manual invalidation. TTL index is created
+ * on {@code calculatedAt} field via {@link MongoDBConfig}.
  */
 @Data
 @Builder

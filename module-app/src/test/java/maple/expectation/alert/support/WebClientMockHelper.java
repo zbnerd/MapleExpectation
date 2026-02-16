@@ -11,8 +11,8 @@ import reactor.core.publisher.Mono;
 /**
  * Helper utility for creating WebClient mocks in tests.
  *
- * <p>Reduces ~150 lines of boilerplate across alert integration tests by providing
- * pre-configured mock chains for common WebClient scenarios.
+ * <p>Reduces ~150 lines of boilerplate across alert integration tests by providing pre-configured
+ * mock chains for common WebClient scenarios.
  */
 public final class WebClientMockHelper {
 

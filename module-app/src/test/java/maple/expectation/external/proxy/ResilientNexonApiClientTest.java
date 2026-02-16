@@ -58,7 +58,8 @@ class ResilientNexonApiClientTest extends IntegrationTestSupport {
     BDDMockito.given(nexonApiClient.getOcidByCharacterName(name))
         .willReturn(CompletableFuture.completedFuture(expectedResponse));
 
-    assertThat(resilientNexonApiClient.getOcidByCharacterName(name).join()).isEqualTo(expectedResponse);
+    assertThat(resilientNexonApiClient.getOcidByCharacterName(name).join())
+        .isEqualTo(expectedResponse);
   }
 
   @Test

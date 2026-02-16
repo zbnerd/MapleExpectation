@@ -106,6 +106,8 @@ dependencies {
 
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.testcontainers:toxiproxy'
+	testImplementation 'org.mockito:mockito-core:5.14.0'
+	testImplementation 'org.mockito:mockito-junit-jupiter:5.14.0'
 }
 
 // Enable plain jar for inter-module dependencies (chaos-test module needs it)

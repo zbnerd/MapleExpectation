@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import maple.expectation.domain.v2.CubeType;
 import maple.expectation.error.exception.InvalidPotentialGradeException;
-import maple.expectation.service.v2.policy.TableBasedCostStrategy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -85,7 +84,12 @@ class CubeCostPolicyTest {
     }
 
     @ParameterizedTest(name = "ADDITIONAL 큐브, 레벨 {0}, 등급 {1} -> 예외 발생")
-    @CsvSource({"200, 희귀, 14625000", "200, 전설, 40950000", "200, Unique, 49725000", "200, Rare, 58500000"})
+    @CsvSource({
+      "200, 희귀, 14625000",
+      "200, 전설, 40950000",
+      "200, Unique, 49725000",
+      "200, Rare, 58500000"
+    })
     @DisplayName("ADDITIONAL 큐브 잘못된 등급은 Silent Failure(0원 반환) 대신 예외 발생")
     void getCubeCost_additionalCube_invalidGrades_throws(int level, String grade) {
       // When & Then

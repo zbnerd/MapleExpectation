@@ -57,6 +57,8 @@ flowchart TB
             CV2["V2 Controller"]
             CV3["V3 Controller"]
             CV4["V4 Controller"]
+            CV5["V5 CQRS Controller"]
+        end
         end
 
         subgraph Services["Service Layer"]
@@ -64,6 +66,10 @@ flowchart TB
             EqSvc["EquipmentService"]
             LikeSvc["CharacterLikeService"]
             CalcSvc["ExpectationCalculator"]
+            V5Query["CharacterViewQueryService"]
+            V5Queue["PriorityCalculationQueue"]
+            V5Executor["PriorityCalculationExecutor"]
+            V5Publisher["MongoSyncEventPublisher"]
         end
 
         subgraph AOP["AOP Layer"]
@@ -713,6 +719,7 @@ This architecture document is invalid if:
 | 1.1.0 | 2025-12-15 | TieredCache + Single-flight added | [ADR-003](../adr/ADR-003-tiered-cache-singleflight.md) |
 | 1.2.0 | 2026-01-10 | V4 Calculator with Decorator Chain | [ADR-011](../adr/ADR-011-controller-v4-optimization.md) |
 | 1.3.0 | 2026-02-05 | Nexon API Outbox Pattern | [ADR-016](../adr/ADR-016-nexon-api-outbox-pattern.md) |
+| 1.4.0 | 2026-02-15 | V5 CQRS Architecture (Read Side) | [ADR-015](../adr/ADR-015-v5-cqrs-mongodb.md) |
 
 ---
 
