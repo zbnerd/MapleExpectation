@@ -8,6 +8,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import maple.expectation.application.port.MessageQueue;
 import maple.expectation.domain.event.IntegrationEvent;
 import maple.expectation.error.exception.QueuePublishException;
+import maple.expectation.infrastructure.executor.TaskContext;
+import maple.expectation.infrastructure.executor.function.ThrowingRunnable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -47,12 +49,12 @@ class RedisEventPublisherTest {
     // Configure LogicExecutor mock to execute the actual task
     doAnswer(
             invocation -> {
-              Runnable task = invocation.getArgument(0);
+              ThrowingRunnable task = invocation.getArgument(0);
               task.run();
               return null;
             })
         .when(logicExecutor)
-        .executeVoid(any(Runnable.class), any());
+        .executeVoid(any(ThrowingRunnable.class), any(TaskContext.class));
   }
 
   @Test

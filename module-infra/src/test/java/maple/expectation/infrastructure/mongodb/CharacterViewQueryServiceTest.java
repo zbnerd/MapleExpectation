@@ -30,7 +30,8 @@ class CharacterViewQueryServiceTest {
     when(mockExecutor.executeOrDefault(any(), any(), any()))
         .thenAnswer(
             inv -> {
-              var callable = inv.getArgument(0);
+              java.util.concurrent.Callable<Optional<CharacterValuationView>> callable =
+                  inv.getArgument(0);
               return callable.call();
             });
 
