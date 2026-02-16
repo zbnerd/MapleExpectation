@@ -2,9 +2,11 @@ package maple.expectation.infrastructure.mongodb;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 import java.util.Optional;
+import maple.expectation.common.function.ThrowingSupplier;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -20,6 +22,10 @@ class CharacterViewQueryServiceTest {
 
   @Mock private LogicExecutor mockExecutor;
 
+  @Mock private io.micrometer.core.instrument.MeterRegistry mockMeterRegistry;
+
+  @Mock private io.micrometer.core.instrument.Timer mockTimer;
+
   @Test
   @DisplayName("MongoDB 조회 성공 시 결과 반환")
   void findByUserIgnReturnsView() throws Exception {
@@ -27,16 +33,16 @@ class CharacterViewQueryServiceTest {
         CharacterValuationView.builder().userIgn("testUser").totalExpectedCost(100000).build();
 
     when(mockRepository.findByUserIgn("testUser")).thenReturn(Optional.of(view));
+    when(mockMeterRegistry.timer(anyString(), any(String[].class))).thenReturn(mockTimer);
     when(mockExecutor.executeOrDefault(any(), any(), any()))
         .thenAnswer(
             inv -> {
-              java.util.concurrent.Callable<Optional<CharacterValuationView>> callable =
-                  inv.getArgument(0);
-              return callable.call();
+              ThrowingSupplier<Optional<CharacterValuationView>> supplier = inv.getArgument(0);
+              return supplier.get();
             });
 
     CharacterViewQueryService service =
-        new CharacterViewQueryService(mockRepository, null, mockExecutor, null);
+        new CharacterViewQueryService(mockRepository, null, mockExecutor, mockMeterRegistry);
 
     var result = service.findByUserIgn("testUser");
 
@@ -54,7 +60,7 @@ class CharacterViewQueryServiceTest {
             });
 
     CharacterViewQueryService service =
-        new CharacterViewQueryService(mockRepository, null, mockExecutor, null);
+        new CharacterViewQueryService(mockRepository, null, mockExecutor, mockMeterRegistry);
 
     var result = service.findByUserIgn("testUser");
 

@@ -46,11 +46,22 @@ class RedisEventPublisherTest {
     objectMapper.disable(com.fasterxml.jackson.databind.SerializationFeature.FAIL_ON_EMPTY_BEANS);
     publisher = new RedisEventPublisher(messageQueue, objectMapper, logicExecutor);
 
-    // Configure LogicExecutor mock to execute the actual task
+    // Configure LogicExecutor mock to execute the actual task and translate exceptions
     doAnswer(
             invocation -> {
               ThrowingRunnable task = invocation.getArgument(0);
-              task.run();
+              try {
+                task.run();
+              } catch (QueuePublishException e) {
+                // Already QueuePublishException, rethrow as-is
+                throw e;
+              } catch (RuntimeException e) {
+                // Wrap RuntimeException in QueuePublishException
+                throw new QueuePublishException("Exception during publish", e);
+              } catch (Throwable e) {
+                // Wrap checked exceptions
+                throw new QueuePublishException("Checked exception during publish", e);
+              }
               return null;
             })
         .when(logicExecutor)
