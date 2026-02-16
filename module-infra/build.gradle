@@ -8,8 +8,8 @@ sourceSets {
 	integrationTest {
 		java.srcDir file('src/integrationTest/java')
 		resources.srcDir file('src/integrationTest/resources')
-		compileClasspath += sourceSets.main.output + configurations.testRuntimeClasspath
-		runtimeClasspath += output + compileClasspath
+		compileClasspath += sourceSets.main.output
+		runtimeClasspath += sourceSets.main.output + sourceSets.test.output
 	}
 }
 
@@ -36,6 +36,8 @@ dependencies {
 	annotationProcessor 'org.projectlombok:lombok:1.18.30'
 	testCompileOnly 'org.projectlombok:lombok:1.18.30'
 	testAnnotationProcessor 'org.projectlombok:lombok:1.18.30'
+	integrationTestCompileOnly 'org.projectlombok:lombok:1.18.30'
+	integrationTestAnnotationProcessor 'org.projectlombok:lombok:1.18.30'
 
 	// Spring Data JPA
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
@@ -81,6 +83,13 @@ dependencies {
 
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.testcontainers:mysql'
+
+	// Integration Test Dependencies
+	integrationTestImplementation 'org.springframework.boot:spring-boot-starter-test'
+	integrationTestImplementation 'org.testcontainers:testcontainers'
+	integrationTestImplementation 'org.testcontainers:junit-jupiter'
+	integrationTestImplementation 'org.testcontainers:mysql'
+	integrationTestRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 // Integration Test Task
@@ -138,5 +147,5 @@ tasks.withType(ProcessResources).configureEach {
 
 // Lombok annotation processor for integration tests
 tasks.named('compileIntegrationTestJava') {
-	options.annotationProcessorPath = configurations.annotationProcessor
+	options.annotationProcessorPath = configurations.integrationTestAnnotationProcessor
 }
