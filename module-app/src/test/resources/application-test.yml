@@ -21,6 +21,10 @@ spring:
       port: 6379
       # Sentinel 설정 제거 (테스트는 단일 Redis 사용)
 
+  # 테스트 환경에서 Scheduler 비활성화 (CI Outbox Table not found 에러 방지)
+  scheduling:
+    enable: false
+
 # MySQL Fallback 비활성화 (테스트 환경: Redis read-only replica 문제 방지)
 resilience:
   mysql-fallback:
