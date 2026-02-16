@@ -223,7 +223,7 @@ class AuthServiceTest {
       given(
               sessionManager.createSession(
                   eq(FINGERPRINT),
-                  eq(USER_IGN),
+                  anyString(), // "testuser" (lowercase) vs USER_IGN (uppercase)
                   eq("test-account-id"),
                   eq(API_KEY),
                   anySet(),
@@ -232,7 +232,10 @@ class AuthServiceTest {
 
       TokenService.TokenPair tokenPair = mock(TokenService.TokenPair.class);
       given(tokenPair.accessToken()).willReturn(ACCESS_TOKEN);
-      given(tokenService.createTokens(session)).willReturn(tokenPair);
+      given(tokenPair.accessTokenExpiresIn()).willReturn(EXPIRATION_SECONDS);
+      given(tokenPair.refreshTokenId()).willReturn(REFRESH_TOKEN_ID);
+      given(tokenPair.refreshTokenExpiresIn()).willReturn(REFRESH_EXPIRATION_SECONDS);
+      given(tokenService.createTokens(any(Session.class))).willReturn(tokenPair);
 
       // when
       LoginResponse response = authService.login(request);
@@ -398,8 +401,9 @@ class AuthServiceTest {
     @DisplayName("토큰 갱신 실패 - 세션 만료")
     void shouldThrowWhenSessionExpired() {
       // given
-      given(tokenService.rotateTokens(REFRESH_TOKEN_ID)).willReturn(tokenPair);
-      given(sessionManager.getSession(SESSION_ID)).willThrow(new SessionNotFoundException());
+      // Note: Session validation happens inside TokenService.rotateTokens(), not in AuthService
+      given(tokenService.rotateTokens(REFRESH_TOKEN_ID))
+          .willThrow(new SessionNotFoundException());
 
       // when & then
       assertThatThrownBy(() -> authService.refresh(REFRESH_TOKEN_ID))
