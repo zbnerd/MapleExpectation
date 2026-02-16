@@ -43,6 +43,16 @@ class RedisEventPublisherTest {
     // Configure ObjectMapper to handle empty beans
     objectMapper.disable(com.fasterxml.jackson.databind.SerializationFeature.FAIL_ON_EMPTY_BEANS);
     publisher = new RedisEventPublisher(messageQueue, objectMapper, logicExecutor);
+
+    // Configure LogicExecutor mock to execute the actual task
+    doAnswer(
+            invocation -> {
+              Runnable task = invocation.getArgument(0);
+              task.run();
+              return null;
+            })
+        .when(logicExecutor)
+        .executeVoid(any(Runnable.class), any());
   }
 
   @Test

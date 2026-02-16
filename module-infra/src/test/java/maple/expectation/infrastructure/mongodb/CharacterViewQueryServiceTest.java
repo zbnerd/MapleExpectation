@@ -22,7 +22,7 @@ class CharacterViewQueryServiceTest {
 
   @Test
   @DisplayName("MongoDB 조회 성공 시 결과 반환")
-  void findByUserIgnReturnsView() {
+  void findByUserIgnReturnsView() throws Exception {
     CharacterValuationView view =
         CharacterValuationView.builder().userIgn("testUser").totalExpectedCost(100000).build();
 
@@ -30,7 +30,8 @@ class CharacterViewQueryServiceTest {
     when(mockExecutor.executeOrDefault(any(), any(), any()))
         .thenAnswer(
             inv -> {
-              return inv.getArgument(0);
+              var callable = inv.getArgument(0);
+              return callable.call();
             });
 
     CharacterViewQueryService service =
@@ -44,8 +45,7 @@ class CharacterViewQueryServiceTest {
 
   @Test
   @DisplayName("MongoDB 장애 시 빈 값 반환")
-  void mongoDBFailureReturnsEmpty() {
-    when(mockRepository.findByUserIgn("testUser")).thenReturn(Optional.empty());
+  void mongoDBFailureReturnsEmpty() throws Exception {
     when(mockExecutor.executeOrDefault(any(), any(), any()))
         .thenAnswer(
             inv -> {
