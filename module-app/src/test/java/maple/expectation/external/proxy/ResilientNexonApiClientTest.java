@@ -17,6 +17,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.BDDMockito;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 /**
  * ResilientNexonApiClient 통합 테스트
@@ -36,7 +37,7 @@ class ResilientNexonApiClientTest extends IntegrationTestSupport {
   @Autowired(required = false)
   private RetryRegistry retryRegistry;
 
-  @org.springframework.boot.test.mock.mockito.MockBean(name = "realNexonApiClient")
+  @MockitoBean(name = "realNexonApiClient")
   private maple.expectation.external.NexonApiClient nexonApiClient;
 
   @BeforeEach

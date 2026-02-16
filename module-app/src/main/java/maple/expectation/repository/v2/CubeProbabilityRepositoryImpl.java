@@ -1,4 +1,4 @@
-package maple.expectation.infrastructure.persistence.repository;
+package maple.expectation.repository.v2;
 
 import com.fasterxml.jackson.databind.MappingIterator;
 import com.fasterxml.jackson.dataformat.csv.CsvMapper;

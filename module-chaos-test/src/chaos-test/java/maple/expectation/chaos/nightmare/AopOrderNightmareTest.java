@@ -5,8 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.global.error.exception.CharacterNotFoundException;
-import maple.expectation.repository.v2.GameCharacterRepository;
+import maple.expectation.error.exception.CharacterNotFoundException;
+import maple.expectation.infrastructure.persistence.repository.GameCharacterRepository;
 import maple.expectation.service.v2.GameCharacterService;
 import maple.expectation.service.v2.LikeProcessor;
 import maple.expectation.service.v2.LikeRelationSyncService;

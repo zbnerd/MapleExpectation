@@ -1,4 +1,4 @@
-package maple.expectation.chaos.nightmare;
+package maple.expectation.global.lock;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

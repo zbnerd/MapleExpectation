@@ -22,6 +22,9 @@ spring:
       # Sentinel 설정 제거 (테스트는 단일 Redis 사용)
 
   # 테스트 환경에서 Scheduler 비활성화 (CI Outbox Table not found 에러 방지)
+  task:
+    scheduling:
+      enabled: false
   scheduling:
     enable: false
 

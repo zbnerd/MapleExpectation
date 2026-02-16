@@ -32,6 +32,8 @@ class RedisEventPublisherTest {
 
   @Mock private MessageQueue<String> messageQueue;
 
+  @Mock private maple.expectation.infrastructure.executor.LogicExecutor logicExecutor;
+
   private ObjectMapper objectMapper;
   private RedisEventPublisher publisher;
 
@@ -40,7 +42,7 @@ class RedisEventPublisherTest {
     objectMapper = new ObjectMapper();
     // Configure ObjectMapper to handle empty beans
     objectMapper.disable(com.fasterxml.jackson.databind.SerializationFeature.FAIL_ON_EMPTY_BEANS);
-    publisher = new RedisEventPublisher(messageQueue, objectMapper);
+    publisher = new RedisEventPublisher(messageQueue, objectMapper, logicExecutor);
   }
 
   @Test
@@ -92,7 +94,8 @@ class RedisEventPublisherTest {
     when(failingMapper.writeValueAsString(any()))
         .thenThrow(new com.fasterxml.jackson.core.JsonGenerationException("Serialization failed"));
 
-    RedisEventPublisher failingPublisher = new RedisEventPublisher(messageQueue, failingMapper);
+    RedisEventPublisher failingPublisher =
+        new RedisEventPublisher(messageQueue, failingMapper, logicExecutor);
 
     String topic = "test-topic";
     IntegrationEvent<String> event = IntegrationEvent.of("TEST_EVENT", "payload");

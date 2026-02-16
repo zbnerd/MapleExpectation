@@ -70,6 +70,13 @@ subprojects {
 		}
 	}
 
+	// Show ALL compilation errors at once (not just first 100)
+	tasks.withType(JavaCompile).configureEach {
+		options.compilerArgs += ['-Xmaxerrs', '1000', '-Xmaxwarns', '1000']
+		options.fork = true
+		options.forkOptions.jvmArgs += ['-Xmx2g']
+	}
+
 	// 공통 의존성
 	dependencies {
 		compileOnly 'org.projectlombok:lombok:1.18.30'
@@ -103,6 +110,13 @@ subprojects {
 			'-XX:+UseG1GC',
 			'-XX:MaxMetaspaceSize=512m'
 		]
+
+		// 테스트 실행 시간 표시 (각 테스트 종료 후 출력)
+		afterTest { desc, result ->
+			def duration = result.endTime - result.startTime
+			def className = desc.className.split('\\.').last()
+			println "[Test] ${className} > ${desc.name} : ${result.resultType} (${duration}ms)"
+		}
 
 		useJUnitPlatform {
 			if (project.hasProperty('fastTest')) {

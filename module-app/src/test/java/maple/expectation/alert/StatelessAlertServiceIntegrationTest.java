@@ -23,8 +23,8 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
@@ -66,7 +66,7 @@ class StatelessAlertServiceIntegrationTest extends AppIntegrationTestSupport {
   @Autowired(required = false)
   private CircuitBreakerRegistry circuitBreakerRegistry;
 
-  @MockBean(name = "alertWebClient")
+  @MockitoBean(name = "alertWebClient")
   private WebClient mockAlertWebClient;
 
   private Path tempLogFilePath;

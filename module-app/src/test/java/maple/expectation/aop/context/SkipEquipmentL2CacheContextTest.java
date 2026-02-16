@@ -266,23 +266,41 @@ class SkipEquipmentL2CacheContextTest {
     }
 
     @Test
-    @DisplayName("Deprecated Boolean restore - 하위 호환성")
-    @SuppressWarnings("deprecation")
-    void deprecatedRestore_shouldWorkForBackwardCompatibility() {
+    @DisplayName("String based restore - 새로운 API 사용")
+    void stringRestore_shouldWorkWithNewAPI() {
       // given
       assertThat(SkipEquipmentL2CacheContext.enabled()).isFalse();
 
-      // when: Deprecated Boolean API 사용
-      SkipEquipmentL2CacheContext.restore(Boolean.TRUE);
+      // when: 새로운 String 기반 API 사용 ("true" = enabled)
+      SkipEquipmentL2CacheContext.restore("true");
 
       // then
       assertThat(SkipEquipmentL2CacheContext.enabled()).isTrue();
 
-      // when: Boolean.FALSE로 복원
-      SkipEquipmentL2CacheContext.restore(Boolean.FALSE);
+      // when: null로 복원 (disable)
+      SkipEquipmentL2CacheContext.restore((String) null);
 
       // then
       assertThat(SkipEquipmentL2CacheContext.enabled()).isFalse();
+    }
+
+    @Test
+    @DisplayName("snapshot/restore 패턴 - async 전파 지원")
+    @SuppressWarnings("deprecation")
+    void snapshotRestore_shouldSupportAsyncPropagation() throws Exception {
+      // given: 현재 상태 캡처
+      String before = SkipEquipmentL2CacheContext.snapshot();
+      assertThat(before).isNull();
+
+      // when: 스킵 활성화 후 스냅샷
+      try (var ignored = SkipEquipmentL2CacheContext.withSkip()) {
+        String duringSkip = SkipEquipmentL2CacheContext.snapshot();
+        assertThat(duringSkip).isEqualTo("true");
+
+        // then: 복원
+        SkipEquipmentL2CacheContext.restore(before);
+        assertThat(SkipEquipmentL2CacheContext.enabled()).isFalse();
+      }
     }
 
     @Test

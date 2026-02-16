@@ -6,7 +6,7 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.global.filter.MDCFilter;
+import maple.expectation.infrastructure.filter.MDCFilter;
 import maple.expectation.support.IntegrationTestSupport;
 import org.junit.jupiter.api.*;
 import org.slf4j.MDC;

@@ -1,4 +1,4 @@
-package maple.expectation.infrastructure.persistence.repository;
+package maple.expectation.repository.v2;
 
 import lombok.RequiredArgsConstructor;
 import maple.expectation.domain.repository.RedisBufferRepository;

@@ -1,4 +1,4 @@
-package maple.expectation.infrastructure.persistence.repository;
+package maple.expectation.repository.v2;
 
 import java.util.Optional;
 import maple.expectation.domain.v2.NexonApiDlq;

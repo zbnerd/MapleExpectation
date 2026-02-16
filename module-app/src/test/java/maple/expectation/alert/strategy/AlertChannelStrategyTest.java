@@ -19,8 +19,8 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 /**
  * Alert Channel Strategy Test
@@ -47,11 +47,11 @@ class AlertChannelStrategyTest extends AppIntegrationTestSupport {
 
   @Autowired private AlertChannelStrategy channelStrategy;
 
-  @MockBean private DiscordAlertChannel mockDiscordChannel;
+  @MockitoBean private DiscordAlertChannel mockDiscordChannel;
 
-  @MockBean private InMemoryAlertBuffer mockInMemoryBuffer;
+  @MockitoBean private InMemoryAlertBuffer mockInMemoryBuffer;
 
-  @MockBean private LocalFileAlertChannel mockLocalFileChannel;
+  @MockitoBean private LocalFileAlertChannel mockLocalFileChannel;
 
   @BeforeEach
   void setUp() {

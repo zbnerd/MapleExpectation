@@ -1,4 +1,4 @@
-package maple.expectation.infrastructure.persistence.repository;
+package maple.expectation.repository.v2;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
@@ -132,10 +132,7 @@ public class RedisRefreshTokenRepositoryImpl implements RedisRefreshTokenReposit
           if (json != null) {
             RefreshToken token = deserializeToken(json);
             RefreshToken usedToken = token.markAsUsed();
-            bucket.set(
-                serializeToken(usedToken),
-                bucket.remainTimeToLive(),
-                java.util.concurrent.TimeUnit.MILLISECONDS);
+            bucket.set(serializeToken(usedToken), Duration.ofMillis(bucket.remainTimeToLive()));
           }
         },
         TaskContext.of("RefreshToken", "MarkAsUsed", refreshTokenId));
@@ -195,7 +192,7 @@ public class RedisRefreshTokenRepositoryImpl implements RedisRefreshTokenReposit
     // Preserve TTL when updating
     long remainingTtl = bucket.remainTimeToLive();
     if (remainingTtl > 0) {
-      bucket.set(newJson, remainingTtl, java.util.concurrent.TimeUnit.MILLISECONDS);
+      bucket.set(newJson, Duration.ofMillis(remainingTtl));
     } else {
       // Fallback: use default TTL if key has no expiry
       bucket.set(newJson, Duration.ofSeconds(refreshTokenTtlSeconds));
