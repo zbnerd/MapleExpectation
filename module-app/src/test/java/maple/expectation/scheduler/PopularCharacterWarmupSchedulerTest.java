@@ -7,14 +7,13 @@ import static org.mockito.Mockito.*;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.List;
-import java.util.function.Function;
 import maple.expectation.common.function.ThrowingSupplier;
 import maple.expectation.error.exception.DistributedLockException;
 import maple.expectation.infrastructure.executor.LogicExecutor;
-import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.infrastructure.lock.LockStrategy;
 import maple.expectation.service.v4.EquipmentExpectationServiceV4;
 import maple.expectation.service.v4.warmup.PopularCharacterTracker;
+import maple.expectation.support.TestLogicExecutors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -32,7 +31,7 @@ import org.springframework.test.util.ReflectionTestUtils;
  * <h4>테스트 범위</h4>
  *
  * <ul>
- *   <li>dailyWarmup: 매일 새벽 5시 웜업
+ *   <li>dailyWarmup: 매일 새벅 5시 웜업
  *   <li>initialWarmup: 서버 시작 후 30초 웜업
  *   <li>분산 락 사용
  *   <li>인기 캐릭터 조회 및 캐시 프리로딩
@@ -53,7 +52,7 @@ class PopularCharacterWarmupSchedulerTest {
     popularCharacterTracker = mock(PopularCharacterTracker.class);
     expectationService = mock(EquipmentExpectationServiceV4.class);
     lockStrategy = mock(LockStrategy.class);
-    executor = createMockLogicExecutor();
+    executor = TestLogicExecutors.passThrough();
     meterRegistry = new SimpleMeterRegistry(); // 실제 MeterRegistry 사용
 
     scheduler =
@@ -182,7 +181,7 @@ class PopularCharacterWarmupSchedulerTest {
       // when
       scheduler.dailyWarmup();
 
-      // then - 각 캐릭터에 대해 호출
+      // then - 각 캐릭터에 대해 시도
       verify(expectationService, times(3)).calculateExpectation(anyString(), eq(false));
     }
 
@@ -211,6 +210,7 @@ class PopularCharacterWarmupSchedulerTest {
     @DisplayName("개별 캐릭터 웜업 실패 시 다음 캐릭터 계속 처리")
     void whenCharacterFails_shouldContinueWithNext() throws Throwable {
       // given
+      List<String> topCharacters = List.of("Fail1", "Success2", "Fail3");
       given(
               lockStrategy.executeWithLock(
                   anyString(), anyLong(), anyLong(), any(ThrowingSupplier.class)))
@@ -219,14 +219,14 @@ class PopularCharacterWarmupSchedulerTest {
                 ThrowingSupplier<?> supplier = invocation.getArgument(3);
                 return supplier.get();
               });
-      given(popularCharacterTracker.getYesterdayTopCharacters(50))
-          .willReturn(List.of("Fail1", "Success2", "Success3"));
+      given(popularCharacterTracker.getYesterdayTopCharacters(50)).willReturn(topCharacters);
 
-      // 첫 번째 호출은 예외, 나머지는 성공
+      // 첫 번째 호출은 예외, 두 번째는 성공, 세 번째는 예외
       given(expectationService.calculateExpectation(eq("Fail1"), eq(false)))
           .willThrow(new RuntimeException("API Error"));
       given(expectationService.calculateExpectation(eq("Success2"), eq(false))).willReturn(null);
-      given(expectationService.calculateExpectation(eq("Success3"), eq(false))).willReturn(null);
+      given(expectationService.calculateExpectation(eq("Fail3"), eq(false)))
+          .willThrow(new RuntimeException("API Error"));
 
       // when
       scheduler.dailyWarmup();
@@ -234,42 +234,5 @@ class PopularCharacterWarmupSchedulerTest {
       // then - 모든 캐릭터에 대해 시도
       verify(expectationService, times(3)).calculateExpectation(anyString(), eq(false));
     }
-  }
-
-  // ==================== Helper Methods ====================
-
-  @SuppressWarnings("unchecked")
-  private LogicExecutor createMockLogicExecutor() {
-    LogicExecutor mockExecutor = mock(LogicExecutor.class);
-
-    // executeOrCatch: ThrowingSupplier 실행, 예외 시 recovery 호출
-    given(
-            mockExecutor.executeOrCatch(
-                any(ThrowingSupplier.class), any(Function.class), any(TaskContext.class)))
-        .willAnswer(
-            invocation -> {
-              ThrowingSupplier<?> task = invocation.getArgument(0);
-              Function<Throwable, ?> recovery = invocation.getArgument(1);
-              try {
-                return task.get();
-              } catch (Throwable e) {
-                return recovery.apply(e);
-              }
-            });
-
-    // executeOrDefault: ThrowingSupplier 실행, 예외 시 기본값 반환
-    given(mockExecutor.executeOrDefault(any(ThrowingSupplier.class), any(), any(TaskContext.class)))
-        .willAnswer(
-            invocation -> {
-              ThrowingSupplier<?> task = invocation.getArgument(0);
-              Object defaultValue = invocation.getArgument(1);
-              try {
-                return task.get();
-              } catch (Throwable e) {
-                return defaultValue;
-              }
-            });
-
-    return mockExecutor;
   }
 }

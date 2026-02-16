@@ -1,4 +1,4 @@
-package maple.expectation.repository.v2;
+package maple.expectation.infrastructure.persistence.repository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;

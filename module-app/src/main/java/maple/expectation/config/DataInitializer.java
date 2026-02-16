@@ -5,7 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import maple.expectation.domain.v2.Member;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
-import maple.expectation.repository.v2.MemberRepository;
+import maple.expectation.infrastructure.persistence.repository.MemberRepository;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 

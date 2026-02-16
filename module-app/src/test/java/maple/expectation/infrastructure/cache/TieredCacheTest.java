@@ -19,6 +19,7 @@ import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.infrastructure.executor.function.ThrowingRunnable;
 import maple.expectation.infrastructure.executor.strategy.ExceptionTranslator;
+import maple.expectation.support.TestLogicExecutors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -66,7 +67,7 @@ class TieredCacheTest {
   void setUp() {
     l1 = mock(Cache.class);
     l2 = mock(Cache.class);
-    executor = createMockLogicExecutor();
+    executor = TestLogicExecutors.passThrough();
     redissonClient = mock(RedissonClient.class);
     meterRegistry = new SimpleMeterRegistry();
     publishedEvents = new ArrayList<>();

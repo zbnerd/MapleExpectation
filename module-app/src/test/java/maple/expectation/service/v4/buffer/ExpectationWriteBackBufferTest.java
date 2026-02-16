@@ -14,15 +14,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
-import maple.expectation.common.function.ThrowingSupplier;
 import maple.expectation.config.BufferProperties;
 import maple.expectation.dto.v4.EquipmentExpectationResponseV4.CostBreakdownDto;
 import maple.expectation.dto.v4.EquipmentExpectationResponseV4.PresetExpectation;
 import maple.expectation.infrastructure.executor.LogicExecutor;
-import maple.expectation.infrastructure.executor.TaskContext;
-import maple.expectation.infrastructure.executor.function.ThrowingRunnable;
-import maple.expectation.infrastructure.executor.strategy.ExceptionTranslator;
+import maple.expectation.support.TestLogicExecutors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -58,88 +54,12 @@ class ExpectationWriteBackBufferTest {
   void setUp() {
     meterRegistry = new SimpleMeterRegistry();
     properties = new BufferProperties(10, 10, 100); // 테스트용 작은 값
-    executor = new TestLogicExecutor(); // 테스트용 간단한 Executor
+    executor = TestLogicExecutors.passThrough(); // 테스트용 간단한 Executor
 
     // NoOpBackoff로 결정적 테스트 (Yellow 요구)
     buffer =
         new ExpectationWriteBackBuffer(
             properties, meterRegistry, new BackoffStrategy.NoOpBackoff(), executor);
-  }
-
-  /**
-   * 테스트용 간단한 LogicExecutor 구현
-   *
-   * <p>작업을 직접 실행하고 예외를 적절히 처리합니다.
-   */
-  private static class TestLogicExecutor implements LogicExecutor {
-    @Override
-    public <T> T execute(ThrowingSupplier<T> task, TaskContext context) {
-      try {
-        return task.get();
-      } catch (Throwable e) {
-        throw new RuntimeException(e);
-      }
-    }
-
-    @Override
-    public <T> T executeOrDefault(ThrowingSupplier<T> task, T defaultValue, TaskContext context) {
-      try {
-        return task.get();
-      } catch (Throwable e) {
-        return defaultValue;
-      }
-    }
-
-    @Override
-    public <T> T executeOrCatch(
-        ThrowingSupplier<T> task, Function<Throwable, T> recovery, TaskContext context) {
-      try {
-        return task.get();
-      } catch (Throwable e) {
-        return recovery.apply(e);
-      }
-    }
-
-    @Override
-    public void executeVoid(ThrowingRunnable task, TaskContext context) {
-      try {
-        task.run();
-      } catch (Throwable e) {
-        throw new RuntimeException(e);
-      }
-    }
-
-    @Override
-    public <T> T executeWithFinally(
-        ThrowingSupplier<T> task, Runnable finallyBlock, TaskContext context) {
-      try {
-        return task.get();
-      } catch (Throwable e) {
-        throw new RuntimeException(e);
-      } finally {
-        finallyBlock.run();
-      }
-    }
-
-    @Override
-    public <T> T executeWithTranslation(
-        ThrowingSupplier<T> task, ExceptionTranslator translator, TaskContext context) {
-      try {
-        return task.get();
-      } catch (Throwable e) {
-        throw translator.translate(e, context);
-      }
-    }
-
-    @Override
-    public <T> T executeWithFallback(
-        ThrowingSupplier<T> task, Function<Throwable, T> fallback, TaskContext context) {
-      try {
-        return task.get();
-      } catch (Throwable e) {
-        return fallback.apply(e);
-      }
-    }
   }
 
   @Test

@@ -10,10 +10,8 @@ import static org.mockito.Mockito.when;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
-import maple.expectation.common.function.ThrowingSupplier;
 import maple.expectation.infrastructure.executor.LogicExecutor;
-import maple.expectation.infrastructure.executor.TaskContext;
-import maple.expectation.infrastructure.executor.function.ThrowingRunnable;
+import maple.expectation.support.TestLogicExecutors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -21,7 +19,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.stubbing.Answer;
 import org.redisson.api.RBucket;
 import org.redisson.api.RedissonClient;
 
@@ -55,8 +52,8 @@ class IdempotencyGuardTest {
     // Redisson Mocks
     lenient().when(redissonClient.<String>getBucket(anyString())).thenReturn(rBucket);
 
-    // LogicExecutor Mocks
-    setupExecutorMocks();
+    // LogicExecutor - use centralized TestLogicExecutors
+    executor = TestLogicExecutors.passThrough();
 
     guard = new IdempotencyGuard(redissonClient, executor, meterRegistry, 24);
 
@@ -68,36 +65,6 @@ class IdempotencyGuardTest {
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
-  }
-
-  @SuppressWarnings("unchecked")
-  private void setupExecutorMocks() {
-    // executeOrDefault - 람다 직접 실행
-    lenient()
-        .when(executor.executeOrDefault(any(ThrowingSupplier.class), any(), any(TaskContext.class)))
-        .thenAnswer(
-            (Answer<Object>)
-                invocation -> {
-                  ThrowingSupplier<?> task = invocation.getArgument(0);
-                  Object defaultValue = invocation.getArgument(1);
-                  try {
-                    return task.get();
-                  } catch (Exception e) {
-                    return defaultValue;
-                  }
-                });
-
-    // executeVoid - 람다 직접 실행
-    lenient()
-        .doAnswer(
-            (Answer<Void>)
-                invocation -> {
-                  ThrowingRunnable task = invocation.getArgument(0);
-                  task.run();
-                  return null;
-                })
-        .when(executor)
-        .executeVoid(any(ThrowingRunnable.class), any(TaskContext.class));
   }
 
   @Nested

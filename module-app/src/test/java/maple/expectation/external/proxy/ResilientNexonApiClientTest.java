@@ -54,10 +54,12 @@ class ResilientNexonApiClientTest extends IntegrationTestSupport {
   @DisplayName("성공 시나리오: 결과값을 그대로 반환")
   void successDelegationTest() {
     String name = "메이플고수";
+    CharacterOcidResponse expectedResponse = new CharacterOcidResponse("ocid-123");
     BDDMockito.given(nexonApiClient.getOcidByCharacterName(name))
-        .willReturn(CompletableFuture.completedFuture(new CharacterOcidResponse("ocid-123")));
+        .willReturn(CompletableFuture.completedFuture(expectedResponse));
 
-    assertThat(resilientNexonApiClient.getOcidByCharacterName(name).join()).isEqualTo("ocid-123");
+    assertThat(resilientNexonApiClient.getOcidByCharacterName(name).join())
+        .isEqualTo(expectedResponse);
   }
 
   @Test

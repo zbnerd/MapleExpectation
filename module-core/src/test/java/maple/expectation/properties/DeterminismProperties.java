@@ -46,6 +46,8 @@ import net.jqwik.api.Provide;
  * }
  * }</pre>
  */
+@Disabled(
+    "Template - wire to domain classes (StarforceCalculator, CubeCostCalculator) before enabling")
 class DeterminismProperties {
 
   // ============================================================

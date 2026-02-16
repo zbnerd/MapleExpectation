@@ -1,4 +1,4 @@
-package maple.expectation.repository.v2;
+package maple.expectation.infrastructure.persistence.repository;
 
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;

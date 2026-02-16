@@ -5,10 +5,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.aop.annotation.ObservedTransaction;
-import maple.expectation.domain.model.like.CharacterLike;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
-import maple.expectation.repository.v2.CharacterLikeRepository;
+import maple.expectation.infrastructure.persistence.entity.CharacterLikeJpaEntity;
+import maple.expectation.infrastructure.persistence.repository.CharacterLikeRepository;
 import maple.expectation.service.v2.cache.LikeRelationBuffer;
 import maple.expectation.service.v2.cache.LikeRelationBufferStrategy;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -148,8 +148,8 @@ public class LikeRelationSyncService {
       throw new DataIntegrityViolationException("Already exists");
     }
 
-    CharacterLike like = CharacterLike.of(targetOcid, accountId);
-    characterLikeRepository.save(like);
+    CharacterLikeJpaEntity entity = new CharacterLikeJpaEntity(targetOcid, accountId);
+    characterLikeRepository.save(entity);
   }
 
   /** 동기화 결과 */

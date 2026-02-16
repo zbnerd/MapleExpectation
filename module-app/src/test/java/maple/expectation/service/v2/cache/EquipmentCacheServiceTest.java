@@ -8,13 +8,10 @@ import static org.mockito.Mockito.*;
 
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Function;
-import maple.expectation.common.function.ThrowingSupplier;
 import maple.expectation.external.dto.v2.EquipmentResponse;
 import maple.expectation.infrastructure.executor.LogicExecutor;
-import maple.expectation.infrastructure.executor.TaskContext;
-import maple.expectation.infrastructure.executor.function.ThrowingRunnable;
 import maple.expectation.service.v2.worker.EquipmentDbWorker;
+import maple.expectation.support.TestLogicExecutors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -59,7 +56,7 @@ class EquipmentCacheServiceTest {
     cacheManager = mock(CacheManager.class);
     l1CacheManager = mock(CacheManager.class);
     dbWorker = mock(EquipmentDbWorker.class);
-    executor = createMockLogicExecutor();
+    executor = TestLogicExecutors.passThrough();
     tieredCache = mock(Cache.class);
     l1Cache = mock(Cache.class);
 
@@ -318,58 +315,5 @@ class EquipmentCacheServiceTest {
     EquipmentResponse response = new EquipmentResponse();
     response.setCharacterClass(characterClass);
     return response;
-  }
-
-  @SuppressWarnings("unchecked")
-  private LogicExecutor createMockLogicExecutor() {
-    LogicExecutor mockExecutor = mock(LogicExecutor.class);
-
-    // execute: 실제 작업 실행
-    given(mockExecutor.execute(any(ThrowingSupplier.class), any(TaskContext.class)))
-        .willAnswer(
-            invocation -> {
-              ThrowingSupplier<?> task = invocation.getArgument(0);
-              return task.get();
-            });
-
-    // executeVoid: 실제 작업 실행
-    doAnswer(
-            invocation -> {
-              ThrowingRunnable task = invocation.getArgument(0);
-              task.run();
-              return null;
-            })
-        .when(mockExecutor)
-        .executeVoid(any(ThrowingRunnable.class), any(TaskContext.class));
-
-    // executeOrDefault: 실제 작업 실행, 예외 시 기본값
-    given(mockExecutor.executeOrDefault(any(ThrowingSupplier.class), any(), any(TaskContext.class)))
-        .willAnswer(
-            invocation -> {
-              ThrowingSupplier<?> task = invocation.getArgument(0);
-              Object defaultValue = invocation.getArgument(1);
-              try {
-                return task.get();
-              } catch (Throwable e) {
-                return defaultValue;
-              }
-            });
-
-    // executeOrCatch: 실제 작업 실행, 예외 시 recovery 호출
-    given(
-            mockExecutor.executeOrCatch(
-                any(ThrowingSupplier.class), any(Function.class), any(TaskContext.class)))
-        .willAnswer(
-            invocation -> {
-              ThrowingSupplier<?> task = invocation.getArgument(0);
-              Function<Throwable, ?> recovery = invocation.getArgument(1);
-              try {
-                return task.get();
-              } catch (Throwable e) {
-                return recovery.apply(e);
-              }
-            });
-
-    return mockExecutor;
   }
 }

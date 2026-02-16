@@ -2,7 +2,7 @@ package maple.expectation.aop.aspect;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.service.v2.cache.LikeBufferStrategy;
+import maple.expectation.application.port.LikeBufferStrategy;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;

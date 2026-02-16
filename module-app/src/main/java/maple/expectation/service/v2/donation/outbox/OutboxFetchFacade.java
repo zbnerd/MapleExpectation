@@ -7,7 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import maple.expectation.config.OutboxProperties;
 import maple.expectation.domain.v2.DonationOutbox;
 import maple.expectation.domain.v2.DonationOutbox.OutboxStatus;
-import maple.expectation.repository.v2.DonationOutboxRepository;
+import maple.expectation.infrastructure.persistence.repository.DonationOutboxRepository;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;

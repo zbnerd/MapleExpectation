@@ -7,7 +7,7 @@ import maple.expectation.domain.v2.NexonApiDlq;
 import maple.expectation.domain.v2.NexonApiOutbox;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
-import maple.expectation.repository.v2.NexonApiDlqRepository;
+import maple.expectation.infrastructure.persistence.repository.NexonApiDlqRepository;
 import maple.expectation.service.v2.shutdown.ShutdownDataPersistenceService;
 import org.springframework.stereotype.Service;
 

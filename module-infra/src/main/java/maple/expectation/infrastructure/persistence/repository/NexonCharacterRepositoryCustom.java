@@ -1,4 +1,4 @@
-package maple.expectation.repository.v2;
+package maple.expectation.infrastructure.persistence.repository;
 
 import java.util.List;
 import maple.expectation.domain.nexon.NexonApiCharacterData;

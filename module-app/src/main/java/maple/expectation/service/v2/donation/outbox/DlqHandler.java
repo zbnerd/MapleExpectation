@@ -7,7 +7,7 @@ import maple.expectation.domain.v2.DonationDlq;
 import maple.expectation.domain.v2.DonationOutbox;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
-import maple.expectation.repository.v2.DonationDlqRepository;
+import maple.expectation.infrastructure.persistence.repository.DonationDlqRepository;
 import maple.expectation.service.v2.shutdown.ShutdownDataPersistenceService;
 import org.springframework.stereotype.Service;
 

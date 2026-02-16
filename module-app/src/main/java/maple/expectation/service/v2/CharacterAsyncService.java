@@ -5,7 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
-import maple.expectation.repository.v2.GameCharacterRepository;
+import maple.expectation.infrastructure.persistence.repository.GameCharacterRepository;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

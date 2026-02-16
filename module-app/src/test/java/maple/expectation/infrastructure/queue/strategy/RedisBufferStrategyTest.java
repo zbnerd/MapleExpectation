@@ -14,12 +14,11 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import maple.expectation.common.function.ThrowingSupplier;
 import maple.expectation.infrastructure.executor.LogicExecutor;
-import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.infrastructure.queue.QueueMessage;
 import maple.expectation.infrastructure.queue.QueueType;
 import maple.expectation.infrastructure.queue.script.BufferLuaScriptProvider;
+import maple.expectation.support.TestLogicExecutors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -27,7 +26,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.stubbing.Answer;
 import org.redisson.api.RBucket;
 import org.redisson.api.RDeque;
 import org.redisson.api.RMap;
@@ -80,8 +78,8 @@ class RedisBufferStrategyTest {
     // Redisson Mocks
     setupRedissonMocks();
 
-    // LogicExecutor Mocks
-    setupExecutorMocks();
+    // LogicExecutor - use centralized TestLogicExecutors
+    executor = TestLogicExecutors.passThrough();
 
     buffer =
         new RedisBufferStrategy<>(
@@ -119,41 +117,6 @@ class RedisBufferStrategyTest {
               Function<String, ?> scriptExecutor = invocation.getArgument(3);
               return scriptExecutor.apply("mock-sha");
             });
-  }
-
-  @SuppressWarnings("unchecked")
-  private void setupExecutorMocks() {
-    // executeOrDefault - 람다 직접 실행
-    lenient()
-        .when(executor.executeOrDefault(any(ThrowingSupplier.class), any(), any(TaskContext.class)))
-        .thenAnswer(
-            (Answer<Object>)
-                invocation -> {
-                  ThrowingSupplier<?> task = invocation.getArgument(0);
-                  Object defaultValue = invocation.getArgument(1);
-                  try {
-                    return task.get();
-                  } catch (Exception e) {
-                    return defaultValue;
-                  }
-                });
-
-    // executeWithFallback - 람다 직접 실행
-    lenient()
-        .when(
-            executor.executeWithFallback(
-                any(ThrowingSupplier.class), any(Function.class), any(TaskContext.class)))
-        .thenAnswer(
-            (Answer<Object>)
-                invocation -> {
-                  ThrowingSupplier<?> task = invocation.getArgument(0);
-                  Function<Throwable, ?> fallback = invocation.getArgument(1);
-                  try {
-                    return task.get();
-                  } catch (Exception e) {
-                    return fallback.apply(e);
-                  }
-                });
   }
 
   @Nested

@@ -11,6 +11,7 @@ import java.util.Optional;
 import maple.expectation.common.function.ThrowingSupplier;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
+import maple.expectation.support.TestLogicExecutors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -48,7 +49,7 @@ class JwtTokenProviderTest {
   @BeforeEach
   void setUp() {
     environment = mock(Environment.class);
-    executor = createMockLogicExecutor();
+    executor = TestLogicExecutors.passThrough();
     given(environment.getActiveProfiles()).willReturn(new String[] {"test"});
 
     tokenProvider = new JwtTokenProvider(VALID_SECRET, EXPIRATION_SECONDS, environment, executor);

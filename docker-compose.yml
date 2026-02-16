@@ -144,6 +144,26 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
+  # MongoDB for V5 CQRS Read Side
+  mongodb:
+    image: mongo:7.0
+    container_name: maple-mongodb
+    restart: always
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: maple_expectation
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+    networks:
+      - maple-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # Grafana for visualization
   grafana:
     image: grafana/grafana:latest
@@ -172,5 +192,7 @@ networks:
 volumes:
   mysql_data:
   redis_data:
+  mongodb_data:
+  mongodb_config:
   prometheus_data:
   grafana_data:

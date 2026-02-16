@@ -2,6 +2,7 @@ package maple.expectation.scheduler;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.application.port.LikeBufferStrategy;
 import maple.expectation.error.exception.DistributedLockException;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
@@ -9,7 +10,6 @@ import maple.expectation.infrastructure.lock.LockStrategy;
 import maple.expectation.infrastructure.queue.like.PartitionedFlushStrategy;
 import maple.expectation.service.v2.LikeRelationSyncService;
 import maple.expectation.service.v2.LikeSyncService;
-import maple.expectation.service.v2.cache.LikeBufferStrategy;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.lang.Nullable;
 import org.springframework.scheduling.annotation.Scheduled;

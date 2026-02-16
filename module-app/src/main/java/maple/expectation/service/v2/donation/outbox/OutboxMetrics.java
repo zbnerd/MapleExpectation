@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import lombok.RequiredArgsConstructor;
 import maple.expectation.config.OutboxProperties;
 import maple.expectation.domain.v2.DonationOutbox.OutboxStatus;
-import maple.expectation.repository.v2.DonationOutboxRepository;
+import maple.expectation.infrastructure.persistence.repository.DonationOutboxRepository;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 

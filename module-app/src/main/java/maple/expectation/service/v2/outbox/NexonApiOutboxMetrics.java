@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import lombok.RequiredArgsConstructor;
 import maple.expectation.domain.v2.NexonApiOutbox.OutboxStatus;
-import maple.expectation.repository.v2.NexonApiOutboxRepository;
+import maple.expectation.infrastructure.persistence.repository.NexonApiOutboxRepository;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 

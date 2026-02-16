@@ -7,16 +7,13 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
-import java.util.function.Function;
 import maple.expectation.alert.StatelessAlertService;
-import maple.expectation.common.function.ThrowingSupplier;
 import maple.expectation.domain.v2.DonationDlq;
 import maple.expectation.domain.v2.DonationOutbox;
 import maple.expectation.infrastructure.executor.LogicExecutor;
-import maple.expectation.infrastructure.executor.TaskContext;
-import maple.expectation.infrastructure.executor.function.ThrowingRunnable;
-import maple.expectation.repository.v2.DonationDlqRepository;
+import maple.expectation.infrastructure.persistence.repository.DonationDlqRepository;
 import maple.expectation.service.v2.shutdown.ShutdownDataPersistenceService;
+import maple.expectation.support.TestLogicExecutors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -51,7 +48,7 @@ class DlqHandlerTest {
     dlqRepository = mock(DonationDlqRepository.class);
     fileBackupService = mock(ShutdownDataPersistenceService.class);
     statelessAlertService = mock(StatelessAlertService.class);
-    executor = createPassThroughExecutor();
+    executor = TestLogicExecutors.passThrough();
     metrics = mock(OutboxMetrics.class);
 
     dlqHandler =
@@ -159,37 +156,5 @@ class DlqHandlerTest {
         DonationOutbox.create("req-001", "DONATION_COMPLETED", "{\"amount\":1000}");
     ReflectionTestUtils.setField(outbox, "id", 1L);
     return outbox;
-  }
-
-  @SuppressWarnings("unchecked")
-  private LogicExecutor createPassThroughExecutor() {
-    LogicExecutor mockExecutor = mock(LogicExecutor.class);
-
-    // executeOrCatch
-    given(
-            mockExecutor.executeOrCatch(
-                any(ThrowingSupplier.class), any(Function.class), any(TaskContext.class)))
-        .willAnswer(
-            invocation -> {
-              ThrowingSupplier<?> task = invocation.getArgument(0);
-              Function<Throwable, ?> recovery = invocation.getArgument(1);
-              try {
-                return task.get();
-              } catch (Throwable e) {
-                return recovery.apply(e);
-              }
-            });
-
-    // executeVoid
-    doAnswer(
-            invocation -> {
-              ThrowingRunnable task = invocation.getArgument(0);
-              task.run();
-              return null;
-            })
-        .when(mockExecutor)
-        .executeVoid(any(ThrowingRunnable.class), any(TaskContext.class));
-
-    return mockExecutor;
   }
 }

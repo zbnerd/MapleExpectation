@@ -10,6 +10,7 @@ import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.queue.RedisKey;
 import maple.expectation.service.v2.like.realtime.dto.LikeEvent;
 import maple.expectation.service.v2.like.realtime.impl.RedisLikeEventPublisher;
+import maple.expectation.support.TestLogicExecutors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -41,27 +42,15 @@ class RedisLikeEventPublisherTest {
 
   @Mock private RTopic topic;
 
-  @Mock private LogicExecutor executor;
+  private LogicExecutor executor;
 
   private MeterRegistry meterRegistry;
   private RedisLikeEventPublisher publisher;
 
   @BeforeEach
   void setUp() {
+    executor = TestLogicExecutors.passThrough();
     meterRegistry = new SimpleMeterRegistry();
-
-    // executeOrDefault를 호출하면 task를 직접 실행하도록 설정
-    when(executor.executeOrDefault(any(), any(), any()))
-        .thenAnswer(
-            invocation -> {
-              try {
-                maple.expectation.common.function.ThrowingSupplier<?> task =
-                    invocation.getArgument(0);
-                return task.get();
-              } catch (Throwable e) {
-                return invocation.getArgument(1); // defaultValue 반환
-              }
-            });
 
     publisher = new RedisLikeEventPublisher(redissonClient, executor, meterRegistry);
     ReflectionTestUtils.setField(publisher, "instanceId", "test-instance");

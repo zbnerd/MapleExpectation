@@ -65,6 +65,8 @@ import org.junit.jupiter.params.provider.ValueSource;
  */
 @DisplayName("골든 마스터 회귀 테스트")
 @Tag("snapshot")
+@Disabled(
+    "Template - wire to domain classes (StarforceCalculator, CubeCostCalculator) and verify golden master values before enabling")
 class GoldenMasterTests {
 
   private static final double EPSILON = 1e-10;

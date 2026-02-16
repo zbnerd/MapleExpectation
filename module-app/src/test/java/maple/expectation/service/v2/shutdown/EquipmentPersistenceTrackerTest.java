@@ -2,22 +2,16 @@ package maple.expectation.service.v2.shutdown;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
 
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
-import maple.expectation.common.function.ThrowingSupplier;
 import maple.expectation.infrastructure.executor.LogicExecutor;
-import maple.expectation.infrastructure.executor.TaskContext;
-import maple.expectation.infrastructure.executor.function.ThrowingRunnable;
+import maple.expectation.support.TestLogicExecutors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 
 /** EquipmentPersistenceTracker 테스트 */
 @DisplayName("EquipmentPersistenceTracker 테스트")
@@ -28,32 +22,8 @@ class EquipmentPersistenceTrackerTest {
 
   @BeforeEach
   void setUp() {
-    executor = Mockito.mock(LogicExecutor.class);
-
-    // ✅ [해결] any(ThrowingRunnable.class)로 타입을 명시하여 중의성 제거
-    doAnswer(
-            invocation -> {
-              ThrowingRunnable task = invocation.getArgument(0);
-              task.run();
-              return null;
-            })
-        .when(executor)
-        .executeVoid(any(ThrowingRunnable.class), any(TaskContext.class));
-
-    // ✅ [해결] executeWithFallback Passthrough 설정
-    doAnswer(
-            invocation -> {
-              ThrowingSupplier<?> task = invocation.getArgument(0);
-              Function<Throwable, Object> fallback = invocation.getArgument(1);
-              try {
-                return task.get();
-              } catch (Throwable e) {
-                return fallback.apply(e);
-              }
-            })
-        .when(executor)
-        .executeWithFallback(
-            any(ThrowingSupplier.class), any(Function.class), any(TaskContext.class));
+    // ✅ [해결] TestLogicExecutors로 boilerplate 제거
+    executor = TestLogicExecutors.passThrough();
 
     // 리팩토링된 생성자로 주입
     tracker = new EquipmentPersistenceTracker(executor);

@@ -1,9 +1,6 @@
 package maple.expectation.service.v4.buffer;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -17,6 +14,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.config.BufferProperties;
 import maple.expectation.dto.v4.EquipmentExpectationResponseV4.PresetExpectation;
+import maple.expectation.support.TestLogicExecutors;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,6 +37,8 @@ class ExpectationWriteBackBufferConcurrencyTest {
   @BeforeEach
   void setUp() {
     meterRegistry = new SimpleMeterRegistry();
+    executor = TestLogicExecutors.passThrough();
+
     // BufferProperties: shutdownAwaitTimeoutSeconds, casMaxRetries, maxQueueSize
     properties =
         new BufferProperties(
@@ -48,25 +48,6 @@ class ExpectationWriteBackBufferConcurrencyTest {
             );
     // BackoffStrategy is no longer needed for atomic implementation
     backoffStrategy = null;
-    executor = mock(maple.expectation.infrastructure.executor.LogicExecutor.class);
-
-    // Configure LogicExecutor mock to pass through executeWithFinally calls
-    when(executor.executeWithFinally(any(), any(), any()))
-        .thenAnswer(
-            invocation -> {
-              var task = invocation.getArgument(0);
-              var finalizer = invocation.getArgument(1);
-              try {
-                Object result =
-                    ((maple.expectation.common.function.ThrowingSupplier<?>) task).get();
-                if (finalizer != null) {
-                  ((java.lang.Runnable) finalizer).run();
-                }
-                return result;
-              } catch (Throwable e) {
-                throw new RuntimeException(e);
-              }
-            });
 
     buffer = new ExpectationWriteBackBuffer(properties, meterRegistry, backoffStrategy, executor);
   }

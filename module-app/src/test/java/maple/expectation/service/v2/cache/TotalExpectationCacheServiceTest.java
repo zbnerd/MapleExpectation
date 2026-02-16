@@ -8,12 +8,9 @@ import static org.mockito.Mockito.*;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.List;
-import java.util.function.Function;
-import maple.expectation.common.function.ThrowingSupplier;
 import maple.expectation.external.dto.v2.TotalExpectationResponse;
 import maple.expectation.infrastructure.executor.LogicExecutor;
-import maple.expectation.infrastructure.executor.TaskContext;
-import maple.expectation.infrastructure.executor.function.ThrowingRunnable;
+import maple.expectation.support.TestLogicExecutors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -56,7 +53,7 @@ class TotalExpectationCacheServiceTest {
     l1CacheManager = mock(CacheManager.class);
     l2CacheManager = mock(CacheManager.class);
     redisSerializer = mock(RedisSerializer.class);
-    executor = createPassThroughExecutor();
+    executor = TestLogicExecutors.passThrough();
     meterRegistry = new SimpleMeterRegistry();
 
     l1Cache = mock(Cache.class);
@@ -198,50 +195,5 @@ class TotalExpectationCacheServiceTest {
                     .expectedCount(1500L)
                     .build()))
         .build();
-  }
-
-  /**
-   * LogicExecutor Pass-through mock (실제 작업 실행)
-   *
-   * <p>TieredCacheTest 패턴 참조
-   */
-  @SuppressWarnings("unchecked")
-  private LogicExecutor createPassThroughExecutor() {
-    LogicExecutor mockExecutor = mock(LogicExecutor.class);
-
-    // execute
-    given(mockExecutor.execute(any(ThrowingSupplier.class), any(TaskContext.class)))
-        .willAnswer(
-            invocation -> {
-              ThrowingSupplier<?> task = invocation.getArgument(0);
-              return task.get();
-            });
-
-    // executeVoid
-    doAnswer(
-            invocation -> {
-              ThrowingRunnable task = invocation.getArgument(0);
-              task.run();
-              return null;
-            })
-        .when(mockExecutor)
-        .executeVoid(any(ThrowingRunnable.class), any(TaskContext.class));
-
-    // executeOrCatch (TotalExpectationCacheService에서 사용)
-    given(
-            mockExecutor.executeOrCatch(
-                any(ThrowingSupplier.class), any(Function.class), any(TaskContext.class)))
-        .willAnswer(
-            invocation -> {
-              ThrowingSupplier<?> task = invocation.getArgument(0);
-              Function<Throwable, ?> recovery = invocation.getArgument(1);
-              try {
-                return task.get();
-              } catch (Throwable e) {
-                return recovery.apply(e);
-              }
-            });
-
-    return mockExecutor;
   }
 }

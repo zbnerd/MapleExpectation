@@ -79,7 +79,7 @@ class DiscordAlertChannelIntegrationTest extends AppIntegrationTestSupport {
 
     when(mockAlertWebClient.post()).thenReturn(requestBodySpec);
     when(requestBodySpec.uri(anyString())).thenReturn(requestBodySpec2);
-    when(requestBodySpec2.body(any())).thenReturn(requestHeadersSpec);
+    when(requestBodySpec2.bodyValue(any())).thenReturn(requestHeadersSpec);
     when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
     when(responseSpec.toBodilessEntity())
         .thenReturn(Mono.just(org.springframework.http.ResponseEntity.ok().build()));
@@ -105,7 +105,7 @@ class DiscordAlertChannelIntegrationTest extends AppIntegrationTestSupport {
 
     when(mockAlertWebClient.post()).thenReturn(requestBodySpec);
     when(requestBodySpec.uri(anyString())).thenReturn(requestBodySpec2);
-    when(requestBodySpec2.body(any())).thenReturn(requestHeadersSpec);
+    when(requestBodySpec2.bodyValue(any())).thenReturn(requestHeadersSpec);
     when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
     when(responseSpec.toBodilessEntity())
         .thenThrow(
@@ -170,7 +170,7 @@ class DiscordAlertChannelIntegrationTest extends AppIntegrationTestSupport {
 
     when(mockAlertWebClient.post()).thenReturn(requestBodySpec);
     when(requestBodySpec.uri(anyString())).thenReturn(requestBodySpec2);
-    when(requestBodySpec2.body(any())).thenReturn(requestHeadersSpec);
+    when(requestBodySpec2.bodyValue(any())).thenReturn(requestHeadersSpec);
     when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
     when(responseSpec.toBodilessEntity())
         .thenThrow(
@@ -197,7 +197,7 @@ class DiscordAlertChannelIntegrationTest extends AppIntegrationTestSupport {
 
     when(mockAlertWebClient.post()).thenReturn(requestBodySpec);
     when(requestBodySpec.uri(anyString())).thenReturn(requestBodySpec2);
-    when(requestBodySpec2.body(any())).thenReturn(requestHeadersSpec);
+    when(requestBodySpec2.bodyValue(any())).thenReturn(requestHeadersSpec);
     when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
 
     // 첫 번째 호출은 500, 두 번째는 200
@@ -253,7 +253,7 @@ class DiscordAlertChannelIntegrationTest extends AppIntegrationTestSupport {
 
     when(mockAlertWebClient.post()).thenReturn(requestBodySpec);
     when(requestBodySpec.uri(anyString())).thenReturn(requestBodySpec2);
-    when(requestBodySpec2.body(any())).thenReturn(requestHeadersSpec);
+    when(requestBodySpec2.bodyValue(any())).thenReturn(requestHeadersSpec);
     when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
     when(responseSpec.toBodilessEntity())
         .thenReturn(Mono.just(org.springframework.http.ResponseEntity.ok().build()));
@@ -290,7 +290,7 @@ class DiscordAlertChannelIntegrationTest extends AppIntegrationTestSupport {
               return requestBodySpec;
             });
     when(requestBodySpec.uri(anyString())).thenReturn(requestBodySpec2);
-    when(requestBodySpec2.body(any())).thenReturn(requestHeadersSpec);
+    when(requestBodySpec2.bodyValue(any())).thenReturn(requestHeadersSpec);
     when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
     when(responseSpec.toBodilessEntity())
         .thenAnswer(
@@ -306,9 +306,9 @@ class DiscordAlertChannelIntegrationTest extends AppIntegrationTestSupport {
     boolean result = discordAlertChannel.send(message);
     long endTime = System.currentTimeMillis();
 
-    // Then: 즉시 반환됨 (LogicExecutor에 의해 비동기 처리)
-    // 현재 구현에서는 동기적으로 처리되므로 이 부분은 구현에 따라 다름
-    assertTrue(result || !result, "결과는 구현에 따름");
+    // Then: 전송 성공 및 웹훅 호출 확인
+    assertTrue(result, "전송이 성공해야 함");
+    assertTrue(endTime - startTime < 100, "즉시 반환되어야 함 (LogicExecutor에 의해 비동기 처리)");
     verify(mockAlertWebClient, times(1)).post();
   }
 
@@ -352,7 +352,7 @@ class DiscordAlertChannelIntegrationTest extends AppIntegrationTestSupport {
 
     when(mockAlertWebClient.post()).thenReturn(requestBodySpec);
     when(requestBodySpec.uri(anyString())).thenReturn(requestBodySpec2);
-    when(requestBodySpec2.body(any())).thenReturn(requestHeadersSpec);
+    when(requestBodySpec2.bodyValue(any())).thenReturn(requestHeadersSpec);
     when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
     when(responseSpec.toBodilessEntity())
         .thenReturn(Mono.just(org.springframework.http.ResponseEntity.ok().build()));
@@ -385,7 +385,7 @@ class DiscordAlertChannelIntegrationTest extends AppIntegrationTestSupport {
 
     when(mockAlertWebClient.post()).thenReturn(requestBodySpec);
     when(requestBodySpec.uri(anyString())).thenReturn(requestBodySpec2);
-    when(requestBodySpec2.body(any())).thenReturn(requestHeadersSpec);
+    when(requestBodySpec2.bodyValue(any())).thenReturn(requestHeadersSpec);
     when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
     when(responseSpec.toBodilessEntity())
         .thenReturn(Mono.just(org.springframework.http.ResponseEntity.ok().build()));
