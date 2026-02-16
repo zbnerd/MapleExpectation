@@ -15,7 +15,7 @@ import maple.expectation.domain.v2.NexonApiOutbox;
 import maple.expectation.domain.v2.NexonApiOutbox.NexonApiEventType;
 import maple.expectation.domain.v2.NexonApiOutbox.OutboxStatus;
 import maple.expectation.external.NexonApiClient;
-import maple.expectation.repository.v2.NexonApiOutboxRepository;
+import maple.expectation.infrastructure.persistence.repository.NexonApiOutboxRepository;
 import maple.expectation.service.v2.outbox.NexonApiOutboxProcessor;
 import maple.expectation.service.v2.outbox.NexonApiRetryClient;
 import maple.expectation.support.IntegrationTestSupport;
