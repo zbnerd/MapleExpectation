@@ -20,6 +20,7 @@ import org.redisson.api.StreamMessageId;
 import org.redisson.api.stream.StreamAddArgs;
 import org.redisson.api.stream.StreamCreateGroupArgs;
 import org.redisson.api.stream.StreamReadGroupArgs;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 /**
@@ -48,6 +49,11 @@ import org.springframework.stereotype.Service;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@ConditionalOnProperty(
+    prefix = "resilience.mysql-fallback",
+    name = "enabled",
+    havingValue = "true",
+    matchIfMissing = false)
 public class CompensationLogService {
 
   private static final String FIELD_TYPE = "type";

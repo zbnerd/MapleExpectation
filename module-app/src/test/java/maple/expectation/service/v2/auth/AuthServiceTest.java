@@ -402,8 +402,7 @@ class AuthServiceTest {
     void shouldThrowWhenSessionExpired() {
       // given
       // Note: Session validation happens inside TokenService.rotateTokens(), not in AuthService
-      given(tokenService.rotateTokens(REFRESH_TOKEN_ID))
-          .willThrow(new SessionNotFoundException());
+      given(tokenService.rotateTokens(REFRESH_TOKEN_ID)).willThrow(new SessionNotFoundException());
 
       // when & then
       assertThatThrownBy(() -> authService.refresh(REFRESH_TOKEN_ID))

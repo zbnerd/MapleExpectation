@@ -2,6 +2,7 @@ package maple.expectation.service.v4.fallback;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
@@ -50,7 +51,7 @@ public class NexonApiFallbackService {
   private static final String CACHE_KEY_PREFIX = "equipment:";
 
   private final MySQLHealthEventPublisher healthEventPublisher;
-  private final CompensationLogService compensationLogService;
+  private final Optional<CompensationLogService> compensationLogService;
   private final RedissonClient redissonClient;
   private final ObjectMapper objectMapper;
   private final MySQLFallbackProperties properties;
@@ -122,7 +123,10 @@ public class NexonApiFallbackService {
 
   /** Compensation Log 기록 */
   private void writeCompensationLog(String ocid, EquipmentResponse response) {
-    compensationLogService.writeLog(COMPENSATION_TYPE_EQUIPMENT, ocid, response);
+    compensationLogService.ifPresent(
+        service -> {
+          service.writeLog(COMPENSATION_TYPE_EQUIPMENT, ocid, response);
+        });
   }
 
   /**

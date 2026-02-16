@@ -11,6 +11,7 @@ import net.jqwik.api.ForAll;
 import net.jqwik.api.Property;
 import net.jqwik.api.Provide;
 import net.jqwik.api.constraints.IntRange;
+import org.junit.jupiter.api.Disabled;
 
 /**
  * 확률 불변식(Property-Based) 테스트 템플릿

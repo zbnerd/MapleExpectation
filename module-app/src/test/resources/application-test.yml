@@ -21,6 +21,11 @@ spring:
       port: 6379
       # Sentinel 설정 제거 (테스트는 단일 Redis 사용)
 
+# MySQL Fallback 비활성화 (테스트 환경: Redis read-only replica 문제 방지)
+resilience:
+  mysql-fallback:
+    enabled: false
+
 # Issue #202: Resilience4j 테스트 환경 설정
 resilience4j:
   circuitbreaker:

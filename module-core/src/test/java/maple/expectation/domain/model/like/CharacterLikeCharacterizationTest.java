@@ -3,7 +3,6 @@ package maple.expectation.domain.model.like;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.time.LocalDateTime;
-import maple.expectation.domain.model.character.CharacterId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -33,31 +32,28 @@ class CharacterLikeCharacterizationTest {
 
       assertAll(
           "like",
-          () -> assertNull(like.getLikeId(), "LikeId should be null for new like"),
-          () -> assertEquals(targetOcid, like.getTargetOcid(), "Target OCID should match"),
-          () ->
-              assertEquals(likerAccountId, like.getLikerAccountId(), "LikerAccountId should match"),
-          () ->
-              assertNotNull(
-                  like.getCreatedAt(), "CreatedAt should be initialized to current time"));
+          () -> assertNull(like.id(), "LikeId should be null for new like"),
+          () -> assertEquals(targetOcid.value(), like.targetOcid(), "Target OCID should match"),
+          () -> assertEquals(likerAccountId, like.likerAccountId(), "LikerAccountId should match"),
+          () -> assertNotNull(like.createdAt(), "CreatedAt should be initialized to current time"));
     }
 
     @Test
     @DisplayName("restore() should reconstitute like from persistence")
     void restore_shouldReconstituteFromPersistence() {
-      CharacterId targetOcid = new CharacterId("target-ocid-789");
+      String targetOcid = "target-ocid-789";
       String likerAccountId = "user-account-012";
-      LikeId likeId = new LikeId(42L);
+      Long likeId = 42L;
       LocalDateTime past = LocalDateTime.now().minusDays(1);
 
       CharacterLike like = CharacterLike.restore(likeId, targetOcid, likerAccountId, past);
 
       assertAll(
           "like",
-          () -> assertEquals(likeId, like.getLikeId()),
-          () -> assertEquals(targetOcid, like.getTargetOcid()),
-          () -> assertEquals(likerAccountId, like.getLikerAccountId()),
-          () -> assertEquals(past, like.getCreatedAt()));
+          () -> assertEquals(likeId, like.id()),
+          () -> assertEquals(targetOcid, like.targetOcid()),
+          () -> assertEquals(likerAccountId, like.likerAccountId()),
+          () -> assertEquals(past, like.createdAt()));
     }
 
     @Test
@@ -70,9 +66,9 @@ class CharacterLikeCharacterizationTest {
 
       assertAll(
           "like",
-          () -> assertEquals(new CharacterId(targetOcid), like.getTargetOcid()),
-          () -> assertEquals(likerAccountId, like.getLikerAccountId()),
-          () -> assertNotNull(like.getCreatedAt()));
+          () -> assertEquals(targetOcid, like.targetOcid()),
+          () -> assertEquals(likerAccountId, like.likerAccountId()),
+          () -> assertNotNull(like.createdAt()));
     }
   }
 
@@ -86,7 +82,7 @@ class CharacterLikeCharacterizationTest {
     @DisplayName("isSelfLike() should return true when OCID equals account ID")
     void isSelfLike_shouldReturnTrueForSelfLike() {
       String sameId = "same-ocid-account";
-      CharacterLike like = CharacterLike.create(new CharacterId(sameId), sameId);
+      CharacterLike like = CharacterLike.create(sameId, sameId);
 
       assertTrue(like.isSelfLike(), "Should detect self-like");
     }
@@ -94,7 +90,7 @@ class CharacterLikeCharacterizationTest {
     @Test
     @DisplayName("isSelfLike() should return false when OCID differs from account ID")
     void isSelfLike_shouldReturnFalseForNormalLike() {
-      CharacterLike like = CharacterLike.create(new CharacterId("target-ocid"), "user-account");
+      CharacterLike like = CharacterLike.create("target-ocid", "user-account");
 
       assertFalse(like.isSelfLike(), "Should not detect self-like for different IDs");
     }
@@ -109,7 +105,7 @@ class CharacterLikeCharacterizationTest {
     @Test
     @DisplayName("equals() should return true for same (targetOcid, likerAccountId)")
     void equals_shouldReturnTrueForSamePair() {
-      CharacterId targetOcid = new CharacterId("same-target");
+      String targetOcid = "same-target";
       String likerAccountId = "same-liker";
       CharacterLike like1 = CharacterLike.create(targetOcid, likerAccountId);
       CharacterLike like2 = CharacterLike.create(targetOcid, likerAccountId);
@@ -122,8 +118,8 @@ class CharacterLikeCharacterizationTest {
     @DisplayName("equals() should return false for different target")
     void equals_shouldReturnFalseForDifferentTarget() {
       String likerAccountId = "same-liker";
-      CharacterLike like1 = CharacterLike.create(new CharacterId("target-1"), likerAccountId);
-      CharacterLike like2 = CharacterLike.create(new CharacterId("target-2"), likerAccountId);
+      CharacterLike like1 = CharacterLike.create("target-1", likerAccountId);
+      CharacterLike like2 = CharacterLike.create("target-2", likerAccountId);
 
       assertNotEquals(like1, like2, "Likes with different targets should not be equal");
     }
@@ -131,7 +127,7 @@ class CharacterLikeCharacterizationTest {
     @Test
     @DisplayName("equals() should return false for different liker")
     void equals_shouldReturnFalseForDifferentLiker() {
-      CharacterId targetOcid = new CharacterId("same-target");
+      String targetOcid = "same-target";
       CharacterLike like1 = CharacterLike.create(targetOcid, "liker-1");
       CharacterLike like2 = CharacterLike.create(targetOcid, "liker-2");
 
@@ -141,7 +137,7 @@ class CharacterLikeCharacterizationTest {
     @Test
     @DisplayName("equals() should return false for null")
     void equals_shouldReturnFalseForNull() {
-      CharacterLike like = CharacterLike.create(new CharacterId("target"), "liker");
+      CharacterLike like = CharacterLike.create("target", "liker");
 
       assertNotEquals(null, like, "Like should not equal null");
     }
@@ -149,7 +145,7 @@ class CharacterLikeCharacterizationTest {
     @Test
     @DisplayName("equals() should return false for different type")
     void equals_shouldReturnFalseForDifferentType() {
-      CharacterLike like = CharacterLike.create(new CharacterId("target"), "liker");
+      CharacterLike like = CharacterLike.create("target", "liker");
 
       assertNotEquals("target", like, "Like should not equal String");
     }
@@ -164,7 +160,7 @@ class CharacterLikeCharacterizationTest {
     @Test
     @DisplayName("toString() should include key fields")
     void toString_shouldIncludeKeyFields() {
-      CharacterId targetOcid = new CharacterId("target-ocid-123");
+      String targetOcid = "target-ocid-123";
       String likerAccountId = "user-account-456";
       CharacterLike like = CharacterLike.create(targetOcid, likerAccountId);
 
