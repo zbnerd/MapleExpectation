@@ -2,10 +2,10 @@ package maple.expectation.service.v2.auth;
 
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.aop.annotation.ObservedTransaction;
 import maple.expectation.application.port.LikeBufferStrategy;
 import maple.expectation.application.port.LikeRelationBufferStrategy;
 import maple.expectation.error.exception.auth.SelfLikeNotAllowedException;
+import maple.expectation.infrastructure.aop.annotation.ObservedTransaction;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.infrastructure.persistence.repository.CharacterLikeRepository;

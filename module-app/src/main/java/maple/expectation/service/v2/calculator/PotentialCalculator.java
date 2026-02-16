@@ -8,9 +8,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.core.domain.stat.StatParser;
 import maple.expectation.core.domain.stat.StatType;
-import maple.expectation.external.dto.v2.EquipmentResponse.ItemEquipment;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
+import maple.expectation.infrastructure.external.dto.v2.EquipmentResponse.ItemEquipment;
 import org.springframework.stereotype.Component;
 
 /** 잠재능력 수치 계산기 (LogicExecutor 및 평탄화 적용) */

@@ -7,6 +7,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import maple.expectation.infrastructure.config.SchedulerProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,12 +31,12 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 @DisplayName("SchedulerConfig Integration Tests")
 class SchedulerConfigTest {
 
-  private SchedulerConfig schedulerConfig;
+  private maple.expectation.infrastructure.config.SchedulerConfig schedulerConfig;
   private MeterRegistry meterRegistry;
 
   @BeforeEach
   void setUp() {
-    schedulerConfig = new SchedulerConfig();
+    schedulerConfig = new maple.expectation.infrastructure.config.SchedulerConfig();
     meterRegistry = new SimpleMeterRegistry();
   }
 
@@ -43,7 +44,8 @@ class SchedulerConfigTest {
   @DisplayName("testTaskSchedulerBeanExists - Verify bean is created")
   void testTaskSchedulerBeanExists() {
     // Given: Default properties
-    SchedulerProperties properties = new SchedulerProperties(3, 60);
+    maple.expectation.infrastructure.config.SchedulerProperties properties =
+        new SchedulerProperties(3, 60);
 
     // When: TaskScheduler bean is created
     ThreadPoolTaskScheduler scheduler = schedulerConfig.taskScheduler(properties, meterRegistry);
@@ -61,7 +63,8 @@ class SchedulerConfigTest {
   @DisplayName("testPoolSizeConfiguration - Verify pool size is 3 (default)")
   void testPoolSizeConfiguration() {
     // Given: Default properties with pool size 3
-    SchedulerProperties properties = new SchedulerProperties(3, 60);
+    maple.expectation.infrastructure.config.SchedulerProperties properties =
+        new SchedulerProperties(3, 60);
 
     // When: TaskScheduler bean is created
     ThreadPoolTaskScheduler scheduler = schedulerConfig.taskScheduler(properties, meterRegistry);
@@ -81,7 +84,8 @@ class SchedulerConfigTest {
   @DisplayName("testCustomPoolSizeFromProperties - Verify custom pool size from YAML")
   void testCustomPoolSizeFromProperties() {
     // Given: Custom properties with pool size 5
-    SchedulerProperties properties = new SchedulerProperties(5, 60);
+    maple.expectation.infrastructure.config.SchedulerProperties properties =
+        new SchedulerProperties(5, 60);
 
     // When: TaskScheduler bean is created
     ThreadPoolTaskScheduler scheduler = schedulerConfig.taskScheduler(properties, meterRegistry);
@@ -101,7 +105,8 @@ class SchedulerConfigTest {
   @DisplayName("testThreadNamePrefix - Verify scheduler- prefix")
   void testThreadNamePrefix() {
     // Given: Default properties
-    SchedulerProperties properties = new SchedulerProperties(3, 60);
+    maple.expectation.infrastructure.config.SchedulerProperties properties =
+        new SchedulerProperties(3, 60);
 
     // When: TaskScheduler bean is created and task is scheduled
     ThreadPoolTaskScheduler scheduler = schedulerConfig.taskScheduler(properties, meterRegistry);
@@ -133,7 +138,8 @@ class SchedulerConfigTest {
   @DisplayName("testGracefulShutdownConfiguration - Verify await termination settings")
   void testGracefulShutdownConfiguration() {
     // Given: Default properties
-    SchedulerProperties properties = new SchedulerProperties(3, 60);
+    maple.expectation.infrastructure.config.SchedulerProperties properties =
+        new SchedulerProperties(3, 60);
 
     // When: TaskScheduler bean is created
     ThreadPoolTaskScheduler scheduler = schedulerConfig.taskScheduler(properties, meterRegistry);
@@ -179,7 +185,8 @@ class SchedulerConfigTest {
   @DisplayName("testMetricsRegistered - Verify Micrometer metrics are registered")
   void testMetricsRegistered() {
     // Given: Default properties
-    SchedulerProperties properties = new SchedulerProperties(3, 60);
+    maple.expectation.infrastructure.config.SchedulerProperties properties =
+        new SchedulerProperties(3, 60);
 
     // When: TaskScheduler bean is created
     schedulerConfig.taskScheduler(properties, meterRegistry);
@@ -203,7 +210,8 @@ class SchedulerConfigTest {
   @DisplayName("testRejectedExecutionCounter - Verify rejected tasks increment counter")
   void testRejectedExecutionCounter() {
     // Given: Default properties
-    SchedulerProperties properties = new SchedulerProperties(3, 60);
+    maple.expectation.infrastructure.config.SchedulerProperties properties =
+        new SchedulerProperties(3, 60);
     ThreadPoolTaskScheduler scheduler = schedulerConfig.taskScheduler(properties, meterRegistry);
 
     // Get initial counter value

@@ -10,12 +10,11 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicInteger;
-import maple.expectation.alert.channel.AlertChannel;
 import maple.expectation.alert.channel.AlertTestConfig;
-import maple.expectation.alert.channel.InMemoryAlertBuffer;
-import maple.expectation.alert.channel.LocalFileAlertChannel;
-import maple.expectation.alert.message.AlertMessage;
-import maple.expectation.alert.strategy.AlertChannelStrategy;
+import maple.expectation.infrastructure.alert.channel.AlertChannel;
+import maple.expectation.infrastructure.alert.channel.InMemoryAlertBuffer;
+import maple.expectation.infrastructure.alert.channel.LocalFileAlertChannel;
+import maple.expectation.infrastructure.alert.message.AlertMessage;
 import maple.expectation.support.AppIntegrationTestSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -53,9 +52,10 @@ import reactor.core.publisher.Mono;
 @DisplayName("상태less 알림 서비스 통합 테스트")
 class StatelessAlertServiceIntegrationTest extends AppIntegrationTestSupport {
 
-  @Autowired private StatelessAlertService alertService;
+  @Autowired private maple.expectation.infrastructure.alert.StatelessAlertService alertService;
 
-  @Autowired private AlertChannelStrategy channelStrategy;
+  @Autowired
+  private maple.expectation.infrastructure.alert.strategy.AlertChannelStrategy channelStrategy;
 
   @Autowired(required = false)
   private InMemoryAlertBuffer inMemoryBuffer;
@@ -337,8 +337,10 @@ class StatelessAlertServiceIntegrationTest extends AppIntegrationTestSupport {
   @DisplayName("우선순위별 채널 선택: CRITICAL vs NORMAL")
   void testChannelSelection_ByPriority() {
     // Given: CRITICAL 및 NORMAL 우선순위용 채널 준비
-    AlertChannel criticalChannel = channelStrategy.getChannel(AlertPriority.CRITICAL);
-    AlertChannel normalChannel = channelStrategy.getChannel(AlertPriority.NORMAL);
+    AlertChannel criticalChannel =
+        channelStrategy.getChannel(maple.expectation.infrastructure.alert.AlertPriority.CRITICAL);
+    AlertChannel normalChannel =
+        channelStrategy.getChannel(maple.expectation.infrastructure.alert.AlertPriority.NORMAL);
 
     // When & Then: 채널이 존재함
     assertNotNull(criticalChannel, "CRITICAL 채널이 존재해야 함");

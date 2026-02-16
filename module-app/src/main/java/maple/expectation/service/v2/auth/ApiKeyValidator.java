@@ -7,8 +7,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.error.exception.auth.CharacterNotOwnedException;
 import maple.expectation.error.exception.auth.InvalidApiKeyException;
-import maple.expectation.external.NexonAuthClient;
-import maple.expectation.external.dto.v2.CharacterListResponse;
+import maple.expectation.infrastructure.external.NexonAuthClient;
+import maple.expectation.infrastructure.external.dto.v2.CharacterListResponse;
 import org.springframework.stereotype.Service;
 
 /**

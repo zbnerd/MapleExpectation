@@ -2,10 +2,10 @@ package maple.expectation.monitoring;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.alert.StatelessAlertService;
 import maple.expectation.domain.repository.RedisBufferRepository;
 import maple.expectation.error.CommonErrorCode;
 import maple.expectation.error.exception.MonitoringException;
+import maple.expectation.infrastructure.alert.StatelessAlertService;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.infrastructure.lock.LockStrategy;
@@ -21,7 +21,8 @@ public class MonitoringAlertService {
   private final StatelessAlertService statelessAlertService;
   private final LockStrategy lockStrategy;
   private final LogicExecutor executor; // ✅ 지능형 실행 엔진 주입
-  private final maple.expectation.config.MonitoringThresholdProperties thresholdProperties;
+  private final maple.expectation.infrastructure.config.MonitoringThresholdProperties
+      thresholdProperties;
 
   /**
    * ✅ 버퍼 포화도 체크 로직 (Leader Election 패턴)

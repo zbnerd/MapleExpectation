@@ -3,7 +3,7 @@ package maple.expectation.scheduler;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-import maple.expectation.config.OutboxProperties;
+import maple.expectation.infrastructure.config.OutboxProperties;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.infrastructure.executor.function.ThrowingRunnable;

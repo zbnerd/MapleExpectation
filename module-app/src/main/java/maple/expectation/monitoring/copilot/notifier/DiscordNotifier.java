@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.error.exception.InternalSystemException;
+import maple.expectation.infrastructure.config.DiscordTimeoutProperties;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.monitoring.copilot.model.SignalDefinition;
@@ -52,7 +53,7 @@ public class DiscordNotifier {
   private final HttpClient httpClient;
   private final ObjectMapper objectMapper;
   private final LogicExecutor executor;
-  private final maple.expectation.config.DiscordTimeoutProperties timeoutProperties;
+  private final DiscordTimeoutProperties timeoutProperties;
 
   @Value("${alert.discord.webhook-url:}")
   private String webhookUrl;
@@ -61,7 +62,7 @@ public class DiscordNotifier {
       HttpClient httpClient,
       ObjectMapper objectMapper,
       LogicExecutor executor,
-      maple.expectation.config.DiscordTimeoutProperties timeoutProperties) {
+      DiscordTimeoutProperties timeoutProperties) {
     this.httpClient = httpClient;
     this.objectMapper = objectMapper;
     this.executor = executor;

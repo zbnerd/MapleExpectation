@@ -2,7 +2,7 @@ package maple.expectation;
 
 import maple.expectation.config.GlobalTestConfig;
 import maple.expectation.domain.v2.GameCharacter;
-import maple.expectation.external.impl.RealNexonApiClient;
+import maple.expectation.infrastructure.external.impl.RealNexonApiClient;
 import maple.expectation.service.v2.GameCharacterService;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Tag;

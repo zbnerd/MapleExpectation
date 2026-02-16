@@ -49,7 +49,7 @@ import maple.expectation.infrastructure.queue.QueueType;
  * </ul>
  *
  * @param <T> 메시지 페이로드 타입
- * @see maple.expectation.global.queue.strategy.RedisBufferStrategy V5 Redis 구현
+ * @see maple.expectation.infrastructure.queue.strategy.RedisBufferStrategy V5 Redis 구현
  */
 @Slf4j
 public class InMemoryBufferStrategy<T> implements MessageQueueStrategy<T> {

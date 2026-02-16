@@ -10,24 +10,6 @@ import io.swagger.v3.oas.annotations.security.SecurityScheme;
 import io.swagger.v3.oas.annotations.servers.Server;
 import org.springframework.context.annotation.Configuration;
 
-/**
- * OpenAPI (Swagger UI) 설정 (Context7 Best Practice)
- *
- * <p>기능:
- *
- * <ul>
- *   <li>API 문서 자동 생성
- *   <li>JWT Bearer 인증 스키마
- *   <li>서버 환경별 URL 정의
- * </ul>
- *
- * <p>접근 경로:
- *
- * <ul>
- *   <li>Swagger UI: /swagger-ui.html
- *   <li>OpenAPI JSON: /v3/api-docs
- * </ul>
- */
 @Configuration
 @OpenAPIDefinition(
     info =

@@ -43,7 +43,7 @@ class MonitoringAlertServiceTest extends AppIntegrationTestSupport {
   private RedisBufferRepository redisBufferRepository;
 
   @org.springframework.test.context.bean.override.mockito.MockitoBean
-  private maple.expectation.alert.StatelessAlertService statelessAlertService;
+  private maple.expectation.infrastructure.alert.StatelessAlertService statelessAlertService;
 
   @Autowired private MonitoringAlertService monitoringAlertService;
 

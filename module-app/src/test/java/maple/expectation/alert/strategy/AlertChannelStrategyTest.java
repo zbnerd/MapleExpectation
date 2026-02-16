@@ -7,11 +7,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
-import maple.expectation.alert.AlertPriority;
-import maple.expectation.alert.channel.AlertChannel;
-import maple.expectation.alert.channel.DiscordAlertChannel;
-import maple.expectation.alert.channel.InMemoryAlertBuffer;
-import maple.expectation.alert.channel.LocalFileAlertChannel;
+import maple.expectation.infrastructure.alert.AlertPriority;
+import maple.expectation.infrastructure.alert.channel.AlertChannel;
+import maple.expectation.infrastructure.alert.channel.DiscordAlertChannel;
+import maple.expectation.infrastructure.alert.channel.InMemoryAlertBuffer;
+import maple.expectation.infrastructure.alert.channel.LocalFileAlertChannel;
+import maple.expectation.infrastructure.alert.strategy.StatelessAlertChannelStrategy;
 import maple.expectation.support.AppIntegrationTestSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -45,7 +46,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 @DisplayName("알림 채널 전략 테스트")
 class AlertChannelStrategyTest extends AppIntegrationTestSupport {
 
-  @Autowired private AlertChannelStrategy channelStrategy;
+  @Autowired
+  private maple.expectation.infrastructure.alert.strategy.AlertChannelStrategy channelStrategy;
 
   @MockitoBean private DiscordAlertChannel mockDiscordChannel;
 
@@ -67,7 +69,8 @@ class AlertChannelStrategyTest extends AppIntegrationTestSupport {
     // Given: CRITICAL 우선순위
 
     // When: 채널 조회
-    AlertChannel channel = channelStrategy.getChannel(AlertPriority.CRITICAL);
+    AlertChannel channel =
+        channelStrategy.getChannel(maple.expectation.infrastructure.alert.AlertPriority.CRITICAL);
 
     // Then: Discord 채널이 반환됨
     assertNotNull(channel, "채널이 null이 아니어야 함");
@@ -82,7 +85,8 @@ class AlertChannelStrategyTest extends AppIntegrationTestSupport {
     // Given: NORMAL 우선순위
 
     // When: 채널 조회
-    AlertChannel channel = channelStrategy.getChannel(AlertPriority.NORMAL);
+    AlertChannel channel =
+        channelStrategy.getChannel(maple.expectation.infrastructure.alert.AlertPriority.NORMAL);
 
     // Then: Discord 채널이 반환됨
     assertNotNull(channel, "채널이 null이 아니어야 함");
@@ -95,7 +99,8 @@ class AlertChannelStrategyTest extends AppIntegrationTestSupport {
     // Given: BACKGROUND 우선순위
 
     // When: 채널 조회
-    AlertChannel channel = channelStrategy.getChannel(AlertPriority.BACKGROUND);
+    AlertChannel channel =
+        channelStrategy.getChannel(maple.expectation.infrastructure.alert.AlertPriority.BACKGROUND);
 
     // Then: 기본 채널이 반환됨
     assertNotNull(channel, "기본 채널이 반환되어야 함");
@@ -108,9 +113,12 @@ class AlertChannelStrategyTest extends AppIntegrationTestSupport {
     // Given: 등록되지 않은 우선순위 (현재 Enum에는 없지만 확장성을 위해)
 
     // When: 모든 우선순위에 대해 채널 조회
-    AlertChannel criticalChannel = channelStrategy.getChannel(AlertPriority.CRITICAL);
-    AlertChannel normalChannel = channelStrategy.getChannel(AlertPriority.NORMAL);
-    AlertChannel backgroundChannel = channelStrategy.getChannel(AlertPriority.BACKGROUND);
+    AlertChannel criticalChannel =
+        channelStrategy.getChannel(maple.expectation.infrastructure.alert.AlertPriority.CRITICAL);
+    AlertChannel normalChannel =
+        channelStrategy.getChannel(maple.expectation.infrastructure.alert.AlertPriority.NORMAL);
+    AlertChannel backgroundChannel =
+        channelStrategy.getChannel(maple.expectation.infrastructure.alert.AlertPriority.BACKGROUND);
 
     // Then: 모두 null이 아님
     assertNotNull(criticalChannel, "CRITICAL 채널이 존재해야 함");
@@ -160,16 +168,20 @@ class AlertChannelStrategyTest extends AppIntegrationTestSupport {
     // Given: StatefulAlertChannelStrategy 인스턴스 생성 (테스트용)
     Map<AlertPriority, Supplier<AlertChannel>> providers =
         Map.of(
-            AlertPriority.CRITICAL, () -> mockDiscordChannel,
-            AlertPriority.NORMAL, () -> mockInMemoryBuffer,
-            AlertPriority.BACKGROUND, () -> mockLocalFileChannel);
+            maple.expectation.infrastructure.alert.AlertPriority.CRITICAL, () -> mockDiscordChannel,
+            maple.expectation.infrastructure.alert.AlertPriority.NORMAL, () -> mockInMemoryBuffer,
+            maple.expectation.infrastructure.alert.AlertPriority.BACKGROUND,
+                () -> mockLocalFileChannel);
 
     StatelessAlertChannelStrategy strategy = new StatelessAlertChannelStrategy(providers);
 
     // When: 각 우선순위별 채널 조회
-    AlertChannel criticalChannel = strategy.getChannel(AlertPriority.CRITICAL);
-    AlertChannel normalChannel = strategy.getChannel(AlertPriority.NORMAL);
-    AlertChannel backgroundChannel = strategy.getChannel(AlertPriority.BACKGROUND);
+    AlertChannel criticalChannel =
+        strategy.getChannel(maple.expectation.infrastructure.alert.AlertPriority.CRITICAL);
+    AlertChannel normalChannel =
+        strategy.getChannel(maple.expectation.infrastructure.alert.AlertPriority.NORMAL);
+    AlertChannel backgroundChannel =
+        strategy.getChannel(maple.expectation.infrastructure.alert.AlertPriority.BACKGROUND);
 
     // Then: 모든 채널이 올바르게 반환됨
     assertNotNull(criticalChannel, "CRITICAL 채널이 반환되어야 함");
@@ -202,13 +214,14 @@ class AlertChannelStrategyTest extends AppIntegrationTestSupport {
 
     Map<AlertPriority, Supplier<AlertChannel>> providers =
         Map.of(
-            AlertPriority.CRITICAL, discordSupplier,
-            AlertPriority.NORMAL, inMemorySupplier);
+            maple.expectation.infrastructure.alert.AlertPriority.CRITICAL, discordSupplier,
+            maple.expectation.infrastructure.alert.AlertPriority.NORMAL, inMemorySupplier);
 
     StatelessAlertChannelStrategy strategy = new StatelessAlertChannelStrategy(providers);
 
     // When: CRITICAL 채널만 조회
-    AlertChannel criticalChannel = strategy.getChannel(AlertPriority.CRITICAL);
+    AlertChannel criticalChannel =
+        strategy.getChannel(maple.expectation.infrastructure.alert.AlertPriority.CRITICAL);
 
     // Then: Discord 공급자만 호출됨
     assertEquals(1, discordCallCount.get(), "Discord 공급자가 1번 호출되어야 함");
@@ -221,8 +234,8 @@ class AlertChannelStrategyTest extends AppIntegrationTestSupport {
     // Given: 다중 스레드 환경
     Map<AlertPriority, Supplier<AlertChannel>> providers =
         Map.of(
-            AlertPriority.CRITICAL, () -> mockDiscordChannel,
-            AlertPriority.NORMAL, () -> mockInMemoryBuffer);
+            maple.expectation.infrastructure.alert.AlertPriority.CRITICAL, () -> mockDiscordChannel,
+            maple.expectation.infrastructure.alert.AlertPriority.NORMAL, () -> mockInMemoryBuffer);
 
     StatelessAlertChannelStrategy strategy = new StatelessAlertChannelStrategy(providers);
 
@@ -239,7 +252,9 @@ class AlertChannelStrategyTest extends AppIntegrationTestSupport {
                 try {
                   AlertChannel channel =
                       strategy.getChannel(
-                          threadId % 2 == 0 ? AlertPriority.CRITICAL : AlertPriority.NORMAL);
+                          threadId % 2 == 0
+                              ? maple.expectation.infrastructure.alert.AlertPriority.CRITICAL
+                              : maple.expectation.infrastructure.alert.AlertPriority.NORMAL);
                   if (channel != null) {
                     successCount.incrementAndGet();
                   }
@@ -265,20 +280,24 @@ class AlertChannelStrategyTest extends AppIntegrationTestSupport {
     // Given: 모든 우선순위에 대한 채널 등록
     Map<AlertPriority, Supplier<AlertChannel>> providers =
         Map.of(
-            AlertPriority.CRITICAL, () -> mockDiscordChannel,
-            AlertPriority.NORMAL, () -> mockInMemoryBuffer,
-            AlertPriority.BACKGROUND, () -> mockLocalFileChannel);
+            maple.expectation.infrastructure.alert.AlertPriority.CRITICAL, () -> mockDiscordChannel,
+            maple.expectation.infrastructure.alert.AlertPriority.NORMAL, () -> mockInMemoryBuffer,
+            maple.expectation.infrastructure.alert.AlertPriority.BACKGROUND,
+                () -> mockLocalFileChannel);
 
     StatelessAlertChannelStrategy strategy = new StatelessAlertChannelStrategy(providers);
 
     // When & Then: 각 우선순위별 채널 검증
-    AlertChannel criticalChannel = strategy.getChannel(AlertPriority.CRITICAL);
+    AlertChannel criticalChannel =
+        strategy.getChannel(maple.expectation.infrastructure.alert.AlertPriority.CRITICAL);
     assertEquals("discord", criticalChannel.getChannelName(), "CRITICAL은 Discord여야 함");
 
-    AlertChannel normalChannel = strategy.getChannel(AlertPriority.NORMAL);
+    AlertChannel normalChannel =
+        strategy.getChannel(maple.expectation.infrastructure.alert.AlertPriority.NORMAL);
     assertEquals("in-memory", normalChannel.getChannelName(), "NORMAL은 InMemory여야 함");
 
-    AlertChannel backgroundChannel = strategy.getChannel(AlertPriority.BACKGROUND);
+    AlertChannel backgroundChannel =
+        strategy.getChannel(maple.expectation.infrastructure.alert.AlertPriority.BACKGROUND);
     assertEquals("local-file", backgroundChannel.getChannelName(), "BACKGROUND는 LocalFile여야 함");
   }
 
@@ -289,15 +308,16 @@ class AlertChannelStrategyTest extends AppIntegrationTestSupport {
     // Note: Map.getOrDefault는 키가 존재하면 null 값도 그대로 반환
     // 따라서 null 공급자가 있는 경우 기본 동작 대신 NullPointerException 발생
     Map<AlertPriority, Supplier<AlertChannel>> providers = new HashMap<>();
-    providers.put(AlertPriority.CRITICAL, () -> mockDiscordChannel);
-    providers.put(AlertPriority.NORMAL, null);
+    providers.put(
+        maple.expectation.infrastructure.alert.AlertPriority.CRITICAL, () -> mockDiscordChannel);
+    providers.put(maple.expectation.infrastructure.alert.AlertPriority.NORMAL, null);
 
     StatelessAlertChannelStrategy strategy = new StatelessAlertChannelStrategy(providers);
 
     // When & Then: null 공급자가 있는 우선순위 조회 시 NullPointerException 발생
     assertThrows(
         NullPointerException.class,
-        () -> strategy.getChannel(AlertPriority.NORMAL),
+        () -> strategy.getChannel(maple.expectation.infrastructure.alert.AlertPriority.NORMAL),
         "null 공급자의 get() 호출 시 NullPointerException 발생해야 함");
   }
 
@@ -315,14 +335,20 @@ class AlertChannelStrategyTest extends AppIntegrationTestSupport {
         () ->
             assertThrows(
                 UnsupportedOperationException.class,
-                () -> strategy.getChannel(AlertPriority.CRITICAL)),
+                () ->
+                    strategy.getChannel(
+                        maple.expectation.infrastructure.alert.AlertPriority.CRITICAL)),
         () ->
             assertThrows(
                 UnsupportedOperationException.class,
-                () -> strategy.getChannel(AlertPriority.NORMAL)),
+                () ->
+                    strategy.getChannel(
+                        maple.expectation.infrastructure.alert.AlertPriority.NORMAL)),
         () ->
             assertThrows(
                 UnsupportedOperationException.class,
-                () -> strategy.getChannel(AlertPriority.BACKGROUND)));
+                () ->
+                    strategy.getChannel(
+                        maple.expectation.infrastructure.alert.AlertPriority.BACKGROUND)));
   }
 }

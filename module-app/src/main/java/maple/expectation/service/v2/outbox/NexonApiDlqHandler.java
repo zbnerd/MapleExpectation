@@ -2,9 +2,9 @@ package maple.expectation.service.v2.outbox;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.alert.StatelessAlertService;
 import maple.expectation.domain.v2.NexonApiDlq;
 import maple.expectation.domain.v2.NexonApiOutbox;
+import maple.expectation.infrastructure.alert.StatelessAlertService;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.infrastructure.persistence.repository.NexonApiDlqRepository;

@@ -1,5 +1,7 @@
 package maple.expectation.config;
 
+import maple.expectation.infrastructure.config.DiscordTimeoutProperties;
+import maple.expectation.infrastructure.config.MonitoringThresholdProperties;
 import maple.expectation.service.v4.buffer.BackoffStrategy;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;

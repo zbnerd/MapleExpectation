@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import maple.expectation.global.queue.RedisKey;
+import maple.expectation.infrastructure.queue.RedisKey;
 import maple.expectation.service.v2.like.realtime.dto.LikeEvent;
 import maple.expectation.support.IntegrationTestSupport;
 import org.junit.jupiter.api.BeforeEach;

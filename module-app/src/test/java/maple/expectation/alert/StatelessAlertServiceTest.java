@@ -5,9 +5,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import maple.expectation.alert.channel.AlertChannel;
-import maple.expectation.alert.message.AlertMessage;
-import maple.expectation.alert.strategy.AlertChannelStrategy;
+import maple.expectation.infrastructure.alert.StatelessAlertService;
+import maple.expectation.infrastructure.alert.channel.AlertChannel;
+import maple.expectation.infrastructure.alert.message.AlertMessage;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,7 +26,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @org.mockito.junit.jupiter.MockitoSettings(strictness = org.mockito.quality.Strictness.LENIENT)
 class StatelessAlertServiceTest {
 
-  @Mock private AlertChannelStrategy channelStrategy;
+  @Mock
+  private maple.expectation.infrastructure.alert.strategy.AlertChannelStrategy channelStrategy;
+
   @Mock private LogicExecutor logicExecutor;
 
   @Test
@@ -36,7 +38,8 @@ class StatelessAlertServiceTest {
     when(mockChannel.send(any(AlertMessage.class))).thenReturn(true);
 
     // Inject mock strategy
-    when(channelStrategy.getChannel(AlertPriority.CRITICAL)).thenReturn(mockChannel);
+    when(channelStrategy.getChannel(maple.expectation.infrastructure.alert.AlertPriority.CRITICAL))
+        .thenReturn(mockChannel);
 
     StatelessAlertService service =
         new StatelessAlertService(
@@ -52,7 +55,8 @@ class StatelessAlertServiceTest {
     AlertChannel mockChannel = mock(AlertChannel.class);
     when(mockChannel.send(any(AlertMessage.class))).thenReturn(false);
 
-    when(channelStrategy.getChannel(AlertPriority.CRITICAL)).thenReturn(mockChannel);
+    when(channelStrategy.getChannel(maple.expectation.infrastructure.alert.AlertPriority.CRITICAL))
+        .thenReturn(mockChannel);
 
     StatelessAlertService service =
         new StatelessAlertService(
@@ -68,13 +72,15 @@ class StatelessAlertServiceTest {
     AlertChannel discordChannel = mock(AlertChannel.class);
     when(discordChannel.getChannelName()).thenReturn("discord");
 
-    when(channelStrategy.getChannel(AlertPriority.CRITICAL)).thenReturn(discordChannel);
+    when(channelStrategy.getChannel(maple.expectation.infrastructure.alert.AlertPriority.CRITICAL))
+        .thenReturn(discordChannel);
 
     StatelessAlertService service =
         new StatelessAlertService(
             channelStrategy, logicExecutor, "https://discord.example.com/webhook");
 
-    AlertChannel result = channelStrategy.getChannel(AlertPriority.CRITICAL);
+    AlertChannel result =
+        channelStrategy.getChannel(maple.expectation.infrastructure.alert.AlertPriority.CRITICAL);
     assertEquals("discord", result.getChannelName());
   }
 }

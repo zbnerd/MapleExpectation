@@ -5,13 +5,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.aop.context.SkipEquipmentL2CacheContext;
-import maple.expectation.config.NexonApiProperties;
 import maple.expectation.error.exception.ExternalServiceException;
 import maple.expectation.error.exception.InternalSystemException;
-import maple.expectation.external.dto.v2.EquipmentResponse;
+import maple.expectation.infrastructure.aop.context.SkipEquipmentL2CacheContext;
+import maple.expectation.infrastructure.config.NexonApiProperties;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
+import maple.expectation.infrastructure.external.dto.v2.EquipmentResponse;
 import maple.expectation.service.v2.cache.EquipmentCacheService;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
@@ -44,7 +44,8 @@ public class NexonDataCacheAspect {
     this.nexonApiProperties = nexonApiProperties;
   }
 
-  @Around("@annotation(maple.expectation.aop.annotation.NexonDataCache) && args(ocid, ..)")
+  @Around(
+      "@annotation(maple.expectation.infrastructure.aop.annotation.NexonDataCache) && args(ocid, ..)")
   public Object handleNexonCache(ProceedingJoinPoint joinPoint, String ocid) {
     MethodSignature signature = (MethodSignature) joinPoint.getSignature();
     Class<?> returnType = signature.getReturnType();

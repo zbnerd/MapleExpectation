@@ -1,6 +1,7 @@
 package maple.expectation.config;
 
 import io.netty.channel.ChannelOption;
+import maple.expectation.infrastructure.config.NexonApiProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

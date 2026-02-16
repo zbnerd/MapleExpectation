@@ -8,8 +8,8 @@ import static org.mockito.Mockito.*;
 
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import maple.expectation.external.dto.v2.EquipmentResponse;
 import maple.expectation.infrastructure.executor.LogicExecutor;
+import maple.expectation.infrastructure.external.dto.v2.EquipmentResponse;
 import maple.expectation.service.v2.worker.EquipmentDbWorker;
 import maple.expectation.support.TestLogicExecutors;
 import org.junit.jupiter.api.BeforeEach;

@@ -4,7 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.http.HttpClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.config.TimeoutProperties;
+import maple.expectation.infrastructure.config.DiscordTimeoutProperties;
+import maple.expectation.infrastructure.config.TimeoutProperties;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.monitoring.copilot.client.PrometheusClient;
 import maple.expectation.monitoring.copilot.detector.AnomalyDetector;
@@ -71,7 +72,7 @@ public class MonitoringCopilotConfig {
       HttpClient httpClient,
       ObjectMapper objectMapper,
       LogicExecutor executor,
-      maple.expectation.config.DiscordTimeoutProperties timeoutProperties) {
+      DiscordTimeoutProperties timeoutProperties) {
     return new DiscordNotifier(httpClient, objectMapper, executor, timeoutProperties);
   }
 }

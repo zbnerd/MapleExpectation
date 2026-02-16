@@ -1,4 +1,4 @@
-package maple.expectation.aop.aspect;
+package maple.expectation.infrastructure.aop.aspect;
 
 import static org.assertj.core.api.Assertions.*;
 

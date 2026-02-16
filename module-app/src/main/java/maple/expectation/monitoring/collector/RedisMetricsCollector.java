@@ -7,6 +7,7 @@ import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.domain.repository.RedisBufferRepository;
+import maple.expectation.infrastructure.config.MonitoringThresholdProperties;
 import org.springframework.stereotype.Component;
 
 /**
@@ -29,7 +30,7 @@ public class RedisMetricsCollector implements MetricsCollectorStrategy {
 
   private final MeterRegistry meterRegistry;
   private final RedisBufferRepository redisBufferRepository;
-  private final maple.expectation.config.MonitoringThresholdProperties thresholdProperties;
+  private final MonitoringThresholdProperties thresholdProperties;
 
   @Override
   public String getCategoryName() {
