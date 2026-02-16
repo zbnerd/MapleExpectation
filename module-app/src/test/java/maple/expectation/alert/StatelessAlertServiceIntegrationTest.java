@@ -101,7 +101,7 @@ class StatelessAlertServiceIntegrationTest extends AppIntegrationTestSupport {
 
     when(mockAlertWebClient.post()).thenReturn(requestBodySpec);
     when(requestBodySpec.uri(anyString())).thenReturn(requestBodySpec2);
-    when(requestBodySpec2.body(any())).thenReturn(requestHeadersSpec);
+    when(requestBodySpec2.bodyValue(any())).thenReturn(requestHeadersSpec);
     when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
     when(responseSpec.toBodilessEntity())
         .thenReturn(Mono.just(org.springframework.http.ResponseEntity.ok().build()));
@@ -192,7 +192,7 @@ class StatelessAlertServiceIntegrationTest extends AppIntegrationTestSupport {
 
     when(mockAlertWebClient.post()).thenReturn(requestBodySpec);
     when(requestBodySpec.uri(anyString())).thenReturn(requestBodySpec2);
-    when(requestBodySpec2.body(any())).thenReturn(requestHeadersSpec);
+    when(requestBodySpec2.bodyValue(any())).thenReturn(requestHeadersSpec);
     when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
     when(responseSpec.toBodilessEntity())
         .thenThrow(
@@ -270,7 +270,7 @@ class StatelessAlertServiceIntegrationTest extends AppIntegrationTestSupport {
 
     when(mockAlertWebClient.post()).thenReturn(requestBodySpec);
     when(requestBodySpec.uri(anyString())).thenReturn(requestBodySpec2);
-    when(requestBodySpec2.body(any())).thenReturn(requestHeadersSpec);
+    when(requestBodySpec2.bodyValue(any())).thenReturn(requestHeadersSpec);
     when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
     when(responseSpec.toBodilessEntity())
         .thenReturn(Mono.just(org.springframework.http.ResponseEntity.ok().build()));
@@ -296,7 +296,7 @@ class StatelessAlertServiceIntegrationTest extends AppIntegrationTestSupport {
 
     when(mockAlertWebClient.post()).thenReturn(requestBodySpec);
     when(requestBodySpec.uri(anyString())).thenReturn(requestBodySpec2);
-    when(requestBodySpec2.body(any())).thenReturn(requestHeadersSpec);
+    when(requestBodySpec2.bodyValue(any())).thenReturn(requestHeadersSpec);
     when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
     when(responseSpec.toBodilessEntity())
         .thenReturn(Mono.just(org.springframework.http.ResponseEntity.ok().build()));

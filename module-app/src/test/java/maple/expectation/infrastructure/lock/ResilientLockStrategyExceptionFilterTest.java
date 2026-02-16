@@ -17,6 +17,7 @@ import maple.expectation.error.exception.CharacterNotFoundException;
 import maple.expectation.error.exception.DistributedLockException;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
+import maple.expectation.support.TestLogicExecutors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -52,7 +53,7 @@ class ResilientLockStrategyExceptionFilterTest {
 
   @Mock private CircuitBreaker circuitBreaker;
 
-  @Mock private LogicExecutor executor;
+  private LogicExecutor executor;
 
   @Mock private LockFallbackMetrics fallbackMetrics;
 
@@ -64,6 +65,8 @@ class ResilientLockStrategyExceptionFilterTest {
 
   @BeforeEach
   void setUp() {
+    executor = TestLogicExecutors.passThrough();
+
     when(circuitBreakerRegistry.circuitBreaker("redisLock")).thenReturn(circuitBreaker);
     lenient().when(circuitBreaker.getState()).thenReturn(CircuitBreaker.State.CLOSED);
     lenient().when(circuitBreaker.getName()).thenReturn("redisLock");
@@ -75,24 +78,6 @@ class ResilientLockStrategyExceptionFilterTest {
             circuitBreakerRegistry,
             executor,
             fallbackMetrics);
-  }
-
-  /** executor.executeWithFallback()를 passthrough로 설정 - task 실행 후 예외 발생 시 fallback 함수 호출 */
-  @SuppressWarnings("unchecked")
-  private void setupExecutorFallbackPassthrough() {
-    when(executor.executeWithFallback(
-            any(ThrowingSupplier.class), any(Function.class), any(TaskContext.class)))
-        .thenAnswer(
-            invocation -> {
-              ThrowingSupplier<?> task = invocation.getArgument(0, ThrowingSupplier.class);
-              Function<Throwable, ?> fallback = invocation.getArgument(1, Function.class);
-
-              try {
-                return task.get();
-              } catch (Throwable t) {
-                return fallback.apply(t);
-              }
-            });
   }
 
   /** CircuitBreaker passthrough: executeCheckedSupplier가 받은 supplier를 실제로 실행 */
@@ -133,7 +118,6 @@ class ResilientLockStrategyExceptionFilterTest {
     @DisplayName("1. DistributedLockException 발생 시 MySQL fallback 실행")
     void shouldFallbackToMySql_WhenRedisThrowsDistributedLockException() throws Throwable {
       // given
-      setupExecutorFallbackPassthrough();
       DistributedLockException lockException = new DistributedLockException("Redis lock timeout");
 
       when(circuitBreaker.executeCheckedSupplier(any())).thenThrow(lockException);
@@ -154,7 +138,6 @@ class ResilientLockStrategyExceptionFilterTest {
     @DisplayName("2. CallNotPermittedException (CircuitBreaker OPEN) 발생 시 MySQL fallback 실행")
     void shouldFallbackToMySql_WhenCircuitBreakerOpen() throws Throwable {
       // given
-      setupExecutorFallbackPassthrough();
       // Mock으로 CallNotPermittedException 생성 (factory method 대신)
       CallNotPermittedException cbException = mock(CallNotPermittedException.class);
 
@@ -176,7 +159,6 @@ class ResilientLockStrategyExceptionFilterTest {
     @DisplayName("3. RedisException 발생 시 MySQL fallback 실행")
     void shouldFallbackToMySql_WhenRedisExceptionOccurs() throws Throwable {
       // given
-      setupExecutorFallbackPassthrough();
       RedisException redisException = new RedisException("Redis connection failed");
 
       when(circuitBreaker.executeCheckedSupplier(any())).thenThrow(redisException);
@@ -197,7 +179,6 @@ class ResilientLockStrategyExceptionFilterTest {
     @DisplayName("4. RedisTimeoutException 발생 시 MySQL fallback 실행")
     void shouldFallbackToMySql_WhenRedisTimeoutExceptionOccurs() throws Throwable {
       // given
-      setupExecutorFallbackPassthrough();
       RedisTimeoutException timeoutException = new RedisTimeoutException("Redis timeout");
 
       when(circuitBreaker.executeCheckedSupplier(any())).thenThrow(timeoutException);
@@ -228,7 +209,6 @@ class ResilientLockStrategyExceptionFilterTest {
         "5. ClientBaseException(CharacterNotFoundException) 발생 시 MySQL fallback 미실행, 예외 상위 전파")
     void shouldPropagateBusinessException_WhenClientBaseExceptionThrown() throws Throwable {
       // given
-      setupExecutorFallbackPassthrough();
       CharacterNotFoundException businessException = new CharacterNotFoundException("TestUser");
 
       when(circuitBreaker.executeCheckedSupplier(any())).thenThrow(businessException);
@@ -249,7 +229,6 @@ class ResilientLockStrategyExceptionFilterTest {
     void shouldPropagateWrappedBusinessException_WhenCompletionExceptionWrapsClientBaseException()
         throws Throwable {
       // given
-      setupExecutorFallbackPassthrough();
       CharacterNotFoundException businessException = new CharacterNotFoundException("TestUser");
       CompletionException wrappedException = new CompletionException(businessException);
 
@@ -271,7 +250,6 @@ class ResilientLockStrategyExceptionFilterTest {
     @DisplayName("7. 다중 래핑된 비즈니스 예외도 unwrap하여 상위 전파")
     void shouldPropagateMultiWrappedBusinessException() throws Throwable {
       // given
-      setupExecutorFallbackPassthrough();
       CharacterNotFoundException businessException = new CharacterNotFoundException("TestUser");
       // CompletionException(CompletionException(businessException))
       CompletionException innerWrapper = new CompletionException(businessException);
@@ -302,7 +280,6 @@ class ResilientLockStrategyExceptionFilterTest {
     @DisplayName("8. NullPointerException 발생 시 MySQL fallback 미실행, 예외 상위 전파")
     void shouldPropagateUnknownException_WhenNPEOccurs() throws Throwable {
       // given
-      setupExecutorFallbackPassthrough();
       NullPointerException npe = new NullPointerException("Unexpected null");
 
       when(circuitBreaker.executeCheckedSupplier(any())).thenThrow(npe);
@@ -322,7 +299,6 @@ class ResilientLockStrategyExceptionFilterTest {
     @DisplayName("9. IllegalArgumentException 발생 시 MySQL fallback 미실행, 예외 상위 전파")
     void shouldPropagateUnknownException_WhenIllegalArgumentExceptionOccurs() throws Throwable {
       // given
-      setupExecutorFallbackPassthrough();
       IllegalArgumentException iae = new IllegalArgumentException("Invalid argument");
 
       when(circuitBreaker.executeCheckedSupplier(any())).thenThrow(iae);
@@ -341,7 +317,6 @@ class ResilientLockStrategyExceptionFilterTest {
     @DisplayName("10. RuntimeException (일반) 발생 시 MySQL fallback 미실행, 예외 상위 전파")
     void shouldPropagateUnknownException_WhenGenericRuntimeExceptionOccurs() throws Throwable {
       // given
-      setupExecutorFallbackPassthrough();
       RuntimeException runtimeException = new RuntimeException("Generic runtime error");
 
       when(circuitBreaker.executeCheckedSupplier(any())).thenThrow(runtimeException);
@@ -372,7 +347,6 @@ class ResilientLockStrategyExceptionFilterTest {
       // given
       // 실경로: executor → CB.executeCheckedSupplier(supplier.get()) →
       // redis.executeWithLock(task.get()) → task throws
-      setupExecutorFallbackPassthrough();
       setupCircuitBreakerPassthrough();
       setupRedisExecuteWithLockPassthrough();
 
@@ -401,7 +375,6 @@ class ResilientLockStrategyExceptionFilterTest {
         throws Throwable {
       // given
       // 실경로: executor → CB → redis → task throws CompletionException(business) → unwrap → 전파
-      setupExecutorFallbackPassthrough();
       setupCircuitBreakerPassthrough();
       setupRedisExecuteWithLockPassthrough();
 

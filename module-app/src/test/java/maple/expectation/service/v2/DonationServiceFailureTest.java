@@ -11,13 +11,12 @@ import maple.expectation.common.function.ThrowingSupplier;
 import maple.expectation.error.exception.AdminNotFoundException;
 import maple.expectation.error.exception.CriticalTransactionFailureException;
 import maple.expectation.infrastructure.executor.LogicExecutor;
-import maple.expectation.infrastructure.executor.TaskContext;
-import maple.expectation.infrastructure.executor.function.ThrowingRunnable;
 import maple.expectation.infrastructure.persistence.repository.DonationHistoryRepository;
 import maple.expectation.infrastructure.persistence.repository.DonationOutboxRepository;
 import maple.expectation.service.v2.auth.AdminService;
 import maple.expectation.service.v2.donation.event.DonationProcessor;
 import maple.expectation.service.v2.donation.listener.DonationFailedEvent;
+import maple.expectation.support.TestLogicExecutors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -49,7 +48,8 @@ class DonationServiceFailureTest {
   @Mock ApplicationEventPublisher eventPublisher;
   @Mock DonationProcessor donationProcessor;
   @Mock AdminService adminService;
-  @Mock LogicExecutor executor;
+
+  private LogicExecutor executor;
 
   DonationService donationService;
 
@@ -58,6 +58,8 @@ class DonationServiceFailureTest {
 
   @BeforeEach
   void setUp() {
+    executor = TestLogicExecutors.passThrough();
+
     // 수동으로 서비스 생성 (Mock 주입)
     donationService =
         new DonationService(
@@ -67,28 +69,6 @@ class DonationServiceFailureTest {
             adminService,
             eventPublisher,
             executor);
-
-    // LogicExecutor Mock - 람다 실제 실행
-    when(executor.executeOrCatch(
-            any(ThrowingSupplier.class), any(Function.class), any(TaskContext.class)))
-        .thenAnswer(
-            invocation -> {
-              ThrowingSupplier<?> task = invocation.getArgument(0);
-              Function<Throwable, ?> recovery = invocation.getArgument(1);
-              try {
-                return task.get();
-              } catch (Throwable e) {
-                return recovery.apply(e);
-              }
-            });
-
-    doAnswer(
-            invocation -> {
-              ((ThrowingRunnable) invocation.getArgument(0)).run();
-              return null;
-            })
-        .when(executor)
-        .executeVoid(any(ThrowingRunnable.class), any(TaskContext.class));
   }
 
   @Test

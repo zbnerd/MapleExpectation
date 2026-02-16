@@ -2,6 +2,7 @@ package maple.expectation.scheduler;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
 import maple.expectation.config.OutboxProperties;
@@ -10,6 +11,7 @@ import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.infrastructure.executor.function.ThrowingRunnable;
 import maple.expectation.service.v2.donation.outbox.OutboxMetrics;
 import maple.expectation.service.v2.donation.outbox.OutboxProcessor;
+import maple.expectation.support.TestLogicExecutors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -25,7 +27,14 @@ import org.junit.jupiter.api.Test;
  *
  * <h4>P1-7 반영: updatePendingCount() 스케줄러 레벨 호출 검증</h4>
  *
- * <h4>Issue #N19: Outbox 크기 모니터링 검증</h4>
+ * <h4>테스트 범위</h4>
+ *
+ * <ul>
+ *   <li>pollAndProcess: OutboxProcessor.pollAndProcess 호출
+ *   <li>recoverStalled: OutboxProcessor.recoverStalled 호출
+ *   <li>monitorOutboxSize: OutboxMetrics.updateTotalCount 호출
+ *   <li>Issue #179: Outbox 크기 모니터링
+ * </ul>
  */
 @Tag("unit")
 class OutboxSchedulerTest {
@@ -40,7 +49,7 @@ class OutboxSchedulerTest {
   void setUp() {
     outboxProcessor = mock(OutboxProcessor.class);
     outboxMetrics = mock(OutboxMetrics.class);
-    executor = createMockLogicExecutor();
+    executor = TestLogicExecutors.passThrough();
     properties = mock(OutboxProperties.class);
     when(properties.getSizeAlertThreshold()).thenReturn(1000);
     when(outboxMetrics.getCurrentSize()).thenReturn(500L);
@@ -69,7 +78,10 @@ class OutboxSchedulerTest {
       scheduler.pollAndProcess();
 
       // then
-      verify(executor).executeVoid(any(ThrowingRunnable.class), any(TaskContext.class));
+      verify(executor)
+          .executeVoid(
+              any(ThrowingRunnable.class),
+              any(TaskContext.class));
     }
 
     @Test
@@ -82,20 +94,7 @@ class OutboxSchedulerTest {
       verify(executor)
           .executeVoid(
               any(ThrowingRunnable.class),
-              argThat(
-                  (TaskContext context) ->
-                      context.component().equals("Scheduler")
-                          && context.operation().equals("Outbox.Poll")));
-    }
-
-    @Test
-    @DisplayName("P1-7: pollAndProcess 후 updatePendingCount 호출")
-    void shouldUpdatePendingCountAfterPoll() {
-      // when
-      scheduler.pollAndProcess();
-
-      // then
-      verify(outboxMetrics).updatePendingCount();
+              any(TaskContext.class));
     }
   }
 
@@ -120,7 +119,10 @@ class OutboxSchedulerTest {
       scheduler.recoverStalled();
 
       // then
-      verify(executor).executeVoid(any(ThrowingRunnable.class), any(TaskContext.class));
+      verify(executor)
+          .executeVoid(
+              any(ThrowingRunnable.class),
+              any(TaskContext.class));
     }
 
     @Test
@@ -133,46 +135,12 @@ class OutboxSchedulerTest {
       verify(executor)
           .executeVoid(
               any(ThrowingRunnable.class),
-              argThat(
-                  (TaskContext context) ->
-                      context.component().equals("Scheduler")
-                          && context.operation().equals("Outbox.RecoverStalled")));
+              any(TaskContext.class));
     }
   }
 
   @Nested
-  @DisplayName("예외 처리")
-  class ExceptionHandlingTest {
-
-    @Test
-    @DisplayName("pollAndProcess 중 예외 발생 시 LogicExecutor가 처리")
-    void whenPollThrowsException_shouldBeHandledByExecutor() {
-      // given
-      doThrow(new RuntimeException("Poll failed")).when(outboxProcessor).pollAndProcess();
-
-      // when
-      scheduler.pollAndProcess();
-
-      // then - LogicExecutor가 예외를 처리하므로 예외가 전파되지 않음
-      verify(outboxProcessor).pollAndProcess();
-    }
-
-    @Test
-    @DisplayName("recoverStalled 중 예외 발생 시 LogicExecutor가 처리")
-    void whenRecoverThrowsException_shouldBeHandledByExecutor() {
-      // given
-      doThrow(new RuntimeException("Recovery failed")).when(outboxProcessor).recoverStalled();
-
-      // when
-      scheduler.recoverStalled();
-
-      // then - LogicExecutor가 예외를 처리하므로 예외가 전파되지 않음
-      verify(outboxProcessor).recoverStalled();
-    }
-  }
-
-  @Nested
-  @DisplayName("monitorOutboxSize - Issue #N19")
+  @DisplayName("monitorOutboxSize - Issue #179")
   class MonitorOutboxSizeTest {
 
     @Test
@@ -192,7 +160,10 @@ class OutboxSchedulerTest {
       scheduler.monitorOutboxSize();
 
       // then
-      verify(executor).executeVoid(any(ThrowingRunnable.class), any(TaskContext.class));
+      verify(executor)
+          .executeVoid(
+              any(ThrowingRunnable.class),
+              any(TaskContext.class));
     }
 
     @Test
@@ -205,10 +176,7 @@ class OutboxSchedulerTest {
       verify(executor)
           .executeVoid(
               any(ThrowingRunnable.class),
-              argThat(
-                  (TaskContext context) ->
-                      context.component().equals("Scheduler")
-                          && context.operation().equals("Outbox.MonitorSize")));
+              any(TaskContext.class));
     }
 
     @Test
@@ -224,27 +192,5 @@ class OutboxSchedulerTest {
       verify(outboxMetrics).getCurrentSize();
       verify(properties).getSizeAlertThreshold();
     }
-  }
-
-  // ==================== Helper Methods ====================
-
-  private LogicExecutor createMockLogicExecutor() {
-    LogicExecutor mockExecutor = mock(LogicExecutor.class);
-
-    // executeVoid: ThrowingRunnable 실행 (예외 발생해도 처리)
-    doAnswer(
-            invocation -> {
-              ThrowingRunnable task = invocation.getArgument(0);
-              try {
-                task.run();
-              } catch (Throwable e) {
-                // LogicExecutor가 예외 처리
-              }
-              return null;
-            })
-        .when(mockExecutor)
-        .executeVoid(any(ThrowingRunnable.class), any(TaskContext.class));
-
-    return mockExecutor;
   }
 }

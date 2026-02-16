@@ -19,11 +19,11 @@ import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.infrastructure.executor.function.ThrowingRunnable;
 import maple.expectation.infrastructure.shutdown.ShutdownProperties;
 import maple.expectation.infrastructure.shutdown.dto.ShutdownData;
+import maple.expectation.support.TestLogicExecutors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.mockito.Mockito;
 
 /**
  * ShutdownDataPersistenceService 테스트
@@ -57,75 +57,8 @@ class ShutdownDataPersistenceServiceTest {
     objectMapper.registerModule(new JavaTimeModule());
     objectMapper.findAndRegisterModules();
 
-    // LogicExecutor Mock 생성
-    executor = Mockito.mock(LogicExecutor.class);
-
-    // 🚀 [중요] LogicExecutor의 모든 실행 패턴에 대해 내부 람다를 강제로 실행하도록 설정 (Passthrough)
-
-    // 1. executeWithRecovery: 정상 로직 실행 후 에러 시 복구 로직 실행
-    lenient()
-        .doAnswer(
-            inv -> {
-              ThrowingSupplier<?> task = inv.getArgument(0);
-              Function<Throwable, Object> recovery = inv.getArgument(1);
-              try {
-                return task.get();
-              } catch (Throwable e) {
-                return recovery.apply(e); // 복구 로직(Optional.empty 등) 수행
-              }
-            })
-        .when(executor)
-        .executeOrCatch(any(), any(), any());
-
-    // 2. execute: 단순 실행
-    lenient()
-        .doAnswer(inv -> ((ThrowingSupplier<?>) inv.getArgument(0)).get())
-        .when(executor)
-        .execute(any(ThrowingSupplier.class), (TaskContext) any());
-
-    // 3. executeVoid: 리턴 없는 실행
-    lenient()
-        .doAnswer(
-            inv -> {
-              ((ThrowingRunnable) inv.getArgument(0)).run();
-              return null;
-            })
-        .when(executor)
-        .executeVoid(any(ThrowingRunnable.class), (TaskContext) any());
-
-    // 4. executeWithTranslation: 예외 번역기 버전 실행
-    lenient()
-        .doAnswer(inv -> ((ThrowingSupplier<?>) inv.getArgument(0)).get())
-        .when(executor)
-        .executeWithTranslation(any(ThrowingSupplier.class), any(), any());
-
-    // 5. executeWithFinally: finally 블록 보장 실행
-    lenient()
-        .doAnswer(
-            inv -> {
-              ThrowingSupplier<?> task = inv.getArgument(0);
-              Runnable finalizer = inv.getArgument(1);
-              try {
-                return task.get();
-              } finally {
-                finalizer.run();
-              }
-            })
-        .when(executor)
-        .executeWithFinally(any(ThrowingSupplier.class), any(Runnable.class), any());
-
-    // 6. executeOrDefault: 실패 시 기본값 반환
-    lenient()
-        .doAnswer(
-            inv -> {
-              try {
-                return ((ThrowingSupplier<?>) inv.getArgument(0)).get();
-              } catch (Throwable e) {
-                return inv.getArgument(1);
-              }
-            })
-        .when(executor)
-        .executeOrDefault(any(ThrowingSupplier.class), any(), any());
+    // ✅ [해결] TestLogicExecutors로 80+ 줄 boilerplate 제거
+    executor = TestLogicExecutors.passThrough();
 
     // 서비스 인스턴스 생성 (P1-1 Fix: ShutdownProperties 생성자 주입)
     ShutdownProperties shutdownProperties = new ShutdownProperties();

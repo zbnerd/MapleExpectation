@@ -17,6 +17,7 @@ import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.infrastructure.executor.function.ThrowingRunnable;
 import maple.expectation.infrastructure.persistence.repository.DonationOutboxRepository;
+import maple.expectation.support.TestLogicExecutors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -59,7 +60,7 @@ class OutboxProcessorTest {
     outboxRepository = mock(DonationOutboxRepository.class);
     dlqHandler = mock(DlqHandler.class);
     metrics = mock(OutboxMetrics.class);
-    executor = createPassThroughExecutor();
+    executor = TestLogicExecutors.passThrough();
     transactionTemplate = mock(TransactionTemplate.class);
     properties = createTestProperties();
 
@@ -263,49 +264,5 @@ class OutboxProcessorTest {
     props.setMaxBackoff(Duration.ofHours(1));
     props.setInstanceId("test-instance");
     return props;
-  }
-
-  @SuppressWarnings("unchecked")
-  private LogicExecutor createPassThroughExecutor() {
-    LogicExecutor mockExecutor = mock(LogicExecutor.class);
-
-    // executeOrCatch
-    given(
-            mockExecutor.executeOrCatch(
-                any(ThrowingSupplier.class), any(Function.class), any(TaskContext.class)))
-        .willAnswer(
-            invocation -> {
-              ThrowingSupplier<?> task = invocation.getArgument(0);
-              Function<Throwable, ?> recovery = invocation.getArgument(1);
-              try {
-                return task.get();
-              } catch (Throwable e) {
-                return recovery.apply(e);
-              }
-            });
-
-    // executeOrDefault
-    given(mockExecutor.executeOrDefault(any(ThrowingSupplier.class), any(), any(TaskContext.class)))
-        .willAnswer(
-            invocation -> {
-              ThrowingSupplier<?> task = invocation.getArgument(0);
-              try {
-                return task.get();
-              } catch (Throwable e) {
-                return invocation.getArgument(1);
-              }
-            });
-
-    // executeVoid
-    doAnswer(
-            invocation -> {
-              ThrowingRunnable task = invocation.getArgument(0);
-              task.run();
-              return null;
-            })
-        .when(mockExecutor)
-        .executeVoid(any(ThrowingRunnable.class), any(TaskContext.class));
-
-    return mockExecutor;
   }
 }

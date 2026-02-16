@@ -1,5 +1,6 @@
 package maple.expectation;
 
+import maple.expectation.config.GlobalTestConfig;
 import maple.expectation.domain.v2.GameCharacter;
 import maple.expectation.external.impl.RealNexonApiClient;
 import maple.expectation.service.v2.GameCharacterService;
@@ -8,12 +9,14 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
 @SpringBootTest
 @Transactional
 @Tag("integration")
+@Import(GlobalTestConfig.class)
 class ExpectationApplicationTests {
 
   @Autowired GameCharacterService gameCharacterService;

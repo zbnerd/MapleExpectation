@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.CacheManager;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * V4 Singleflight 패턴 동시성 테스트 (#262)
@@ -34,6 +35,7 @@ import org.springframework.cache.CacheManager;
  */
 @Slf4j
 @Tag("integration")
+@Transactional
 class EquipmentExpectationServiceV4SingleflightTest extends IntegrationTestSupport {
 
   @Autowired private EquipmentExpectationServiceV4 serviceV4;
@@ -55,11 +57,14 @@ class EquipmentExpectationServiceV4SingleflightTest extends IntegrationTestSuppo
       cache.clear();
     }
 
+    // 테스트 데이터 정리: OCID로 기존 데이터 삭제
+    characterRepository.findByUserIgn(TEST_USER_IGN).ifPresent(characterRepository::delete);
+
     // 테스트용 캐릭터 생성
     characterRepository
         .findByUserIgn(TEST_USER_IGN)
         .ifPresentOrElse(
-            existing -> {}, // 이미 존재
+            existing -> {}, // 이미 존재하면 그대로 사용
             () -> {
               // GameCharacter 먼저 저장 (ocid가 PK 역할)
               GameCharacter character = new GameCharacter(TEST_USER_IGN, TEST_OCID);

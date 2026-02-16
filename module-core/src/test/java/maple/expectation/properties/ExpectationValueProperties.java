@@ -11,9 +11,14 @@ import net.jqwik.api.ForAll;
 import net.jqwik.api.Property;
 import net.jqwik.api.Provide;
 import net.jqwik.api.constraints.DoubleRange;
+import org.junit.jupiter.api.Disabled;
 
 /**
  * 기대값 불변식(Property-Based) 테스트 템플릿
+ *
+ * @Disabled 이 파일은 템플릿으로, 실제 도메인 클래스와 연결되지 않았습니다.
+ * 실제 도메인 로직을 검증하려면 calculateExpectation() 메서드를 실제
+ * StarforceCalculator 또는 CubeCostCalculator와 연결해야 합니다.
  *
  * <h3>검증하는 불변식 3종</h3>
  *
@@ -54,6 +59,7 @@ import net.jqwik.api.constraints.DoubleRange;
  * }
  * }</pre>
  */
+@Disabled("Template - wire to domain classes (StarforceCalculator, CubeCostCalculator) before enabling")
 class ExpectationValueProperties {
 
   private static final double EPSILON = 1e-10;

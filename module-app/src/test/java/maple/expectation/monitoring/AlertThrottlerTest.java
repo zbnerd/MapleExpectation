@@ -12,6 +12,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.monitoring.throttle.AlertThrottler;
+import maple.expectation.support.TestLogicExecutors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -40,7 +41,7 @@ class AlertThrottlerTest {
   @BeforeEach
   void setUp() {
     redissonClient = mock(RedissonClient.class);
-    executor = createPassThroughExecutor();
+    executor = TestLogicExecutors.passThrough();
     mockCounter = mock(RAtomicLong.class);
     mockPatternMap = mock(RMap.class);
     counterValue = new AtomicLong(0);
@@ -69,36 +70,6 @@ class AlertThrottlerTest {
     throttler = new AlertThrottler(redissonClient, executor);
     ReflectionTestUtils.setField(throttler, "dailyLimit", 5);
     ReflectionTestUtils.setField(throttler, "throttleSeconds", 60);
-  }
-
-  /**
-   * LogicExecutor의 pass-through Mock 생성
-   *
-   * <p>executor.executeOrDefault()가 실제 supplier를 즉시 실행하도록 설정
-   */
-  @SuppressWarnings("unchecked")
-  private LogicExecutor createPassThroughExecutor() {
-    LogicExecutor mock = mock(LogicExecutor.class);
-    given(mock.executeOrDefault(any(), any(), any(TaskContext.class)))
-        .willAnswer(
-            inv -> {
-              try {
-                return ((maple.expectation.common.function.ThrowingSupplier<?>) inv.getArgument(0))
-                    .get();
-              } catch (Exception e) {
-                return inv.getArgument(1);
-              }
-            });
-    doAnswer(
-            inv -> {
-              ((maple.expectation.infrastructure.executor.function.ThrowingRunnable)
-                      inv.getArgument(0))
-                  .run();
-              return null;
-            })
-        .when(mock)
-        .executeVoid(any(), any(TaskContext.class));
-    return mock;
   }
 
   @Test

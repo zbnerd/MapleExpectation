@@ -11,7 +11,7 @@ import maple.expectation.common.function.ThrowingSupplier;
 import maple.expectation.domain.model.calculator.DensePmf;
 import maple.expectation.domain.model.calculator.SparsePmf;
 import maple.expectation.infrastructure.executor.LogicExecutor;
-import maple.expectation.infrastructure.executor.TaskContext;
+import maple.expectation.support.TestLogicExecutors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -35,7 +35,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class ProbabilityConvolverTest {
 
-  @Mock private LogicExecutor executor;
+  private LogicExecutor executor;
 
   private ProbabilityConvolver convolver;
   private TailProbabilityCalculator tailCalculator;
@@ -44,13 +44,7 @@ class ProbabilityConvolverTest {
 
   @BeforeEach
   void setUp() {
-    // LogicExecutor passthrough 설정 (CLAUDE.md 정책: doAnswer)
-    when(executor.execute(any(ThrowingSupplier.class), any(TaskContext.class)))
-        .thenAnswer(
-            invocation -> {
-              ThrowingSupplier<?> supplier = invocation.getArgument(0);
-              return supplier.get();
-            });
+    executor = TestLogicExecutors.passThrough();
 
     convolver = new ProbabilityConvolver(executor);
     tailCalculator = new TailProbabilityCalculator();

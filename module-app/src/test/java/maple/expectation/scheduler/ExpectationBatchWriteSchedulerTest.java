@@ -18,6 +18,7 @@ import maple.expectation.infrastructure.lock.LockStrategy;
 import maple.expectation.infrastructure.persistence.repository.EquipmentExpectationSummaryRepository;
 import maple.expectation.service.v4.buffer.ExpectationWriteBackBuffer;
 import maple.expectation.service.v4.buffer.ExpectationWriteTask;
+import maple.expectation.support.TestLogicExecutors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -55,7 +56,7 @@ class ExpectationBatchWriteSchedulerTest {
     buffer = mock(ExpectationWriteBackBuffer.class);
     repository = mock(EquipmentExpectationSummaryRepository.class);
     lockStrategy = mock(LockStrategy.class);
-    executor = createMockLogicExecutor();
+    executor = TestLogicExecutors.passThrough();
     meterRegistry = mock(MeterRegistry.class);
 
     Counter counter = mock(Counter.class);
@@ -209,29 +210,5 @@ class ExpectationBatchWriteSchedulerTest {
               any(BigDecimal.class),
               any(BigDecimal.class));
     }
-  }
-
-  // ==================== Helper Methods ====================
-
-  @SuppressWarnings("unchecked")
-  private LogicExecutor createMockLogicExecutor() {
-    LogicExecutor mockExecutor = mock(LogicExecutor.class);
-
-    // executeOrCatch: ThrowingSupplier 실행, 예외 시 recovery 호출
-    given(
-            mockExecutor.executeOrCatch(
-                any(ThrowingSupplier.class), any(Function.class), any(TaskContext.class)))
-        .willAnswer(
-            invocation -> {
-              ThrowingSupplier<?> task = invocation.getArgument(0);
-              Function<Throwable, ?> recovery = invocation.getArgument(1);
-              try {
-                return task.get();
-              } catch (Throwable e) {
-                return recovery.apply(e);
-              }
-            });
-
-    return mockExecutor;
   }
 }

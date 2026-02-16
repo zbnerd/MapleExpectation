@@ -20,8 +20,7 @@ import maple.expectation.domain.v2.DonationDlq;
 import maple.expectation.domain.v2.DonationOutbox;
 import maple.expectation.error.exception.DlqNotFoundException;
 import maple.expectation.infrastructure.executor.LogicExecutor;
-import maple.expectation.infrastructure.executor.TaskContext;
-import maple.expectation.infrastructure.executor.function.ThrowingRunnable;
+import maple.expectation.support.TestLogicExecutors;
 import maple.expectation.infrastructure.persistence.repository.DonationDlqRepository;
 import maple.expectation.infrastructure.persistence.repository.DonationOutboxRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -69,7 +68,8 @@ class DlqAdminServiceTest {
   @Mock DonationDlqRepository dlqRepository;
   @Mock DonationOutboxRepository outboxRepository;
   @Mock OutboxMetrics metrics;
-  @Mock LogicExecutor executor;
+
+  private LogicExecutor executor;
 
   DlqAdminService dlqAdminService;
 
@@ -77,25 +77,11 @@ class DlqAdminServiceTest {
 
   @BeforeEach
   void setUp() throws Exception {
+    // Use TestLogicExecutors for pass-through behavior
+    executor = TestLogicExecutors.passThrough();
+
     // DlqAdminService 수동 생성 (Mock 주입)
     dlqAdminService = new DlqAdminService(dlqRepository, outboxRepository, metrics, executor);
-
-    // LogicExecutor Mock - 람다 실제 실행 (Passthrough)
-    when(executor.execute(any(ThrowingSupplier.class), any(TaskContext.class)))
-        .thenAnswer(
-            invocation -> {
-              ThrowingSupplier<?> task = invocation.getArgument(0);
-              return task.get();
-            });
-
-    doAnswer(
-            invocation -> {
-              ThrowingRunnable task = invocation.getArgument(0);
-              task.run();
-              return null;
-            })
-        .when(executor)
-        .executeVoid(any(ThrowingRunnable.class), any(TaskContext.class));
 
     // Sample DLQ 생성
     sampleDlq =

@@ -22,6 +22,7 @@ import maple.expectation.service.v2.cube.component.CubeDpCalculator;
 import maple.expectation.service.v2.cube.component.DpModeInferrer;
 import maple.expectation.service.v2.cube.config.CubeEngineFeatureFlag;
 import maple.expectation.service.v2.impl.CubeServiceImpl;
+import maple.expectation.support.TestLogicExecutors;
 import maple.expectation.util.StatType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -60,7 +61,7 @@ class CubeServiceTest {
 
   @Mock private CubeEngineFeatureFlag featureFlag;
 
-  @Mock private LogicExecutor executor;
+  private LogicExecutor executor;
 
   @Mock private DpModeInferrer dpModeInferrer;
 
@@ -70,6 +71,8 @@ class CubeServiceTest {
 
   @BeforeEach
   void setUp() {
+    executor = TestLogicExecutors.passThrough();
+
     cubeService =
         new CubeServiceImpl(
             rateCalculator, dpCalculator, repository, featureFlag, executor, dpModeInferrer);

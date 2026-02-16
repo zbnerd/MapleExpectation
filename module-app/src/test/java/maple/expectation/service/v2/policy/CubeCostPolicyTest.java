@@ -2,19 +2,15 @@ package maple.expectation.service.v2.policy;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.mock;
 
 import maple.expectation.domain.v2.CubeType;
 import maple.expectation.error.exception.InvalidPotentialGradeException;
+import maple.expectation.service.v2.policy.TableBasedCostStrategy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
-import org.mockito.ArgumentMatchers;
 
 /**
  * CubeCostPolicy 단위 테스트
@@ -29,8 +25,7 @@ class CubeCostPolicyTest {
 
   @BeforeEach
   void setUp() {
-    costStrategy = mock(CostCalculationStrategy.class);
-    given(costStrategy.calculateCost(ArgumentMatchers.any(), anyInt(), anyString())).willReturn(0L);
+    costStrategy = new TableBasedCostStrategy();
     cubeCostPolicy = new CubeCostPolicy(costStrategy);
   }
 
@@ -75,12 +70,12 @@ class CubeCostPolicyTest {
   @DisplayName("잘못된 등급 테스트")
   class InvalidGradeTest {
 
-    @ParameterizedTest(name = "BLACK 큐브, 레벨 {0}, 등급 {1} -> {2}원")
+    @ParameterizedTest(name = "BLACK 큐브, 레벨 {0}, 등급 {1} -> 예외 발생")
     @CsvSource({
-      "200, 레어, 4500000",
-      "200, 에픽, 18000000",
-      "200, 유니크, 38250000",
-      "200, 레전드리, 45000000"
+      "200, 희귀, 4500000",
+      "200, 전설, 18000000",
+      "200, Legendary, 38250000",
+      "200, HERO, 45000000"
     })
     @DisplayName("BLACK 큐브 잘못된 등급은 Silent Failure(0원 반환) 대신 예외 발생")
     void getCubeCost_blackCube_invalidGrades_throws(int level, String grade) {
@@ -89,8 +84,8 @@ class CubeCostPolicyTest {
           .isInstanceOf(InvalidPotentialGradeException.class);
     }
 
-    @ParameterizedTest(name = "ADDITIONAL 큐브, 레벨 {0}, 등급 {1} -> {2}원")
-    @CsvSource({"200, 레어, 1462500", "200, 에픽, 4095000", "200, 유니크, 4972500", "200, 레전드리, 58500000"})
+    @ParameterizedTest(name = "ADDITIONAL 큐브, 레벨 {0}, 등급 {1} -> 예외 발생")
+    @CsvSource({"200, 희귀, 14625000", "200, 전설, 40950000", "200, Unique, 49725000", "200, Rare, 58500000"})
     @DisplayName("ADDITIONAL 큐브 잘못된 등급은 Silent Failure(0원 반환) 대신 예외 발생")
     void getCubeCost_additionalCube_invalidGrades_throws(int level, String grade) {
       // When & Then

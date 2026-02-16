@@ -9,8 +9,8 @@ import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.external.dto.v2.EquipmentResponse;
 import maple.expectation.infrastructure.executor.LogicExecutor;
-import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.service.v2.calculator.PotentialCalculator;
+import maple.expectation.support.TestLogicExecutors;
 import maple.expectation.util.StatParser;
 import maple.expectation.util.StatType;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,7 +24,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class) // ✅ Mockito 활성화
 class PotentialCalculatorTest {
 
-  @Mock private LogicExecutor executor;
+  private LogicExecutor executor;
 
   @Mock private StatParser statParser;
 
@@ -32,24 +32,12 @@ class PotentialCalculatorTest {
 
   @BeforeEach
   void setUp() {
+    executor = TestLogicExecutors.passThrough();
+
     // 1. 의존성 주입하여 생성
     calculator = new PotentialCalculator(statParser, executor);
 
-    // 2. LogicExecutor가 람다를 실행하도록 설정 (StatParserTest와 동일)
-    when(executor.execute(any(), any(TaskContext.class)))
-        .thenAnswer(
-            invocation -> {
-              try {
-                // 첫 번째 인자인 ThrowingSupplier를 실행
-                maple.expectation.common.function.ThrowingSupplier<?> supplier =
-                    invocation.getArgument(0);
-                return supplier.get();
-              } catch (Throwable e) {
-                throw new RuntimeException(e);
-              }
-            });
-
-    // 3. StatParser.parseNum 호출 시 숫자를 추출하도록 Mock 설정
+    // 2. StatParser.parseNum 호출 시 숫자를 추출하도록 Mock 설정
     // 실제 StatParser 로직을 태우고 싶다면 Mock 대신 실제 객체를 주입해도 되지만,
     // 단위 테스트에서는 아래처럼 특정 입력에 대한 출력을 정의하는 게 정석입니다.
     when(statParser.parseNum(anyString()))

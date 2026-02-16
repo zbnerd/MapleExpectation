@@ -20,6 +20,7 @@ import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.infrastructure.queue.QueueMessage;
 import maple.expectation.infrastructure.queue.QueueType;
 import maple.expectation.infrastructure.queue.script.BufferLuaScriptProvider;
+import maple.expectation.support.TestLogicExecutors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -80,8 +81,8 @@ class RedisBufferStrategyTest {
     // Redisson Mocks
     setupRedissonMocks();
 
-    // LogicExecutor Mocks
-    setupExecutorMocks();
+    // LogicExecutor - use centralized TestLogicExecutors
+    executor = TestLogicExecutors.passThrough();
 
     buffer =
         new RedisBufferStrategy<>(
@@ -121,40 +122,6 @@ class RedisBufferStrategyTest {
             });
   }
 
-  @SuppressWarnings("unchecked")
-  private void setupExecutorMocks() {
-    // executeOrDefault - 람다 직접 실행
-    lenient()
-        .when(executor.executeOrDefault(any(ThrowingSupplier.class), any(), any(TaskContext.class)))
-        .thenAnswer(
-            (Answer<Object>)
-                invocation -> {
-                  ThrowingSupplier<?> task = invocation.getArgument(0);
-                  Object defaultValue = invocation.getArgument(1);
-                  try {
-                    return task.get();
-                  } catch (Exception e) {
-                    return defaultValue;
-                  }
-                });
-
-    // executeWithFallback - 람다 직접 실행
-    lenient()
-        .when(
-            executor.executeWithFallback(
-                any(ThrowingSupplier.class), any(Function.class), any(TaskContext.class)))
-        .thenAnswer(
-            (Answer<Object>)
-                invocation -> {
-                  ThrowingSupplier<?> task = invocation.getArgument(0);
-                  Function<Throwable, ?> fallback = invocation.getArgument(1);
-                  try {
-                    return task.get();
-                  } catch (Exception e) {
-                    return fallback.apply(e);
-                  }
-                });
-  }
 
   @Nested
   @DisplayName("publish() 테스트")
