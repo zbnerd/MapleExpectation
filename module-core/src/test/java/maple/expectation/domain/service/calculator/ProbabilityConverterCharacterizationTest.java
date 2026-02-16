@@ -1,8 +1,11 @@
-package maple.expectation.domain.model.calculator;
+package maple.expectation.domain.service.calculator;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.List;
+import maple.expectation.domain.model.calculator.DensePmf;
+import maple.expectation.domain.model.calculator.DiceRollProbability;
+import maple.expectation.domain.model.calculator.SparsePmf;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -161,7 +164,7 @@ class ProbabilityConverterCharacterizationTest {
 
       DensePmf result = ProbabilityConverter.convolveAll(slots, 10, false);
 
-      assertEquals(1.0, result.probAt(0), 0.001, "p(0) should be 1.0 for no slots");
+      assertEquals(1.0, result.massAt(0), 0.001, "p(0) should be 1.0 for no slots");
     }
 
     @Test
@@ -192,8 +195,8 @@ class ProbabilityConverterCharacterizationTest {
 
       DensePmf result = ProbabilityConverter.convolveAll(slots, 10, false);
 
-      assertEquals(1.0, result.probAt(1), 0.001, "p(1) should be 1.0");
-      assertEquals(0.0, result.probAt(0), 0.001, "p(0) should be 0.0");
+      assertEquals(1.0, result.massAt(1), 0.001, "p(1) should be 1.0");
+      assertEquals(0.0, result.massAt(0), 0.001, "p(0) should be 0.0");
     }
 
     @Test
@@ -205,34 +208,14 @@ class ProbabilityConverterCharacterizationTest {
       DensePmf result = ProbabilityConverter.convolveAll(slots, 5, true);
 
       // All probability should be accumulated into bucket 5
-      assertEquals(1.0, result.probAt(5), 0.001, "p(5) should be 1.0 with tail clamp");
-      assertEquals(0.0, result.probAt(10), 0.001, "p(10) should be 0.0 with tail clamp");
+      assertEquals(1.0, result.massAt(5), 0.001, "p(5) should be 1.0 with tail clamp");
+      assertEquals(0.0, result.massAt(10), 0.001, "p(10) should be 0.0 with tail clamp");
     }
   }
 
   // ==================== Helper Methods ====================
 
   private SparsePmf createSimpleSlot(int value, double probability) {
-    return new SparsePmf() {
-      @Override
-      public int size() {
-        return 1;
-      }
-
-      @Override
-      public int valueAt(int index) {
-        return value;
-      }
-
-      @Override
-      public double probAt(int index) {
-        return probability;
-      }
-
-      @Override
-      public int maxValue() {
-        return value;
-      }
-    };
+    return new SparsePmf(new int[] {value}, new double[] {probability});
   }
 }
