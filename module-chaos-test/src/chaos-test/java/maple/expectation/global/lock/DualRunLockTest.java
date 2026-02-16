@@ -3,6 +3,8 @@ package maple.expectation.global.lock;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.concurrent.atomic.AtomicInteger;
+import maple.expectation.infrastructure.lock.MySqlNamedLockStrategy;
+import maple.expectation.infrastructure.lock.RedisDistributedLockStrategy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
