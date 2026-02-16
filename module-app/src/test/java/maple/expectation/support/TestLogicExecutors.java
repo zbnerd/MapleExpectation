@@ -41,14 +41,6 @@ public final class TestLogicExecutors {
   }
 
   /**
-   * Creates a LogicExecutor mock that directly executes all tasks.
-   *
-   * <p>Each method is mocked with lenient() and delegates to actual task execution, making it ideal
-   * for testing components that depend on LogicExecutor without interfering with task logic itself.
-   *
-   * @return LogicExecutor mock that passes through all method calls to actual execution
-   */
-  /**
    * Creates a plain LogicExecutor mock for tests that need to stub specific return values.
    *
    * <p>Use this when your test needs to control what the executor returns (e.g., testing service
@@ -61,6 +53,14 @@ public final class TestLogicExecutors {
     return Mockito.mock(LogicExecutor.class);
   }
 
+  /**
+   * Creates a LogicExecutor mock that directly executes all tasks.
+   *
+   * <p>Each method is mocked with lenient() and delegates to actual task execution, making it ideal
+   * for testing components that depend on LogicExecutor without interfering with task logic itself.
+   *
+   * @return LogicExecutor mock that passes through all method calls to actual execution
+   */
   public static LogicExecutor passThrough() {
     LogicExecutor mock = Mockito.mock(LogicExecutor.class);
 
