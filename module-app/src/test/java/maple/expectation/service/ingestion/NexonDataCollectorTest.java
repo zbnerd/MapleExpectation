@@ -5,7 +5,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import java.util.concurrent.CompletableFuture;
-import maple.expectation.application.port.EventPublisher;
+import maple.expectation.core.port.out.EventPublisher;
 import maple.expectation.domain.event.IntegrationEvent;
 import maple.expectation.domain.nexon.NexonApiCharacterData;
 import maple.expectation.infrastructure.executor.LogicExecutor;
