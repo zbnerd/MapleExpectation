@@ -36,6 +36,6 @@ package maple.expectation.service.v2.shutdown;
  */
 @Deprecated(since = "ADR-014", forRemoval = false)
 public interface PersistenceTrackerStrategy
-    extends maple.expectation.application.port.PersistenceTrackerStrategy {
+    extends maple.expectation.core.port.out.PersistenceTrackerStrategy {
   // All methods inherited from CorePersistenceTrackerStrategy
 }

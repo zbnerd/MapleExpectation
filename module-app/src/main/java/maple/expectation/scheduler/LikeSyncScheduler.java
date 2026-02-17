@@ -2,7 +2,7 @@ package maple.expectation.scheduler;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.application.port.LikeBufferStrategy;
+import maple.expectation.core.port.out.LikeBufferStrategy;
 import maple.expectation.error.exception.DistributedLockException;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;

@@ -20,8 +20,8 @@ package maple.expectation.service.v2.cache;
  *
  * <h3>DIP 준수 (ADR-014)</h3>
  *
- * <p>이 인터페이스는 {@link maple.expectation.application.port.LikeRelationBufferStrategy}를 확장하여 호환성을
- * 유지합니다. 새로운 코드는 Core 인터페이스를 직접 사용하십시오.
+ * <p>이 인터페이스는 {@link maple.expectation.core.port.out.LikeRelationBufferStrategy}를 확장하여 호환성을 유지합니다.
+ * 새로운 코드는 Core 인터페이스를 직접 사용하십시오.
  *
  * <h3>5-Agent Council 합의</h3>
  *
@@ -33,6 +33,6 @@ package maple.expectation.service.v2.cache;
  */
 @Deprecated(since = "ADR-014", forRemoval = false)
 public interface LikeRelationBufferStrategy
-    extends maple.expectation.application.port.LikeRelationBufferStrategy {
+    extends maple.expectation.core.port.out.LikeRelationBufferStrategy {
   // All methods inherited from CoreLikeRelationBufferStrategy
 }

@@ -5,7 +5,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import maple.expectation.application.port.MessageQueue;
+import maple.expectation.core.port.out.MessageQueue;
 import maple.expectation.domain.event.IntegrationEvent;
 import maple.expectation.error.exception.QueuePublishException;
 import maple.expectation.infrastructure.executor.TaskContext;

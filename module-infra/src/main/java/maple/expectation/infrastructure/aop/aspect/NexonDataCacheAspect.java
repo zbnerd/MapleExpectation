@@ -1,4 +1,4 @@
-package maple.expectation.aop.aspect;
+package maple.expectation.infrastructure.aop.aspect;
 
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -8,11 +8,11 @@ import lombok.extern.slf4j.Slf4j;
 import maple.expectation.error.exception.ExternalServiceException;
 import maple.expectation.error.exception.InternalSystemException;
 import maple.expectation.infrastructure.aop.context.SkipEquipmentL2CacheContext;
+import maple.expectation.infrastructure.cache.port.EquipmentCache;
 import maple.expectation.infrastructure.config.NexonApiProperties;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.infrastructure.external.dto.v2.EquipmentResponse;
-import maple.expectation.service.v2.cache.EquipmentCacheService;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
@@ -28,13 +28,13 @@ import org.springframework.stereotype.Component;
 @Order(1)
 public class NexonDataCacheAspect {
 
-  private final EquipmentCacheService cacheService;
+  private final EquipmentCache cacheService;
   private final RedissonClient redissonClient;
   private final LogicExecutor executor;
   private final NexonApiProperties nexonApiProperties;
 
   public NexonDataCacheAspect(
-      EquipmentCacheService cacheService,
+      EquipmentCache cacheService,
       RedissonClient redissonClient,
       LogicExecutor executor,
       NexonApiProperties nexonApiProperties) {

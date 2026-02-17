@@ -46,7 +46,7 @@ dependencies {
 
 	// MongoDB
 	implementation 'org.springframework.boot:spring-boot-starter-data-mongodb'
-	implementation 'org.mongodb:mongodb-driver-sync:5.2.1'
+	implementation 'org.mongodb:mongodb-driver-sync:5.3.0'
 
 	// Redis
 	implementation 'org.redisson:redisson-spring-boot-starter:3.48.0'
@@ -84,12 +84,14 @@ dependencies {
 
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.testcontainers:mysql'
+	testImplementation 'org.testcontainers:mongodb'
 
 	// Integration Test Dependencies
 	integrationTestImplementation 'org.springframework.boot:spring-boot-starter-test'
 	integrationTestImplementation 'org.testcontainers:testcontainers'
 	integrationTestImplementation 'org.testcontainers:junit-jupiter'
 	integrationTestImplementation 'org.testcontainers:mysql'
+	integrationTestImplementation 'org.testcontainers:mongodb'
 	integrationTestRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 

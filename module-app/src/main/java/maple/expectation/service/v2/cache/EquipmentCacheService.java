@@ -4,6 +4,7 @@ import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.error.exception.CachePersistenceException;
 import maple.expectation.error.exception.base.BaseException;
+import maple.expectation.infrastructure.cache.port.EquipmentCache;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.infrastructure.external.dto.v2.EquipmentResponse;
@@ -28,7 +29,8 @@ import org.springframework.stereotype.Service;
  */
 @Slf4j
 @Service
-public class EquipmentCacheService extends AbstractTieredCacheService<EquipmentResponse> {
+public class EquipmentCacheService extends AbstractTieredCacheService<EquipmentResponse>
+    implements EquipmentCache {
 
   private static final String CACHE_NAME = "equipment";
   private static final EquipmentResponse NULL_MARKER = new EquipmentResponse();

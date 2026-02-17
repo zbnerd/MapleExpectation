@@ -9,7 +9,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.application.port.LikeBufferStrategy;
+import maple.expectation.core.port.out.LikeBufferStrategy;
 import maple.expectation.domain.repository.RedisBufferRepository;
 import maple.expectation.infrastructure.aop.annotation.ObservedTransaction;
 import maple.expectation.infrastructure.executor.LogicExecutor;

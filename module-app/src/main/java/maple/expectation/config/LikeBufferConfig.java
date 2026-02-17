@@ -2,9 +2,9 @@ package maple.expectation.config;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.application.port.LikeBufferStrategy;
-import maple.expectation.application.port.LikeRelationBufferStrategy;
-import maple.expectation.application.port.PersistenceTrackerStrategy;
+import maple.expectation.core.port.out.LikeBufferStrategy;
+import maple.expectation.core.port.out.LikeRelationBufferStrategy;
+import maple.expectation.core.port.out.PersistenceTrackerStrategy;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.queue.like.AtomicLikeToggleExecutor;
 import maple.expectation.infrastructure.queue.like.LikeSyncExecutor;

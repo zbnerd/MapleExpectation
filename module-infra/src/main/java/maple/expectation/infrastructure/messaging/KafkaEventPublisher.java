@@ -2,7 +2,7 @@ package maple.expectation.infrastructure.messaging;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.application.port.EventPublisher;
+import maple.expectation.core.port.out.EventPublisher;
 import maple.expectation.domain.event.IntegrationEvent;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;

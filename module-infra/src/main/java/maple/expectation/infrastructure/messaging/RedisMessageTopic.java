@@ -1,7 +1,7 @@
 package maple.expectation.infrastructure.messaging;
 
 import java.util.function.BiConsumer;
-import maple.expectation.application.port.MessageTopic;
+import maple.expectation.core.port.out.MessageTopic;
 import org.redisson.api.RTopic;
 import org.redisson.api.RedissonClient;
 

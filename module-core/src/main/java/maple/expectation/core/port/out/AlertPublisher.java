@@ -1,4 +1,4 @@
-package maple.expectation.application.port;
+package maple.expectation.core.port.out;
 
 /**
  * Alert Publisher Interface (ADR-0345)

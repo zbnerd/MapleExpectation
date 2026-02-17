@@ -1,6 +1,6 @@
 package maple.expectation.infrastructure.messaging;
 
-import maple.expectation.application.port.MessageQueue;
+import maple.expectation.core.port.out.MessageQueue;
 import org.redisson.api.RBlockingQueue;
 import org.redisson.api.RedissonClient;
 

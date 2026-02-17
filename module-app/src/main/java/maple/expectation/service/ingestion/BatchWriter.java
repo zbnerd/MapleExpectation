@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.application.port.MessageQueue;
+import maple.expectation.core.port.out.MessageQueue;
 import maple.expectation.domain.event.IntegrationEvent;
 import maple.expectation.domain.nexon.NexonApiCharacterData;
 import maple.expectation.infrastructure.executor.LogicExecutor;

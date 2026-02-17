@@ -1,7 +1,7 @@
 package maple.expectation.infrastructure.config;
 
-import maple.expectation.application.port.MessageQueue;
-import maple.expectation.application.port.MessageTopic;
+import maple.expectation.core.port.out.MessageQueue;
+import maple.expectation.core.port.out.MessageTopic;
 import maple.expectation.infrastructure.messaging.RedisMessageQueue;
 import maple.expectation.infrastructure.messaging.RedisMessageTopic;
 import org.redisson.api.RedissonClient;

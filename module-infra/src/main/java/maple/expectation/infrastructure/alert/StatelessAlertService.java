@@ -1,7 +1,7 @@
 package maple.expectation.infrastructure.alert;
 
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.application.port.AlertPublisher;
+import maple.expectation.core.port.out.AlertPublisher;
 import maple.expectation.infrastructure.alert.channel.AlertChannel;
 import maple.expectation.infrastructure.alert.message.AlertMessage;
 import maple.expectation.infrastructure.executor.LogicExecutor;
