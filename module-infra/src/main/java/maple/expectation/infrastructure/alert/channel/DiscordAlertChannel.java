@@ -1,12 +1,12 @@
 package maple.expectation.infrastructure.alert.channel;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.infrastructure.alert.factory.MessageFactory;
 import maple.expectation.infrastructure.alert.message.AlertMessage;
 import maple.expectation.infrastructure.config.AlertFeatureProperties;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
@@ -46,12 +46,21 @@ import org.springframework.web.reactive.function.client.WebClientRequestExceptio
     havingValue = "true",
     matchIfMissing = true)
 @Slf4j
-@RequiredArgsConstructor
 public class DiscordAlertChannel implements AlertChannel {
 
   private final WebClient alertWebClient;
   private final LogicExecutor executor;
   private final AlertFeatureProperties alertFeatureProperties;
+
+  /** Constructor with @Qualifier to disambiguate WebClient injection. */
+  public DiscordAlertChannel(
+      @Qualifier("alertWebClient") WebClient alertWebClient,
+      LogicExecutor executor,
+      AlertFeatureProperties alertFeatureProperties) {
+    this.alertWebClient = alertWebClient;
+    this.executor = executor;
+    this.alertFeatureProperties = alertFeatureProperties;
+  }
 
   @Override
   public boolean send(AlertMessage message) {

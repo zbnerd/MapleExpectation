@@ -3,15 +3,11 @@ package maple.expectation.config;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.core.port.out.LikeBufferStrategy;
-import maple.expectation.core.port.out.LikeRelationBufferStrategy;
-import maple.expectation.core.port.out.PersistenceTrackerStrategy;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.queue.like.AtomicLikeToggleExecutor;
 import maple.expectation.infrastructure.queue.like.LikeSyncExecutor;
 import maple.expectation.infrastructure.queue.like.PartitionedFlushStrategy;
 import maple.expectation.infrastructure.queue.like.RedisLikeBufferStorage;
-import maple.expectation.infrastructure.queue.like.RedisLikeRelationBuffer;
-import maple.expectation.infrastructure.queue.persistence.RedisEquipmentPersistenceTracker;
 import org.redisson.api.RedissonClient;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -78,6 +74,9 @@ public class LikeBufferConfig {
    *
    * <p>In-Memory 모드(기본)에서는 LikeRelationBuffer가 @Component로 자동 등록되어 LikeRelationBufferStrategy 타입으로
    * 주입됩니다.
+   *
+   * <p>Note: Uses RedisLikeRelationBufferAdapter to bridge core implementation to v2 interface for
+   * backward compatibility.
    */
   @Bean
   @Primary
@@ -85,11 +84,13 @@ public class LikeBufferConfig {
       name = "app.buffer.redis.enabled",
       havingValue = "true",
       matchIfMissing = true)
-  public LikeRelationBufferStrategy redisLikeRelationBufferStrategy(
-      RedissonClient redissonClient, LogicExecutor executor, MeterRegistry meterRegistry) {
+  public maple.expectation.service.v2.cache.LikeRelationBufferStrategy
+      redisLikeRelationBufferStrategy(
+          RedissonClient redissonClient, LogicExecutor executor, MeterRegistry meterRegistry) {
 
     log.info("[LikeBufferConfig] Redis Like Relation Buffer ENABLED - Scale-out mode");
-    return new RedisLikeRelationBuffer(redissonClient, executor, meterRegistry);
+    return new maple.expectation.service.v2.cache.RedisLikeRelationBufferAdapter(
+        redissonClient, executor, meterRegistry);
   }
 
   /**
@@ -148,6 +149,9 @@ public class LikeBufferConfig {
    *
    * <p>In-Memory 모드(기본)에서는 EquipmentPersistenceTracker가 @Component로 자동 등록되어
    * PersistenceTrackerStrategy 타입으로 주입됩니다.
+   *
+   * <p>Note: Uses RedisEquipmentPersistenceTrackerAdapter to bridge core implementation to v2
+   * interface for backward compatibility.
    */
   @Bean
   @Primary
@@ -155,10 +159,12 @@ public class LikeBufferConfig {
       name = "app.buffer.redis.enabled",
       havingValue = "true",
       matchIfMissing = true)
-  public PersistenceTrackerStrategy redisPersistenceTrackerStrategy(
-      RedissonClient redissonClient, LogicExecutor executor, MeterRegistry meterRegistry) {
+  public maple.expectation.service.v2.shutdown.PersistenceTrackerStrategy
+      redisPersistenceTrackerStrategy(
+          RedissonClient redissonClient, LogicExecutor executor, MeterRegistry meterRegistry) {
 
     log.info("[LikeBufferConfig] Redis Persistence Tracker ENABLED - Scale-out mode");
-    return new RedisEquipmentPersistenceTracker(redissonClient, executor, meterRegistry);
+    return new maple.expectation.service.v2.shutdown.RedisEquipmentPersistenceTrackerAdapter(
+        redissonClient, executor, meterRegistry);
   }
 }

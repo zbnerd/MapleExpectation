@@ -1,7 +1,6 @@
 package maple.expectation.infrastructure.external.impl;
 
 import java.util.Optional;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.infrastructure.config.TimeoutProperties;
 import maple.expectation.infrastructure.executor.LogicExecutor;
@@ -39,15 +38,23 @@ import reactor.core.publisher.Mono;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class RealNexonAuthClient implements NexonAuthClient {
 
   private static final String CHARACTER_LIST_PATH = "/maplestory/v1/character/list";
 
-  @org.springframework.beans.factory.annotation.Qualifier("mapleWebClient") private final WebClient mapleWebClient;
-
+  private final WebClient mapleWebClient;
   private final LogicExecutor executor;
   private final TimeoutProperties timeoutProperties;
+
+  /** Constructor with @Qualifier to disambiguate WebClient injection. */
+  public RealNexonAuthClient(
+      @org.springframework.beans.factory.annotation.Qualifier("mapleWebClient") WebClient mapleWebClient,
+      LogicExecutor executor,
+      TimeoutProperties timeoutProperties) {
+    this.mapleWebClient = mapleWebClient;
+    this.executor = executor;
+    this.timeoutProperties = timeoutProperties;
+  }
 
   @Override
   public Optional<CharacterListResponse> getCharacterList(String apiKey) {

@@ -71,6 +71,24 @@ public class CacheConfig {
   }
 
   /**
+   * TieredCacheManager bean (explicit type for injection)
+   *
+   * <p>Provides TieredCacheManager as a concrete bean type for components that need to inject it by
+   * type rather than interface.
+   */
+  @Bean
+  public TieredCacheManager tieredCacheManager(
+      RedisConnectionFactory connectionFactory,
+      LogicExecutor executor,
+      RedissonClient redissonClient,
+      MeterRegistry meterRegistry,
+      CacheProperties cacheProperties) {
+
+    return (TieredCacheManager)
+        cacheManager(connectionFactory, executor, redissonClient, meterRegistry, cacheProperties);
+  }
+
+  /**
    * L1 (Caffeine): 로컬 메모리 - Near Cache 전략
    *
    * <h4>P1-2: CacheProperties에서 동적 등록</h4>

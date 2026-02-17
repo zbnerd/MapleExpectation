@@ -2,7 +2,6 @@ package maple.expectation.infrastructure.external.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.concurrent.Executor;
-import lombok.RequiredArgsConstructor;
 import maple.expectation.domain.repository.CharacterEquipmentRepository;
 import maple.expectation.infrastructure.alert.StatelessAlertService;
 import maple.expectation.infrastructure.executor.CheckedLogicExecutor;
@@ -25,16 +24,35 @@ import org.springframework.transaction.support.TransactionTemplate;
  * <p>이 설정 클래스는 {@link ResilientNexonApiClient}가 필요로 하는 의존성을 조립합니다.
  */
 @Configuration
-@RequiredArgsConstructor
 public class NexonApiClientConfig {
 
   private final NexonApiOutboxRepository outboxRepository;
   private final CheckedLogicExecutor checkedExecutor;
-  private final Executor alertTaskExecutor;
+
+  @org.springframework.beans.factory.annotation.Qualifier("alertTaskExecutor") private final Executor alertTaskExecutor;
+
   private final TransactionTemplate transactionTemplate;
   private final StatelessAlertService statelessAlertService;
   private final CharacterEquipmentRepository equipmentRepository;
   private final ObjectMapper objectMapper;
+
+  /** Constructor with @Qualifier to disambiguate Executor injection. */
+  public NexonApiClientConfig(
+      NexonApiOutboxRepository outboxRepository,
+      CheckedLogicExecutor checkedExecutor,
+      @org.springframework.beans.factory.annotation.Qualifier("alertTaskExecutor") Executor alertTaskExecutor,
+      TransactionTemplate transactionTemplate,
+      StatelessAlertService statelessAlertService,
+      CharacterEquipmentRepository equipmentRepository,
+      ObjectMapper objectMapper) {
+    this.outboxRepository = outboxRepository;
+    this.checkedExecutor = checkedExecutor;
+    this.alertTaskExecutor = alertTaskExecutor;
+    this.transactionTemplate = transactionTemplate;
+    this.statelessAlertService = statelessAlertService;
+    this.equipmentRepository = equipmentRepository;
+    this.objectMapper = objectMapper;
+  }
 
   /**
    * Outbox Fallback Manager Bean

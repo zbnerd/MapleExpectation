@@ -12,12 +12,14 @@ import maple.expectation.core.domain.model.CharacterId;
 import maple.expectation.core.domain.model.CubeRate;
 import maple.expectation.core.domain.model.CubeType;
 import maple.expectation.core.domain.model.PotentialStat;
-import maple.expectation.core.domain.stat.StatParser;
 import maple.expectation.core.port.out.AlertPort;
 import maple.expectation.core.port.out.CubeRatePort;
 import maple.expectation.core.port.out.EquipmentDataPort;
 import maple.expectation.core.port.out.ItemPricePort;
 import maple.expectation.core.port.out.PotentialStatPort;
+import maple.expectation.core.probability.FlameDpCalculator;
+import maple.expectation.core.probability.FlameScoreCalculator;
+import maple.expectation.core.probability.TailProbabilityCalculator;
 import maple.expectation.domain.model.equipment.CharacterEquipment;
 import maple.expectation.domain.model.equipment.EquipmentData;
 import maple.expectation.domain.repository.CharacterEquipmentRepository;
@@ -66,7 +68,25 @@ public class TemporaryAdapterConfig {
 
   private final CubeProbabilityRepository cubeProbabilityRepository;
   private final CharacterEquipmentRepository characterEquipmentRepository;
-  private final StatParser statParser;
+
+  /**
+   * Core Utility Beans
+   *
+   * <p>Registers core layer utilities as Spring beans for dependency injection.
+   *
+   * <p><b>Phase 3:</b> Move to module-core configuration when core becomes self-contained.
+   */
+  @Bean
+  public maple.expectation.core.domain.stat.StatParser statParser() {
+    log.info("[TemporaryAdapter] Initializing StatParser bean");
+    return new maple.expectation.core.domain.stat.StatParser();
+  }
+
+  @Bean
+  public maple.expectation.core.probability.ProbabilityConvolver probabilityConvolver() {
+    log.info("[TemporaryAdapter] Initializing ProbabilityConvolver bean");
+    return new maple.expectation.core.probability.ProbabilityConvolver();
+  }
 
   /**
    * Core Calculator Beans
@@ -82,9 +102,28 @@ public class TemporaryAdapterConfig {
   }
 
   @Bean
-  public PotentialCalculator potentialCalculator() {
+  public PotentialCalculator potentialCalculator(
+      maple.expectation.core.domain.stat.StatParser statParser) {
     log.info("[TemporaryAdapter] Initializing PotentialCalculator bean");
     return new PotentialCalculator(statParser);
+  }
+
+  @Bean
+  public FlameScoreCalculator flameScoreCalculator() {
+    log.info("[TemporaryAdapter] Initializing FlameScoreCalculator bean");
+    return new FlameScoreCalculator();
+  }
+
+  @Bean
+  public FlameDpCalculator flameDpCalculator() {
+    log.info("[TemporaryAdapter] Initializing FlameDpCalculator bean");
+    return new FlameDpCalculator();
+  }
+
+  @Bean
+  public TailProbabilityCalculator tailProbabilityCalculator() {
+    log.info("[TemporaryAdapter] Initializing TailProbabilityCalculator bean");
+    return new TailProbabilityCalculator();
   }
 
   /**

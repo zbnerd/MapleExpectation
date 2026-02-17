@@ -10,7 +10,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import maple.expectation.core.port.out.LikeRelationBufferStrategy;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import org.redisson.api.RSet;
@@ -44,7 +43,8 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @ConditionalOnProperty(name = "app.buffer.redis.enabled", havingValue = "false")
 @Component
-public class LikeRelationBuffer implements LikeRelationBufferStrategy {
+public class LikeRelationBuffer
+    implements maple.expectation.service.v2.cache.LikeRelationBufferStrategy {
 
   private static final String REDIS_SET_KEY = "buffer:like:relations";
   private static final String REDIS_PENDING_SET_KEY = "buffer:like:relations:pending";

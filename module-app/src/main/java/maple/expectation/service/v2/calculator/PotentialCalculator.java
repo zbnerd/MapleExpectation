@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
 
 /** 잠재능력 수치 계산기 (LogicExecutor 및 평탄화 적용) */
 @Slf4j
-@Component
+@Component("potentialCalculatorV2")
 @RequiredArgsConstructor // ✅ StatParser와 LogicExecutor 주입
 public class PotentialCalculator {
 

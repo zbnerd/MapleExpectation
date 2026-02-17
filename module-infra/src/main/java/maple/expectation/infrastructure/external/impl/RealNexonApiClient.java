@@ -1,7 +1,6 @@
 package maple.expectation.infrastructure.external.impl;
 
 import java.util.concurrent.CompletableFuture;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.error.exception.CharacterNotFoundException;
 import maple.expectation.infrastructure.config.TimeoutProperties;
@@ -18,15 +17,21 @@ import reactor.core.publisher.Mono;
 
 @Slf4j
 @Component("realNexonApiClient")
-@RequiredArgsConstructor
 public class RealNexonApiClient implements NexonApiClient {
 
-  @org.springframework.beans.factory.annotation.Qualifier("mapleWebClient") private final WebClient mapleWebClient;
-
+  private final WebClient mapleWebClient;
   private final TimeoutProperties timeoutProperties;
 
   @Value("${nexon.api.key}")
   private String apiKey;
+
+  /** Constructor with @Qualifier to disambiguate WebClient injection. */
+  public RealNexonApiClient(
+      @org.springframework.beans.factory.annotation.Qualifier("mapleWebClient") WebClient mapleWebClient,
+      TimeoutProperties timeoutProperties) {
+    this.mapleWebClient = mapleWebClient;
+    this.timeoutProperties = timeoutProperties;
+  }
 
   /**
    * 캐릭터 이름으로 OCID 조회 (비동기)
