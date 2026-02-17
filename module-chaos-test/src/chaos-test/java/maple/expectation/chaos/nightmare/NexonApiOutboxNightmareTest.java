@@ -687,16 +687,16 @@ class NexonApiOutboxNightmareTest extends IntegrationTestSupport {
   /** NexonApiClient 복구 상태 Mock */
   private void mockApiServiceRecovered() {
     // OCID 응답 Mock
-    maple.expectation.external.dto.v2.CharacterOcidResponse ocidResponse =
-        new maple.expectation.external.dto.v2.CharacterOcidResponse("test_ocid");
+    maple.expectation.infrastructure.external.dto.v2.CharacterOcidResponse ocidResponse =
+        new maple.expectation.infrastructure.external.dto.v2.CharacterOcidResponse("test_ocid");
 
     // Character Basic 응답 Mock
-    maple.expectation.external.dto.v2.CharacterBasicResponse basicResponse =
-        new maple.expectation.external.dto.v2.CharacterBasicResponse();
+    maple.expectation.infrastructure.external.dto.v2.CharacterBasicResponse basicResponse =
+        new maple.expectation.infrastructure.external.dto.v2.CharacterBasicResponse();
 
     // Equipment 응답 Mock
-    maple.expectation.external.dto.v2.EquipmentResponse equipmentResponse =
-        new maple.expectation.external.dto.v2.EquipmentResponse();
+    maple.expectation.infrastructure.external.dto.v2.EquipmentResponse equipmentResponse =
+        new maple.expectation.infrastructure.external.dto.v2.EquipmentResponse();
 
     Mockito.when(nexonApiClient.getOcidByCharacterName(anyString()))
         .thenReturn(CompletableFuture.completedFuture(ocidResponse));
