@@ -79,6 +79,8 @@ public record LikeSyncFailedEvent(
 
   /** 하위 호환성 */
   public Exception exception() {
+    // NOTE: Returns RuntimeException for backward compatibility with legacy code.
+    // This is a deprecated method - prefer using errorMessage() directly.
     return new RuntimeException(errorMessage);
   }
 }

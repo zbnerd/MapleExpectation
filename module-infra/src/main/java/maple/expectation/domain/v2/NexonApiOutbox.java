@@ -18,6 +18,8 @@ import java.util.HexFormat;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import maple.expectation.error.CommonErrorCode;
+import maple.expectation.error.exception.SystemException;
 
 /**
  * Nexon API용 Transactional Outbox 엔티티 (N19 리팩토링)
@@ -130,7 +132,7 @@ public class NexonApiOutbox {
       return HexFormat.of().formatHex(hash);
     } catch (NoSuchAlgorithmException e) {
       // SHA-256은 JVM 필수 알고리즘이므로 여기 도달 시 JVM 결함
-      throw new RuntimeException("SHA-256 not available", e);
+      throw new SystemException(CommonErrorCode.INTERNAL_SERVER_ERROR, "SHA-256 not available", e);
     }
   }
 

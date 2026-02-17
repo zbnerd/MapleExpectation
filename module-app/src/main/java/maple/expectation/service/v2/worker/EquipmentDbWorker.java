@@ -6,7 +6,9 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.domain.model.character.CharacterId;
 import maple.expectation.domain.model.equipment.CharacterEquipment;
+import maple.expectation.domain.model.equipment.EquipmentData;
 import maple.expectation.domain.repository.CharacterEquipmentRepository;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
@@ -83,14 +85,10 @@ public class EquipmentDbWorker {
 
     CharacterEquipment entity =
         repository
-            .findById(maple.expectation.domain.model.character.CharacterId.of(ocid))
-            .orElseGet(
-                () ->
-                    CharacterEquipment.createEmpty(
-                        maple.expectation.domain.model.character.CharacterId.of(ocid)));
+            .findById(CharacterId.of(ocid))
+            .orElseGet(() -> CharacterEquipment.createEmpty(CharacterId.of(ocid)));
 
-    CharacterEquipment updated =
-        entity.withUpdatedData(maple.expectation.domain.model.equipment.EquipmentData.of(json));
+    CharacterEquipment updated = entity.withUpdatedData(EquipmentData.of(json));
     repository.save(updated); // 즉시 물리적 저장 보장
   }
 
@@ -110,7 +108,7 @@ public class EquipmentDbWorker {
         () -> {
           Optional<CharacterEquipment> result =
               repository
-                  .findById(maple.expectation.domain.model.character.CharacterId.of(ocid))
+                  .findById(CharacterId.of(ocid))
                   .filter(equipment -> equipment.isFresh(DB_TTL)); // Rich Domain
 
           if (result.isPresent()) {
@@ -171,11 +169,8 @@ public class EquipmentDbWorker {
   private void performRawSave(String ocid, String json) {
     CharacterEquipment entity =
         repository
-            .findById(maple.expectation.domain.model.character.CharacterId.of(ocid))
-            .orElseGet(
-                () ->
-                    CharacterEquipment.createEmpty(
-                        maple.expectation.domain.model.character.CharacterId.of(ocid)));
+            .findById(CharacterId.of(ocid))
+            .orElseGet(() -> CharacterEquipment.createEmpty(CharacterId.of(ocid)));
 
     CharacterEquipment updated = entity.withUpdatedData(json);
     repository.save(updated);

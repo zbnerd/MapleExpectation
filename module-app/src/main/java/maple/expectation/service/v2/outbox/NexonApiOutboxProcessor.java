@@ -4,6 +4,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.domain.v2.NexonApiOutbox;
+import maple.expectation.error.CommonErrorCode;
+import maple.expectation.error.exception.ExternalApiException;
 import maple.expectation.infrastructure.aop.annotation.ObservedTransaction;
 import maple.expectation.infrastructure.config.OutboxProperties;
 import maple.expectation.infrastructure.executor.LogicExecutor;
@@ -198,7 +200,8 @@ public class NexonApiOutboxProcessor {
     boolean apiSuccess = retryClient.processOutboxEntry(entry);
 
     if (!apiSuccess) {
-      throw new RuntimeException("Nexon API call failed: " + entry.getRequestId());
+      throw new ExternalApiException(
+          CommonErrorCode.EXTERNAL_API_ERROR, "Nexon API call failed: %s", entry.getRequestId());
     }
 
     entry.markCompleted();

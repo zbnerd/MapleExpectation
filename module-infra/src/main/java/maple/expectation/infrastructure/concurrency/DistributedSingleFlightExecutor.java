@@ -13,6 +13,8 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.error.CommonErrorCode;
+import maple.expectation.error.exception.SystemException;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import org.redisson.api.RBucket;
@@ -310,7 +312,8 @@ public class DistributedSingleFlightExecutor<T> {
               if (cause instanceof RuntimeException) {
                 throw (RuntimeException) cause;
               }
-              throw new RuntimeException(cause);
+              throw new SystemException(
+                  CommonErrorCode.INTERNAL_SERVER_ERROR, "SingleFlight execution failed", cause);
             });
   }
 
@@ -333,7 +336,9 @@ public class DistributedSingleFlightExecutor<T> {
           RBucket<String> errorBucket = redissonClient.getBucket(resultKey + ":error");
           String errorClass = errorBucket.get();
           if (errorClass != null) {
-            result.completeExceptionally(new RuntimeException("Leader failed: " + errorClass));
+            result.completeExceptionally(
+                new SystemException(
+                    CommonErrorCode.INTERNAL_SERVER_ERROR, "Leader failed: %s", errorClass));
             return;
           }
 
@@ -383,7 +388,7 @@ public class DistributedSingleFlightExecutor<T> {
       return hex.toString();
     } catch (NoSuchAlgorithmException e) {
       // SHA-256는 항상 존재
-      throw new RuntimeException("SHA-256 not available", e);
+      throw new SystemException(CommonErrorCode.INTERNAL_SERVER_ERROR, "SHA-256 not available", e);
     }
   }
 

@@ -6,6 +6,7 @@ import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.core.calculator.CubeRateCalculator;
+import maple.expectation.core.domain.model.CubeRate;
 import maple.expectation.domain.repository.CubeProbabilityRepository;
 import maple.expectation.domain.v2.CubeProbability;
 import maple.expectation.domain.v2.CubeType;
@@ -157,11 +158,11 @@ public class CubeServiceImpl implements CubeTrialsProvider {
         repository.findProbabilities(type, input.getLevel(), input.getPart(), input.getGrade(), 0);
 
     // Convert v2.CubeProbability to core.CubeRate
-    List<maple.expectation.core.domain.model.CubeRate> coreRates =
+    List<CubeRate> coreRates =
         v2Probabilities.stream()
             .map(
                 p ->
-                    new maple.expectation.core.domain.model.CubeRate(
+                    new CubeRate(
                         coreType,
                         p.getOptionName(),
                         p.getRate(),
