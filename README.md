@@ -9,7 +9,7 @@
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.4-6DB33F?logo=springboot)
 ![License](https://img.shields.io/badge/License-MIT-blue)
 
-**RPS 965 | p50 95ms | p99 214ms | Error 0%** — [Load Test Report](docs/04_Reports/Load_Tests/LOAD_TEST_REPORT_20260126_V4_ADR_REFACTORING.md)
+**RPS 965 | p50 95ms | p99 214ms | Error 0%** — [Load Test Report](docs/05_Reports/04_06_Load_Tests/LOAD_TEST_REPORT_20260126_V4_ADR_REFACTORING.md)
 
 </div>
 
@@ -94,7 +94,6 @@ return executor.executeOrDefault(
 - **비즈니스 예외** (ClientBaseException, CompletionException 래핑 포함) → 즉시 전파, fallback 없음
 - **알 수 없는 예외** (NPE, IllegalArgumentException 등) → 보수적 처리, fallback 없음
 
-<img width="626" height="364" alt="Resilience4j" src="https://github.com/user-attachments/assets/373b1203-5c7b-4c94-99df-2b85c927d1b9" />
 
 **Marker Interface 분류:**
 - `CircuitBreakerIgnoreMarker`: 비즈니스 예외 (4xx) — 서킷 상태 무영향
@@ -154,7 +153,7 @@ MISS:   Singleflight로 1회만 DB 호출 → 나머지 대기 후 결과 공유
 - **At-Least-Once**: 동일 트랜잭션에 Outbox 저장 → 메시지 유실 방지 (재무역 조회 불가)
 
 **검증 (N19):** 외부 API 6시간 장애 → 2,160,000개 이벤트 누적 → 복구 후 99.997% 자동 재처리, 수동 개입 0
-📄 [Recovery Report](docs/04_Reports/Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md)
+📄 [Recovery Report](docs/05_Reports/04_07_Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md)
 
 ---
 
@@ -205,7 +204,7 @@ verify(mysqlLockStrategy, never()).executeWithLock(...);  // fallback 미발동 
 
 **배움:** "예외 분류는 설계의 영역이지, catch-all로 해결할 문제가 아니다."
 
-📄 [Postmortem Report](docs/postmortem/ISSUE-130-Exception-Misclassification.md)
+📄 [Postmortem Report](docs/05_Reports/04_08_Refactor/)
 
 ---
 
@@ -222,7 +221,7 @@ verify(mysqlLockStrategy, never()).executeWithLock(...);  // fallback 미발동 
 
 > **참고:** 요청당 200~300KB 페이로드. 이 수치는 로컬 환경에서 wrk로 측정한 벤치마크 결과입니다. 실제 운영 경험은 아니며, 장애 시나리오 검증과 성능 병목 파악을 목적으로 했습니다.
 
-📄 [Load Test Report](docs/04_Reports/Load_Tests/LOAD_TEST_REPORT_20260126_V4_ADR_REFACTORING.md)
+📄 [Load Test Report](docs/05_Reports/04_06_Load_Tests/LOAD_TEST_REPORT_20260126_V4_ADR_REFACTORING.md)
 
 ### 최적화 성과
 
@@ -244,7 +243,7 @@ verify(mysqlLockStrategy, never()).executeWithLock(...);  // fallback 미발동 
 
 **의사결정:** 비용 대비 효율이 꺾이는 지점을 찾아 최적점 선택. "늘리는 것"이 답이 아님을 데이터로 증명.
 
-📄 [Cost Performance Report](docs/04_Reports/Cost_Performance/COST_PERF_REPORT_N23.md)
+📄 [Cost Performance Report](docs/05_Reports/04_02_Cost_Performance/COST_PERF_REPORT_N23.md)
 
 ---
 
@@ -268,7 +267,7 @@ verify(mysqlLockStrategy, never()).executeWithLock(...);  // fallback 미발동 
 | **자동 복구** | 2m | Half-Open 전환 → 성공률 확인 |
 | **안정화** | 4m | p99 21초 → 3초 복구, 운영자 대응 시간 0분 |
 
-📄 [Incident Report N21](docs/04_Reports/Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md)
+📄 [Incident Report N21](docs/05_Reports/04_05_Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md)
 
 ---
 
@@ -423,11 +422,11 @@ curl "http://localhost:8080/api/v3/characters/강은호/expectation"
 | [Architecture](docs/00_Start_Here/architecture.md) | 시스템 아키텍처 다이어그램 |
 | [Chaos Tests](docs/01_Chaos_Engineering/06_Nightmare/) | N01-N24 Nightmare 시나리오 |
 | [ADRs](docs/adr/) | Architecture Decision Records |
-| [Postmortem: Issue #130](docs/postmortem/ISSUE-130-Exception-Misclassification.md) | 예외 오분류 장애 분석 |
-| [N19 Recovery](docs/04_Reports/Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md) | Outbox Replay 복구 리포트 |
-| [N21 Incident](docs/04_Reports/Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md) | 자동 완화 사고 리포트 |
-| [N23 Cost/Perf](docs/04_Reports/Cost_Performance/COST_PERF_REPORT_N23.md) | 비용-성능 최적점 분석 |
-| [Load Test](docs/04_Reports/Load_Tests/LOAD_TEST_REPORT_20260126_V4_ADR_REFACTORING.md) | wrk 부하 테스트 결과 |
+| [Refactoring Reports](docs/05_Reports/04_08_Refactor/) | 이슈 해결 및 리팩토링 기록 |
+| [N19 Recovery](docs/05_Reports/04_07_Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md) | Outbox Replay 복구 리포트 |
+| [N21 Incident](docs/05_Reports/04_05_Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md) | 자동 완화 사고 리포트 |
+| [N23 Cost/Perf](docs/05_Reports/04_02_Cost_Performance/COST_PERF_REPORT_N23.md) | 비용-성능 최적점 분석 |
+| [Load Test](docs/05_Reports/04_06_Load_Tests/LOAD_TEST_REPORT_20260126_V4_ADR_REFACTORING.md) | wrk 부하 테스트 결과 |
 
 ---
 
