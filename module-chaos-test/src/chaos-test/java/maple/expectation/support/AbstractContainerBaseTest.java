@@ -19,7 +19,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  */
 @Testcontainers
 @SpringBootTest(classes = maple.expectation.ExpectationApplication.class)
-@ActiveProfiles("test")
+@ActiveProfiles("chaos")
 public abstract class AbstractContainerBaseTest {
 
   /** Shared MySQL container for all tests. Uses testcontainers/MySQL 8.0 image. */

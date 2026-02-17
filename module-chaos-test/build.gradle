@@ -43,6 +43,7 @@ dependencies {
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-web'
 	testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	testImplementation 'com.h2database:h2:2.2.224'  // H2 Database for chaos tests
 
 	// ============================================================
 	// Testcontainers (Chaos Testing Infrastructure)

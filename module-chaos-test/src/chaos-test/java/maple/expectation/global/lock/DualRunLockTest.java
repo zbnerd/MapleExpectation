@@ -44,7 +44,7 @@ import org.springframework.test.context.ActiveProfiles;
  */
 @Tag("integration")
 @SpringBootTest
-@ActiveProfiles("test")
+@ActiveProfiles("chaos")
 class DualRunLockTest {
 
   @Autowired(required = false)

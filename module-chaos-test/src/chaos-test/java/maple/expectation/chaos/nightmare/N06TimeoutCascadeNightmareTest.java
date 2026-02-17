@@ -60,7 +60,7 @@ import org.springframework.test.context.ActiveProfiles;
 @Slf4j
 @Tag("nightmare")
 @SpringBootTest
-@ActiveProfiles("test")
+@ActiveProfiles("chaos")
 @DisplayName("Nightmare 06: The Timeout Cascade (Zombie Request Problem)")
 class N06TimeoutCascadeNightmareTest extends AbstractContainerBaseTest {
 

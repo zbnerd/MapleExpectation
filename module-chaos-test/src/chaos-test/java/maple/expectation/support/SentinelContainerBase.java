@@ -15,7 +15,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  */
 @Testcontainers
 @SpringBootTest(classes = maple.expectation.ExpectationApplication.class)
-@ActiveProfiles("test")
+@ActiveProfiles("chaos")
 public abstract class SentinelContainerBase {
 
   /** Shared Redis master container for all tests. */

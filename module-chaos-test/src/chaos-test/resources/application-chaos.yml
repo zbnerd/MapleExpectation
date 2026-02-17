@@ -47,6 +47,32 @@ spring:
       time-to-live: 300000
       cache-null-values: false
 
+# Auth Configuration (for chaos tests)
+auth:
+  jwt:
+    secret: test-jwt-secret-key-for-chaos-tests-32chars
+    expiration: 900  # 15분
+  refresh-token:
+    expiration: 604800  # 7일
+  fingerprint:
+    secret: test-fingerprint-secret-key-chaos-32chars
+  admin:
+    allowlist:
+  session:
+    ttl: 1800
+
+# CORS Configuration
+cors:
+  allowed-origins:
+    - "http://localhost:3000"
+  allow-credentials: true
+  max-age: 3600
+
+# Nexon API Configuration
+nexon:
+  api:
+    key: dummy-chaos-test-key
+
 # Redisson Configuration (Redis Client)
 redisson:
   config: |
@@ -81,8 +107,8 @@ resilience4j:
           - java.lang.NullPointerException
           - java.io.IOException
         ignore-exceptions:
-          - maple.expectation.exception.client.DuplicateLikeException
-          - maple.expectation.exception.client.SelfLikeNotAllowedException
+          - maple.expectation.error.exception.auth.DuplicateLikeException
+          - maple.expectation.error.exception.auth.SelfLikeNotAllowedException
 
   timelimiter:
     configs:
@@ -97,8 +123,8 @@ resilience4j:
         retry-exceptions:
           - java.io.IOException
         ignore-exceptions:
-          - maple.expectation.exception.client.DuplicateLikeException
-          - maple.expectation.exception.client.SelfLikeNotAllowedException
+          - maple.expectation.error.exception.auth.DuplicateLikeException
+          - maple.expectation.error.exception.auth.SelfLikeNotAllowedException
 
 # Actuator Configuration
 management:

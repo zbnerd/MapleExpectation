@@ -26,7 +26,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  */
 @Slf4j
 @Configuration
-@Profile({"!test", "container"})
+@Profile("!test & !chaos & !container")
 public class LockHikariConfig {
 
   private final String jdbcUrl;

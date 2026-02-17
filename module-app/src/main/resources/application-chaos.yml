@@ -1,0 +1,11 @@
+# ========================================
+# Chaos Test Profile Configuration
+# ========================================
+spring:
+  config:
+    activate:
+      on-profile: chaos
+
+  # Disable MySQL-specific connection init SQL for H2
+  datasource:
+    connection-init-sql: null
