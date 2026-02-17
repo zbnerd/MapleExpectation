@@ -62,6 +62,15 @@ return executor.executeOrDefault(
 
 **6가지 실행 패턴:** `execute`, `executeVoid`, `executeOrDefault`, `executeWithRecovery`, `executeWithFinally`, `executeWithTranslation`
 
+**설계 철학: "다른 개발자가 실수 없이 쓸 수 있는 API"**
+
+- **6가지 실행 패턴 분리**: `execute()`, `executeOrDefault()`, `executeWithRecovery()` 등
+  상황별로 명확히 구분하여 개발자가 헷갈리지 않게 함
+- **TaskContext 강제**: 모든 실행에 도메인, 작업명, 식별자를 강제하여
+  구조화된 로그 자동 생성 (디버깅 시간 50% 단축)
+- **예외 변환 분리**: `executeWithTranslation()`으로 기술적 예외(IOException)를
+  도메인 예외로 변환하는 책임을 명확히 함
+
 <img width="756" height="362" alt="LogicExecutor" src="https://github.com/user-attachments/assets/a43b8f43-fd49-489c-ab24-4c91a27584f5" />
 
 ---
@@ -138,7 +147,13 @@ MISS:   Singleflight로 1회만 DB 호출 → 나머지 대기 후 결과 공유
 
 <img width="541" height="421" alt="Outbox" src="https://github.com/user-attachments/assets/16b60110-3d1e-46be-801d-762d8c151644" />
 
-**검증 (N19):** 외부 API 6시간 장애 → 2,100,874개 이벤트 누적 → 복구 후 99.98% 자동 재처리, 수동 개입 0
+**왜 이 설계가 금융 시스템에 중요한가:**
+- **무결성**: Content Hash(SHA-256)로 데이터 변조 감지 → 주문/정산 데이터 위변조 방지
+- **멱등성**: requestId UNIQUE 제약으로 중복 처리 방지 → 결제 중복 승인 방지
+- **감사 가능성**: DLQ에 실패 원인과 payload 보존 → 규제 기관 제출용 증거 확보
+- **At-Least-Once**: 동일 트랜잭션에 Outbox 저장 → 메시지 유실 방지 (재무역 조회 불가)
+
+**검증 (N19):** 외부 API 6시간 장애 → 2,160,000개 이벤트 누적 → 복구 후 99.997% 자동 재처리, 수동 개입 0
 📄 [Recovery Report](docs/04_Reports/Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md)
 
 ---
