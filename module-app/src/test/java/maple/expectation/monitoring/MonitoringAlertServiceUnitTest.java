@@ -45,7 +45,12 @@ class MonitoringAlertServiceUnitTest {
   @BeforeEach
   void setUp() {
     // executor.executeOrCatch()가 실제로 람다를 실행하도록 설정
-    given(logicExecutor.executeOrCatch(any(), any(), any(TaskContext.class)))
+    // Note: Using ExceptionTranslator overload to avoid Kotlin Function1 ambiguity
+    given(
+            logicExecutor.executeOrCatch(
+                any(),
+                any(maple.expectation.infrastructure.executor.strategy.ExceptionTranslator.class),
+                any(TaskContext.class)))
         .willAnswer(
             invocation -> {
               // 첫 번째 인자(ThrowingSupplier)를 실행

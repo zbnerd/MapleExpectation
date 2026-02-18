@@ -106,7 +106,7 @@ class DlqAdminServiceTest {
     // Then
     assertThat(result.getTotalElements()).isEqualTo(2);
     assertThat(result.getContent()).hasSize(2);
-    assertThat(result.getContent().get(0).getRequestId()).isEqualTo("req-001");
+    assertThat(result.getContent().get(0).requestId()).isEqualTo("req-001");
   }
 
   // ========== findById Tests ==========
@@ -122,7 +122,7 @@ class DlqAdminServiceTest {
 
     // Then
     assertThat(result.id()).isEqualTo(1L);
-    assertThat(result.getRequestId()).isEqualTo("req-001");
+    assertThat(result.requestId()).isEqualTo("req-001");
     assertThat(result.payload()).isEqualTo("{\"amount\":1000}");
   }
 
@@ -161,7 +161,7 @@ class DlqAdminServiceTest {
 
     // Then
     assertThat(result.dlqId()).isEqualTo(1L);
-    assertThat(result.getRequestId()).isEqualTo("req-001");
+    assertThat(result.requestId()).isEqualTo("req-001");
 
     verify(dlqRepository).delete(sampleDlq);
     verify(metrics).incrementDlqReprocessed();
@@ -256,7 +256,7 @@ class DlqAdminServiceTest {
     assertThat(result.getContent()).hasSize(2);
     assertThat(result.getHasNext()).isTrue();
     assertThat(result.getNextCursor()).isEqualTo(2L);
-    assertThat(result.getContent().get(0).getRequestId()).isEqualTo("req-001");
+    assertThat(result.getContent().get(0).requestId()).isEqualTo("req-001");
 
     verify(dlqRepository).findFirstPage(any(Pageable.class));
     verify(dlqRepository, never()).findByCursorGreaterThan(any(), any());
@@ -281,7 +281,7 @@ class DlqAdminServiceTest {
     assertThat(result.getContent()).hasSize(2);
     assertThat(result.getHasNext()).isTrue();
     assertThat(result.getNextCursor()).isEqualTo(4L);
-    assertThat(result.getContent().get(0).getRequestId()).isEqualTo("req-003");
+    assertThat(result.getContent().get(0).requestId()).isEqualTo("req-003");
 
     verify(dlqRepository, never()).findFirstPage(any());
     verify(dlqRepository).findByCursorGreaterThan(eq(2L), any(Pageable.class));
@@ -305,7 +305,7 @@ class DlqAdminServiceTest {
     assertThat(result.getContent()).hasSize(1);
     assertThat(result.getHasNext()).isFalse();
     assertThat(result.getNextCursor()).isEqualTo(5L);
-    assertThat(result.getContent().get(0).getRequestId()).isEqualTo("req-005");
+    assertThat(result.getContent().get(0).requestId()).isEqualTo("req-005");
   }
 
   @Test

@@ -107,7 +107,8 @@ class DefaultCheckedLogicExecutorTest {
       IOException checkedException = new IOException("io error");
       CheckedSupplier<String> task =
           () -> {
-            throw checkedException;
+            sneakyThrow(checkedException);
+            return null; // unreachable
           };
       AtomicInteger mapperCallCount = new AtomicInteger(0);
       RuntimeException mappedException = new IllegalStateException("mapped");
@@ -169,7 +170,8 @@ class DefaultCheckedLogicExecutorTest {
       setupPipelinePassthrough();
       CheckedSupplier<String> task =
           () -> {
-            throw new IOException("io error");
+            sneakyThrow(new IOException("io error"));
+            return null; // unreachable
           };
       Function<Exception, RuntimeException> mapper = e -> null;
 
@@ -186,7 +188,8 @@ class DefaultCheckedLogicExecutorTest {
       setupPipelinePassthrough();
       CheckedSupplier<String> task =
           () -> {
-            throw new IOException("io error");
+            sneakyThrow(new IOException("io error"));
+            return null; // unreachable
           };
       RuntimeException mapperException = new IllegalArgumentException("mapper threw this");
       Function<Exception, RuntimeException> mapper =
@@ -206,7 +209,8 @@ class DefaultCheckedLogicExecutorTest {
       setupPipelinePassthrough();
       CheckedSupplier<String> task =
           () -> {
-            throw new IOException("io error");
+            sneakyThrow(new IOException("io error"));
+            return null; // unreachable
           };
       StackOverflowError mapperError = new StackOverflowError("mapper error");
       Function<Exception, RuntimeException> mapper =
@@ -226,7 +230,8 @@ class DefaultCheckedLogicExecutorTest {
       setupPipelinePassthrough();
       CheckedSupplier<String> task =
           () -> {
-            throw new IOException("io error");
+            sneakyThrow(new IOException("io error"));
+            return null; // unreachable
           };
       // mapper가 checked exception을 던지는 경우 (계약 위반)
       Function<Exception, RuntimeException> mapper =
@@ -281,7 +286,8 @@ class DefaultCheckedLogicExecutorTest {
 
       CheckedSupplier<String> task =
           () -> {
-            throw taskException;
+            sneakyThrow(taskException);
+            return null; // unreachable
           };
       CheckedRunnable finalizer =
           () -> {
@@ -311,7 +317,8 @@ class DefaultCheckedLogicExecutorTest {
 
       CheckedSupplier<String> task =
           () -> {
-            throw taskException;
+            sneakyThrow(taskException);
+            return null; // unreachable
           };
       CheckedRunnable finalizer =
           () -> {
@@ -356,7 +363,8 @@ class DefaultCheckedLogicExecutorTest {
 
       CheckedSupplier<String> task =
           () -> {
-            throw taskException;
+            sneakyThrow(taskException);
+            return null; // unreachable
           };
       CheckedRunnable finalizer = finalizerCallCount::incrementAndGet;
       Function<Exception, RuntimeException> mapper = e -> mappedException;
@@ -377,5 +385,18 @@ class DefaultCheckedLogicExecutorTest {
   @SuppressWarnings("unchecked")
   private static <E extends Throwable> void sneakyThrow(Throwable t) throws E {
     throw (E) t;
+  }
+
+  // Helper methods for throwing checked exceptions in lambdas
+  private String throwIOException() throws IOException {
+    throw new IOException("io error");
+  }
+
+  private String throwIOExceptionWithMessage(String message) throws IOException {
+    throw new IOException(message);
+  }
+
+  private String throwSpecificIOException(IOException exception) throws IOException {
+    throw exception;
   }
 }

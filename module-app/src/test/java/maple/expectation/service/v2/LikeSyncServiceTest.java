@@ -11,12 +11,12 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
 import maple.expectation.common.function.ThrowingSupplier;
 import maple.expectation.domain.repository.RedisBufferRepository;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.infrastructure.executor.function.ThrowingRunnable;
+import maple.expectation.infrastructure.executor.strategy.ExceptionTranslator;
 import maple.expectation.infrastructure.queue.like.LikeSyncExecutor;
 import maple.expectation.service.v2.cache.LikeBufferStrategy;
 import maple.expectation.service.v2.like.dto.FetchResult;
@@ -113,21 +113,23 @@ class LikeSyncServiceTest {
         .executeOrDefault(any(), any(), any());
 
     // [패턴 4] executeOrCatch: Task 실행 시도 -> 예외 시 Handler 실행
+    // Note: Using ExceptionTranslator overload to avoid Kotlin Function1 ambiguity
     lenient()
         .doAnswer(
             inv -> {
               ThrowingSupplier<?> task = inv.getArgument(0);
-              Function<Throwable, ?> handler = inv.getArgument(1);
+              maple.expectation.infrastructure.executor.strategy.ExceptionTranslator handler =
+                  inv.getArgument(1);
               try {
                 return task.get();
               } catch (Error err) {
                 throw err; // Error는 복구 금지
               } catch (Throwable t) {
-                return handler.apply(t);
+                return handler.translate(t, inv.getArgument(2));
               }
             })
         .when(executor)
-        .executeOrCatch(any(), any(), any());
+        .executeOrCatch(any(), any(ExceptionTranslator.class), any());
 
     // MeterRegistry mock 설정
     lenient().when(meterRegistry.counter(anyString())).thenReturn(mockCounter);

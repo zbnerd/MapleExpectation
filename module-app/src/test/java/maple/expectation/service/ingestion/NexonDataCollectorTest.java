@@ -9,6 +9,7 @@ import maple.expectation.core.port.out.EventPublisher;
 import maple.expectation.domain.event.IntegrationEvent;
 import maple.expectation.domain.nexon.NexonApiCharacterData;
 import maple.expectation.infrastructure.executor.LogicExecutor;
+import maple.expectation.support.TestLogicExecutors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -44,120 +45,12 @@ class NexonDataCollectorTest {
 
   @BeforeEach
   void setUp() {
-    // Simple executor that directly executes task (no error handling for test)
-    LogicExecutor executor =
-        new maple.expectation.infrastructure.executor.LogicExecutor() {
-          @Override
-          public <T> T executeOrCatch(
-              maple.expectation.common.function.ThrowingSupplier<T> task,
-              java.util.function.Function<Throwable, T> recovery,
-              maple.expectation.infrastructure.executor.TaskContext context) {
-            try {
-              return task.get();
-            } catch (Throwable t) {
-              return recovery.apply(t);
-            }
-          }
-
-          @Override
-          public <T> T execute(
-              maple.expectation.common.function.ThrowingSupplier<T> task,
-              maple.expectation.infrastructure.executor.TaskContext context) {
-            try {
-              return task.get();
-            } catch (Throwable t) {
-              if (t instanceof RuntimeException) {
-                throw (RuntimeException) t;
-              } else if (t instanceof Exception) {
-                throw new RuntimeException(t);
-              } else {
-                throw new RuntimeException(t);
-              }
-            }
-          }
-
-          @Override
-          public <T> T executeOrDefault(
-              maple.expectation.common.function.ThrowingSupplier<T> task,
-              T defaultValue,
-              maple.expectation.infrastructure.executor.TaskContext context) {
-            try {
-              return task.get();
-            } catch (Throwable t) {
-              return defaultValue;
-            }
-          }
-
-          @Override
-          public void executeVoid(
-              maple.expectation.infrastructure.executor.function.ThrowingRunnable task,
-              maple.expectation.infrastructure.executor.TaskContext context) {
-            try {
-              task.run();
-            } catch (Throwable t) {
-              if (t instanceof RuntimeException) {
-                throw (RuntimeException) t;
-              } else if (t instanceof Exception) {
-                throw new RuntimeException(t);
-              } else {
-                throw new RuntimeException(t);
-              }
-            }
-          }
-
-          @Override
-          public <T> T executeWithFinally(
-              maple.expectation.common.function.ThrowingSupplier<T> task,
-              Runnable finallyBlock,
-              maple.expectation.infrastructure.executor.TaskContext context) {
-            try {
-              return task.get();
-            } catch (Throwable t) {
-              if (t instanceof RuntimeException) {
-                throw (RuntimeException) t;
-              } else if (t instanceof Exception) {
-                throw new RuntimeException(t);
-              } else {
-                throw new RuntimeException(t);
-              }
-            } finally {
-              finallyBlock.run();
-            }
-          }
-
-          @Override
-          public <T> T executeWithTranslation(
-              maple.expectation.common.function.ThrowingSupplier<T> task,
-              maple.expectation.infrastructure.executor.strategy.ExceptionTranslator translator,
-              maple.expectation.infrastructure.executor.TaskContext context) {
-            try {
-              return task.get();
-            } catch (Throwable t) {
-              if (t instanceof RuntimeException) {
-                throw (RuntimeException) t;
-              } else if (t instanceof Exception) {
-                throw new RuntimeException(t);
-              } else {
-                throw new RuntimeException(t);
-              }
-            }
-          }
-
-          @Override
-          public <T> T executeWithFallback(
-              maple.expectation.common.function.ThrowingSupplier<T> task,
-              java.util.function.Function<Throwable, T> fallback,
-              maple.expectation.infrastructure.executor.TaskContext context) {
-            try {
-              return task.get();
-            } catch (Throwable t) {
-              return fallback.apply(t);
-            }
-          }
-        };
+    // Use TestLogicExecutors for pass-through behavior
+    LogicExecutor executor = TestLogicExecutors.passThrough();
 
     collector = new NexonDataCollector(webClient, eventPublisher, null);
     ReflectionTestUtils.setField(collector, "apiKey", "test-api-key");
+    ReflectionTestUtils.setField(collector, "executor", executor);
   }
 
   @Test

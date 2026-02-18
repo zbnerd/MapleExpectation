@@ -2,7 +2,6 @@ package maple.expectation.service.v5;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.function.Function;
 import maple.expectation.common.function.ThrowingSupplier;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
@@ -65,6 +64,11 @@ class PriorityCalculationQueueTest {
     }
 
     @Override
+    public <T> T execute(ThrowingSupplier<T> task, String taskName) {
+      return execute(task, TaskContext.of("Legacy", taskName));
+    }
+
+    @Override
     public <T> T executeOrDefault(ThrowingSupplier<T> task, T defaultValue, TaskContext context) {
       try {
         return task.get();
@@ -80,6 +84,11 @@ class PriorityCalculationQueueTest {
       } catch (Throwable e) {
         throw new RuntimeException(e);
       }
+    }
+
+    @Override
+    public void executeVoid(ThrowingRunnable task, String taskName) {
+      executeVoid(task, TaskContext.of("Legacy", taskName));
     }
 
     @Override
@@ -106,21 +115,49 @@ class PriorityCalculationQueueTest {
 
     @Override
     public <T> T executeWithFallback(
-        ThrowingSupplier<T> task, Function<Throwable, T> fallback, TaskContext context) {
+        ThrowingSupplier<T> task,
+        kotlin.jvm.functions.Function1<? super Throwable, ? extends T> fallback,
+        TaskContext context) {
       try {
         return task.get();
       } catch (Throwable e) {
-        return fallback.apply(e);
+        return fallback.invoke(e);
+      }
+    }
+
+    @Override
+    public <T> T executeWithFallback(
+        ThrowingSupplier<T> task, ExceptionTranslator translator, TaskContext context) {
+      try {
+        return task.get();
+      } catch (Throwable e) {
+        @SuppressWarnings("unchecked")
+        T result = (T) translator.translate(e, context);
+        return result;
       }
     }
 
     @Override
     public <T> T executeOrCatch(
-        ThrowingSupplier<T> task, Function<Throwable, T> recovery, TaskContext context) {
+        ThrowingSupplier<T> task,
+        kotlin.jvm.functions.Function1<? super Throwable, ? extends T> recovery,
+        TaskContext context) {
       try {
         return task.get();
       } catch (Throwable e) {
-        return recovery.apply(e);
+        return recovery.invoke(e);
+      }
+    }
+
+    @Override
+    public <T> T executeOrCatch(
+        ThrowingSupplier<T> task, ExceptionTranslator translator, TaskContext context) {
+      try {
+        return task.get();
+      } catch (Throwable e) {
+        @SuppressWarnings("unchecked")
+        T result = (T) translator.translate(e, context);
+        return result;
       }
     }
   }
