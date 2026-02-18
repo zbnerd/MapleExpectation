@@ -4,10 +4,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.infrastructure.executor.CheckedLogicExecutor;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.service.v5.queue.PriorityCalculationQueue;
 import maple.expectation.service.v5.worker.ExpectationCalculationWorker;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -51,6 +53,7 @@ public class PriorityCalculationExecutor {
   private final PriorityCalculationQueue queue;
   private final ExpectationCalculationWorker worker;
   private final LogicExecutor executor;
+  private final CheckedLogicExecutor checkedExecutor;
   private final int workerPoolSize;
   private final int shutdownTimeoutSeconds;
   private final int highPriorityWorkerRatio; // P1 FIX: Ratio for HIGH priority pool
@@ -64,12 +67,14 @@ public class PriorityCalculationExecutor {
       PriorityCalculationQueue queue,
       ExpectationCalculationWorker worker,
       LogicExecutor executor,
+      @Qualifier("checkedLogicExecutor") CheckedLogicExecutor checkedExecutor,
       @Value("${app.v5.worker-pool-size:4}") int workerPoolSize,
       @Value("${app.v5.shutdown-timeout-seconds:30}") int shutdownTimeoutSeconds,
       @Value("${app.v5.high-priority-worker-ratio:0.5}") double highPriorityWorkerRatio) {
     this.queue = queue;
     this.worker = worker;
     this.executor = executor;
+    this.checkedExecutor = checkedExecutor;
     this.workerPoolSize = workerPoolSize;
     this.shutdownTimeoutSeconds = shutdownTimeoutSeconds;
     this.highPriorityWorkerRatio = (int) (highPriorityWorkerRatio * 100); // 50% by default
@@ -135,6 +140,15 @@ public class PriorityCalculationExecutor {
           highPriorityPool.shutdown();
           lowPriorityPool.shutdown();
 
+          awaitTerminationWithRecovery();
+        },
+        context);
+  }
+
+  /** Wait for pool termination with interrupt recovery (Section 12 compliant) */
+  private void awaitTerminationWithRecovery() {
+    checkedExecutor.executeUncheckedVoid(
+        () -> {
           try {
             if (!awaitTermination(highPriorityPool, lowPriorityPool)) {
               log.warn("[V5-Executor] Shutdown timeout, forcing termination");
@@ -147,9 +161,18 @@ public class PriorityCalculationExecutor {
             highPriorityPool.shutdownNow();
             lowPriorityPool.shutdownNow();
             log.warn("[V5-Executor] Shutdown interrupted");
+            throw new ShutdownInterruptedException(e);
           }
         },
-        context);
+        TaskContext.of("V5-Executor", "AwaitTermination"),
+        ex -> new IllegalStateException("Unexpected exception during shutdown", ex));
+  }
+
+  /** RuntimeException wrapper for InterruptedException during shutdown */
+  private static class ShutdownInterruptedException extends RuntimeException {
+    ShutdownInterruptedException(InterruptedException cause) {
+      super(cause);
+    }
   }
 
   /** Wait for both pools to terminate with timeout */

@@ -222,18 +222,16 @@ public class ViewTransformer {
    *
    * <p>Used to prevent cascading failures from bad data in events.
    *
+   * <p>Uses LogicExecutor.executeOrDefault() for Section 12 compliance.
+   *
    * @param supplier Parser logic that may throw
    * @param defaultValue Fallback value if parsing fails
    * @param <T> Return type
    * @return Parsed value or default
    */
   private <T> T parseSafely(ParseSupplier<T> supplier, T defaultValue) {
-    try {
-      return supplier.get();
-    } catch (Exception e) {
-      log.warn("[ViewTransformer] Parse failed, using default: {}", defaultValue, e);
-      return defaultValue;
-    }
+    return executor.executeOrDefault(
+        supplier::get, defaultValue, TaskContext.of("ViewTransformer", "ParseSafely"));
   }
 
   /**

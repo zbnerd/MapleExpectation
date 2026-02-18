@@ -18,6 +18,7 @@ import java.util.Optional;
 import java.util.stream.Stream;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.error.exception.InternalSystemException;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.infrastructure.shutdown.ShutdownProperties;
@@ -75,8 +76,7 @@ public class ShutdownDataPersistenceService {
           return null;
         },
         e -> {
-          throw new maple.expectation.error.exception.InternalSystemException(
-              "File IO operation failed", e);
+          throw new InternalSystemException("File IO operation failed", e);
         },
         TaskContext.of("Persistence", "Init"));
   }
@@ -110,8 +110,7 @@ public class ShutdownDataPersistenceService {
     return executor.executeOrCatch(
         () -> performAtomicWrite(data, backupPath, targetFile),
         e -> {
-          throw new maple.expectation.error.exception.InternalSystemException(
-              "File IO operation failed", e);
+          throw new InternalSystemException("File IO operation failed", e);
         },
         context);
   }
@@ -181,7 +180,7 @@ public class ShutdownDataPersistenceService {
           return null;
         },
         e -> {
-          throw new maple.expectation.error.exception.InternalSystemException(
+          throw new InternalSystemException(
               String.format("Outbox 백업 실패: requestId=%s", requestId), e);
         },
         context);
@@ -230,8 +229,7 @@ public class ShutdownDataPersistenceService {
           }
         },
         e -> {
-          throw new maple.expectation.error.exception.InternalSystemException(
-              "File IO operation failed", e);
+          throw new InternalSystemException("File IO operation failed", e);
         },
         TaskContext.of("Persistence", "ScanFiles"));
   }
@@ -259,8 +257,7 @@ public class ShutdownDataPersistenceService {
           return null;
         },
         e -> {
-          throw new maple.expectation.error.exception.InternalSystemException(
-              "File IO operation failed", e);
+          throw new InternalSystemException("File IO operation failed", e);
         },
         TaskContext.of("Persistence", "Archive", filePath.getFileName().toString()));
   }
@@ -318,8 +315,7 @@ public class ShutdownDataPersistenceService {
           return null;
         },
         e -> {
-          throw new maple.expectation.error.exception.InternalSystemException(
-              String.format("임시 파일 삭제 실패: %s", tempFile), e);
+          throw new InternalSystemException(String.format("임시 파일 삭제 실패: %s", tempFile), e);
         },
         TaskContext.of("Persistence", "CleanupTemp"));
   }

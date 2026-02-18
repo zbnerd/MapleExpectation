@@ -7,6 +7,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import maple.expectation.error.CommonErrorCode;
+import maple.expectation.error.exception.ExternalApiException;
+import maple.expectation.error.exception.InternalSystemException;
 import maple.expectation.error.exception.MySQLFallbackException;
 import maple.expectation.infrastructure.executor.CheckedLogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
@@ -102,21 +105,23 @@ public class NexonApiFallbackService {
     CompletableFuture<EquipmentResponse> future = realNexonApiClient.getItemDataByOcid(ocid);
 
     // 타임아웃 적용 (기존 TimeLimiter 설정과 동일: 28초)
-    try {
-      return future.get(28, TimeUnit.SECONDS);
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-      throw new maple.expectation.error.exception.InternalSystemException(
-          "Nexon API 호출 중 인터럽트 발생", e);
-    } catch (java.util.concurrent.TimeoutException e) {
-      throw new maple.expectation.error.exception.ExternalApiException(
-          maple.expectation.error.CommonErrorCode.API_TIMEOUT, e, "Nexon API 호출 타임아웃 (28초)");
-    } catch (java.util.concurrent.ExecutionException e) {
-      throw new maple.expectation.error.exception.ExternalApiException(
-          maple.expectation.error.CommonErrorCode.EXTERNAL_API_ERROR,
-          e.getCause(),
-          "Nexon API 호출 실패");
-    }
+    return checkedExecutor.executeUnchecked(
+        () -> {
+          try {
+            return future.get(28, TimeUnit.SECONDS);
+          } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new InternalSystemException("Nexon API 호출 중 인터럽트 발생", e);
+          } catch (java.util.concurrent.TimeoutException e) {
+            throw new ExternalApiException(
+                CommonErrorCode.API_TIMEOUT, e, "Nexon API 호출 타임아웃 (28초)");
+          } catch (java.util.concurrent.ExecutionException e) {
+            throw new ExternalApiException(
+                CommonErrorCode.EXTERNAL_API_ERROR, e.getCause(), "Nexon API 호출 실패");
+          }
+        },
+        TaskContext.of("Fallback", "CallNexonApi", ocid),
+        ex -> new InternalSystemException("Nexon API 호출 중 알 수 없는 오류", ex));
   }
 
   /**
@@ -125,19 +130,23 @@ public class NexonApiFallbackService {
    * <p>DEGRADED 상태에서는 DynamicTTLManager가 TTL을 제거(PERSIST)하므로, 여기서는 기본 TTL로 저장합니다.
    */
   private void saveToRedisCache(String ocid, EquipmentResponse response) {
-    try {
-      String cacheKey = CACHE_KEY_PREFIX + ocid;
-      String json = objectMapper.writeValueAsString(response);
+    checkedExecutor.executeUncheckedVoid(
+        () -> {
+          try {
+            String cacheKey = CACHE_KEY_PREFIX + ocid;
+            String json = objectMapper.writeValueAsString(response);
 
-      RBucket<String> bucket = redissonClient.getBucket(cacheKey);
-      // 기본 TTL 10분 설정 (DEGRADED 상태에서는 PERSIST됨)
-      bucket.set(json, Duration.ofMinutes(10));
+            RBucket<String> bucket = redissonClient.getBucket(cacheKey);
+            // 기본 TTL 10분 설정 (DEGRADED 상태에서는 PERSIST됨)
+            bucket.set(json, Duration.ofMinutes(10));
 
-      log.debug("[Fallback] Redis 캐시 저장: key={}", cacheKey);
-    } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
-      throw new maple.expectation.error.exception.InternalSystemException(
-          "Redis 캐시 직렬화 실패: ocid=" + ocid, e);
-    }
+            log.debug("[Fallback] Redis 캐시 저장: key={}", cacheKey);
+          } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            throw new InternalSystemException("Redis 캐시 직렬화 실패: ocid=" + ocid, e);
+          }
+        },
+        TaskContext.of("Fallback", "SaveToRedis", ocid),
+        e -> new InternalSystemException("Redis 캐시 저장 실패: ocid=" + ocid, e));
   }
 
   /** Compensation Log 기록 */

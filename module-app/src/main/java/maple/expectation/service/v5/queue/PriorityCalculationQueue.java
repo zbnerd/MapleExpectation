@@ -2,6 +2,7 @@ package maple.expectation.service.v5.queue;
 
 import java.util.Comparator;
 import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.infrastructure.executor.LogicExecutor;
@@ -107,16 +108,25 @@ public class PriorityCalculationQueue {
   /**
    * Poll next task with timeout (non-blocking when timeout expires)
    *
+   * <p>Uses LogicExecutor.executeOrDefault() for Section 12 compliance. InterruptedException is
+   * caught at IO boundary, thread is restored, and null is returned.
+   *
    * @param timeoutMs timeout in milliseconds
-   * @return task or null if timeout
+   * @return task or null if timeout or interrupted
    */
   public ExpectationCalculationTask poll(long timeoutMs) {
-    try {
-      return queue.poll(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS);
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-      return null;
-    }
+    return executor.executeOrDefault(
+        () -> {
+          try {
+            return queue.poll(timeoutMs, TimeUnit.MILLISECONDS);
+          } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.info("[Queue] Poll interrupted, returning null");
+            return null;
+          }
+        },
+        null,
+        TaskContext.of("Queue", "PollWithTimeout"));
   }
 
   /** Get current queue size */
