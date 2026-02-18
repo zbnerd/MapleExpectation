@@ -12,7 +12,7 @@ import maple.expectation.error.exception.base.ServerBaseException
  * @property url API URL 또는 식별자
  * @property cause 원인 예외 (optional)
  */
-class ApiTimeoutException(
+class ApiTimeoutException @JvmOverloads constructor(
     url: String,
     cause: Throwable? = null
 ) : ServerBaseException(
@@ -24,5 +24,9 @@ class ApiTimeoutException(
         if (cause != null) {
             initCause(cause)
         }
+    }
+
+    companion object {
+        private const val serialVersionUID = 1L
     }
 }

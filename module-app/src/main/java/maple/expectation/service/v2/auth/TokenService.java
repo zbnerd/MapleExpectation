@@ -126,20 +126,6 @@ public class TokenService {
             "TokenService", "GetOrCleanupSession", "sessionId=" + refreshToken.sessionId()));
   }
 
-  /**
-   * 토큰 쌍 (Access Token + Refresh Token)
-   *
-   * @param accessToken JWT Access Token
-   * @param accessTokenExpiresIn Access Token 만료 시간 (초)
-   * @param refreshTokenId Refresh Token ID
-   * @param refreshTokenExpiresIn Refresh Token 만료 시간 (초)
-   */
-  public record TokenPair(
-      String accessToken,
-      long accessTokenExpiresIn,
-      String refreshTokenId,
-      long refreshTokenExpiresIn) {}
-
   private String maskRefreshTokenId(String refreshTokenId) {
     if (refreshTokenId == null || refreshTokenId.length() < 8) {
       return "***";

@@ -34,6 +34,11 @@ data class TaskContext(
         require(operation.isNotBlank()) { "operation must not be blank" }
     }
 
+    // Explicit methods for tests that call component(), operation(), dynamicValue()
+    fun component(): String = component
+    fun operation(): String = operation
+    fun dynamicValue(): String = dynamicValue
+
     /**
      * TaskName 문자열로 변환
      *

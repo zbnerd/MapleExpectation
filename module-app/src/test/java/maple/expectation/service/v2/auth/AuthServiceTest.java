@@ -128,7 +128,7 @@ class AuthServiceTest {
           .willReturn(session);
 
       // TokenService: Token 쌍 생성 (Access + Refresh)
-      TokenService.TokenPair tokenPair = mock(TokenService.TokenPair.class);
+      TokenPair tokenPair = mock(TokenPair.class);
       given(tokenPair.getAccessToken()).willReturn(ACCESS_TOKEN);
       given(tokenPair.getAccessTokenExpiresIn()).willReturn(EXPIRATION_SECONDS);
       given(tokenPair.getRefreshTokenId()).willReturn(REFRESH_TOKEN_ID);
@@ -181,7 +181,7 @@ class AuthServiceTest {
                   eq("ADMIN")))
           .willReturn(session);
 
-      TokenService.TokenPair tokenPair = mock(TokenService.TokenPair.class);
+      TokenPair tokenPair = mock(TokenPair.class);
       given(tokenPair.getAccessToken()).willReturn(ACCESS_TOKEN);
       given(tokenPair.getAccessTokenExpiresIn()).willReturn(EXPIRATION_SECONDS);
       given(tokenPair.getRefreshTokenId()).willReturn(REFRESH_TOKEN_ID);
@@ -230,7 +230,7 @@ class AuthServiceTest {
                   eq("USER")))
           .willReturn(session);
 
-      TokenService.TokenPair tokenPair = mock(TokenService.TokenPair.class);
+      TokenPair tokenPair = mock(TokenPair.class);
       given(tokenPair.getAccessToken()).willReturn(ACCESS_TOKEN);
       given(tokenPair.getAccessTokenExpiresIn()).willReturn(EXPIRATION_SECONDS);
       given(tokenPair.getRefreshTokenId()).willReturn(REFRESH_TOKEN_ID);
@@ -273,7 +273,7 @@ class AuthServiceTest {
                   eq("USER")))
           .willReturn(session);
 
-      TokenService.TokenPair tokenPair = mock(TokenService.TokenPair.class);
+      TokenPair tokenPair = mock(TokenPair.class);
       given(tokenPair.getAccessToken()).willReturn(ACCESS_TOKEN);
       given(tokenService.createTokens(session)).willReturn(tokenPair);
 
@@ -339,7 +339,7 @@ class AuthServiceTest {
   @DisplayName("토큰 갱신 (Issue #279)")
   class RefreshTest {
 
-    TokenService.TokenPair tokenPair = mock(TokenService.TokenPair.class);
+    TokenPair tokenPair = mock(TokenPair.class);
 
     @Test
     @DisplayName("토큰 갱신 성공 - 새 Access Token + Refresh Token 발급")
