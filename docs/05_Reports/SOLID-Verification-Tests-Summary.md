@@ -22,7 +22,7 @@
 
 ### 2. Documentation
 
-**File:** `docs/04_Reports/solid-verification-tests.md` (700+ lines)
+**File:** `docs/05_Reports/solid-verification-tests.md` (700+ lines)
 
 **Contents:**
 - Architecture context and multi-module structure
@@ -260,14 +260,14 @@ mv module-app/src/main/java/maple/expectation/batch \
 - **ADR-039:** Current architecture assessment (baseline documentation)
 
 ### Analysis Reports
-- **docs/04_Reports/Multi-Module-Refactoring-Analysis.md:** Detailed analysis
-- **docs/04_Reports/scale-out-blockers-analysis.md:** P0/P1 stateful components
-- **docs/04_Reports/high-traffic-performance-analysis.md:** Thread pool analysis
+- **docs/05_Reports/Multi-Module-Refactoring-Analysis.md:** Detailed analysis
+- **docs/05_Reports/scale-out-blockers-analysis.md:** P0/P1 stateful components
+- **docs/05_Reports/high-traffic-performance-analysis.md:** Thread pool analysis
 
 ### Technical Guides
 - **CLAUDE.md:** SOLID principles, LogicExecutor, Exception handling
-- **docs/02_Technical_Guides/infrastructure.md:** Redis, Cache, Security
-- **docs/02_Technical_Guides/async-concurrency.md:** Async, Thread Pool
+- **docs/03_Technical_Guides/infrastructure.md:** Redis, Cache, Security
+- **docs/03_Technical_Guides/async-concurrency.md:** Async, Thread Pool
 
 ---
 

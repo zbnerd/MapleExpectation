@@ -260,7 +260,7 @@ This dashboard report is **INVALID** if any of the following conditions are true
 
 | Metric | Value | Evidence | Notes |
 |--------|-------|----------|-------|
-| **Chaos Tests Implemented** | 18 scenarios | docs/01_Chaos_Engineering/ | N01-N18 |
+| **Chaos Tests Implemented** | 18 scenarios | docs/02_Chaos_Engineering/ | N01-N18 |
 | **Patterns Applied** | 7 core modules | README.md | Architecture core |
 | **Documentation Coverage** | Comprehensive | docs/ structure | Systematic |
 | **5-Agent Protocol** | Implemented | multi-agent-protocol.md | AI-Augmented Dev |
@@ -406,12 +406,12 @@ After: 7 Core Modules
 ### KPI Verification
 ```bash
 # Verify source reports exist
-test -f docs/04_Reports/Load_Tests/LOAD_TEST_REPORT_20260126_V4_ADR_REFACTORING.md
-test -f docs/04_Reports/Load_Tests/LOAD_TEST_REPORT_20260125_V4_PARALLEL_WRITEBEHIND.md
-test -f docs/04_Reports/Load_Tests/LOAD_TEST_REPORT_20260124_V4_PHASE2.md
+test -f docs/05_Reports/Load_Tests/LOAD_TEST_REPORT_20260126_V4_ADR_REFACTORING.md
+test -f docs/05_Reports/Load_Tests/LOAD_TEST_REPORT_20260125_V4_PARALLEL_WRITEBEHIND.md
+test -f docs/05_Reports/Load_Tests/LOAD_TEST_REPORT_20260124_V4_PHASE2.md
 
 # Verify metric collection
-test -f docs/04_Reports/METRIC_COLLECTION_EVIDENCE.md
+test -f docs/05_Reports/METRIC_COLLECTION_EVIDENCE.md
 
 # Check Grafana dashboards
 curl -s http://localhost:3000/api/dashboards/uid/lock-health-p0

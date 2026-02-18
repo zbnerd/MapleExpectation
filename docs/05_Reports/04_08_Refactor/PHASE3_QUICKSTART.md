@@ -40,10 +40,10 @@ To prove the refactoring doesn't break performance or resilience. We need **quan
 ./scripts/capture-phase3-baseline.sh
 
 # 1.2 Review what was captured
-cat docs/refactor/phase3-baseline/*/SUMMARY.txt
+cat do../05_Reports/04_08_Refactor/phase3-baseline/*/SUMMARY.txt
 
 # 1.3 (Optional) Commit baseline
-git add docs/refactor/phase3-baseline/
+git add do../05_Reports/04_08_Refactor/phase3-baseline/
 git commit -m "feat: capture Phase 3 baseline metrics"
 ```
 
@@ -60,7 +60,7 @@ git commit -m "feat: capture Phase 3 baseline metrics"
 ### Step 2: Execute Phase 3 Refactoring 🏗️ Variable
 
 **Follow the refactoring plan:**
-- Read: `docs/refactor/REFACTOR_PLAN.md`
+- Read: `do../05_Reports/04_08_Refactor/REFACTOR_PLAN.md`
 - Extract domain logic from service layer
 - Create domain modules
 - Update dependencies
@@ -73,7 +73,7 @@ git commit -m "feat: capture Phase 3 baseline metrics"
 ./scripts/validate-phase3-no-regression.sh
 
 # 3.2 If PASS, create comparison report
-# Edit: docs/refactor/PHASE3_BASELINE_METRICS.md (Section 7)
+# Edit: do../05_Reports/04_08_Refactor/PHASE3_BASELINE_METRICS.md (Section 7)
 # Fill out the "Before/After Comparison Template"
 
 # 3.3 Create PR with evidence

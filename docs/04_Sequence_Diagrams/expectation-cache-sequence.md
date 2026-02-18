@@ -235,7 +235,7 @@ expectation.cache.expiry
 
 - **Issue #158**: TotalExpectationResponse 캐싱
 - **CLAUDE.md**: TieredCache 설계 가이드
-- **docs/02_Technical_Guides/infrastructure.md**: 캐시 아키텍처 상세
+- **docs/03_Technical_Guides/infrastructure.md**: 캐시 아키텍처 상세
 
 ## Evidence Links
 

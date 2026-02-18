@@ -512,8 +512,8 @@ jacocoTestCoverageVerification {
 - **Issue #210:** Flaky Test Detection and Handling
 - **Issue #143:** Observability & Loki Integration
 - **CLAUDE.md:** Section 10 - Mandatory Testing & Zero-Failure Policy
-- **Testing Guide:** `docs/02_Technical_Guides/testing-guide.md`
-- **Chaos Engineering:** `docs/01_Chaos_Engineering/00_Overview/TEST_STRATEGY.md`
+- **Testing Guide:** `docs/03_Technical_Guides/testing-guide.md`
+- **Chaos Engineering:** `docs/02_Chaos_Engineering/00_Overview/TEST_STRATEGY.md`
 
 ---
 

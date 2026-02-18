@@ -17,7 +17,7 @@
 | LOG L2 | Review | TODO items identified | Section 2.1 critical TODOs |
 | TEST T1 | Coverage | N19 Chaos Test Result | `N19-outbox-replay-result.md` |
 | METRIC M1 | Performance | Replay throughput 1,200 tps | Grafana metrics |
-| DOC D1 | ADR | ADR-016 decision record | `docs/adr/ADR-016-nexon-api-outbox-pattern.md` |
+| DOC D1 | ADR | ADR-016 decision record | `docs/01_Adr/ADR-016-nexon-api-outbox-pattern.md` |
 
 ---
 

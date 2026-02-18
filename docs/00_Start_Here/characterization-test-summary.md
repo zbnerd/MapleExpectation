@@ -92,7 +92,7 @@ public boolean isExpired(Duration ttl) {
 
 ## Flaky Test Prevention
 
-All tests follow the guidelines from `docs/02_Technical_Guides/testing-guide.md`:
+All tests follow the guidelines from `docs/03_Technical_Guides/testing-guide.md`:
 
 ### ✅ No Thread.sleep()
 - Uses `Duration` calculations for time-based tests

@@ -38,6 +38,7 @@ data class ErrorResponse(
          * @param e Business exception with ErrorCode and dynamic message
          * @return ErrorResponse with exception details
          */
+        @JvmStatic
         fun from(e: BaseException): ErrorResponse {
             return ErrorResponse(
                 status = e.errorCode.statusCode,
@@ -55,6 +56,7 @@ data class ErrorResponse(
          * @param errorCode Error code enum with static message
          * @return ErrorResponse with error code details
          */
+        @JvmStatic
         fun from(errorCode: ErrorCode): ErrorResponse {
             return ErrorResponse(
                 status = errorCode.statusCode,
@@ -72,6 +74,7 @@ data class ErrorResponse(
          * @param message Error message
          * @return ErrorResponse with custom values
          */
+        @JvmStatic
         fun from(status: Int, code: String, message: String): ErrorResponse {
             return ErrorResponse(
                 status = status,
@@ -84,6 +87,7 @@ data class ErrorResponse(
         /**
          * Builder pattern for Java compatibility.
          */
+        @JvmStatic
         fun builder(): Builder = Builder()
     }
 

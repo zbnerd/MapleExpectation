@@ -595,7 +595,7 @@ done
 grep -A 20 "Phase 7 Dependency Graph" docs/00_Start_Here/ROADMAP.md
 
 # Verify Stateful component analysis
-grep -c "P0\|P1" docs/04_Reports/scale-out-blockers-analysis.md
+grep -c "P0\|P1" docs/05_Reports/scale-out-blockers-analysis.md
 
 # Count total issues in roadmap
 grep "^|.*\[#.*\]" docs/00_Start_Here/ROADMAP.md | wc -l

@@ -80,7 +80,7 @@ The test reboot ultrawork session has been completed with significant progress t
 
 ### ✅ Task 8: 기존 테스트 분류 및 마이그레이션 계획 수립
 **Status:** COMPLETED
-- **Document:** `docs/04_Reports/test-classification-migration-plan.md`
+- **Document:** `docs/05_Reports/test-classification-migration-plan.md`
 - **Analysis:**
   - 116 tests in module-app
   - 6 tests in module-core (already compliant)
@@ -93,7 +93,7 @@ The test reboot ultrawork session has been completed with significant progress t
 
 ### ✅ Task 9: 모듈별 테스트 작성 가이드 문서화
 **Status:** COMPLETED
-- **Document:** `docs/02_Technical_Guides/module-wise-test-guide.md`
+- **Document:** `docs/03_Technical_Guides/module-wise-test-guide.md`
 - **Coverage:**
   - module-core: Pure unit + jqwik PBT
   - module-infra: Integration with Testcontainers
@@ -121,9 +121,9 @@ The test reboot ultrawork session has been completed with significant progress t
 - Support classes in `integrationTest/` source set
 
 **Documentation:**
-- `docs/02_Technical_Guides/module-wise-test-guide.md`
-- `docs/04_Reports/test-classification-migration-plan.md`
-- `docs/04_Reports/test-reboot-ultrawork-session-complete.md` (this file)
+- `docs/03_Technical_Guides/module-wise-test-guide.md`
+- `docs/05_Reports/test-classification-migration-plan.md`
+- `docs/05_Reports/test-reboot-ultrawork-session-complete.md` (this file)
 
 ---
 

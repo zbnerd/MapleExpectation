@@ -257,7 +257,7 @@ The codebase demonstrates excellent test discipline:
 
 ### 2. Documentation Improvements
 
-- Add test categorization guidelines to `docs/02_Technical_Guides/testing-guide.md`
+- Add test categorization guidelines to `docs/03_Technical_Guides/testing-guide.md`
 - Document when to use @Tag("unit") vs @Tag("integration")
 - Create examples of pure unit test patterns for new developers
 

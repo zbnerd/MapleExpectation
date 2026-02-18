@@ -141,7 +141,7 @@ curl -s 'http://localhost:9090/api/v1/query?query=rate(http_server_requests_seco
 | Spring Boot Prometheus Metrics | `spring-boot-metrics` | Core JVM/HTTP metrics | 8 | prometheus, spring-boot [G1] |
 | Lock Health Monitoring (P0) | `lock-health-p0` | N02/N07/N09 Lock monitoring | 10 | p0, lock, nightmare [G1] |
 
-**Evidence**: [G1] Dashboard JSON exports in `docs/04_Reports/Grafana/`
+**Evidence**: [G1] Dashboard JSON exports in `docs/05_Reports/Grafana/`
 
 ---
 
@@ -197,7 +197,7 @@ curl -s 'http://localhost:9090/api/v1/query?query=rate(http_server_requests_seco
 
 ## 4. Performance Baseline (From Load Test)
 
-**Source**: `docs/04_Reports/Load_Tests/LOAD_TEST_REPORT_20260125_V4_PARALLEL_WRITEBEHIND.md` [W1]
+**Source**: `docs/05_Reports/Load_Tests/LOAD_TEST_REPORT_20260125_V4_PARALLEL_WRITEBEHIND.md` [W1]
 
 | Metric | Value | Condition | Evidence |
 |--------|-------|-----------|----------|
@@ -450,10 +450,10 @@ echo "Current RPS: $current_rps"
 | ID | Source | Location |
 |----|--------|----------|
 | [C1] | Prometheus Config | `docker/prometheus/prometheus.yml` |
-| [G1] | Grafana Dashboards | `docs/04_Reports/Grafana/*.json` |
+| [G1] | Grafana Dashboards | `docs/05_Reports/Grafana/*.json` |
 | [P1] | Prometheus Metrics | `http://localhost:9090/api/v1/query` |
-| [W1] | wrk Benchmark | `docs/04_Reports/Cost_Performance/N23_WRK_V4_RESULTS.md` |
-| [L1] | Python Load Test | `docs/04_Reports/Cost_Performance/COST_PERF_REPORT_N23_ACTUAL.md` |
+| [W1] | wrk Benchmark | `docs/05_Reports/Cost_Performance/N23_WRK_V4_RESULTS.md` |
+| [L1] | Python Load Test | `docs/05_Reports/Cost_Performance/COST_PERF_REPORT_N23_ACTUAL.md` |
 | [E1] | AWS Pricing | https://aws.amazon.com/ec2/pricing/on-demand/ |
 
 ---

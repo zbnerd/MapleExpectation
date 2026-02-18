@@ -47,7 +47,7 @@
 
 **상태**: ✅ **DOCUMENTED** - 15+ 미문서화 동작 발견 및 완전 문서화 완료
 
-**파일**: `/home/maple/MapleExpectation/docs/04_Reports/IMPLICIT_BEHAVIORS_AUDIT.md`
+**파일**: `/home/maple/MapleExpectation/docs/05_Reports/IMPLICIT_BEHAVIORS_AUDIT.md`
 
 | 카테고리 | 항목 | Code Anchor | Evidence | Status |
 |----------|------|-------------|----------|--------|
@@ -89,7 +89,7 @@ grep -r "retention" src/main/java --include="*.java" -i
 
 **상태**: ✅ **AUDITED** - 95개 Thread.sleep() 호출 발견 및 개선 계획 완료
 
-**파일**: `/home/maple/MapleExpectation/docs/04_Reports/NON_DETERMINISTIC_TEST_AUDIT_REPORT.md`
+**파일**: `/home/maple/MapleExpectation/docs/05_Reports/NON_DETERMINISTIC_TEST_AUDIT_REPORT.md`
 
 | 위험도 | 파일 수 | Thread.sleep() 호출 | flakiness 확률 | 개선 완료 |
 |--------|---------|---------------------|-----------------|-----------|
@@ -140,7 +140,7 @@ grep -r "await()" src/test/java --include="*.java" | wc -l
 
 **상태**: ✅ **IDENTIFIED & PLANNED** - 3개 복합 장애 시나리오 식별 및 테스트 계획 완료
 
-**파일**: `/home/maple/MapleExpectation/docs/01_Chaos_Engineering/06_Nightmare/Scenarios/N19-compound-failures.md`
+**파일**: `/home/maple/MapleExpectation/docs/02_Chaos_Engineering/06_Nightmare/Scenarios/N19-compound-failures.md`
 
 | 시나리오 | Code Anchor | Evidence | 현재 상태 | 테스트 계획 |
 |----------|-------------|----------|----------|-------------|
@@ -551,7 +551,7 @@ curl -s http://localhost:9090/api/v1/query?query=maple_sync_queue_size | jq '.da
   - Evidence: EVD-IB003
 
 - [x] **Multi-failure 시나리오 계획 수립** (완료: 2026-02-05)
-  - 파일: `/home/maple/MapleExpectation/docs/01_Chaos_Engineering/06_Nightmare/Scenarios/N19-compound-failures.md`
+  - 파일: `/home/maple/MapleExpectation/docs/02_Chaos_Engineering/06_Nightmare/Scenarios/N19-compound-failures.md`
   - 3개 복합 장애 시나리오 식별
   - 테스트 전략 정의
   - Code Anchor 할당 (COD-MF001 ~ COD-MF003)
@@ -568,7 +568,7 @@ curl -s http://localhost:9090/api/v1/query?query=maple_sync_queue_size | jq '.da
 ### 1. Multi-failure 시나리오 테스트 실행 (우선순위: HIGH)
 - 예상 일정: 2026-03-01 ~ 2026-03-15
 - 리소스: Chaos Engineering Team
-- 결과 리포트: `docs/04_Reports/N19_COMPOUND_FAILURE_RESULTS.md`
+- 결과 리포트: `docs/05_Reports/N19_COMPOUND_FAILURE_RESULTS.md`
 
 ### 2. Thread.sleep() 제거 완료 (우선순위: MEDIUM)
 - 대상: 나머지 12개 파일

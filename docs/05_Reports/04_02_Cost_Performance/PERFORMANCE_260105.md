@@ -110,8 +110,8 @@ curl http://localhost:8080/actuator/health
 ## 4. Evidence IDs (Evidence Identifiers)
 
 #### Screenshot Evidence
-- **[S1]** `docs/04_Reports/images/locust_statistics_260104.png` - Final test statistics showing 235 RPS, 0% failures
-- **[S2]** `docs/04_Reports/images/locust_chart_260104.png` - Run #1 (red failures) vs Run #2 (green success)
+- **[S1]** `docs/05_Reports/images/locust_statistics_260104.png` - Final test statistics showing 235 RPS, 0% failures
+- **[S2]** `docs/05_Reports/images/locust_chart_260104.png` - Run #1 (red failures) vs Run #2 (green success)
 
 #### Code Evidence
 - **[C1]** HikariCP Pool configuration: Size increased from 10 → 50 for lock pool
@@ -296,7 +296,7 @@ curl http://localhost:8080/actuator/health
 
 ### Screenshot Verification [S1]
 ```bash
-ls -lh docs/04_Reports/images/locust_statistics_260104.png
+ls -lh docs/05_Reports/images/locust_statistics_260104.png
 # Expected: File exists, ~50-200KB
 ```
 

@@ -11,17 +11,22 @@ import maple.expectation.error.exception.base.ServerBaseException
  * @property message 실패 메시지
  * @property cause 원인 예외
  */
-class EquipmentDataProcessingException(
-    message: String,
-    cause: Throwable? = null
-) : ServerBaseException(
-    CommonErrorCode.DATA_PROCESSING_ERROR,
-    message
-) {
+class EquipmentDataProcessingException : ServerBaseException {
 
-    init {
-        if (cause != null) {
-            initCause(cause)
-        }
-    }
+    /**
+     * Constructor with message only
+     */
+    constructor(message: String) : super(
+        CommonErrorCode.DATA_PROCESSING_ERROR,
+        message
+    )
+
+    /**
+     * Constructor with message and cause
+     */
+    constructor(message: String, cause: Throwable) : super(
+        CommonErrorCode.DATA_PROCESSING_ERROR,
+        cause,
+        message
+    )
 }

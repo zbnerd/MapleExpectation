@@ -615,9 +615,9 @@ cat src/main/resources/application.yml | grep -A 10 'resilience4j:'
 ## 🔗 관련 문서 (Related Documents)
 
 ### 실제 테스트 결과
-- **N23**: `docs/04_Reports/Cost_Performance/COST_PERF_REPORT_N23_ACTUAL.md` [L1]
-- **N23 wrk**: `docs/04_Reports/Cost_Performance/N23_WRK_V4_RESULTS.md` [W1]
-- **N21**: `docs/04_Reports/Incidents/INCIDENT_REPORT_N21_ACTUAL.md` [T1]
+- **N23**: `docs/05_Reports/Cost_Performance/COST_PERF_REPORT_N23_ACTUAL.md` [L1]
+- **N23 wrk**: `docs/05_Reports/Cost_Performance/N23_WRK_V4_RESULTS.md` [W1]
+- **N21**: `docs/05_Reports/Incidents/INCIDENT_REPORT_N21_ACTUAL.md` [T1]
 
 ### 요약 문서
 - **실행 결과**: `Portfolio_Enhancement_Actual_Results.md`
@@ -634,8 +634,8 @@ cat src/main/resources/application.yml | grep -A 10 'resilience4j:'
 | ID | Source | Location |
 |----|--------|----------|
 | [L1] | Python Load Test | `/tmp/n23_load_test_results.json` |
-| [L2] | V4 API Test | `docs/04_Reports/Cost_Performance/N23_V4_API_RESULTS.md` |
-| [W1] | wrk Benchmark | `docs/04_Reports/Cost_Performance/N23_WRK_V4_RESULTS.md` |
+| [L2] | V4 API Test | `docs/05_Reports/Cost_Performance/N23_V4_API_RESULTS.md` |
+| [W1] | wrk Benchmark | `docs/05_Reports/Cost_Performance/N23_WRK_V4_RESULTS.md` |
 | [T1] | Circuit Breaker Test | `/tmp/n21_test_results.json` |
 | [E1] | AWS Pricing | https://aws.amazon.com/ec2/pricing/on-demand/ |
 

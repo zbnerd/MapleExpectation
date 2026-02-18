@@ -1178,11 +1178,11 @@ This guide would be invalidated if:
 ```bash
 # Validate Evidence Links
 for file in \
-  "docs/04_Reports/scale-out-blockers-analysis.md" \
-  "docs/04_Reports/high-traffic-performance-analysis.md" \
+  "docs/05_Reports/scale-out-blockers-analysis.md" \
+  "docs/05_Reports/high-traffic-performance-analysis.md" \
   "docs/00_Start_Here/architecture.md" \
-  "docs/adr/ADR-013-high-throughput-event-pipeline.md" \
-  "docs/adr/ADR-014-multi-module-cross-cutting-concerns.md"
+  "docs/01_Adr/ADR-013-high-throughput-event-pipeline.md" \
+  "docs/01_Adr/ADR-014-multi-module-cross-cutting-concerns.md"
 do
   if [ -f "$file" ]; then
     echo "✓ $file exists"
@@ -1192,11 +1192,11 @@ do
 done
 
 # Verify P0/P1 Issues
-grep -c "P0-\|P1-" docs/04_Reports/scale-out-blockers-analysis.md
+grep -c "P0-\|P1-" docs/05_Reports/scale-out-blockers-analysis.md
 # Expected: 22 items
 
 # Verify Scenario Consistency
-grep -c "Scenario [1-4]:" docs/02_Technical_Guides/scenario-planning.md
+grep -c "Scenario [1-4]:" docs/03_Technical_Guides/scenario-planning.md
 # Expected: 4 scenarios
 ```
 

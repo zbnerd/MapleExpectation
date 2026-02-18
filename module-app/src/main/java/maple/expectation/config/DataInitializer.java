@@ -44,7 +44,7 @@ public class DataInitializer implements CommandLineRunner {
 
   /** 계정 생성 및 저장 (핵심 로직 분리) */
   private Object createAndSaveDeveloper(TaskContext context) {
-    log.info("🚀 시스템 초기 데이터 생성: 개발자 계정 ({})", context.dynamicValue());
+    log.info("🚀 시스템 초기 데이터 생성: 개발자 계정 ({})", context.getDynamicValue());
 
     Member developer = Member.createSystemAdmin(DEVELOPER_UUID, 0L);
     memberRepository.save(developer);

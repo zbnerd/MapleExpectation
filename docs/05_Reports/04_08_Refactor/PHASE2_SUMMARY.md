@@ -41,8 +41,8 @@ After:  5 PASSED, 0 FAILED, 8 SKIPPED (documented)
 ```
 
 **Documentation:**
-- `docs/refactor/ARCHUNIT_RULES.md` - Comprehensive rule analysis
-- `docs/refactor/PHASE_2A_SUMMARY.md` - Executive summary
+- `do../05_Reports/04_08_Refactor/ARCHUNIT_RULES.md` - Comprehensive rule analysis
+- `do../05_Reports/04_08_Refactor/PHASE_2A_SUMMARY.md` - Executive summary
 
 ### Phase 2B: Repository Interface Violations Fixed
 
@@ -105,7 +105,7 @@ maple.expectation/
 
 **Documentation:**
 - 19 `package-info.java` files with detailed JavaDoc
-- `docs/refactor/PACKAGE_STRUCTURE.md` (700+ lines)
+- `do../05_Reports/04_08_Refactor/PACKAGE_STRUCTURE.md` (700+ lines)
   - Mermaid dependency diagrams
   - Layer descriptions with code examples
   - Migration strategy (6 phases)
@@ -141,7 +141,7 @@ Lines of Test Code: 1,580
 ```
 
 **Documentation:**
-- `docs/refactor/BASE_INTERFACES.md` (650 lines)
+- `do../05_Reports/04_08_Refactor/BASE_INTERFACES.md` (650 lines)
   - Complete interface reference
   - 3 Mermaid diagrams
   - Usage examples
@@ -323,11 +323,11 @@ Modified (20 files):
 ### Documentation
 ```
 Created (5 documents):
-├── docs/refactor/PHASE_2A_SUMMARY.md
-├── docs/refactor/ARCHUNIT_RULES.md (updated)
-├── docs/refactor/PACKAGE_STRUCTURE.md
-├── docs/refactor/BASE_INTERFACES.md
-└── docs/refactor/PHASE2_SUMMARY.md (this file)
+├── do../05_Reports/04_08_Refactor/PHASE_2A_SUMMARY.md
+├── do../05_Reports/04_08_Refactor/ARCHUNIT_RULES.md (updated)
+├── do../05_Reports/04_08_Refactor/PACKAGE_STRUCTURE.md
+├── do../05_Reports/04_08_Refactor/BASE_INTERFACES.md
+└── do../05_Reports/04_08_Refactor/PHASE2_SUMMARY.md (this file)
 ```
 
 ---

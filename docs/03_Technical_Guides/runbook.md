@@ -134,7 +134,7 @@ kubectl rollout undo deployment/maple-expectation
 - **GlobalExceptionHandler:** `src/main/java/maple/expectation/global/error/GlobalExceptionHandler.java` (Evidence: [CODE-ERROR-001])
 - **DiscordAlertService:** `src/main/java/maple/expectation/service/v2/alert/DiscordAlertService.java` (Evidence: [CODE-ALERT-001])
 - **Actuator Config:** `src/main/resources/application.yml` (management 섹션) (Evidence: [CONF-ACTUATOR-001])
-- **P0 Report:** `docs/04_Reports/P0_Issues_Resolution_Report_2026-01-20.md` (Incident response validation)
+- **P0 Report:** `docs/05_Reports/P0_Issues_Resolution_Report_2026-01-20.md` (Incident response validation)
 
 ## Technical Validity Check
 
@@ -160,6 +160,6 @@ curl -s http://localhost:8080/actuator/health | jq '.components.circuitBreakers'
 ```
 
 ### Related Evidence
-- P0 Report: `docs/04_Reports/P0_Issues_Resolution_Report_2026-01-20.md`
-- P1 Report: `docs/04_Reports/P1_Nightmare_Issues_Resolution_Report.md`
-- ADR-008: `docs/adr/ADR-008-durability-graceful-shutdown.md`
+- P0 Report: `docs/05_Reports/P0_Issues_Resolution_Report_2026-01-20.md`
+- P1 Report: `docs/05_Reports/P1_Nightmare_Issues_Resolution_Report.md`
+- ADR-008: `docs/01_Adr/ADR-008-durability-graceful-shutdown.md`

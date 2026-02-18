@@ -489,7 +489,7 @@ This allows instant rollback without deployment.
 | 24 | 성능 기준선(Baseline) 명시 | ✅ | [P1] | Before/After 메트릭 |
 | 25 | 보안 고려사항 | ✅ | [S2] | ThreadLocal.remove() 보장 |
 | 26 | 운영 이관 절차 | ✅ | [O1] | Prometheus 알림 규칙 |
-| 27 | 학습 교육 자료 참조 | ✅ | [L1] | docs/01_Chaos_Engineering/ |
+| 27 | 학습 교육 자료 참조 | ✅ | [L1] | docs/02_Chaos_Engineering/ |
 | 28 | 버전 호환성 확인 | ✅ | [V2] | Spring Boot 3.5.4 |
 | 29 | 의존성 변경 내역 | ✅ | [D1] | 없음 (Spring Boot 3.5.4 유지) |
 | 30 | 다음 단계(Next Steps) 명시 | ✅ | [N1] | 5개 후속 조치 |

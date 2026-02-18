@@ -922,8 +922,8 @@ public CompletableFuture<NexonApiCharacterData> fetchAndPublish(String ocid) {
 
 ### Related Components
 - [MessagingConfig.java](../../src/main/java/maple/expectation/infrastructure/config/MessagingConfig.java)
-- [LogicExecutor Pattern](../../docs/02_Technical_Guides/async-concurrency.md#section-12-zero-try-catch-policy)
-- [Exception Handling Strategy](../../docs/02_Technical_Guides/infrastructure.md#section-11-exception-handling-strategy)
+- [LogicExecutor Pattern](../../docs/03_Technical_Guides/async-concurrency.md#section-12-zero-try-catch-policy)
+- [Exception Handling Strategy](../../docs/03_Technical_Guides/infrastructure.md#section-11-exception-handling-strategy)
 
 ### Performance Resources
 - [Benchmark Scripts](../../benchmarks/README.md)

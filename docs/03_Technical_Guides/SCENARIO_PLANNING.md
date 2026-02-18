@@ -166,7 +166,7 @@ groups:
 ```
 
 ### [E10] Nightmare Tests - Chaos Engineering
-- **위치**: `docs/01_Chaos_Engineering/06_Nightmare/`
+- **위치**: `docs/02_Chaos_Engineering/06_Nightmare/`
 - **증거**: N02 Redis Lock 장애, N09 Lock Order Violation
 
 ### [E11] Actuator Metrics Exporter
@@ -654,7 +654,7 @@ changes(scenario_current_mode[24h])
 - **[E7]** RateLimitingService: `src/main/java/maple/expectation/service/v4/ratelimit/RateLimitingService.java`
 - **[E8]** Prometheus Metrics: `src/main/resources/META-INF/metrics.yml`
 - **[E9]** Alert Rules: `src/main/resources/lock-alerts.yml`
-- **[E10]** Nightmare Tests: `docs/01_Chaos_Engineering/06_Nightmare/`
+- **[E10]** Nightmare Tests: `docs/02_Chaos_Engineering/06_Nightmare/`
 - **[E11]** Actuator Exporter: `src/main/resources/application.yml`
 - **[E12]** HikariCP Monitoring: `src/main/resources/application.yml` (Line 16)
 
@@ -675,9 +675,9 @@ changes(scenario_current_mode[24h])
 - **[T3]** Circuit Breaker validation: `src/test/java/maple/expectation/service/v4/EquipmentExpectationServiceV4Test.java`
 
 ### Documentation Evidence
-- **[D1]** P0 Report: `docs/04_Reports/P0_Issues_Resolution_Report_2026-01-20.md`
-- **[D2]** ADR-005: `docs/adr/ADR-005-resilience4j-scenario-abc.md`
-- **[D3]** ADR-008: `docs/adr/ADR-008-durability-graceful-shutdown.md`
+- **[D1]** P0 Report: `docs/05_Reports/P0_Issues_Resolution_Report_2026-01-20.md`
+- **[D2]** ADR-005: `docs/01_Adr/ADR-005-resilience4j-scenario-abc.md`
+- **[D3]** ADR-008: `docs/01_Adr/ADR-008-durability-graceful-shutdown.md`
 
 ---
 

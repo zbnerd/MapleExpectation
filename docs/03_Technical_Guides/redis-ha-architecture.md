@@ -407,12 +407,12 @@ Half-Open: 3회 시도로 Redis 상태 확인
   - `src/main/java/maple/expectation/global/lock/RedisDistributedLockStrategy.java`
   - `src/main/java/maple/expectation/service/v2/shutdown/ShutdownDataRecoveryService.java`
   - `src/main/resources/application.yml` (CircuitBreaker 설정)
-  - `docs/02_Technical_Guides/resilience.md`
+  - `docs/03_Technical_Guides/resilience.md`
 
 ## Evidence Links
 - **RedissonConfig:** `src/main/java/maple/expectation/config/RedissonConfig.java` (Evidence: [CODE-REDIS-CONFIG-001])
 - **Failover Tests:** `src/test/java/maple/expectation/chaos/nightmare/*SentinelTest.java` (Evidence: [TEST-FAILOVER-001])
-- **ADR-006:** `docs/adr/ADR-006-redis-lock-lease-timeout-ha.md` (Sentinel HA decision)
+- **ADR-006:** `docs/01_Adr/ADR-006-redis-lock-lease-timeout-ha.md` (Sentinel HA decision)
 - **Redlock Analysis:** Martin Kleppmann's critique referenced for architecture decision
 
 ## Technical Validity Check
@@ -439,6 +439,6 @@ curl -s http://localhost:8080/actuator/health | jq
 ```
 
 ### Related Evidence
-- ADR-006: `docs/adr/ADR-006-redis-lock-lease-timeout-ha.md`
-- P0 Report: `docs/04_Reports/P0_Issues_Resolution_Report_2026-01-20.md`
-- Chaos N01/N02: `docs/01_Chaos_Engineering/06_Nightmare/Results/`
+- ADR-006: `docs/01_Adr/ADR-006-redis-lock-lease-timeout-ha.md`
+- P0 Report: `docs/05_Reports/P0_Issues_Resolution_Report_2026-01-20.md`
+- Chaos N01/N02: `docs/02_Chaos_Engineering/06_Nightmare/Results/`

@@ -137,7 +137,7 @@ test {
 gh issue create \
   --title "[Flaky Test] DonationTest 동시성 테스트 Race Condition" \
   --label "bug,concurrency,data-integrity,priority:high" \
-  --body "@docs/02_Technical_Guides/flaky-test-management.md"
+  --body "@docs/03_Technical_Guides/flaky-test-management.md"
 ```
 
 ---

@@ -497,7 +497,7 @@
 
 5. **[F5]** ADR 문서 참조 오류
    - ADR-003, ADR-004, ADR-005, ADR-009, ADR-013, ADR-014
-   - 검증: `docs/adr/` 디렉토리 내 실제 존재 확인
+   - 검증: `docs/01_Adr/` 디렉토리 내 실제 존재 확인
 
 ### 경계 조건 (Boundary Conditions)
 6. **[F6]** Match Rate 기준 변경
@@ -520,7 +520,7 @@
 - **[D3]** 분석 일자: 2026-01-31
 - **[D4]** 분석 방법론: Plan file reading → Implementation verification → Gap identification
 - **[D5]** 분석 범위: 15개 Priority Issues + 8개 Secondary Issues
-- **[D6]** 데이터 출처: `~/.claude/plans/*.md`, `src/main/java/`, `docs/adr/`
+- **[D6]** 데이터 출처: `~/.claude/plans/*.md`, `src/main/java/`, `docs/01_Adr/`
 - **[D7]** 평가 기준: Match Rate = (Implemented Items) / (Total Designed Items)
 - **[D8]** 갭 분석: Gaps Found 테이블 (Item, Design Location, Description, Impact)
 - **[D9]** 용어 정의: 아래 섹션 "용어 설명" 참조
@@ -590,7 +590,7 @@
 | **DP (Dynamic Programming) Engine** | 큐브 확률 계산을 위한 동적 계획법 엔진 | [I15] #147 |
 | **PER (Probabilistic Early Revalidation)** | 확률적 조기 갱신 캐시 패턴. 트래픽 분산 | ProbabilisticCache |
 | **Dead Code** | 참조되지 않는 코드. 제거 대상 | PermutationUtil.java |
-| **ADR (Architecture Decision Record)** | 아키텍처 결정 기록. 설계 근거 문서화 | docs/adr/ |
+| **ADR (Architecture Decision Record)** | 아키텍처 결정 기록. 설계 근거 문서화 | docs/01_Adr/ |
 | **Blue-Green Deploy** | 무중단 배포 전략. 이중 환경 운영 | [I2] #278 |
 | **RTopic** | Redis Pub/Sub. At-Most-Once 전달 보장 | [I2] #278 |
 | **RReliableTopic** | Redis Reliable Topic. At-Least-Once 전달 보장 | [I2] #278 |
@@ -648,7 +648,7 @@ find src/main/java -name "LogicExecutor.java" -o -name "TieredCache.java" -o -na
 # 예상: 모두 존재해야 함
 
 # 4. ADR 문서 존재 확인
-ls -la docs/adr/ADR-00{3,4,5,9,13,14}.md 2>/dev/null
+ls -la docs/01_Adr/ADR-00{3,4,5,9,13,14}.md 2>/dev/null
 # 예상: 6개 파일 존재
 
 # 5. PermutationUtil Dead Code 확인

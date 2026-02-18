@@ -133,9 +133,9 @@
 
 ### 📄 Evidence References
 
-- [Load Test Report](../../docs/04_Reports/Load_Test_Report.md)
-- [Chaos Test Results](../../docs/01_Chaos_Engineering/06_Nightmare/Results/)
-- [ADR Documentation](../../docs/adr/)
+- [Load Test Report](../../docs/05_Reports/Load_Test_Report.md)
+- [Chaos Test Results](../../docs/02_Chaos_Engineering/06_Nightmare/Results/)
+- [ADR Documentation](../../docs/01_Adr/)
 ```
 
 **Output:**

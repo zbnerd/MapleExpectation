@@ -487,11 +487,11 @@ The refactoring completed for **Issue #282** and **ADR-014** represents a signif
 
 | Document | Path | Purpose |
 |----------|------|---------|
-| ADR-014 | `docs/adr/ADR-014-multi-module-cross-cutting-concerns.md` | Multi-module architecture decision |
+| ADR-014 | `docs/01_Adr/ADR-014-multi-module-cross-cutting-concerns.md` | Multi-module architecture decision |
 | ADR-035 | `docs/99_Adr/ADR-035-issue-282-completion.md` | Issue #282 completion details |
-| ADR-0345 | `docs/adr/ADR-0345-stateless-alert-system.md` | Stateless alert system design |
-| Refactoring Analysis | `docs/04_Reports/refactoring-analysis.md` | Pre-refactoring context |
-| Service Modules | `docs/02_Technical_Guides/service-modules.md` | Module architecture guide |
+| ADR-0345 | `docs/01_Adr/ADR-0345-stateless-alert-system.md` | Stateless alert system design |
+| Refactoring Analysis | `docs/05_Reports/refactoring-analysis.md` | Pre-refactoring context |
+| Service Modules | `docs/03_Technical_Guides/service-modules.md` | Module architecture guide |
 | Architecture | `docs/00_Start_Here/architecture.md` | System architecture diagrams |
 | ROADMAP | `docs/00_Start_Here/ROADMAP.md` | Phase 7-8 roadmap |
 

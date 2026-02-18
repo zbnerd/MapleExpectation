@@ -45,7 +45,7 @@
 
 ### 📊 ADR (Architecture Decision Record) Process
 
-**Template (from docs/adr/0000-template.md):**
+**Template (from docs/01_Adr/0000-template.md):**
 
 ```markdown
 # ADR-XXX: [Title]

@@ -471,8 +471,13 @@ public class EquipmentStreamingParser {
   private void closeResources(InputStream is, JsonParser parser) {
     executor.executeVoid(
         () -> {
-          if (parser != null) parser.close();
-          if (is != null) is.close();
+          try {
+            if (parser != null) parser.close();
+            if (is != null) is.close();
+          } catch (IOException e) {
+            // Ignore close errors - resources are being cleaned up anyway
+            log.debug("Resource close failed (ignoring): {}", e.getMessage());
+          }
         },
         TaskContext.of("Parser", "CloseResources"));
   }

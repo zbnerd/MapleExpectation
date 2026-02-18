@@ -509,22 +509,22 @@ However, **8 P0 critical issues** must be resolved immediately to:
 
 For comprehensive analysis of each verification category, refer to:
 
-1. **Module Structure:** `docs/04_Reports/module-structure-verification-report.md`
-2. **Package Structure:** `docs/04_Reports/package-structure-compliance-report.md`
-3. **Circular Dependencies:** `docs/04_Reports/circular-dependency-violations-2026-02-16.md`
-4. **Import Style:** `docs/04_Reports/import-style-compliance-report.md`
-5. **ADR Compliance:** `docs/04_Reports/adr-compliance-report.md`
-6. **Clean Architecture:** `docs/04_Reports/clean-architecture-compliance-report.md`
-7. **Clean Code:** `docs/04_Reports/clean-code-compliance-report.md`
-8. **SOLID Principles:** `docs/04_Reports/SOLID-Principles-Verification-Report.md`
-9. **CLAUDE.md Rules:** `docs/04_Reports/claude-rules-compliance-report.md`
-10. **Stateless Design:** `docs/04_Reports/STATELESS-DESIGN-VERIFICATION-REPORT.md`
-11. **Scale-Out Readiness:** `docs/04_Reports/SCALE-OUT-ARCHITECTURE-READINESS-REPORT.md`
-12. **Security Audit:** `docs/04_Reports/SECURITY-AUDIT-REPORT.md`
-13. **Concurrency:** `docs/04_Reports/CONCURRENCY-VERIFICATION-REPORT.md`
-14. **LogicExecutor:** `docs/04_Reports/logic-executor-compliance-report.md`
-15. **Transactional AOP:** `docs/04_Reports/transactional-aop-verification-report.md`
-16. **Compilation:** `docs/04_Reports/compilation-verification-report.md`
+1. **Module Structure:** `docs/05_Reports/module-structure-verification-report.md`
+2. **Package Structure:** `docs/05_Reports/package-structure-compliance-report.md`
+3. **Circular Dependencies:** `docs/05_Reports/circular-dependency-violations-2026-02-16.md`
+4. **Import Style:** `docs/05_Reports/import-style-compliance-report.md`
+5. **ADR Compliance:** `docs/05_Reports/adr-compliance-report.md`
+6. **Clean Architecture:** `docs/05_Reports/clean-architecture-compliance-report.md`
+7. **Clean Code:** `docs/05_Reports/clean-code-compliance-report.md`
+8. **SOLID Principles:** `docs/05_Reports/SOLID-Principles-Verification-Report.md`
+9. **CLAUDE.md Rules:** `docs/05_Reports/claude-rules-compliance-report.md`
+10. **Stateless Design:** `docs/05_Reports/STATELESS-DESIGN-VERIFICATION-REPORT.md`
+11. **Scale-Out Readiness:** `docs/05_Reports/SCALE-OUT-ARCHITECTURE-READINESS-REPORT.md`
+12. **Security Audit:** `docs/05_Reports/SECURITY-AUDIT-REPORT.md`
+13. **Concurrency:** `docs/05_Reports/CONCURRENCY-VERIFICATION-REPORT.md`
+14. **LogicExecutor:** `docs/05_Reports/logic-executor-compliance-report.md`
+15. **Transactional AOP:** `docs/05_Reports/transactional-aop-verification-report.md`
+16. **Compilation:** `docs/05_Reports/compilation-verification-report.md`
 
 ---
 

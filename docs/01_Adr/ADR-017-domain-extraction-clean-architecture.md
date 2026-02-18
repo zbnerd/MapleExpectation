@@ -12,7 +12,7 @@ Proposed (2026-02-07)
 | 1 | 문서 작성 목적이 명확한가? | ✅ | Phase 3: Domain Extraction - Clean Architecture 마이그레이션 |
 | 2 | 대상 독자가 명시되어 있는가? | ✅ | System Architects, Backend Engineers, QA Engineers |
 | 3 | 문서 버전/수정 이력이 있는가? | ✅ | Proposed (2026-02-07) |
-| 4 | 관련 이슈/PR 링크가 있는가? | ✅ | docs/refactor/REFACTOR_PLAN.md Phase 3 |
+| 4 | 관련 이슈/PR 링크가 있는가? | ✅ | do../05_Reports/04_08_Refactor/REFACTOR_PLAN.md Phase 3 |
 | 5 | Evidence ID가 체계적으로 부여되었는가? | ✅ | [E1]-[E8] 체계적 부여 |
 | 6 | 모든 주장에 대한 증거가 있는가? | ✅ | 코드 구조, SOLID 위반 분석 |
 | 7 | 데이터 출처가 명시되어 있는가? | ✅ | SOLID_VIOLATIONS.md, TARGET_STRUCTURE.md |
@@ -121,7 +121,7 @@ public class CharacterEquipment {
 
 ### SOLID 위반 분석
 
-[docs/refactor/SOLID_VIOLATIONS.md](../05_Reports/04_08_Refactor/SOLID_VIOLATIONS.md)에서 식별된 43개 위반 중:
+[do../05_Reports/04_08_Refactor/SOLID_VIOLATIONS.md](../05_Reports/04_08_Refactor/SOLID_VIOLATIONS.md)에서 식별된 43개 위반 중:
 
 | 위반 유형 | 개수 | 도메인 추출로 해결 가능 |
 |-----------|------|----------------------|
@@ -945,14 +945,14 @@ Controller → ApplicationService → Domain Model → Repository Interface
 ### 선행 문서 (Prerequisites)
 - [ADR-014: 멀티 모듈 전환 - 횡단 관심사 분리](ADR-014-multi-module-cross-cutting-concerns.md)
 - [ADR-017: Package Structure Restructuring](ADR-017-package-structure.md) (Phase 2)
-- [docs/refactor/PHASE2_SUMMARY.md](../05_Reports/04_08_Refactor/PHASE2_SUMMARY.md)
+- [do../05_Reports/04_08_Refactor/PHASE2_SUMMARY.md](../05_Reports/04_08_Refactor/PHASE2_SUMMARY.md)
 
 ### 참조 문서 (References)
-- [docs/refactor/REFACTOR_PLAN.md](../05_Reports/04_08_Refactor/REFACTOR_PLAN.md) - 전체 리팩토링 계획
-- [docs/refactor/TARGET_STRUCTURE.md](../05_Reports/04_08_Refactor/TARGET_STRUCTURE.md) - 타겟 구조 상세
-- [docs/refactor/SOLID_VIOLATIONS.md](../05_Reports/04_08_Refactor/SOLID_VIOLATIONS.md) - 43개 위반 분석
-- [docs/refactor/BASE_INTERFACES.md](../05_Reports/04_08_Refactor/BASE_INTERFACES.md) - 기본 인터페이스 정의
-- [docs/refactor/ARCHITECTURE_MAP.md](../05_Reports/04_08_Refactor/ARCHITECTURE_MAP.md) - 현재 구조 맵
+- [do../05_Reports/04_08_Refactor/REFACTOR_PLAN.md](../05_Reports/04_08_Refactor/REFACTOR_PLAN.md) - 전체 리팩토링 계획
+- [do../05_Reports/04_08_Refactor/TARGET_STRUCTURE.md](../05_Reports/04_08_Refactor/TARGET_STRUCTURE.md) - 타겟 구조 상세
+- [do../05_Reports/04_08_Refactor/SOLID_VIOLATIONS.md](../05_Reports/04_08_Refactor/SOLID_VIOLATIONS.md) - 43개 위반 분석
+- [do../05_Reports/04_08_Refactor/BASE_INTERFACES.md](../05_Reports/04_08_Refactor/BASE_INTERFACES.md) - 기본 인터페이스 정의
+- [do../05_Reports/04_08_Refactor/ARCHITECTURE_MAP.md](../05_Reports/04_08_Refactor/ARCHITECTURE_MAP.md) - 현재 구조 맵
 - [CLAUDE.md](../../CLAUDE.md) - 프로젝트 코딩 표준 (Section 4: SOLID)
 
 ### 후속 문서 (Follow-up)

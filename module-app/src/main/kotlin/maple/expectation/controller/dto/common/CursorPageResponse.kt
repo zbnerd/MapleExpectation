@@ -42,6 +42,7 @@ data class CursorPageResponse<T>(
          * @param T entity type
          * @return Cursor-based response
          */
+        @JvmStatic
         fun <T> from(slice: Slice<T>, idExtractor: (T) -> Long): CursorPageResponse<T> {
             val content = slice.content
             val nextCursor = if (content.isEmpty()) null else idExtractor(content.last())
@@ -59,6 +60,7 @@ data class CursorPageResponse<T>(
          * @param D DTO type
          * @return Cursor-based response (DTO)
          */
+        @JvmStatic
         fun <E, D> fromWithMapping(
             slice: Slice<E>,
             mapper: (E) -> D,
@@ -74,6 +76,7 @@ data class CursorPageResponse<T>(
         /**
          * Create empty response
          */
+        @JvmStatic
         fun <T> empty(): CursorPageResponse<T> = CursorPageResponse(emptyList(), null, false, 0)
     }
 }

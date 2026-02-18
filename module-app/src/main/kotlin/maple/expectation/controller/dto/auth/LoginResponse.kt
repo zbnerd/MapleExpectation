@@ -22,6 +22,7 @@ data class LoginResponse(
         /**
          * Create LoginResponse with Refresh Token
          */
+        @JvmStatic
         fun of(
             accessToken: String,
             expiresIn: Long,
@@ -39,6 +40,7 @@ data class LoginResponse(
          * @deprecated Use [of] with all parameters instead
          */
         @Deprecated("Use full constructor with refresh token", ReplaceWith("of(accessToken, expiresIn, role, fingerprint, null, 0)"))
+        @JvmStatic
         fun of(
             accessToken: String,
             expiresIn: Long,

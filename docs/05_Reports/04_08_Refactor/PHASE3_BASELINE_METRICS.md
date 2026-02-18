@@ -270,20 +270,20 @@ jvm_memory_used_bytes{area="heap"}
 **Export via API (if running):**
 ```bash
 # Export dashboard JSON
-curl -s http://localhost:3000/api/dashboards/uid/<DASHBOARD_UID> | jq '.' > docs/refactor/grafana-baseline-<NAME>.json
+curl -s http://localhost:3000/api/dashboards/uid/<DASHBOARD_UID> | jq '.' > do../05_Reports/04_08_Refactor/grafana-baseline-<NAME>.json
 ```
 
 **Manual Export (if API not available):**
 1. Open Grafana: http://localhost:3000
 2. Navigate to dashboard
 3. Click Share → Export → Save to file
-4. Save to: `docs/refactor/grafana-baseline-<NAME>.json`
+4. Save to: `do../05_Reports/04_08_Refactor/grafana-baseline-<NAME>.json`
 
 **Baseline Dashboard Snapshots:**
 ```bash
 # List of dashboards to export BEFORE Phase 3
 ls -1 docker/grafana/dashboards/*.json | while read dashboard; do
-    cp "$dashboard" "docs/refactor/grafana-baseline-$(basename $dashboard)"
+    cp "$dashboard" "do../05_Reports/04_08_Refactor/grafana-baseline-$(basename $dashboard)"
 done
 ```
 
@@ -342,7 +342,7 @@ done
 #!/bin/bash
 # scripts/capture-phase3-baseline.sh
 
-BASELINE_DIR="docs/refactor/phase3-baseline"
+BASELINE_DIR="do../05_Reports/04_08_Refactor/phase3-baseline"
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 mkdir -p "$BASELINE_DIR/$TIMESTAMP"
 
@@ -412,8 +412,8 @@ curl -s http://localhost:8080/actuator/metrics/cache.hits | jq '.measurements' >
 ./gradlew clean test -PfastTest --rerun-tasks 2>&1 | tee fasttest-baseline.log
 
 # 4. Save results
-mkdir -p docs/refactor/phase3-baseline/manual-$(date +%Y%m%d)
-cp *.log *.json docs/refactor/phase3-baseline/manual-$(date +%Y%m%d)/
+mkdir -p do../05_Reports/04_08_Refactor/phase3-baseline/manual-$(date +%Y%m%d)
+cp *.log *.json do../05_Reports/04_08_Refactor/phase3-baseline/manual-$(date +%Y%m%d)/
 ```
 
 ---
@@ -651,8 +651,8 @@ absolute_diff = after_value - before_value
 
 set -e
 
-BASELINE_FILE="docs/refactor/PHASE3_BASELINE_METRICS.md"
-CURRENT_DIR="docs/refactor/phase3-current"
+BASELINE_FILE="do../05_Reports/04_08_Refactor/PHASE3_BASELINE_METRICS.md"
+CURRENT_DIR="do../05_Reports/04_08_Refactor/phase3-current"
 
 echo "=== Phase 3 Regression Detection ==="
 
@@ -752,19 +752,19 @@ Before marking Phase 3 as complete, verify:
 - [x] **Baseline Metrics Documented** (this file)
 - [ ] **Grafana Dashboards Exported**
   ```bash
-  cp -r docker/grafana/dashboards/*.json docs/refactor/grafana-baseline/
+  cp -r docker/grafana/dashboards/*.json do../05_Reports/04_08_Refactor/grafana-baseline/
   ```
 - [ ] **Prometheus Snapshots Captured**
   ```bash
-  curl -s http://localhost:9090/api/v1/query?query=[QUERY] | jq '.' > docs/refactor/prometheus-baseline-[METRIC].json
+  curl -s http://localhost:9090/api/v1/query?query=[QUERY] | jq '.' > do../05_Reports/04_08_Refactor/prometheus-baseline-[METRIC].json
   ```
 - [ ] **Load Test Baseline Recorded**
   ```bash
-  wrk -t4 -c100 -d30s http://localhost:8080/api/v3/health > docs/refactor/loadtest-baseline.log
+  wrk -t4 -c100 -d30s http://localhost:8080/api/v3/health > do../05_Reports/04_08_Refactor/loadtest-baseline.log
   ```
 - [ ] **Test Baseline Recorded**
   ```bash
-  ./gradlew clean test -PfastTest --rerun-tasks > docs/refactor/fasttest-baseline.log
+  ./gradlew clean test -PfastTest --rerun-tasks > do../05_Reports/04_08_Refactor/fasttest-baseline.log
   ```
 
 ### 9.2 Post-Phase 3 (After Refactoring)
@@ -775,7 +775,7 @@ Before marking Phase 3 as complete, verify:
   ```
 - [ ] **Rerun Load Test**
   ```bash
-  wrk -t4 -c100 -d30s http://localhost:8080/api/v3/health > docs/refactor/loadtest-after.log
+  wrk -t4 -c100 -d30s http://localhost:8080/api/v3/health > do../05_Reports/04_08_Refactor/loadtest-after.log
   ```
 - [ ] **Capture Current Metrics**
   ```bash
@@ -787,7 +787,7 @@ Before marking Phase 3 as complete, verify:
   - Identify regressions
 - [ ] **Export Post-Phase 3 Dashboards**
   ```bash
-  cp -r docker/grafana/dashboards/*.json docs/refactor/grafana-after/
+  cp -r docker/grafana/dashboards/*.json do../05_Reports/04_08_Refactor/grafana-after/
   ```
 - [ ] **Create Comparison Report**
   - Fill out template in Section 7.1
@@ -822,7 +822,7 @@ Before marking Phase 3 as complete, verify:
 | `PERFORMANCE_BASELINE.md` | Pre-refactor performance baseline |
 | `RESILIENCE_BASELINE.md` | Pre-refactor resilience configuration |
 | `PHASE2_SUMMARY.md` | Phase 2 completion report |
-| `docs/01_Chaos_Engineering/` | Chaos test scenarios (N01-N23) |
+| `docs/02_Chaos_Engineering/` | Chaos test scenarios (N01-N23) |
 | `CLAUDE.md:4-5` | Performance & resilience requirements |
 
 ### 10.2 Key Files
@@ -862,7 +862,7 @@ hikaricp_connections_active{pool="MySQLLockPool"}
 resilience4j_circuitbreaker_state{name="nexonApi"}
 
 # === Export Dashboards ===
-cp docker/grafana/dashboards/*.json docs/refactor/grafana-baseline/
+cp docker/grafana/dashboards/*.json do../05_Reports/04_08_Refactor/grafana-baseline/
 
 # === Run Load Test ===
 wrk -t4 -c100 -d30s http://localhost:8080/api/v3/health
@@ -878,7 +878,7 @@ wrk -t4 -c100 -d30s http://localhost:8080/api/v3/health
 Phase 3 baseline metrics established. All Prometheus queries, Grafana dashboards, and comparison templates documented. Ready for Phase 3 domain extraction with quantitative regression detection in place.
 
 **Next Steps:**
-1. Export Grafana dashboards to `docs/refactor/grafana-baseline/`
+1. Export Grafana dashboards to `do../05_Reports/04_08_Refactor/grafana-baseline/`
 2. Run `scripts/capture-phase3-baseline.sh` to capture current state
 3. Proceed with Phase 3 refactoring
 4. Use validation script post-refactoring to ensure no regression

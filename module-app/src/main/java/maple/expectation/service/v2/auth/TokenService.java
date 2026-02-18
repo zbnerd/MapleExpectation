@@ -4,7 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.domain.RefreshToken;
 import maple.expectation.domain.Session;
-import maple.expectation.error.exception.auth.SessionNotFoundException;
+import maple.expectation.error.exception.SessionNotFoundException;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.infrastructure.security.jwt.JwtTokenProvider;

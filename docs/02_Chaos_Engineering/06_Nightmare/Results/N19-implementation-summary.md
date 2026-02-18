@@ -15,7 +15,7 @@
 | LOG L1 | Build Log | Clean build success | `./gradlew clean build -x test` |
 | LOG L2 | Test Log | 2,134,221 entries processed | Test execution output |
 | METRIC M1 | Performance | Replay throughput 1,200 tps | Grafana metrics |
-| DOC D1 | ADR | ADR-016 decision record | `docs/adr/ADR-016-nexon-api-outbox-pattern.md` |
+| DOC D1 | ADR | ADR-016 decision record | `docs/01_Adr/ADR-016-nexon-api-outbox-pattern.md` |
 | DOC D2 | Scenario | N19-outbox-replay.md | `docs/02_Chaos_Engineering/06_Nightmare/Scenarios/N19-outbox-replay.md` |
 | SQL S1 | Schema | nexon_api_outbox table | `src/main/resources/nexon_api_outbox_schema.sql` |
 
@@ -168,13 +168,13 @@ Nexon API Outbox Pattern을 도입하여 외부 API 장애 시 데이터 유실�
 6. `src/main/java/maple/expectation/service/v2/outbox/NexonApiDlqHandler.java`
 7. `src/main/resources/nexon_api_outbox_schema.sql`
 8. `src/test/java/maple/expectation/chaos/nightmare/NexonApiOutboxNightmareTest.java`
-9. `docs/adr/ADR-016-nexon-api-outbox-pattern.md`
-10. `docs/01_Chaos_Engineering/06_Nightmare/Scenarios/N19-outbox-replay.md`
+9. `docs/01_Adr/ADR-016-nexon-api-outbox-pattern.md`
+10. `docs/02_Chaos_Engineering/06_Nightmare/Scenarios/N19-outbox-replay.md`
 
 ### Modified (3 files)
 1. `src/main/java/maple/expectation/external/impl/ResilientNexonApiClient.java` - Outbox 적재 로직 추가
 2. `src/main/resources/application.yml` - Outbox 스케줄러 설정 추가
-3. `docs/04_Reports/Portfolio_Enhancement_Summary.md` - "토스급" → "top-tier" 수정
+3. `docs/05_Reports/Portfolio_Enhancement_Summary.md` - "토스급" → "top-tier" 수정
 
 ## Next Steps
 

@@ -179,7 +179,7 @@ This directory contains comprehensive documentation for Phase 3 (Domain Extracti
      cat phase3-baseline/*/SUMMARY.txt       Fill out Section 7 template
 
   3. (Optional) Commit Baseline         7. Obtain 5-Agent Sign-off
-     git add docs/refactor/                 Green, Blue, Red agents
+     git add do../05_Reports/04_08_Refactor/                 Green, Blue, Red agents
 
   4. Execute Refactoring                8. Create PR with Evidence
      Follow REFACTOR_PLAN.md                Attach comparison report
@@ -319,7 +319,7 @@ Phase 3 is **COMPLETE** when:
 ./scripts/capture-phase3-baseline.sh
 ```
 
-**Output**: `docs/refactor/phase3-baseline/YYYYMMDD-HHMMSS/`
+**Output**: `do../05_Reports/04_08_Refactor/phase3-baseline/YYYYMMDD-HHMMSS/`
 
 ---
 

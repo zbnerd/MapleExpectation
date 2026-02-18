@@ -37,7 +37,7 @@
 
 ### 3. Documentation
 
-**Created:** `/home/maple/MapleExpectation/docs/refactor/ARCHUNIT_RULES.md`
+**Created:** `/home/maple/MapleExpectation/do../05_Reports/04_08_Refactor/ARCHUNIT_RULES.md`
 
 **Contents:**
 - Detailed before/after comparison for each rule
@@ -122,8 +122,8 @@ classes()
 5. `/src/main/java/maple/expectation/repository/v2/RedisBufferRepositoryImpl.java` - Imports fixed
 
 ### Documentation
-1. `/docs/refactor/ARCHUNIT_RULES.md` - Detailed rule analysis
-2. `/docs/refactor/PHASE_2A_SUMMARY.md` - This summary
+1. `/do../05_Reports/04_08_Refactor/ARCHUNIT_RULES.md` - Detailed rule analysis
+2. `/do../05_Reports/04_08_Refactor/PHASE_2A_SUMMARY.md` - This summary
 
 ---
 
@@ -172,8 +172,8 @@ No package structure changes were made. Clean Architecture packages (application
 ./gradlew test --tests "*ArchitectureTest*"
 
 # View documentation
-cat docs/refactor/ARCHUNIT_RULES.md
-cat docs/refactor/PHASE_2A_SUMMARY.md
+cat do../05_Reports/04_08_Refactor/ARCHUNIT_RULES.md
+cat do../05_Reports/04_08_Refactor/PHASE_2A_SUMMARY.md
 ```
 
 ---

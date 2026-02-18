@@ -37,7 +37,7 @@ Each claim includes bash/SQL commands to independently verify the assertion.
 | **COD-001** | `scheduler/NexonApiOutboxScheduler.java:55` - OutboxScheduler class with @Scheduled retry |
 | **COD-002** | `scheduler/OutboxScheduler.java:51` - Main outbox processing scheduler |
 | **COD-003** | `domain/v2/NexonApiOutbox.java` - Outbox entity with processed flag |
-| **EVD-001** | `docs/01_Chaos_Engineering/06_Nightmare/Results/N19-outbox-replay-result.md:59-63` |
+| **EVD-001** | `docs/02_Chaos_Engineering/06_Nightmare/Results/N19-outbox-replay-result.md:59-63` |
 | **EVD-002** | `docs/05_Reports/04_07_Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md:Q1-Q5` |
 | **Verification Method** | ```sql-- Verify no orphaned outbox recordsSELECT COUNT(*) FROM donation_outbox WHERE processed = false;-- Expected: 0 (zero data loss)-- Verify reconciliation countSELECT COUNT(*) FROM external_api_donations WHERE date = '2026-02-05';-- Expected: 2,159,993 (99.997% match)``` |
 | **Status** | ✅ Verified - Reconciliation 99.997% achieved |
@@ -207,7 +207,7 @@ Each claim includes bash/SQL commands to independently verify the assertion.
 | **COD-024** | `global/cache/TieredCacheManager.java:44` - Cache manager |
 | **COD-025** | `global/concurrency/SingleFlightExecutor.java` - Singleflight implementation |
 | **EVD-020** | `docs/00_Start_Here/architecture.md:254-262` |
-| **EVD-021** | `docs/01_Chaos_Engineering/06_Nightmare/Results/N01-thundering-herd-result.md` |
+| **EVD-021** | `docs/02_Chaos_Engineering/06_Nightmare/Results/N01-thundering-herd-result.md` |
 | **Verification Method** | ```bash# Verify cache metricscurl -s http://localhost:8080/actuator/metrics/cache.gets | jq '.measurements'# Expected: L1 hit rate ≥ 85%# Check Singleflight effectivenesscurl -s http://localhost:8080/actuator/metrics/singleflight.deduplication | jq '.measurements'# Expected: 99% duplicate reduction``` |
 | **Status** | ✅ Verified - N01 test confirms 99% stampede prevention |
 
@@ -218,7 +218,7 @@ Each claim includes bash/SQL commands to independently verify the assertion.
 | **Claim** | "Singleflight reduces duplicate API calls by 99%" |
 | **Scope** | README.md, Architecture.md |
 | **COD-026** | `global/concurrency/DistributedSingleFlightService.java` - Redis-based singleflight |
-| **EVD-022** | `docs/01_Chaos_Engineering/06_Nightmare/Results/N01-thundering-herd-result.md:Q5` |
+| **EVD-022** | `docs/02_Chaos_Engineering/06_Nightmare/Results/N01-thundering-herd-result.md:Q5` |
 | **Verification Method** | ```bash# Simulate concurrent cache missfor i in {1..100}; do curl -s "http://localhost:8080/api/v2/characters/test${i}" & done; wait# Verify only 1 API call per unique keygrep "Nexon API call" logs/application-*.log | wc -l# Expected: 100 (not 10,000)``` |
 | **Status** | ✅ Verified - N01 test confirms effectiveness |
 

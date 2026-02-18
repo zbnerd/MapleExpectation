@@ -31,6 +31,7 @@ data class CharacterResponse(
          * @param entity GameCharacter entity
          * @return CharacterResponse DTO
          */
+        @JvmStatic
         fun from(entity: GameCharacter): CharacterResponse = CharacterResponse(
             userIgn = entity.userIgn,
             ocid = entity.ocid,

@@ -129,7 +129,7 @@ public interface LogicExecutor {
 
 ### [E6] 장애 주입 테스트
 > **Chaos Engineering:** 18 Nightmare scenarios (N01-N18) validating resilience (Evidence: [Chaos Results](../01_Chaos_Engineering/06_Nightmare/Results/)).
-- **참조**: `docs/01_Chaos_Engineering/06_Nightmare/`
+- **참조**: `docs/02_Chaos_Engineering/06_Nightmare/`
 - **증거**: N01-N18 시나리오 구현
 
 ### [E7] Singleflight
@@ -478,7 +478,7 @@ grep -r "try {" src/main/java/maple/expectation/service --include="*.java" | wc 
 - **[E3]** LogicExecutor: `src/main/java/maple/expectation/global/executor/LogicExecutor.java`
 - **[E4]** Resilience4j Circuit Breaker: `src/main/resources/application.yml`
 - **[E5]** TieredCacheRaceConditionTest: `src/test/java/maple/expectation/cache/TieredCacheRaceConditionTest.java`
-- **[E6]** Nightmare Tests: `docs/01_Chaos_Engineering/06_Nightmare/`
+- **[E6]** Nightmare Tests: `docs/02_Chaos_Engineering/06_Nightmare/`
 - **[E7]** ExpectationCacheCoordinator: `src/main/java/maple/expectation/service/v4/cache/ExpectationCacheCoordinator.java`
 - **[E8]** ExpectationWriteBackBuffer: `src/main/java/maple/expectation/service/v4/buffer/ExpectationWriteBackBuffer.java`
 
@@ -488,26 +488,26 @@ grep -r "try {" src/main/java/maple/expectation/service --include="*.java" | wc 
 - **[C3]** Graceful shutdown: `src/main/resources/application.yml` (Line 10)
 
 ### Performance Evidence
-- **[P1]** Performance Report: `docs/04_Reports/PERFORMANCE_260105.md`
-- **[P2]** N01 Thundering Herd: `docs/01_Chaos_Engineering/06_Nightmare/Results/N01-thundering-herd-result.md`
-- **[P3]** N19 Implementation: `docs/01_Chaos_Engineering/06_Nightmare/Results/N19-implementation-summary.md`
-- **[P4]** Chaos Results: `docs/01_Chaos_Engineering/06_Nightmare/Results/`
-- **[P5]** P0 Report: `docs/04_Reports/P0_Issues_Resolution_Report_2026-01-20.md`
-- **[P6]** P1-7-8-9 Report: `docs/04_Reports/P1-7-8-9-scheduler-distributed-lock.md`
+- **[P1]** Performance Report: `docs/05_Reports/PERFORMANCE_260105.md`
+- **[P2]** N01 Thundering Herd: `docs/02_Chaos_Engineering/06_Nightmare/Results/N01-thundering-herd-result.md`
+- **[P3]** N19 Implementation: `docs/02_Chaos_Engineering/06_Nightmare/Results/N19-implementation-summary.md`
+- **[P4]** Chaos Results: `docs/02_Chaos_Engineering/06_Nightmare/Results/`
+- **[P5]** P0 Report: `docs/05_Reports/P0_Issues_Resolution_Report_2026-01-20.md`
+- **[P6]** P1-7-8-9 Report: `docs/05_Reports/P1-7-8-9-scheduler-distributed-lock.md`
 
 ### Test Evidence
 - **[T1]** Zero Script QA: `docs/03-analysis/zero-script-qa-2026-01-30.md`
-- **[T2]** Testing Guide: `docs/02_Technical_Guides/testing-guide.md`
-- **[T3]** Chaos Engineering: `docs/01_Chaos_Engineering/06_Nightmare/`
+- **[T2]** Testing Guide: `docs/03_Technical_Guides/testing-guide.md`
+- **[T3]** Chaos Engineering: `docs/02_Chaos_Engineering/06_Nightmare/`
 
 ### Architecture Evidence
-- **[A1]** ADR-005: `docs/adr/ADR-005-resilience4j-scenario-abc.md`
-- **[A2]** ADR-008: `docs/adr/ADR-008-durability-graceful-shutdown.md`
-- **[A3]** ADR-010: `docs/adr/ADR-010-outbox-pattern.md`
+- **[A1]** ADR-005: `docs/01_Adr/ADR-005-resilience4j-scenario-abc.md`
+- **[A2]** ADR-008: `docs/01_Adr/ADR-008-durability-graceful-shutdown.md`
+- **[A3]** ADR-010: `docs/01_Adr/ADR-010-outbox-pattern.md`
 
 ### Documentation Evidence
-- **[D1]** Testing Guide Section 23: `docs/02_Technical_Guides/testing-guide.md`
-- **[D2]** Chaos Engineering Overview: `docs/01_Chaos_Engineering/00_Overview/TEST_STRATEGY.md`
+- **[D1]** Testing Guide Section 23: `docs/03_Technical_Guides/testing-guide.md`
+- **[D2]** Chaos Engineering Overview: `docs/02_Chaos_Engineering/00_Overview/TEST_STRATEGY.md`
 
 ---
 

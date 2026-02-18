@@ -104,7 +104,7 @@ Successfully configured GitHub Actions CI/CD with **two-lane strategy** for fast
 ├── nightly.yml     # Existing: Full test suite
 └── gradle.yml      # Existing: Gradle wrapper validation
 
-docs/refactor/
+do../05_Reports/04_08_Refactor/
 ├── CI_STRATEGY.md          # Created: Comprehensive CI/CD guide
 └── PHASE1_CI_COMPLETE.md   # Created: This completion report
 ```
@@ -181,8 +181,8 @@ docs/refactor/
 - **Issue #210:** Flaky Test Detection and Handling
 - **Issue #143:** Observability & Loki Integration
 - **CLAUDE.md:** Section 10 - Mandatory Testing & Zero-Failure Policy
-- **Testing Guide:** `docs/02_Technical_Guides/testing-guide.md`
-- **Chaos Engineering:** `docs/01_Chaos_Engineering/00_Overview/TEST_STRATEGY.md`
+- **Testing Guide:** `docs/03_Technical_Guides/testing-guide.md`
+- **Chaos Engineering:** `docs/02_Chaos_Engineering/00_Overview/TEST_STRATEGY.md`
 
 ---
 

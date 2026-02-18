@@ -205,7 +205,7 @@ grep -c "###.*:" docs/00_Start_Here/multi-agent-protocol.md | head -10
 grep -A 30 "Pentagonal Pipeline" docs/00_Start_Here/multi-agent-protocol.md
 
 # Check ADRs follow protocol
-grep -l "Trade-off\|Blue\|Green\|Yellow\|Purple\|Red" docs/adr/*.md | wc -l
+grep -l "Trade-off\|Blue\|Green\|Yellow\|Purple\|Red" docs/01_Adr/*.md | wc -l
 ```
 
 ### Verification Commands

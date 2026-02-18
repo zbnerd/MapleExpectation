@@ -870,7 +870,7 @@ Two independent agents conducted comprehensive analysis:
 ### PDCA Cycle Documents
 
 - **Plan Phase**: ~/.claude/plans/ (62 documents)
-- **Design Phase**: docs/adr/ (ADR-003~009, ADR-013~014)
+- **Design Phase**: docs/01_Adr/ (ADR-003~009, ADR-013~014)
 - **Do Phase**: src/main/java/maple/expectation/ (60+ source files)
 - **Check Phase**: docs/03-analysis/closed-issues-gap-analysis.md (91% analysis)
 - **This Report**: docs/04-report/closed-issues-completion.report.md
@@ -882,8 +882,8 @@ Two independent agents conducted comprehensive analysis:
 | Architecture Overview | docs/00_Start_Here/architecture.md | System design with Mermaid diagrams |
 | Roadmap | docs/00_Start_Here/ROADMAP.md | Phase 1-7 planning |
 | CLAUDE.md | CLAUDE.md | Coding standards & guidelines |
-| Infrastructure Guide | docs/02_Technical_Guides/infrastructure.md | Redis, Cache, Security details |
-| Testing Guide | docs/02_Technical_Guides/testing-guide.md | Test patterns and flaky test prevention |
+| Infrastructure Guide | docs/03_Technical_Guides/infrastructure.md | Redis, Cache, Security details |
+| Testing Guide | docs/03_Technical_Guides/testing-guide.md | Test patterns and flaky test prevention |
 
 ### Previous Completion Reports
 

@@ -196,7 +196,7 @@ public <T> T executeWithLock(String lockName, long waitTime, long leaseTime, Sup
 ```java
 // DonationOutboxRepository.java
 // SKIP LOCKED: 분산 환경에서 중복 처리 방지
-// @see docs/02_Technical_Guides/lock-strategy.md
+// @see docs/03_Technical_Guides/lock-strategy.md
 @Lock(LockModeType.PESSIMISTIC_WRITE)
 @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "-2"))  // SKIP LOCKED
 @Query("SELECT o FROM DonationOutbox o WHERE o.status IN :statuses " +
@@ -227,7 +227,7 @@ List<DonationOutbox> findPendingWithLock(...);
 Optional<GameCharacter> findByUserIgn(String userIgn);
 
 // 수정 조회: Pessimistic Lock
-// @see docs/02_Technical_Guides/lock-strategy.md - 캐릭터 수정 시 동시 업데이트 방지
+// @see docs/03_Technical_Guides/lock-strategy.md - 캐릭터 수정 시 동시 업데이트 방지
 @Lock(LockModeType.PESSIMISTIC_WRITE)
 @Query("SELECT c FROM GameCharacter c WHERE c.userIgn = :userIgn")
 Optional<GameCharacter> findByUserIgnWithPessimisticLock(@Param("userIgn") String userIgn);
@@ -255,7 +255,7 @@ Optional<GameCharacter> findByUserIgnWithPessimisticLock(@Param("userIgn") Strin
 **해결 전략**:
 ```java
 // LikeSyncScheduler.java
-// @see docs/02_Technical_Guides/lock-strategy.md - 분산 스케줄러 단일 실행 보장
+// @see docs/03_Technical_Guides/lock-strategy.md - 분산 스케줄러 단일 실행 보장
 lockStrategy.executeWithLock("like-db-sync-lock", 0, 30, () -> {
     likeSyncService.syncRedisToDatabase();
     return null;
@@ -443,8 +443,8 @@ curl -s http://localhost:8080/actuator/metrics/lock.strategy | jq '.[] | select(
 - **ResilientLockStrategy:** `src/main/java/maple/expectation/global/lock/ResilientLockStrategy.java` (Evidence: [CODE-LOCK-RESILIENT-001])
 - **GameCharacterRepository:** `src/main/java/maple/expectation/repository/v2/GameCharacterRepository.java` (Evidence: [CODE-REPO-GC-001])
 - **DonationOutboxRepository:** `src/main/java/maple/expectation/repository/v2/DonationOutboxRepository.java` (Evidence: [CODE-REPO-OUTBOX-001])
-- **ADR-006:** `docs/adr/ADR-006-redis-lock-lease-timeout-ha.md` (Watchdog decision)
-- **ADR-010:** `docs/adr/ADR-010-outbox-pattern.md` (Outbox pattern)
+- **ADR-006:** `docs/01_Adr/ADR-006-redis-lock-lease-timeout-ha.md` (Watchdog decision)
+- **ADR-010:** `docs/01_Adr/ADR-010-outbox-pattern.md` (Outbox pattern)
 
 ## Technical Validity Check
 
@@ -477,6 +477,6 @@ curl -s http://localhost:8080/actuator/circuitbreakers | jq
 ```
 
 ### Related Evidence
-- P1-7-8-9 Report: `docs/04_Reports/P1-7-8-9-scheduler-distributed-lock.md`
-- ADR-006: `docs/adr/ADR-006-redis-lock-lease-timeout-ha.md`
-- ADR-010: `docs/adr/ADR-010-outbox-pattern.md`
+- P1-7-8-9 Report: `docs/05_Reports/P1-7-8-9-scheduler-distributed-lock.md`
+- ADR-006: `docs/01_Adr/ADR-006-redis-lock-lease-timeout-ha.md`
+- ADR-010: `docs/01_Adr/ADR-010-outbox-pattern.md`

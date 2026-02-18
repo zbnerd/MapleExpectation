@@ -1388,7 +1388,7 @@ public void init() {
 
 ## 12. 참고 자료
 
-- `docs/adr/ADR-012-stateless-scalability-roadmap.md` - V5 아키텍처 로드맵
+- `docs/01_Adr/ADR-012-stateless-scalability-roadmap.md` - V5 아키텍처 로드맵
 - [Spring Context Propagation](https://docs.spring.io/spring-framework/reference/integration/observability.html)
 - [Micrometer Context Propagation](https://micrometer.io/docs/contextPropagation)
 

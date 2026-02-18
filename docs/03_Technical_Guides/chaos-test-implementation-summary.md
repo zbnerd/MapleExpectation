@@ -304,16 +304,16 @@ Migration is successful when ALL of the following are true:
 ## References
 
 ### Documentation Created
-1. [Chaos Test Module Architecture](/home/maple/MapleExpectation/docs/02_Technical_Guides/chaos-test-module-architecture.md) - 499 lines
-2. [Chaos Test Quick Start](/home/maple/MapleExpectation/docs/02_Technical_Guides/chaos-test-quick-start.md) - 143 lines
-3. [CI/CD Integration Patterns](/home/maple/MapleExpectation/docs/02_Technical_Guides/chaos-test-cicd-patterns.md) - 568 lines
+1. [Chaos Test Module Architecture](/home/maple/MapleExpectation/docs/03_Technical_Guides/chaos-test-module-architecture.md) - 499 lines
+2. [Chaos Test Quick Start](/home/maple/MapleExpectation/docs/03_Technical_Guides/chaos-test-quick-start.md) - 143 lines
+3. [CI/CD Integration Patterns](/home/maple/MapleExpectation/docs/03_Technical_Guides/chaos-test-cicd-patterns.md) - 568 lines
 4. [Migration Status Tracking](/home/maple/MapleExpectation/MIGRATION_STATUS.md) - 252 lines
-5. [ADR-025: Chaos Test Module Separation](/home/maple/MapleExpectation/docs/adr/ADR-025-chaos-test-module-separation.md) - 270 lines
+5. [ADR-025: Chaos Test Module Separation](/home/maple/MapleExpectation/docs/01_Adr/ADR-025-chaos-test-module-separation.md) - 270 lines
 
 ### Related Documents
-- [ADR-014: Multi-module Cross-cutting Concerns](/home/maple/MapleExpectation/docs/adr/ADR-014-multi-module-cross-cutting-concerns.md)
-- [Test Strategy](/home/maple/MapleExpectation/docs/01_Chaos_Engineering/00_Overview/TEST_STRATEGY.md)
-- [Flaky Test Management](/home/maple/MapleExpectation/docs/02_Technical_Guides/flaky-test-management.md)
+- [ADR-014: Multi-module Cross-cutting Concerns](/home/maple/MapleExpectation/docs/01_Adr/ADR-014-multi-module-cross-cutting-concerns.md)
+- [Test Strategy](/home/maple/MapleExpectation/docs/02_Chaos_Engineering/00_Overview/TEST_STRATEGY.md)
+- [Flaky Test Management](/home/maple/MapleExpectation/docs/03_Technical_Guides/flaky-test-management.md)
 
 ---
 
@@ -328,11 +328,11 @@ Configuration Files (3):
 └── module-chaos-test/src/chaos-test/resources/junit-platform.properties (18 lines)
 
 Documentation (5):
-├── docs/02_Technical_Guides/chaos-test-module-architecture.md (499 lines)
-├── docs/02_Technical_Guides/chaos-test-quick-start.md (143 lines)
-├── docs/02_Technical_Guides/chaos-test-cicd-patterns.md (568 lines)
+├── docs/03_Technical_Guides/chaos-test-module-architecture.md (499 lines)
+├── docs/03_Technical_Guides/chaos-test-quick-start.md (143 lines)
+├── docs/03_Technical_Guides/chaos-test-cicd-patterns.md (568 lines)
 ├── MIGRATION_STATUS.md (252 lines)
-└── docs/adr/ADR-025-chaos-test-module-separation.md (270 lines)
+└── docs/01_Adr/ADR-025-chaos-test-module-separation.md (270 lines)
 
 Directories Created (5):
 ├── module-chaos-test/src/chaos-test/java/maple/expectation/chaos/network/

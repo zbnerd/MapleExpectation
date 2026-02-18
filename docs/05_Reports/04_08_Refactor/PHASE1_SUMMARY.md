@@ -44,7 +44,7 @@ All Phase 1 objectives achieved. The MapleExpectation project now has **comprehe
 
 **Key Insight:** Most failures are **test rule issues**, not actual architecture problems. The codebase is in good shape.
 
-**Documentation:** `docs/refactor/ARCHUNIT_RULES.md` (558 lines)
+**Documentation:** `do../05_Reports/04_08_Refactor/ARCHUNIT_RULES.md` (558 lines)
 
 ### 2. Spotless Code Formatting
 
@@ -64,8 +64,8 @@ All Phase 1 objectives achieved. The MapleExpectation project now has **comprehe
 ```
 
 **Documentation:**
-- `docs/refactor/FORMATTING_STANDARDS.md`
-- `docs/refactor/SPOTLESS_PHASE1_REPORT.md`
+- `do../05_Reports/04_08_Refactor/FORMATTING_STANDARDS.md`
+- `do../05_Reports/04_08_Refactor/SPOTLESS_PHASE1_REPORT.md`
 
 ### 3. SpotBugs Static Analysis
 
@@ -90,7 +90,7 @@ All Phase 1 objectives achieved. The MapleExpectation project now has **comprehe
 - Default platform encoding (4 locations)
 - Mutable static arrays in `FlameOptionType`
 
-**Documentation:** `docs/refactor/SPOTBUGS_BASELINE.md`
+**Documentation:** `do../05_Reports/04_08_Refactor/SPOTBUGS_BASELINE.md`
 
 ### 4. CI/CD Pipeline Configuration
 
@@ -117,7 +117,7 @@ Checks:
   - spotbugsMain
 ```
 
-**Documentation:** `docs/refactor/CI_STRATEGY.md` (558 lines)
+**Documentation:** `do../05_Reports/04_08_Refactor/CI_STRATEGY.md` (558 lines)
 
 ---
 
@@ -179,12 +179,12 @@ M 594 Java files (Spotless formatting)
 
 ### Documentation
 ```
-A docs/refactor/ARCHUNIT_RULES.md
-A docs/refactor/FORMATTING_STANDARDS.md
-A docs/refactor/SPOTBUGS_BASELINE.md
-A docs/refactor/CI_STRATEGY.md
-A docs/refactor/SPOTLESS_PHASE1_REPORT.md
-A docs/refactor/PHASE1_CI_COMPLETE.md
+A do../05_Reports/04_08_Refactor/ARCHUNIT_RULES.md
+A do../05_Reports/04_08_Refactor/FORMATTING_STANDARDS.md
+A do../05_Reports/04_08_Refactor/SPOTBUGS_BASELINE.md
+A do../05_Reports/04_08_Refactor/CI_STRATEGY.md
+A do../05_Reports/04_08_Refactor/SPOTLESS_PHASE1_REPORT.md
+A do../05_Reports/04_08_Refactor/PHASE1_CI_COMPLETE.md
 ```
 
 ---

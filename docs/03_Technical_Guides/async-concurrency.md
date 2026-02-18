@@ -285,7 +285,7 @@ executor.setRejectedExecutionHandler(new CallerRunsPolicy());  // 지연 > 유�
 - **ExecutorConfig:** `src/main/java/maple/expectation/config/ExecutorConfig.java` (Evidence: [CODE-EXEC-001])
 - **EquipmentService:** `src/main/java/maple/expectation/service/v2/EquipmentService.java` (Evidence: [CODE-SVC-002])
 - **Test:** `src/test/java/maple/expectation/service/v2/EquipmentServiceTest.java` (Evidence: [TEST-ASYNC-001])
-- **Load Test Results:** `docs/04_Reports/Cost_Performance/N23_WRK_V4_RESULTS.md` (Evidence: [LOAD-N23-001])
+- **Load Test Results:** `docs/05_Reports/Cost_Performance/N23_WRK_V4_RESULTS.md` (Evidence: [LOAD-N23-001])
 
 ## Technical Validity Check
 
@@ -315,6 +315,6 @@ curl -s http://localhost:8080/actuator/metrics/executor.active | jq
 ```
 
 ### Related Evidence
-- Load Test: `docs/04_Reports/Cost_Performance/N23_WRK_V4_RESULTS.md`
-- Performance Analysis: `docs/04_Reports/high-traffic-performance-analysis.md`
-- ADR-012: `docs/adr/ADR-012-stateless-scalability-roadmap.md` (Async architecture decision)
+- Load Test: `docs/05_Reports/Cost_Performance/N23_WRK_V4_RESULTS.md`
+- Performance Analysis: `docs/05_Reports/high-traffic-performance-analysis.md`
+- ADR-012: `docs/01_Adr/ADR-012-stateless-scalability-roadmap.md` (Async architecture decision)

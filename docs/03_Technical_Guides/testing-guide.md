@@ -479,4 +479,4 @@ grep -r "@Testcontainers" src/test/java --include="*.java"
 ### Related Evidence
 - QA Checklist: `docs/03-analysis/QA_MONITORING_CHECKLIST.md`
 - Zero Script QA: `docs/03-analysis/zero-script-qa-2026-01-30.md`
-- Chaos Test Results: `docs/01_Chaos_Engineering/06_Nightmare/Results/`
+- Chaos Test Results: `docs/02_Chaos_Engineering/06_Nightmare/Results/`

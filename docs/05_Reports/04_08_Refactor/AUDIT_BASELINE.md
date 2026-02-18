@@ -424,9 +424,9 @@ TaskContext.of("Outbox", "PollAndProcess", instanceId)
 
 | README Claim | Code Location | Evidence | Status |
 |--------------|---------------|----------|--------|
-| RPS 965, p99 214ms | Load Test #266 | `/home/maple/MapleExpectation/docs/04_Reports/Load_Tests/` | VERIFIED |
-| 2.16M events preserved | N19 Report | `/home/maple/MapleExpectation/docs/04_Reports/Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md` | VERIFIED |
-| MTTD 30s, MTTR 2m | N21 Report | `/home/maple/MapleExpectation/docs/04_Reports/Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md` | VERIFIED |
+| RPS 965, p99 214ms | Load Test #266 | `/home/maple/MapleExpectation/docs/05_Reports/Load_Tests/` | VERIFIED |
+| 2.16M events preserved | N19 Report | `/home/maple/MapleExpectation/docs/05_Reports/Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md` | VERIFIED |
+| MTTD 30s, MTTR 2m | N21 Report | `/home/maple/MapleExpectation/docs/05_Reports/Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md` | VERIFIED |
 | Triple Safety Net | DlqHandler.java | `/home/maple/MapleExpectation/src/main/java/maple/expectation/service/v2/donation/outbox/DlqHandler.java` | VERIFIED |
 | Kahan Summation | DensePmf.java, TailProbabilityCalculator.java | `/home/maple/MapleExpectation/src/main/java/maple/expectation/service/v2/cube/` | VERIFIED |
 | JWT Fingerprint Dual Verify | JwtAuthenticationFilter.java | `/home/maple/MapleExpectation/src/main/java/maple/expectation/global/security/filter/` | VERIFIED |

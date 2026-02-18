@@ -42,13 +42,16 @@ import java.time.LocalDateTime
  */
 abstract class BaseDto {
     /** Timestamp when the record was created (immutable) */
-    open val createdAt: LocalDateTime? = null
+    @JvmField
+    var createdAt: LocalDateTime? = null
 
     /** Timestamp when the record was last updated */
-    open val updatedAt: LocalDateTime? = null
+    @JvmField
+    var updatedAt: LocalDateTime? = null
 
     /** Version field for optimistic locking (optional) */
-    open val version: Long? = null
+    @JvmField
+    var version: Long? = null
 
     /**
      * Check if this DTO is newly created (no ID or version)

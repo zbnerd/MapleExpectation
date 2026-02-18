@@ -26,7 +26,7 @@ Phase 3 (Domain Extraction) is now fully prepared with **quantitative baseline m
 
 ### 1. Baseline Documentation ✅
 
-**File**: `docs/refactor/PHASE3_BASELINE_METRICS.md`
+**File**: `do../05_Reports/04_08_Refactor/PHASE3_BASELINE_METRICS.md`
 
 **Contents**:
 - Executive summary with current baseline values
@@ -64,7 +64,7 @@ Phase 3 (Domain Extraction) is now fully prepared with **quantitative baseline m
 - Load test results
 - Summary report
 
-**Output**: `docs/refactor/phase3-baseline/YYYYMMDD-HHMMSS/`
+**Output**: `do../05_Reports/04_08_Refactor/phase3-baseline/YYYYMMDD-HHMMSS/`
 
 #### Script 2: Regression Validation
 **File**: `scripts/validate-phase3-no-regression.sh`
@@ -125,10 +125,10 @@ Phase 3 (Domain Extraction) is now fully prepared with **quantitative baseline m
 ./scripts/capture-phase3-baseline.sh
 
 # Step 2: Review captured baseline
-cat docs/refactor/phase3-baseline/*/SUMMARY.txt
+cat do../05_Reports/04_08_Refactor/phase3-baseline/*/SUMMARY.txt
 
 # Step 3: Commit baseline (optional but recommended)
-git add docs/refactor/phase3-baseline/
+git add do../05_Reports/04_08_Refactor/phase3-baseline/
 git commit -m "feat: capture Phase 3 baseline metrics"
 ```
 
@@ -139,7 +139,7 @@ git commit -m "feat: capture Phase 3 baseline metrics"
 ./scripts/validate-phase3-no-regression.sh
 
 # Step 2: If PASS, complete report
-# Edit: docs/refactor/PHASE3_BASELINE_METRICS.md (Section 7)
+# Edit: do../05_Reports/04_08_Refactor/PHASE3_BASELINE_METRICS.md (Section 7)
 # Fill out: Before/After Comparison Template
 
 # Step 3: Obtain 5-Agent Council sign-off
@@ -181,7 +181,7 @@ resilience4j_circuitbreaker_state{name="nexonApi"}
 rate(executor_rejected_total[5m])
 ```
 
-**Full library**: See `docs/refactor/PHASE3_BASELINE_METRICS.md` Section 2
+**Full library**: See `do../05_Reports/04_08_Refactor/PHASE3_BASELINE_METRICS.md` Section 2
 
 ---
 
@@ -213,10 +213,10 @@ rate(executor_rejected_total[5m])
 
 ```bash
 # Export all dashboards to baseline directory
-cp -r docker/grafana/dashboards/*.json docs/refactor/grafana-baseline/
+cp -r docker/grafana/dashboards/*.json do../05_Reports/04_08_Refactor/grafana-baseline/
 
 # Verify export
-ls -la docs/refactor/grafana-baseline/
+ls -la do../05_Reports/04_08_Refactor/grafana-baseline/
 ```
 
 ### Manual Export (If API Not Available)
@@ -224,7 +224,7 @@ ls -la docs/refactor/grafana-baseline/
 1. Open Grafana: http://localhost:3000
 2. Navigate to dashboard
 3. Click **Share** → **Export** → **Save to file**
-4. Save to: `docs/refactor/grafana-baseline/`
+4. Save to: `do../05_Reports/04_08_Refactor/grafana-baseline/`
 
 **Required Dashboards**:
 - [x] maple-api-dashboard.json
@@ -240,7 +240,7 @@ ls -la docs/refactor/grafana-baseline/
 
 ## Before/After Comparison Template
 
-**Location**: `docs/refactor/PHASE3_BASELINE_METRICS.md` Section 7
+**Location**: `do../05_Reports/04_08_Refactor/PHASE3_BASELINE_METRICS.md` Section 7
 
 **Template Structure**:
 ```markdown
@@ -311,7 +311,7 @@ ls -la docs/refactor/grafana-baseline/
 
 1. **Export Grafana Dashboards** (if not already done)
    ```bash
-   cp -r docker/grafana/dashboards/*.json docs/refactor/grafana-baseline/
+   cp -r docker/grafana/dashboards/*.json do../05_Reports/04_08_Refactor/grafana-baseline/
    ```
 
 2. **Run Baseline Capture Script**
@@ -321,11 +321,11 @@ ls -la docs/refactor/grafana-baseline/
 
 3. **Review Captured Baseline**
    ```bash
-   cat docs/refactor/phase3-baseline/*/SUMMARY.txt
+   cat do../05_Reports/04_08_Refactor/phase3-baseline/*/SUMMARY.txt
    ```
 
 4. **Proceed with Phase 3 Refactoring**
-   - Follow guidelines in `docs/refactor/REFACTOR_PLAN.md`
+   - Follow guidelines in `do../05_Reports/04_08_Refactor/REFACTOR_PLAN.md`
    - Monitor metrics during refactoring
    - Run tests frequently
 
@@ -374,11 +374,11 @@ Phase 3 is considered **SUCCESSFUL** when:
 
 | Document | Purpose | Location |
 |----------|---------|----------|
-| **PHASE3_BASELINE_METRICS.md** | Complete baseline documentation | `docs/refactor/` |
-| **PERFORMANCE_BASELINE.md** | Pre-refactor performance baseline | `docs/refactor/` |
-| **RESILIENCE_BASELINE.md** | Pre-refactor resilience config | `docs/refactor/` |
-| **PHASE2_SUMMARY.md** | Phase 2 completion report | `docs/refactor/` |
-| **REFACTOR_PLAN.md** | Overall refactoring roadmap | `docs/refactor/` |
+| **PHASE3_BASELINE_METRICS.md** | Complete baseline documentation | `do../05_Reports/04_08_Refactor/` |
+| **PERFORMANCE_BASELINE.md** | Pre-refactor performance baseline | `do../05_Reports/04_08_Refactor/` |
+| **RESILIENCE_BASELINE.md** | Pre-refactor resilience config | `do../05_Reports/04_08_Refactor/` |
+| **PHASE2_SUMMARY.md** | Phase 2 completion report | `do../05_Reports/04_08_Refactor/` |
+| **REFACTOR_PLAN.md** | Overall refactoring roadmap | `do../05_Reports/04_08_Refactor/` |
 | **capture-phase3-baseline.sh** | Baseline capture script | `scripts/` |
 | **validate-phase3-no-regression.sh** | Regression validation script | `scripts/` |
 | **README.md** | Scripts quick reference | `scripts/` |
@@ -389,15 +389,15 @@ Phase 3 is considered **SUCCESSFUL** when:
 
 ### New Files Created ✅
 
-1. `docs/refactor/PHASE3_BASELINE_METRICS.md` (11 sections, 400+ lines)
+1. `do../05_Reports/04_08_Refactor/PHASE3_BASELINE_METRICS.md` (11 sections, 400+ lines)
 2. `scripts/capture-phase3-baseline.sh` (150+ lines, executable)
 3. `scripts/validate-phase3-no-regression.sh` (200+ lines, executable)
 4. `scripts/README.md` (300+ lines, quick reference)
 
 ### Existing Files Referenced
 
-1. `docs/refactor/PERFORMANCE_BASELINE.md` (baseline values)
-2. `docs/refactor/RESILIENCE_BASELINE.md` (resilience config)
+1. `do../05_Reports/04_08_Refactor/PERFORMANCE_BASELINE.md` (baseline values)
+2. `do../05_Reports/04_08_Refactor/RESILIENCE_BASELINE.md` (resilience config)
 3. `docker/grafana/dashboards/*.json` (12 dashboards)
 4. `docker/prometheus/prometheus.yml` (scrape config)
 

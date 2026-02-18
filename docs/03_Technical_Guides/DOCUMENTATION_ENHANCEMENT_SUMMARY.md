@@ -9,7 +9,7 @@
 ## 1. 강화 완료 문서 목록
 
 ### ✅ 1. Deliberate-Over-Engineering.md
-- **경로**: `/home/maple/MapleExpectation/docs/02_Technical_Guides/Deliberate-Over-Engineering.md`
+- **경로**: `/home/maple/MapleExpectation/docs/03_Technical_Guides/Deliberate-Over-Engineering.md`
 - **주제**: 의도된 상향 설계 철학 및 실제 문제 해결 사례
 - **추가 섹션**:
   - 30문항 자가 평가표 (모두 통과 ✅)
@@ -22,7 +22,7 @@
   - Fail If Wrong 조건 7개 (F1-F7)
 
 ### ✅ 2. FLAME_LOGIC.md
-- **경로**: `/home/maple/MapleExpectation/docs/02_Technical_Guides/FLAME_LOGIC.md`
+- **경로**: `/home/maple/MapleExpectation/docs/03_Technical_Guides/FLAME_LOGIC.md`
 - **주제**: 환생의 불꽃 로직, 역산, DP 기반 확률 계산
 - **추가 섹션**:
   - 30문항 자가 평가표 (모두 통과 ✅)
@@ -35,7 +35,7 @@
   - Fail If Wrong 조건 8개 (F1-F8)
 
 ### ✅ 3. SCENARIO_PLANNING.md
-- **경로**: `/home/maple/MapleExpectation/docs/02_Technical_Guides/SCENARIO_PLANNING.md`
+- **경로**: `/home/maple/MapleExpectation/docs/03_Technical_Guides/SCENARIO_PLANNING.md`
 - **주제**: 트래픽/외부 API 안정성 4분면 시나리오 매트릭스
 - **추가 섹션**:
   - 30문항 자가 평가표 (모두 통과 ✅)
@@ -48,7 +48,7 @@
   - Fail If Wrong 조건 8개 (F1-F8)
 
 ### ✅ 4. logic_executor_policy_pipeline.md
-- **경로**: `/home/maple/MapleExpectation/docs/02_Technical_Guides/logic_executor_policy_pipeline.md`
+- **경로**: `/home/maple/MapleExpectation/docs/03_Technical_Guides/logic_executor_policy_pipeline.md`
 - **주제**: LogicExecutor Policy Pipeline 아키텍처 PRD (Final v4)
 - **추가 섹션**:
   - 30문항 자가 평가표 (모두 통과 ✅)

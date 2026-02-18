@@ -208,8 +208,8 @@ MapleExpectation project has successfully transformed from a **49/100 baseline**
 - Longer startup time vs. mature ecosystem (Spring Boot resilience patterns)
 
 **References:**
-- [Load Test Report #266](../../docs/04_Reports/Load_Test_Report.md)
-- [ADR: Virtual Threads Adoption](../../docs/adr/)
+- [Load Test Report #266](../../docs/05_Reports/Load_Test_Report.md)
+- [ADR: Virtual Threads Adoption](../../docs/01_Adr/)
 
 ---
 
@@ -237,8 +237,8 @@ long ttl = BASE_TTL + ThreadLocalRandom.current().nextLong(-30, 30);
 **Evidence:** Cold start latency reduced from 200ms to 95ms
 
 **References:**
-- [Chaos Test N21: Cache Stampede](../../docs/01_Chaos_Engineering/06_Nightmare/Results/N21-CACHE_STAMPEDE.md)
-- [Architecture: Tiered Cache](../../docs/02_Technical_Guides/infrastructure.md#section-17)
+- [Chaos Test N21: Cache Stampede](../../docs/02_Chaos_Engineering/06_Nightmare/Results/N21-CACHE_STAMPEDE.md)
+- [Architecture: Tiered Cache](../../docs/03_Technical_Guides/infrastructure.md#section-17)
 
 ---
 
@@ -273,8 +273,8 @@ private CharacterData getCachedData(IGN ign, Exception e) {
 - Recovery Time: 2 minutes (MTTR) after API restored
 
 **References:**
-- [Resilience Patterns Guide](../../docs/02_Technical_Guides/resilience.md)
-- [Chaos Test N12 Results](../../docs/01_Chaos_Engineering/06_Nightmare/Results/N12-API_OUTAGE.md)
+- [Resilience Patterns Guide](../../docs/03_Technical_Guides/resilience.md)
+- [Chaos Test N12 Results](../../docs/02_Chaos_Engineering/06_Nightmare/Results/N12-API_OUTAGE.md)
 
 ---
 
@@ -306,8 +306,8 @@ public void saveDonation(Donation donation) {
 - **Max staleness:** 9 minutes (acceptable for game economy)
 
 **References:**
-- [Recovery Report](../../docs/04_Reports/Recovery_Report.md)
-- [ADR: Outbox Pattern](../../docs/adr/)
+- [Recovery Report](../../docs/05_Reports/Recovery_Report.md)
+- [ADR: Outbox Pattern](../../docs/01_Adr/)
 
 ---
 
@@ -338,8 +338,8 @@ public void saveDonation(Donation donation) {
 - 10x small instances: ~$150/month, ~10,000 users ✅ **Recommended**
 
 **References:**
-- [Scale-out Blockers Analysis](../../docs/04_Reports/scale-out-blockers-analysis.md)
-- [Scenario Planning: Viral Boom](../../docs/02_Technical_Guides/scenario-planning.md#scenario-2-viral-boom)
+- [Scale-out Blockers Analysis](../../docs/05_Reports/scale-out-blockers-analysis.md)
+- [Scenario Planning: Viral Boom](../../docs/03_Technical_Guides/scenario-planning.md#scenario-2-viral-boom)
 
 ---
 

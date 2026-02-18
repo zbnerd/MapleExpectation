@@ -16,7 +16,9 @@ class RateLimitExceededException : ClientBaseException {
     constructor(retryAfterSeconds: Int) : super(
         CommonErrorCode.RATE_LIMIT_EXCEEDED,
         retryAfterSeconds
-    )
+    ) {
+        this.retryAfterSeconds = retryAfterSeconds
+    }
 
     /**
      * (userId, retryAfterSeconds, capacity, refillRate) 받는 생성자 (Java 호환성)
@@ -29,7 +31,9 @@ class RateLimitExceededException : ClientBaseException {
     ) : super(
         CommonErrorCode.RATE_LIMIT_EXCEEDED,
         retryAfterSeconds
-    )
+    ) {
+        this.retryAfterSeconds = retryAfterSeconds
+    }
 
     /**
      * 모든 파라미터 + cause 받는 생성자 (Java 호환성)
@@ -44,8 +48,12 @@ class RateLimitExceededException : ClientBaseException {
         CommonErrorCode.RATE_LIMIT_EXCEEDED,
         retryAfterSeconds
     ) {
+        this.retryAfterSeconds = retryAfterSeconds
         if (cause != null) {
             initCause(cause)
         }
     }
+
+    @get:JvmName("getRetryAfterSeconds")
+    var retryAfterSeconds: Int = 0
 }

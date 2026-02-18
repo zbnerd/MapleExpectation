@@ -231,7 +231,7 @@ resolver.fallback.rate
 ## 참고
 
 - **CLAUDE.md**: [Resilient API Client 가이드](../CLAUDE.md#12-1-circuit-breaker--resilience-rules)
-- **docs/02_Technical_Guides/infrastructure.md**: 인프라 상세 가이드
+- **docs/03_Technical_Guides/infrastructure.md**: 인프라 상세 가이드
 - **Issue #205**: Nexon API 장애 처리 강화
 
 ## Evidence Links

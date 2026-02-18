@@ -1,7 +1,7 @@
 # Retry Budget Implementation Summary
 
 **Date**: 2026-02-06
-**Issue**: docs/01_Chaos_Engineering/03_Resource/09-retry-storm.md - "Retry Budget 미구현"
+**Issue**: docs/02_Chaos_Engineering/03_Resource/09-retry-storm.md - "Retry Budget 미구현"
 **Status**: ✅ **COMPLETED**
 
 ## Overview

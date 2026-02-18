@@ -71,7 +71,7 @@ done
 
 ### 2. ADR-017: Domain Extraction ✅
 
-**Location:** `docs/adr/ADR-017-domain-extraction-clean-architecture.md`
+**Location:** `docs/01_Adr/ADR-017-domain-extraction-clean-architecture.md`
 
 **Contents (975 lines):**
 - Complete ADR with all 10 sections
@@ -90,7 +90,7 @@ done
 
 ### 3. Metrics Baseline ✅
 
-**Location:** `docs/refactor/PHASE3_BASELINE_METRICS.md`
+**Location:** `do../05_Reports/04_08_Refactor/PHASE3_BASELINE_METRICS.md`
 
 **Contents (28 KB):**
 - 6 performance metrics (p50, p95, p99, throughput, error rate, saturation)
@@ -116,7 +116,7 @@ scripts/README.md                            # Quick reference
 
 ### 4. 5-Agent Council Review Framework ✅
 
-**Location:** `docs/refactor/PHASE3_AGENT_REVIEW.md`
+**Location:** `do../05_Reports/04_08_Refactor/PHASE3_AGENT_REVIEW.md`
 
 **Council Votes (Preparatory):**
 
@@ -295,7 +295,7 @@ echo "All 5 runs passed - tests are stable"
 ### Phase 3 Preparation Documents
 
 ```
-docs/refactor/
+do../05_Reports/04_08_Refactor/
 ├── CHARACTERIZATION_TESTS.md                    # Test catalog
 ├── PHASE3_CHARACTERIZATION_SUMMARY.md            # Test summary
 ├── QA_REPORT_CHARACTERIZATION_TESTS.md          # QA report
@@ -305,7 +305,7 @@ docs/refactor/
 ├── PHASE3_PREPARATION_COMPLETE.md                 # Exec summary
 └── README.md                                      # Navigation hub
 
-docs/adr/
+docs/01_Adr/
 ├── ADR-017-domain-extraction-clean-architecture.md  # Main ADR
 └── README.md                                      # ADR index
 

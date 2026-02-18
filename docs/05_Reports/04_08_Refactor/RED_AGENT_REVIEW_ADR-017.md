@@ -190,7 +190,7 @@ public record CharacterId(String value) {
 
 ### ❌ Prometheus Queries: FAIL
 
-**Expected**: `docs/04_Reports/Refactor/monitoring_query_guide.md`
+**Expected**: `docs/05_Reports/Refactor/monitoring_query_guide.md`
 **Actual**: **Document does not exist**
 
 **Impact**:
@@ -403,7 +403,7 @@ wrk -t 4 -c 100 -d 30s -s load-test/wrk-v4-expectation.lua http://localhost:8080
 
 1. **Automated Baseline Capture**:
    - Create CI job to capture baseline before each slice
-   - Store results in `docs/04_Reports/Baseline/BASELINE_{SLICE}_PRE.json`
+   - Store results in `docs/05_Reports/Baseline/BASELINE_{SLICE}_PRE.json`
 
 2. **Real-time Regression Detection**:
    - Add Prometheus alerting rules for:
@@ -471,8 +471,8 @@ wrk -t 4 -c 100 -d 30s -s load-test/wrk-v4-expectation.lua http://localhost:8080
 **Next Steps**:
 
 1. [ ] Capture performance baseline (RPS, p99, cache metrics)
-2. [ ] Create `docs/04_Reports/Refactor/monitoring_query_guide.md`
-3. [ ] Create `docs/04_Reports/Refactor/v4_expectation_flow_analysis.md`
+2. [ ] Create `docs/05_Reports/Refactor/monitoring_query_guide.md`
+3. [ ] Create `docs/05_Reports/Refactor/v4_expectation_flow_analysis.md`
 4. [ ] Review updated baseline with Blue Agent (architectural compliance)
 5. [ ] **Only then**: Proceed with Slice 1 (Equipment Domain Extraction)
 

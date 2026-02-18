@@ -1424,9 +1424,9 @@ public class GzipCompressionService implements CompressionService {
 
 | Reference | Location | Purpose |
 |-----------|----------|---------|
-| Architecture Map | `docs/refactor/ARCHITECTURE_MAP.md` | Full architecture context |
+| Architecture Map | `do../05_Reports/04_08_Refactor/ARCHITECTURE_MAP.md` | Full architecture context |
 | CLAUDE.md | Project root | Coding standards |
-| Service Modules Guide | `docs/02_Technical_Guides/service-modules.md` | Module details |
+| Service Modules Guide | `docs/03_Technical_Guides/service-modules.md` | Module details |
 
 ---
 

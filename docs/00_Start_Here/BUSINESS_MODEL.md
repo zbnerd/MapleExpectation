@@ -326,13 +326,13 @@ This Business Model Canvas would be invalidated if:
 ### Verification Commands
 ```bash
 # Verify RPS claim
-grep -r "719\|RPS" docs/04_Reports/Portfolio_Enhancement_WRK_Final_Summary.md
+grep -r "719\|RPS" docs/05_Reports/Portfolio_Enhancement_WRK_Final_Summary.md
 
 # Verify latency claim
-grep -r "p50\|164ms\|27ms" docs/04_Reports/PERFORMANCE_260105.md
+grep -r "p50\|164ms\|27ms" docs/05_Reports/PERFORMANCE_260105.md
 
 # Verify cost claim
-grep -r "t3.small\|15/month" docs/04_Reports/Cost_Performance/
+grep -r "t3.small\|15/month" docs/05_Reports/Cost_Performance/
 
 # Verify test case count
 ./gradlew test --info | grep "tests completed"
@@ -354,8 +354,8 @@ grep -A 20 "Deployment Architecture" docs/00_Start_Here/architecture.md
 find docs/04_Reports -name "*load*test*"
 
 # 성능 메트릭 확인
-grep "RPS\|Latency\|Throughput" docs/04_Reports/*.md
+grep "RPS\|Latency\|Throughput" docs/05_Reports/*.md
 
 # AWS 인스턴스 스펙 확인
-grep -A 10 "t3.small\|\.small" docs/04_Reports/*.md
+grep -A 10 "t3.small\|\.small" docs/05_Reports/*.md
 ```
