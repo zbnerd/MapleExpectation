@@ -108,8 +108,12 @@ class LogicExecutorTest {
     ServerBaseException translatedException =
         new InternalSystemException("test:executeException", originalException);
 
-    when(pipeline.executeRaw(any(ThrowingSupplier.class), eq(context)))
-        .thenThrow(originalException);
+    doAnswer(
+            invocation -> {
+              throw originalException;
+            })
+        .when(pipeline)
+        .executeRaw(any(ThrowingSupplier.class), eq(context));
     when(translator.translate(eq(originalException), eq(context))).thenReturn(translatedException);
 
     // When & Then
@@ -131,7 +135,12 @@ class LogicExecutorTest {
     TaskContext context = TaskContext.of("Test", "executeError");
     OutOfMemoryError error = new OutOfMemoryError("OOM");
 
-    when(pipeline.executeRaw(any(ThrowingSupplier.class), eq(context))).thenThrow(error);
+    doAnswer(
+            invocation -> {
+              throw error;
+            })
+        .when(pipeline)
+        .executeRaw(any(ThrowingSupplier.class), eq(context));
 
     // When & Then
     assertThatThrownBy(() -> executor.execute(() -> "result", context))
@@ -193,7 +202,12 @@ class LogicExecutorTest {
     String defaultValue = "default";
     IOException exception = new IOException("Error");
 
-    when(pipeline.executeRaw(any(ThrowingSupplier.class), eq(context))).thenThrow(exception);
+    doAnswer(
+            invocation -> {
+              throw exception;
+            })
+        .when(pipeline)
+        .executeRaw(any(ThrowingSupplier.class), eq(context));
     when(translator.translate(eq(exception), eq(context)))
         .thenReturn(new InternalSystemException("test", exception));
 
@@ -229,8 +243,12 @@ class LogicExecutorTest {
           return new InternalSystemException("fallback", e);
         };
 
-    when(pipeline.executeRaw(any(ThrowingSupplier.class), eq(context)))
-        .thenThrow(originalException);
+    doAnswer(
+            invocation -> {
+              throw originalException;
+            })
+        .when(pipeline)
+        .executeRaw(any(ThrowingSupplier.class), eq(context));
 
     // When & Then
     assertThatThrownBy(
@@ -418,8 +436,12 @@ class LogicExecutorTest {
     String fallbackResult = "fallback";
     IOException originalException = new IOException("Error");
 
-    when(pipeline.executeRaw(any(ThrowingSupplier.class), eq(context)))
-        .thenThrow(originalException);
+    doAnswer(
+            invocation -> {
+              throw originalException;
+            })
+        .when(pipeline)
+        .executeRaw(any(ThrowingSupplier.class), eq(context));
 
     // When
     String result =
@@ -441,8 +463,12 @@ class LogicExecutorTest {
     TaskContext context = TaskContext.of("Test", "fallbackOriginal");
     IOException originalException = new IOException("Original");
 
-    when(pipeline.executeRaw(any(ThrowingSupplier.class), eq(context)))
-        .thenThrow(originalException);
+    doAnswer(
+            invocation -> {
+              throw originalException;
+            })
+        .when(pipeline)
+        .executeRaw(any(ThrowingSupplier.class), eq(context));
 
     // When
     AtomicReference<Throwable> receivedException = new AtomicReference<>();
@@ -472,8 +498,12 @@ class LogicExecutorTest {
     InternalSystemException translatedException =
         new InternalSystemException("test:orCatch", originalException);
 
-    when(pipeline.executeRaw(any(ThrowingSupplier.class), eq(context)))
-        .thenThrow(originalException);
+    doAnswer(
+            invocation -> {
+              throw originalException;
+            })
+        .when(pipeline)
+        .executeRaw(any(ThrowingSupplier.class), eq(context));
     when(translator.translate(eq(originalException), eq(context))).thenReturn(translatedException);
 
     // When
@@ -498,8 +528,12 @@ class LogicExecutorTest {
     InternalSystemException translatedException =
         new InternalSystemException("test:orCatch", originalException);
 
-    when(pipeline.executeRaw(any(ThrowingSupplier.class), eq(context)))
-        .thenThrow(originalException);
+    doAnswer(
+            invocation -> {
+              throw originalException;
+            })
+        .when(pipeline)
+        .executeRaw(any(ThrowingSupplier.class), eq(context));
     when(translator.translate(eq(originalException), eq(context))).thenReturn(translatedException);
 
     // When
@@ -590,7 +624,7 @@ class LogicExecutorTest {
   @DisplayName("TaskContext should normalize null dynamic value to empty string")
   void testTaskContext_NullDynamicValue() {
     // Given
-    TaskContext context = new TaskContext("Component", "operation", null);
+    TaskContext context = TaskContext.of("Component", "operation");
 
     // Then
     assertThat(context.dynamicValue()).isEmpty();
