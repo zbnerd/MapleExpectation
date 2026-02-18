@@ -13,13 +13,28 @@ import maple.expectation.error.exception.base.ServerBaseException
  * @property lockKey 락 키
  * @property waitTime 대기 시간 (밀리초), RELEASE_LOCK에서는 null
  */
-class DatabaseNamedLockException(
-    operation: String,
-    lockKey: String,
-    waitTime: Long?
-) : ServerBaseException(
-    CommonErrorCode.DATABASE_NAMED_LOCK_FAILED,
-    operation,
-    lockKey,
-    waitTime ?: "N/A"
-)
+open class DatabaseNamedLockException : ServerBaseException {
+
+    constructor(
+        operation: String,
+        lockKey: String,
+        waitTime: Long?
+    ) : super(
+        CommonErrorCode.DATABASE_NAMED_LOCK_FAILED,
+        operation,
+        lockKey,
+        waitTime ?: "N/A"
+    )
+
+    /**
+     * Create exception with custom message and cause.
+     *
+     * @param message Custom error message
+     * @param cause Root cause exception
+     */
+    constructor(message: String, cause: Throwable) : super(
+        CommonErrorCode.DATABASE_NAMED_LOCK_FAILED,
+        cause,
+        message
+    )
+}

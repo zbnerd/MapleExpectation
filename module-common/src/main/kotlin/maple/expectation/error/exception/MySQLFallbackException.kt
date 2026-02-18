@@ -19,4 +19,16 @@ class MySQLFallbackException : ServerBaseException {
         cause,
         "MySQL fallback failed for OCID: $ocid"
     )
+
+    /**
+     * Create exception with custom message and cause.
+     *
+     * @param message Custom error message
+     * @param cause Root cause exception
+     */
+    constructor(message: String, cause: Throwable) : super(
+        CommonErrorCode.MYSQL_FALLBACK_FAILED,
+        cause,
+        message
+    )
 }

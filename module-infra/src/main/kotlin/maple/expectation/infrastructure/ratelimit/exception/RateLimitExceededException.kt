@@ -1,3 +1,4 @@
+@file:JvmName("RateLimitExceededException")
 package maple.expectation.infrastructure.ratelimit.exception
 
 import maple.expectation.error.CommonErrorCode

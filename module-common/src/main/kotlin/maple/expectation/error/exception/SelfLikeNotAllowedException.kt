@@ -18,4 +18,16 @@ class SelfLikeNotAllowedException : ClientBaseException {
         CommonErrorCode.SELF_LIKE_NOT_ALLOWED,
         "Self-like not allowed for user: $userIgn (OCID: $ocid)"
     )
+
+    /**
+     * Create exception with custom message and cause.
+     *
+     * @param message Custom error message
+     * @param cause Root cause exception
+     */
+    constructor(message: String, cause: Throwable) : super(
+        CommonErrorCode.SELF_LIKE_NOT_ALLOWED,
+        cause,
+        message
+    )
 }

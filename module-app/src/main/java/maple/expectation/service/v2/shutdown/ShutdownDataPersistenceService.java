@@ -20,7 +20,6 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
-import maple.expectation.infrastructure.executor.strategy.ExceptionTranslator;
 import maple.expectation.infrastructure.shutdown.ShutdownProperties;
 import maple.expectation.infrastructure.shutdown.dto.ShutdownData;
 import org.springframework.stereotype.Service;

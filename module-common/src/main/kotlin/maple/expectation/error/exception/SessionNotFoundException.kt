@@ -18,4 +18,16 @@ class SessionNotFoundException : ClientBaseException {
         CommonErrorCode.SESSION_NOT_FOUND,
         sessionId
     )
+
+    /**
+     * Create exception with custom message and cause.
+     *
+     * @param message Custom error message
+     * @param cause Root cause exception
+     */
+    constructor(message: String, cause: Throwable) : super(
+        CommonErrorCode.SESSION_NOT_FOUND,
+        cause,
+        message
+    )
 }

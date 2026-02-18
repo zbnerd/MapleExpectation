@@ -18,4 +18,16 @@ class TokenReusedException : ClientBaseException {
         CommonErrorCode.TOKEN_USED,
         tokenId
     )
+
+    /**
+     * Create exception with custom message and cause.
+     *
+     * @param message Custom error message
+     * @param cause Root cause exception
+     */
+    constructor(message: String, cause: Throwable) : super(
+        CommonErrorCode.TOKEN_USED,
+        cause,
+        message
+    )
 }

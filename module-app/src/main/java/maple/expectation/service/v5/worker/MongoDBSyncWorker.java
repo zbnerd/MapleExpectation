@@ -203,14 +203,14 @@ public class MongoDBSyncWorker implements Runnable {
 
     executor.executeVoid(
         () -> {
-          try {
-            // Deserialize IntegrationEvent wrapper
-            String payloadJson = data.get("payload");
-            if (payloadJson == null) {
-              log.warn("[MongoDBSyncWorker] No payload in message");
-              return;
-            }
+          // Deserialize IntegrationEvent wrapper
+          String payloadJson = data.get("payload");
+          if (payloadJson == null) {
+            log.warn("[MongoDBSyncWorker] No payload in message");
+            return;
+          }
 
+          try {
             // Deserialize to ExpectationCalculationCompletedEvent
             ExpectationCalculationCompletedEvent event =
                 objectMapper.readValue(payloadJson, ExpectationCalculationCompletedEvent.class);
@@ -223,10 +223,10 @@ public class MongoDBSyncWorker implements Runnable {
                 "[MongoDBSyncWorker] Synced to MongoDB: userIgn={}, ocid={}",
                 event.getUserIgn(),
                 event.getCharacterOcid());
-
-          } catch (Exception e) {
-            log.error("[MongoDBSyncWorker] Failed to process message: {}", messageId, e);
-            throw e;
+          } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            log.error("[MongoDBSyncWorker] Failed to deserialize message: {}", messageId, e);
+            throw new maple.expectation.error.exception.InternalSystemException(
+                "메시지 역직렬화 실패: " + messageId, e);
           }
         },
         context);

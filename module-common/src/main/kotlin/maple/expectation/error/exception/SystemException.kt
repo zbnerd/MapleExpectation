@@ -4,7 +4,7 @@ package maple.expectation.error.exception
 import maple.expectation.error.ErrorCode
 import maple.expectation.error.exception.base.ServerBaseException
 
-class SystemException : ServerBaseException {
+open class SystemException : ServerBaseException {
 
     constructor(errorCode: ErrorCode) : super(errorCode)
 
@@ -16,5 +16,17 @@ class SystemException : ServerBaseException {
         errorCode,
         cause,
         *args
+    )
+
+    /**
+     * Create exception with custom message and cause.
+     *
+     * @param message Custom error message
+     * @param cause Root cause exception
+     */
+    constructor(message: String, cause: Throwable) : super(
+        maple.expectation.error.CommonErrorCode.SYSTEM_ERROR,
+        cause,
+        message
     )
 }

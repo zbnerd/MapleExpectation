@@ -11,9 +11,19 @@ import maple.expectation.error.exception.base.ServerBaseException
  *
  * @property message 실패 메시지 (optional)
  */
-class CubeDataInitializationException(
+open class CubeDataInitializationException(
     message: String? = null
 ) : ServerBaseException(
     CommonErrorCode.DATA_INITIALIZATION_FAILED,
     message ?: "큐브 데이터"
-)
+) {
+    /**
+     * Create exception with custom message and cause.
+     *
+     * @param message Custom error message
+     * @param cause Root cause exception
+     */
+    constructor(message: String, cause: Throwable) : this(message) {
+        initCause(cause)
+    }
+}

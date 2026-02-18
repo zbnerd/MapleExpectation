@@ -18,4 +18,16 @@ class InvalidRefreshTokenException : ClientBaseException {
         CommonErrorCode.INVALID_REFRESH_TOKEN,
         token
     )
+
+    /**
+     * Create exception with custom message and cause.
+     *
+     * @param message Custom error message
+     * @param cause Root cause exception
+     */
+    constructor(message: String, cause: Throwable) : super(
+        CommonErrorCode.INVALID_REFRESH_TOKEN,
+        cause,
+        message
+    )
 }

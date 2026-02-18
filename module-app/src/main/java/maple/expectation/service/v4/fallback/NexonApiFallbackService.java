@@ -98,11 +98,25 @@ public class NexonApiFallbackService {
   }
 
   /** Nexon API 직접 호출 */
-  private EquipmentResponse callNexonApiDirect(String ocid) throws Exception {
+  private EquipmentResponse callNexonApiDirect(String ocid) {
     CompletableFuture<EquipmentResponse> future = realNexonApiClient.getItemDataByOcid(ocid);
 
     // 타임아웃 적용 (기존 TimeLimiter 설정과 동일: 28초)
-    return future.get(28, TimeUnit.SECONDS);
+    try {
+      return future.get(28, TimeUnit.SECONDS);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new maple.expectation.error.exception.InternalSystemException(
+          "Nexon API 호출 중 인터럽트 발생", e);
+    } catch (java.util.concurrent.TimeoutException e) {
+      throw new maple.expectation.error.exception.ExternalApiException(
+          maple.expectation.error.CommonErrorCode.API_TIMEOUT, e, "Nexon API 호출 타임아웃 (28초)");
+    } catch (java.util.concurrent.ExecutionException e) {
+      throw new maple.expectation.error.exception.ExternalApiException(
+          maple.expectation.error.CommonErrorCode.EXTERNAL_API_ERROR,
+          e.getCause(),
+          "Nexon API 호출 실패");
+    }
   }
 
   /**
@@ -110,15 +124,20 @@ public class NexonApiFallbackService {
    *
    * <p>DEGRADED 상태에서는 DynamicTTLManager가 TTL을 제거(PERSIST)하므로, 여기서는 기본 TTL로 저장합니다.
    */
-  private void saveToRedisCache(String ocid, EquipmentResponse response) throws Exception {
-    String cacheKey = CACHE_KEY_PREFIX + ocid;
-    String json = objectMapper.writeValueAsString(response);
+  private void saveToRedisCache(String ocid, EquipmentResponse response) {
+    try {
+      String cacheKey = CACHE_KEY_PREFIX + ocid;
+      String json = objectMapper.writeValueAsString(response);
 
-    RBucket<String> bucket = redissonClient.getBucket(cacheKey);
-    // 기본 TTL 10분 설정 (DEGRADED 상태에서는 PERSIST됨)
-    bucket.set(json, Duration.ofMinutes(10));
+      RBucket<String> bucket = redissonClient.getBucket(cacheKey);
+      // 기본 TTL 10분 설정 (DEGRADED 상태에서는 PERSIST됨)
+      bucket.set(json, Duration.ofMinutes(10));
 
-    log.debug("[Fallback] Redis 캐시 저장: key={}", cacheKey);
+      log.debug("[Fallback] Redis 캐시 저장: key={}", cacheKey);
+    } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+      throw new maple.expectation.error.exception.InternalSystemException(
+          "Redis 캐시 직렬화 실패: ocid=" + ocid, e);
+    }
   }
 
   /** Compensation Log 기록 */

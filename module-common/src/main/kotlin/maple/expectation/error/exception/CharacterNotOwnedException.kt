@@ -13,4 +13,16 @@ class CharacterNotOwnedException : ClientBaseException {
         CommonErrorCode.CHARACTER_NOT_OWNED,
         identifier
     )
+
+    /**
+     * Create exception with custom message and cause.
+     *
+     * @param message Custom error message
+     * @param cause Root cause exception
+     */
+    constructor(message: String, cause: Throwable) : super(
+        CommonErrorCode.CHARACTER_NOT_OWNED,
+        cause,
+        message
+    )
 }

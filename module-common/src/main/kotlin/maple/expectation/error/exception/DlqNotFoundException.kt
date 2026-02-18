@@ -21,4 +21,16 @@ class DlqNotFoundException : ClientBaseException {
         CommonErrorCode.DLQ_NOT_FOUND,
         eventId
     )
+
+    /**
+     * Create exception with custom message and cause.
+     *
+     * @param message Custom error message
+     * @param cause Root cause exception
+     */
+    constructor(message: String, cause: Throwable) : super(
+        CommonErrorCode.DLQ_NOT_FOUND,
+        cause,
+        message
+    )
 }

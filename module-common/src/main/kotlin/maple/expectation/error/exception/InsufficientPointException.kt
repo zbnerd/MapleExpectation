@@ -12,11 +12,26 @@ import maple.expectation.error.exception.base.ClientBaseException
  * @property currentPoint 현재 보유 포인트
  * @property requiredPoint 필요한 포인트
  */
-class InsufficientPointException(
-    currentPoint: Long,
-    requiredPoint: Long
-) : ClientBaseException(
-    CommonErrorCode.INSUFFICIENT_POINTS,
-    currentPoint,
-    requiredPoint
-)
+open class InsufficientPointException : ClientBaseException {
+
+    constructor(
+        currentPoint: Long,
+        requiredPoint: Long
+    ) : super(
+        CommonErrorCode.INSUFFICIENT_POINTS,
+        currentPoint,
+        requiredPoint
+    )
+
+    /**
+     * Create exception with custom message and cause.
+     *
+     * @param message Custom error message
+     * @param cause Root cause exception
+     */
+    constructor(message: String, cause: Throwable) : super(
+        CommonErrorCode.INSUFFICIENT_POINTS,
+        cause,
+        message
+    )
+}

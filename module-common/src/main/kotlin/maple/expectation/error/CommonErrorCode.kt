@@ -62,6 +62,9 @@ enum class CommonErrorCode(
     STARFORCE_TABLE_NOT_INITIALIZED("S015", "스타포스 테이블 초기화가 완료되지 않았습니다.", 503),
     CACHE_DATA_NOT_FOUND("S016", "캐시 데이터를 찾을 수 없습니다 (key: %s)", 500),
 
+    // === System Errors (5xx) ===
+    SYSTEM_ERROR("S017", "시스템 오류가 발생했습니다. (%s)", 500),
+
     // === Event Handler Errors ===
     EVENT_HANDLER_ERROR("E001", "이벤트 핸들러가 잘못되었습니다. (%s)", 500),
     EVENT_CONSUMER_ERROR("E002", "이벤트 컨슈머가 잘못되었습니다. (%s)", 500),

@@ -11,7 +11,7 @@ import maple.expectation.error.exception.base.ClientBaseException
  *
  * @property message 실패 메시지
  */
-class InvalidCharacterStateException(message: String) : ClientBaseException(
+open class InvalidCharacterStateException(message: String) : ClientBaseException(
     CommonErrorCode.INVALID_CHARACTER_STATE,
     message
 ) {
@@ -20,4 +20,14 @@ class InvalidCharacterStateException(message: String) : ClientBaseException(
      * expected + actual로 예외 생성 (Java 호환성)
      */
     constructor(expected: String, actual: String) : this("$expected (actual: $actual)")
+
+    /**
+     * Create exception with custom message and cause.
+     *
+     * @param message Custom error message
+     * @param cause Root cause exception
+     */
+    constructor(message: String, cause: Throwable) : this(message) {
+        initCause(cause)
+    }
 }

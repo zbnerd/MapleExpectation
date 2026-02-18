@@ -18,4 +18,16 @@ class AdminMemberNotFoundException : ClientBaseException {
         CommonErrorCode.ADMIN_MEMBER_NOT_FOUND,
         adminFingerprint
     )
+
+    /**
+     * Create exception with custom message and cause.
+     *
+     * @param message Custom error message
+     * @param cause Root cause exception
+     */
+    constructor(message: String, cause: Throwable) : super(
+        CommonErrorCode.ADMIN_MEMBER_NOT_FOUND,
+        cause,
+        message
+    )
 }

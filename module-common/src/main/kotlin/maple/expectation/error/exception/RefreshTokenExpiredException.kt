@@ -18,4 +18,16 @@ class RefreshTokenExpiredException : ClientBaseException {
         CommonErrorCode.REFRESH_TOKEN_EXPIRED,
         token
     )
+
+    /**
+     * Create exception with custom message and cause.
+     *
+     * @param message Custom error message
+     * @param cause Root cause exception
+     */
+    constructor(message: String, cause: Throwable) : super(
+        CommonErrorCode.REFRESH_TOKEN_EXPIRED,
+        cause,
+        message
+    )
 }

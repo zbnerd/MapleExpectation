@@ -21,4 +21,16 @@ class UnsupportedCalculationEngineException : ServerBaseException {
         CommonErrorCode.INVALID_INPUT_VALUE,
         engine
     )
+
+    /**
+     * Create exception with custom message and cause.
+     *
+     * @param message Custom error message
+     * @param cause Root cause exception
+     */
+    constructor(message: String, cause: Throwable) : super(
+        CommonErrorCode.INVALID_INPUT_VALUE,
+        cause,
+        message
+    )
 }

@@ -25,7 +25,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.annotation.DirtiesContext;
 
 /**
  * DonationService 통합 테스트
@@ -42,12 +41,11 @@ import org.springframework.test.annotation.DirtiesContext;
  *
  * <p>CLAUDE.md Section 24 준수: @Execution(SAME_THREAD)로 병렬 실행 충돌 방지
  *
- * <p>IntegrationTestSupport 상속: 격리된 Redis 컨테이너 사용
+ * <p>IntegrationTestSupport 상속: DatabaseCleaner + @BeforeEach로 테스트 격리
  */
 @Slf4j
 @EnableTimeLogging
 @Execution(ExecutionMode.SAME_THREAD)
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 @Tag("concurrency")
 public class DonationTest extends IntegrationTestSupport {
 
