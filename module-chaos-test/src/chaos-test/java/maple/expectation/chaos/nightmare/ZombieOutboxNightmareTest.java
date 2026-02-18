@@ -65,6 +65,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 @Slf4j
 @Tag("nightmare")
 @DisplayName("Nightmare 13: Zombie Outbox - 영원히 처리되지 않는 메시지")
+@org.springframework.test.annotation.DirtiesContext(
+    classMode = org.springframework.test.annotation.DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class ZombieOutboxNightmareTest extends IntegrationTestSupport {
 
   @Autowired private DataSource dataSource;
