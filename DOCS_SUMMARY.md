@@ -24,7 +24,7 @@
 ### 7대 공통 인프라 모듈
 
 #### 1) LogicExecutor — Cross-Cutting 실행 프레임워크
-**문제**: 35+ 서비스에서 try-catch 패턴이 제각각 → 장애 시 에러 추적 불가
+**문제**: 프로젝트 전반에서 try-catch 패턴이 제각각 → 장애 시 에러 추적 불가
 
 **해결**: 모든 실행 흐름을 LogicExecutor에 위임
 ```java
@@ -175,31 +175,7 @@ DB 저장 150ms → 0.1ms (1,500x 개선)
 
 ---
 
-## 5. 향후 로드맵 (0.5페이지)
-
-### Phase 7: CQRS/마이크로서비스 전환 (ADR-037 ~ ADR-039)
-**현재 진행 중**:
-- MongoDB 도입으로 Command/Query 분리
-- 이벤트 소싱으로 데이터 일관성 보장
-- CQRS 패턴으로 읽기/쓰기 분리
-
-### 선행 의존 관계
-```
-#283 → #282 → #126
-  ↓      ↓      ↓
-완료    진행 중  계획
-```
-
-### 주요 ADR 결정사항
-- ADR-001: Streaming Parser
-- ADR-003: Tiered Cache + Singleflight
-- ADR-004: LogicExecutor + Pipeline
-- ADR-010: Transactional Outbox
-- ADR-014: Multi-module Cross-Cutting Concerns
-
----
-
-## 6. 부록: 주요 결정 사항 요약 (1페이지)
+## 5. 부록: 주요 결정 사항 요약 (1페이지)
 
 ### ADR 주요 결정사항 (001-034)
 
@@ -256,7 +232,7 @@ DB 저장 150ms → 0.1ms (1,500x 개선)
 #### 테스트 전략
 **Flaky Test 방지**:
 - Testcontainers로 통합 테스트 환경 구축
-- `@DirtiesContext`로 테스트 격리
+- DatabaseCleaner + `@BeforeEach`로 테스트 격리
 - 경량 테스트 강제 규칙
 
 ### Git 전략
@@ -278,9 +254,9 @@ MapleExpectation은 단순한 도메인 애플리케이션을 넘어, **"대규�
 5. ADR로 체계적인 아키텍처 진화
 
 **면접 시 어필 포인트**:
-- "Java로 설계한 시스템을 Kotlin으로 마이그레이션하며 어떤 개선이 있었는지"
-- "35+ 서비스에 LogicExecutor 패턴을 적용하여 에러 추적 가능하게 만듦"
+- "프로젝트 전반에 LogicExecutor 패턴을 적용하여 에러 추적 가능하게 만듦"
 - "Nightmare Tests N01-N18으로 장애 상황에서의 시스템 안정성 검증"
 - "t3.large가 비용 대비 성능 최적점임을 데이터로 증명"
+- "ADR 기반으로 체계적인 아키텍처 진화 관리"
 
 이 프로젝트는 토스증권과 같은 대규모 트래픽을 처리하는 핀테크 회사에서의 백엔드 설계 역량을 증명하는 강력한 포트폴리오입니다.
