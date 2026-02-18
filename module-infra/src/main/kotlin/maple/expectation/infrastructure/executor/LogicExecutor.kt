@@ -49,6 +49,15 @@ interface LogicExecutor : BasicExecutor, SafeExecutor, ResilientExecutor {
     ): T
 
     /**
+     * Java-friendly overload using ExceptionTranslator
+     */
+    fun <T> executeWithFallback(
+        task: ThrowingSupplier<T>,
+        fallback: ExceptionTranslator,
+        context: TaskContext
+    ): T
+
+    /**
      * [패턴 5] 예외 발생 시 **번역된 예외**로 복구 로직 실행
      *
      * {@link #executeWithFallback}과의 차이:
@@ -58,6 +67,15 @@ interface LogicExecutor : BasicExecutor, SafeExecutor, ResilientExecutor {
     override fun <T> executeOrCatch(
         task: ThrowingSupplier<T>,
         recovery: (Throwable) -> T,
+        context: TaskContext
+    ): T
+
+    /**
+     * Java-friendly overload using ExceptionTranslator
+     */
+    fun <T> executeOrCatch(
+        task: ThrowingSupplier<T>,
+        recovery: ExceptionTranslator,
         context: TaskContext
     ): T
 
