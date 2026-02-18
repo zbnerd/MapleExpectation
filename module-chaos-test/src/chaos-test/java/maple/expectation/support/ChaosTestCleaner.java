@@ -2,9 +2,8 @@ package maple.expectation.support;
 
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.CacheManager;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -37,14 +36,24 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
-@ConditionalOnProperty(name = "spring.profiles.active", havingValue = "chaos")
 public class ChaosTestCleaner {
 
   private final JdbcTemplate jdbcTemplate;
   private final RedisTemplate<String, Object> redisTemplate;
   private final CacheManager cacheManager;
   private final CircuitBreakerRegistry circuitBreakerRegistry;
+
+  @Autowired
+  public ChaosTestCleaner(
+      JdbcTemplate jdbcTemplate,
+      @Autowired(required = false) RedisTemplate<String, Object> redisTemplate,
+      @Autowired(required = false) CacheManager cacheManager,
+      @Autowired(required = false) CircuitBreakerRegistry circuitBreakerRegistry) {
+    this.jdbcTemplate = jdbcTemplate;
+    this.redisTemplate = redisTemplate;
+    this.cacheManager = cacheManager;
+    this.circuitBreakerRegistry = circuitBreakerRegistry;
+  }
 
   /**
    * Perform comprehensive environment cleanup.
