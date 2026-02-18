@@ -108,7 +108,7 @@ interface CheckedLogicExecutor {
     fun <T> executeUnchecked(
         task: CheckedSupplier<T>,
         context: TaskContext,
-        mapper: (Exception) -> RuntimeException
+        mapper: java.util.function.Function<Exception, RuntimeException>
     ): T
 
     /**
@@ -117,7 +117,7 @@ interface CheckedLogicExecutor {
     fun executeUncheckedVoid(
         task: CheckedRunnable,
         context: TaskContext,
-        mapper: (Exception) -> RuntimeException
+        mapper: java.util.function.Function<Exception, RuntimeException>
     ) {
         executeUnchecked(
             task = {
@@ -160,7 +160,7 @@ interface CheckedLogicExecutor {
         task: CheckedSupplier<T>,
         finalizer: CheckedRunnable,
         context: TaskContext,
-        mapper: (Exception) -> RuntimeException
+        mapper: java.util.function.Function<Exception, RuntimeException>
     ): T
 
     /**
@@ -170,7 +170,7 @@ interface CheckedLogicExecutor {
         task: CheckedRunnable,
         finalizer: CheckedRunnable,
         context: TaskContext,
-        mapper: (Exception) -> RuntimeException
+        mapper: java.util.function.Function<Exception, RuntimeException>
     ) {
         executeWithFinallyUnchecked(
             task = {

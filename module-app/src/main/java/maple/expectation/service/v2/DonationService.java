@@ -103,7 +103,7 @@ public class DonationService {
 
   private void validateAdmin(String adminFingerprint) {
     if (!adminService.isAdmin(adminFingerprint)) {
-      throw new AdminNotFoundException();
+      throw new AdminNotFoundException("Admin not found: " + adminFingerprint);
     }
   }
 

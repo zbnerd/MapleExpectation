@@ -104,9 +104,9 @@ class JwtTokenProviderTest {
 
       // then
       assertThat(parsed).isPresent();
-      assertThat(parsed.get().sessionId()).isEqualTo(sessionId);
-      assertThat(parsed.get().fingerprint()).isEqualTo(fingerprint);
-      assertThat(parsed.get().role()).isEqualTo(role);
+      assertThat(parsed.get().getSessionId()).isEqualTo(sessionId);
+      assertThat(parsed.get().getFingerprint()).isEqualTo(fingerprint);
+      assertThat(parsed.get().getRole()).isEqualTo(role);
     }
   }
 
@@ -127,9 +127,9 @@ class JwtTokenProviderTest {
       // then
       assertThat(result).isPresent();
       JwtPayload parsed = result.get();
-      assertThat(parsed.sessionId()).isEqualTo("session-abc");
-      assertThat(parsed.fingerprint()).isEqualTo("fp-123");
-      assertThat(parsed.role()).isEqualTo("USER");
+      assertThat(parsed.getSessionId()).isEqualTo("session-abc");
+      assertThat(parsed.getFingerprint()).isEqualTo("fp-123");
+      assertThat(parsed.getRole()).isEqualTo("USER");
     }
 
     @Test

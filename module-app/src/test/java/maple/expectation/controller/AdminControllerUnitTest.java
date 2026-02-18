@@ -176,7 +176,7 @@ class AdminControllerUnitTest {
 
       // Then
       assertThat(response.getStatusCode().value()).isEqualTo(200);
-      assertThat(response.getBody().success()).isTrue();
+      assertThat(response.getBody().getSuccess()).isTrue();
     }
   }
 
@@ -197,8 +197,8 @@ class AdminControllerUnitTest {
 
       // Then: 자기 자신이므로 400 Bad Request
       assertThat(response.getStatusCode().value()).isEqualTo(400);
-      assertThat(response.getBody().success()).isFalse();
-      assertThat(response.getBody().error().code()).contains("SELF_REMOVAL_NOT_ALLOWED");
+      assertThat(response.getBody().getSuccess()).isFalse();
+      assertThat(response.getBody().getError().getCode()).contains("SELF_REMOVAL_NOT_ALLOWED");
     }
   }
 
@@ -217,8 +217,8 @@ class AdminControllerUnitTest {
       var result = adminController.getAdmins().join();
 
       // Then
-      assertThat(result.getBody().data()).isNotNull();
-      assertThat(result.getBody().success()).isTrue();
+      assertThat(result.getBody().getData()).isNotNull();
+      assertThat(result.getBody().getSuccess()).isTrue();
       verify(adminService).getAllAdmins();
     }
   }

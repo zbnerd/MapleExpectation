@@ -10,9 +10,9 @@ import java.time.Instant;
 import java.util.Optional;
 import maple.expectation.domain.RefreshToken;
 import maple.expectation.domain.repository.RedisRefreshTokenRepository;
-import maple.expectation.error.exception.auth.InvalidRefreshTokenException;
-import maple.expectation.error.exception.auth.RefreshTokenExpiredException;
-import maple.expectation.error.exception.auth.TokenReusedException;
+import maple.expectation.error.exception.InvalidRefreshTokenException;
+import maple.expectation.error.exception.RefreshTokenExpiredException;
+import maple.expectation.error.exception.TokenReusedException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -69,11 +69,11 @@ class RefreshTokenServiceTest {
 
       // then
       assertThat(token).isNotNull();
-      assertThat(token.sessionId()).isEqualTo(SESSION_ID);
-      assertThat(token.fingerprint()).isEqualTo(FINGERPRINT);
-      assertThat(token.familyId()).isNotNull();
-      assertThat(token.used()).isFalse();
-      assertThat(token.isExpired()).isFalse();
+      assertThat(token.getSessionId()).isEqualTo(SESSION_ID);
+      assertThat(token.getFingerprint()).isEqualTo(FINGERPRINT);
+      assertThat(token.getFamilyId()).isNotNull();
+      assertThat(token.getUsed()).isFalse();
+      assertThat(token.getExpired()).isFalse();
 
       verify(refreshTokenRepository).save(any(RefreshToken.class));
     }
@@ -98,10 +98,10 @@ class RefreshTokenServiceTest {
 
       // then
       assertThat(newToken).isNotNull();
-      assertThat(newToken.refreshTokenId()).isNotEqualTo(REFRESH_TOKEN_ID); // 새 ID
-      assertThat(newToken.sessionId()).isEqualTo(SESSION_ID);
-      assertThat(newToken.familyId()).isEqualTo(FAMILY_ID); // 동일 Family
-      assertThat(newToken.used()).isFalse();
+      assertThat(newToken.getRefreshTokenId()).isNotEqualTo(REFRESH_TOKEN_ID); // 새 ID
+      assertThat(newToken.getSessionId()).isEqualTo(SESSION_ID);
+      assertThat(newToken.getFamilyId()).isEqualTo(FAMILY_ID); // 동일 Family
+      assertThat(newToken.getUsed()).isFalse();
 
       // 기존 토큰 사용 처리 확인 (Atomic check-and-mark)
       verify(refreshTokenRepository).checkAndMarkAsUsed(REFRESH_TOKEN_ID);

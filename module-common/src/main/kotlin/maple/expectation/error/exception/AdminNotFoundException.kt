@@ -4,7 +4,14 @@ package maple.expectation.error.exception
 import maple.expectation.error.CommonErrorCode
 import maple.expectation.error.exception.base.ClientBaseException
 
-class AdminNotFoundException(adminId: String) : ClientBaseException(
-    CommonErrorCode.ADMIN_NOT_FOUND,
-    adminId
-)
+open class AdminNotFoundException : ClientBaseException {
+
+    constructor(adminId: String) : super(
+        CommonErrorCode.ADMIN_NOT_FOUND,
+        adminId
+    )
+
+    constructor() : super(
+        CommonErrorCode.ADMIN_NOT_FOUND
+    )
+}
