@@ -128,23 +128,24 @@ class AuthServiceTest {
           .willReturn(session);
 
       // TokenService: Token 쌍 생성 (Access + Refresh)
+      // Use accessToken() method (Kotlin data class explicit accessor)
       TokenPair tokenPair = mock(TokenPair.class);
-      given(tokenPair.getAccessToken()).willReturn(ACCESS_TOKEN);
-      given(tokenPair.getAccessTokenExpiresIn()).willReturn(EXPIRATION_SECONDS);
-      given(tokenPair.getRefreshTokenId()).willReturn(REFRESH_TOKEN_ID);
-      given(tokenPair.getRefreshTokenExpiresIn()).willReturn(REFRESH_EXPIRATION_SECONDS);
+      given(tokenPair.accessToken()).willReturn(ACCESS_TOKEN);
+      given(tokenPair.accessTokenExpiresIn()).willReturn(EXPIRATION_SECONDS);
+      given(tokenPair.refreshTokenId()).willReturn(REFRESH_TOKEN_ID);
+      given(tokenPair.refreshTokenExpiresIn()).willReturn(REFRESH_EXPIRATION_SECONDS);
       given(tokenService.createTokens(session)).willReturn(tokenPair);
 
       // when
       LoginResponse response = authService.login(request);
 
-      // then
-      assertThat(response.getAccessToken()).isEqualTo(ACCESS_TOKEN);
-      assertThat(response.getExpiresIn()).isEqualTo(EXPIRATION_SECONDS);
-      assertThat(response.getRole()).isEqualTo("USER");
-      assertThat(response.getFingerprint()).isEqualTo(FINGERPRINT);
-      assertThat(response.getRefreshToken()).isEqualTo(REFRESH_TOKEN_ID);
-      assertThat(response.getRefreshExpiresIn()).isEqualTo(REFRESH_EXPIRATION_SECONDS);
+      // then - use safe accessors for nullable Kotlin fields
+      assertThat(response.getAccessTokenSafe()).isEqualTo(ACCESS_TOKEN);
+      assertThat(response.getExpiresInSafe()).isEqualTo(EXPIRATION_SECONDS);
+      assertThat(response.getRoleSafe()).isEqualTo("USER");
+      assertThat(response.getFingerprintSafe()).isEqualTo(FINGERPRINT);
+      assertThat(response.getRefreshTokenSafe()).isEqualTo(REFRESH_TOKEN_ID);
+      assertThat(response.getRefreshExpiresInSafe()).isEqualTo(REFRESH_EXPIRATION_SECONDS);
     }
 
     @Test
@@ -182,17 +183,17 @@ class AuthServiceTest {
           .willReturn(session);
 
       TokenPair tokenPair = mock(TokenPair.class);
-      given(tokenPair.getAccessToken()).willReturn(ACCESS_TOKEN);
-      given(tokenPair.getAccessTokenExpiresIn()).willReturn(EXPIRATION_SECONDS);
-      given(tokenPair.getRefreshTokenId()).willReturn(REFRESH_TOKEN_ID);
-      given(tokenPair.getRefreshTokenExpiresIn()).willReturn(REFRESH_EXPIRATION_SECONDS);
+      given(tokenPair.accessToken()).willReturn(ACCESS_TOKEN);
+      given(tokenPair.accessTokenExpiresIn()).willReturn(EXPIRATION_SECONDS);
+      given(tokenPair.refreshTokenId()).willReturn(REFRESH_TOKEN_ID);
+      given(tokenPair.refreshTokenExpiresIn()).willReturn(REFRESH_EXPIRATION_SECONDS);
       given(tokenService.createTokens(session)).willReturn(tokenPair);
 
       // when
       LoginResponse response = authService.login(request);
 
-      // then
-      assertThat(response.getRole()).isEqualTo("ADMIN");
+      // then - use safe accessor for nullable Kotlin field
+      assertThat(response.getRoleSafe()).isEqualTo("ADMIN");
     }
 
     @Test
@@ -231,17 +232,17 @@ class AuthServiceTest {
           .willReturn(session);
 
       TokenPair tokenPair = mock(TokenPair.class);
-      given(tokenPair.getAccessToken()).willReturn(ACCESS_TOKEN);
-      given(tokenPair.getAccessTokenExpiresIn()).willReturn(EXPIRATION_SECONDS);
-      given(tokenPair.getRefreshTokenId()).willReturn(REFRESH_TOKEN_ID);
-      given(tokenPair.getRefreshTokenExpiresIn()).willReturn(REFRESH_EXPIRATION_SECONDS);
+      given(tokenPair.accessToken()).willReturn(ACCESS_TOKEN);
+      given(tokenPair.accessTokenExpiresIn()).willReturn(EXPIRATION_SECONDS);
+      given(tokenPair.refreshTokenId()).willReturn(REFRESH_TOKEN_ID);
+      given(tokenPair.refreshTokenExpiresIn()).willReturn(REFRESH_EXPIRATION_SECONDS);
       given(tokenService.createTokens(any(Session.class))).willReturn(tokenPair);
 
       // when
       LoginResponse response = authService.login(request);
 
-      // then
-      assertThat(response.getAccessToken()).isEqualTo(ACCESS_TOKEN);
+      // then - use safe accessor for nullable Kotlin field
+      assertThat(response.getAccessTokenSafe()).isEqualTo(ACCESS_TOKEN);
     }
 
     @Test
@@ -274,14 +275,14 @@ class AuthServiceTest {
           .willReturn(session);
 
       TokenPair tokenPair = mock(TokenPair.class);
-      given(tokenPair.getAccessToken()).willReturn(ACCESS_TOKEN);
+      given(tokenPair.accessToken()).willReturn(ACCESS_TOKEN);
       given(tokenService.createTokens(session)).willReturn(tokenPair);
 
       // when
       LoginResponse response = authService.login(request);
 
-      // then
-      assertThat(response.getAccessToken()).isNotNull();
+      // then - use safe accessor for nullable Kotlin field
+      assertThat(response.getAccessTokenSafe()).isNotEmpty();
     }
   }
 
@@ -358,20 +359,20 @@ class AuthServiceTest {
 
       given(sessionManager.getSession(SESSION_ID)).willReturn(session);
 
-      given(tokenPair.getAccessToken()).willReturn("new-access-token");
-      given(tokenPair.getAccessTokenExpiresIn()).willReturn(EXPIRATION_SECONDS);
-      given(tokenPair.getRefreshTokenId()).willReturn("new-refresh-token-id");
-      given(tokenPair.getRefreshTokenExpiresIn()).willReturn(REFRESH_EXPIRATION_SECONDS);
+      given(tokenPair.accessToken()).willReturn("new-access-token");
+      given(tokenPair.accessTokenExpiresIn()).willReturn(EXPIRATION_SECONDS);
+      given(tokenPair.refreshTokenId()).willReturn("new-refresh-token-id");
+      given(tokenPair.refreshTokenExpiresIn()).willReturn(REFRESH_EXPIRATION_SECONDS);
       given(tokenService.rotateTokens(REFRESH_TOKEN_ID)).willReturn(tokenPair);
 
       // when
       TokenResponse response = authService.refresh(REFRESH_TOKEN_ID);
 
-      // then
-      assertThat(response.getAccessToken()).isEqualTo("new-access-token");
+      // then - use safe accessors for nullable Kotlin fields
+      assertThat(response.getAccessTokenSafe()).isEqualTo("new-access-token");
       assertThat(response.accessExpiresIn()).isEqualTo(EXPIRATION_SECONDS);
-      assertThat(response.getRefreshToken()).isEqualTo("new-refresh-token-id");
-      assertThat(response.getRefreshExpiresIn()).isEqualTo(REFRESH_EXPIRATION_SECONDS);
+      assertThat(response.getRefreshTokenSafe()).isEqualTo("new-refresh-token-id");
+      assertThat(response.getRefreshExpiresInSafe()).isEqualTo(REFRESH_EXPIRATION_SECONDS);
     }
 
     @Test

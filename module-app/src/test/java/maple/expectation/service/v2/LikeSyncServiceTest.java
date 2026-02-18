@@ -11,6 +11,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import kotlin.jvm.functions.Function1;
 import maple.expectation.common.function.ThrowingSupplier;
 import maple.expectation.domain.repository.RedisBufferRepository;
 import maple.expectation.infrastructure.executor.LogicExecutor;
@@ -112,14 +113,35 @@ class LikeSyncServiceTest {
         .when(executor)
         .executeOrDefault(any(), any(), any());
 
-    // [패턴 4] executeOrCatch: Task 실행 시도 -> 예외 시 Handler 실행
-    // Note: Using ExceptionTranslator overload to avoid Kotlin Function1 ambiguity
+    // [패턴 4a] executeOrCatch: Kotlin Function1 version (Java lambdas use this)
     lenient()
-        .doAnswer(
+        .when(
+            executor.executeOrCatch(
+                any(ThrowingSupplier.class), any(Function1.class), any(TaskContext.class)))
+        .thenAnswer(
             inv -> {
               ThrowingSupplier<?> task = inv.getArgument(0);
-              maple.expectation.infrastructure.executor.strategy.ExceptionTranslator handler =
-                  inv.getArgument(1);
+              Function1<Throwable, ?> recovery = inv.getArgument(1);
+              try {
+                return task.get();
+              } catch (Error err) {
+                throw err; // Error는 복구 금지
+              } catch (Throwable t) {
+                return recovery.invoke(t);
+              }
+            });
+
+    // [패턴 4b] executeOrCatch: ExceptionTranslator version
+    lenient()
+        .when(
+            executor.executeOrCatch(
+                any(ThrowingSupplier.class),
+                any(ExceptionTranslator.class),
+                any(TaskContext.class)))
+        .thenAnswer(
+            inv -> {
+              ThrowingSupplier<?> task = inv.getArgument(0);
+              ExceptionTranslator handler = inv.getArgument(1);
               try {
                 return task.get();
               } catch (Error err) {
@@ -127,9 +149,7 @@ class LikeSyncServiceTest {
               } catch (Throwable t) {
                 return handler.translate(t, inv.getArgument(2));
               }
-            })
-        .when(executor)
-        .executeOrCatch(any(), any(ExceptionTranslator.class), any());
+            });
 
     // MeterRegistry mock 설정
     lenient().when(meterRegistry.counter(anyString())).thenReturn(mockCounter);

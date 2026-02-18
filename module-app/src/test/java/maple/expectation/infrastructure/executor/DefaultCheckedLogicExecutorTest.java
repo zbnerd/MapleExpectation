@@ -151,9 +151,13 @@ class DefaultCheckedLogicExecutorTest {
     @SuppressWarnings("unchecked")
     void taskThrowsNonExceptionThrowable_throwsIllegalStateException() throws Throwable {
       // given: Pipeline이 Throwable (non-Exception)을 던지도록 설정
+      // Note: Mockito's thenThrow() cannot throw non-Exception Throwable, so use thenAnswer()
       Throwable customThrowable = new Throwable("custom throwable") {};
       when(pipeline.executeRaw(any(ThrowingSupplier.class), any(TaskContext.class)))
-          .thenThrow(customThrowable);
+          .thenAnswer(
+              invocation -> {
+                throw customThrowable;
+              });
       Function<Exception, RuntimeException> mapper = e -> new RuntimeException(e);
 
       // when & then

@@ -55,6 +55,7 @@ class PotentialCalculatorTest {
   void calculate_manual_test() {
     // given
     EquipmentResponse.ItemEquipment item = new EquipmentResponse.ItemEquipment();
+    item.setItemName("TestEquipment"); // Required for TaskContext.of() - non-null in Kotlin
     item.setPotentialOption1("STR +12%");
     item.setPotentialOption2("STR +9%");
     item.setPotentialOption3("올스탯 +6%");
