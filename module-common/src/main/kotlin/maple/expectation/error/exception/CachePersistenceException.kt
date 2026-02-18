@@ -4,23 +4,16 @@ package maple.expectation.error.exception
 import maple.expectation.error.CommonErrorCode
 import maple.expectation.error.exception.base.ServerBaseException
 
-open class CachePersistenceException : ServerBaseException {
-
-    constructor(ocid: String, cause: Throwable?) : super(
-        CommonErrorCode.DATA_PROCESSING_ERROR,
-        cause ?: RuntimeException("Cache persistence failed"),
-        "캐시 영속화 실패 (ocid: $ocid)"
-    )
-
-    /**
-     * Create exception with custom message and cause.
-     *
-     * @param message Custom error message
-     * @param cause Root cause exception
-     */
-    constructor(message: String, cause: Throwable) : super(
-        CommonErrorCode.DATA_PROCESSING_ERROR,
-        cause,
-        message
-    )
-}
+/**
+ * 캐시 영속화 실패 예외 (5xx Server Error)
+ *
+ * 캐시 데이터를 영구 저장소에 저장하는 중 오류가 발생했습니다.
+ *
+ * @property ocid 캐릭터 OCID
+ * @property cause 원인 예외 (optional)
+ */
+open class CachePersistenceException(ocid: String, cause: Throwable? = null) : ServerBaseException(
+    CommonErrorCode.DATA_PROCESSING_ERROR,
+    cause ?: RuntimeException("Cache persistence failed"),
+    "캐시 영속화 실패 (ocid: $ocid)"
+)

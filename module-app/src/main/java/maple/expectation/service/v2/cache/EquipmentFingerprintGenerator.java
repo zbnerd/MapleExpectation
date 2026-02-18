@@ -4,12 +4,12 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Base64;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.infrastructure.executor.CheckedLogicExecutor;
-import maple.expectation.infrastructure.executor.TaskContext;
 import org.springframework.stereotype.Component;
 
 /**
@@ -80,16 +80,16 @@ public class EquipmentFingerprintGenerator {
   /**
    * SHA-256 해시 (thread-safe)
    *
-   * <p>NoSuchAlgorithmException은 JVM에서 SHA-256을 항상 지원하므로 사실상 발생하지 않지만, checked 예외이므로
-   * CheckedLogicExecutor로 처리합니다.
+   * <p>NoSuchAlgorithmException은 JVM에서 SHA-256을 항상 지원하므로 사실상 발생하지 않지만, checked 예외이므로 try-catch로
+   * 처리합니다.
    */
   private byte[] sha256(String input) {
-    return checkedExecutor.executeUnchecked(
-        () -> {
-          MessageDigest digest = MessageDigest.getInstance("SHA-256");
-          return digest.digest(input.getBytes(StandardCharsets.UTF_8));
-        },
-        TaskContext.of("Fingerprint", "SHA256"),
-        e -> new IllegalStateException("SHA-256 not available", e));
+    try {
+      MessageDigest digest = MessageDigest.getInstance("SHA-256");
+      return digest.digest(input.getBytes(StandardCharsets.UTF_8));
+    } catch (NoSuchAlgorithmException e) {
+      // JVM 사양상 SHA-256은 항상 제공되므로 이 코드는 실행되지 않음
+      throw new IllegalStateException("SHA-256 algorithm not available", e);
+    }
   }
 }

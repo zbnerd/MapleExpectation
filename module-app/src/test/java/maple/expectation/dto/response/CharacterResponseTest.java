@@ -27,9 +27,9 @@ class CharacterResponseTest {
       CharacterResponse response = CharacterResponse.from(entity);
 
       // then
-      assertThat(response.userIgn()).isEqualTo("TestUser");
-      assertThat(response.ocid()).isEqualTo("ocid-12345");
-      assertThat(response.likeCount()).isEqualTo(3L);
+      assertThat(response.getUserIgn()).isEqualTo("TestUser");
+      assertThat(response.getOcid()).isEqualTo("ocid-12345");
+      assertThat(response.getLikeCount()).isEqualTo(3L);
     }
 
     @Test
@@ -42,9 +42,9 @@ class CharacterResponseTest {
       CharacterResponse response = CharacterResponse.from(entity);
 
       // then
-      assertThat(response.userIgn()).isEqualTo("NewUser");
-      assertThat(response.ocid()).isEqualTo("new-ocid");
-      assertThat(response.likeCount()).isZero();
+      assertThat(response.getUserIgn()).isEqualTo("NewUser");
+      assertThat(response.getOcid()).isEqualTo("new-ocid");
+      assertThat(response.getLikeCount()).isZero();
     }
   }
 

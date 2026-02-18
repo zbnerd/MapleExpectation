@@ -66,6 +66,28 @@ class DefaultLogicExecutor(
         }
     }
 
+    override fun <T> executeOrCatch(
+        task: ThrowingSupplier<T>,
+        recovery: ExceptionTranslator,
+        context: TaskContext
+    ): T {
+        requireNotNull(task) { "task must not be null" }
+        requireNotNull(recovery) { "recovery must not be null" }
+        requireNotNull(context) { "context must not be null" }
+
+        return try {
+            // SG1: execute() 재사용 금지, executeRaw 직접 호출
+            pipeline.executeRaw(task, context)
+        } catch (e: Error) {
+            throw e
+        } catch (t: Throwable) {
+            // ExceptionTranslator returns RuntimeException, but we need T
+            // This is unsafe but matches the Java usage pattern where translator is used as recovery
+            @Suppress("UNCHECKED_CAST")
+            return recovery.translate(t, context) as T
+        }
+    }
+
     override fun <T> executeOrDefault(
         task: ThrowingSupplier<T>,
         defaultValue: T,
@@ -164,6 +186,27 @@ class DefaultLogicExecutor(
             throw e
         } catch (t: Throwable) {
             return fallback(t)
+        }
+    }
+
+    override fun <T> executeWithFallback(
+        task: ThrowingSupplier<T>,
+        fallback: ExceptionTranslator,
+        context: TaskContext
+    ): T {
+        requireNotNull(task) { "task must not be null" }
+        requireNotNull(fallback) { "fallback must not be null" }
+        requireNotNull(context) { "context must not be null" }
+
+        return try {
+            pipeline.executeRaw(task, context)
+        } catch (e: Error) {
+            throw e
+        } catch (t: Throwable) {
+            // ExceptionTranslator returns RuntimeException, but we need T
+            // This is unsafe but matches the Java usage pattern where translator is used as fallback
+            @Suppress("UNCHECKED_CAST")
+            return fallback.translate(t, context) as T
         }
     }
 

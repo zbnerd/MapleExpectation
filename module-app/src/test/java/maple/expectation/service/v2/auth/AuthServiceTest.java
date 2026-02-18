@@ -13,11 +13,11 @@ import maple.expectation.controller.dto.auth.LoginResponse;
 import maple.expectation.controller.dto.auth.TokenResponse;
 import maple.expectation.domain.RefreshToken;
 import maple.expectation.domain.Session;
-import maple.expectation.error.exception.auth.CharacterNotOwnedException;
-import maple.expectation.error.exception.auth.InvalidApiKeyException;
-import maple.expectation.error.exception.auth.InvalidRefreshTokenException;
-import maple.expectation.error.exception.auth.SessionNotFoundException;
-import maple.expectation.error.exception.auth.TokenReusedException;
+import maple.expectation.error.exception.CharacterNotOwnedException;
+import maple.expectation.error.exception.InvalidApiKeyException;
+import maple.expectation.error.exception.InvalidRefreshTokenException;
+import maple.expectation.error.exception.SessionNotFoundException;
+import maple.expectation.error.exception.TokenReusedException;
 import maple.expectation.infrastructure.security.AccountIdGenerator;
 import maple.expectation.infrastructure.security.FingerprintGenerator;
 import org.junit.jupiter.api.BeforeEach;
@@ -129,22 +129,22 @@ class AuthServiceTest {
 
       // TokenService: Token 쌍 생성 (Access + Refresh)
       TokenService.TokenPair tokenPair = mock(TokenService.TokenPair.class);
-      given(tokenPair.accessToken()).willReturn(ACCESS_TOKEN);
-      given(tokenPair.accessTokenExpiresIn()).willReturn(EXPIRATION_SECONDS);
-      given(tokenPair.refreshTokenId()).willReturn(REFRESH_TOKEN_ID);
-      given(tokenPair.refreshTokenExpiresIn()).willReturn(REFRESH_EXPIRATION_SECONDS);
+      given(tokenPair.getAccessToken()).willReturn(ACCESS_TOKEN);
+      given(tokenPair.getAccessTokenExpiresIn()).willReturn(EXPIRATION_SECONDS);
+      given(tokenPair.getRefreshTokenId()).willReturn(REFRESH_TOKEN_ID);
+      given(tokenPair.getRefreshTokenExpiresIn()).willReturn(REFRESH_EXPIRATION_SECONDS);
       given(tokenService.createTokens(session)).willReturn(tokenPair);
 
       // when
       LoginResponse response = authService.login(request);
 
       // then
-      assertThat(response.accessToken()).isEqualTo(ACCESS_TOKEN);
-      assertThat(response.expiresIn()).isEqualTo(EXPIRATION_SECONDS);
-      assertThat(response.role()).isEqualTo("USER");
-      assertThat(response.fingerprint()).isEqualTo(FINGERPRINT);
-      assertThat(response.refreshToken()).isEqualTo(REFRESH_TOKEN_ID);
-      assertThat(response.refreshExpiresIn()).isEqualTo(REFRESH_EXPIRATION_SECONDS);
+      assertThat(response.getAccessToken()).isEqualTo(ACCESS_TOKEN);
+      assertThat(response.getExpiresIn()).isEqualTo(EXPIRATION_SECONDS);
+      assertThat(response.getRole()).isEqualTo("USER");
+      assertThat(response.getFingerprint()).isEqualTo(FINGERPRINT);
+      assertThat(response.getRefreshToken()).isEqualTo(REFRESH_TOKEN_ID);
+      assertThat(response.getRefreshExpiresIn()).isEqualTo(REFRESH_EXPIRATION_SECONDS);
     }
 
     @Test
@@ -182,17 +182,17 @@ class AuthServiceTest {
           .willReturn(session);
 
       TokenService.TokenPair tokenPair = mock(TokenService.TokenPair.class);
-      given(tokenPair.accessToken()).willReturn(ACCESS_TOKEN);
-      given(tokenPair.accessTokenExpiresIn()).willReturn(EXPIRATION_SECONDS);
-      given(tokenPair.refreshTokenId()).willReturn(REFRESH_TOKEN_ID);
-      given(tokenPair.refreshTokenExpiresIn()).willReturn(REFRESH_EXPIRATION_SECONDS);
+      given(tokenPair.getAccessToken()).willReturn(ACCESS_TOKEN);
+      given(tokenPair.getAccessTokenExpiresIn()).willReturn(EXPIRATION_SECONDS);
+      given(tokenPair.getRefreshTokenId()).willReturn(REFRESH_TOKEN_ID);
+      given(tokenPair.getRefreshTokenExpiresIn()).willReturn(REFRESH_EXPIRATION_SECONDS);
       given(tokenService.createTokens(session)).willReturn(tokenPair);
 
       // when
       LoginResponse response = authService.login(request);
 
       // then
-      assertThat(response.role()).isEqualTo("ADMIN");
+      assertThat(response.getRole()).isEqualTo("ADMIN");
     }
 
     @Test
@@ -231,17 +231,17 @@ class AuthServiceTest {
           .willReturn(session);
 
       TokenService.TokenPair tokenPair = mock(TokenService.TokenPair.class);
-      given(tokenPair.accessToken()).willReturn(ACCESS_TOKEN);
-      given(tokenPair.accessTokenExpiresIn()).willReturn(EXPIRATION_SECONDS);
-      given(tokenPair.refreshTokenId()).willReturn(REFRESH_TOKEN_ID);
-      given(tokenPair.refreshTokenExpiresIn()).willReturn(REFRESH_EXPIRATION_SECONDS);
+      given(tokenPair.getAccessToken()).willReturn(ACCESS_TOKEN);
+      given(tokenPair.getAccessTokenExpiresIn()).willReturn(EXPIRATION_SECONDS);
+      given(tokenPair.getRefreshTokenId()).willReturn(REFRESH_TOKEN_ID);
+      given(tokenPair.getRefreshTokenExpiresIn()).willReturn(REFRESH_EXPIRATION_SECONDS);
       given(tokenService.createTokens(any(Session.class))).willReturn(tokenPair);
 
       // when
       LoginResponse response = authService.login(request);
 
       // then
-      assertThat(response.accessToken()).isEqualTo(ACCESS_TOKEN);
+      assertThat(response.getAccessToken()).isEqualTo(ACCESS_TOKEN);
     }
 
     @Test
@@ -274,14 +274,14 @@ class AuthServiceTest {
           .willReturn(session);
 
       TokenService.TokenPair tokenPair = mock(TokenService.TokenPair.class);
-      given(tokenPair.accessToken()).willReturn(ACCESS_TOKEN);
+      given(tokenPair.getAccessToken()).willReturn(ACCESS_TOKEN);
       given(tokenService.createTokens(session)).willReturn(tokenPair);
 
       // when
       LoginResponse response = authService.login(request);
 
       // then
-      assertThat(response.accessToken()).isNotNull();
+      assertThat(response.getAccessToken()).isNotNull();
     }
   }
 
@@ -358,20 +358,20 @@ class AuthServiceTest {
 
       given(sessionManager.getSession(SESSION_ID)).willReturn(session);
 
-      given(tokenPair.accessToken()).willReturn("new-access-token");
-      given(tokenPair.accessTokenExpiresIn()).willReturn(EXPIRATION_SECONDS);
-      given(tokenPair.refreshTokenId()).willReturn("new-refresh-token-id");
-      given(tokenPair.refreshTokenExpiresIn()).willReturn(REFRESH_EXPIRATION_SECONDS);
+      given(tokenPair.getAccessToken()).willReturn("new-access-token");
+      given(tokenPair.getAccessTokenExpiresIn()).willReturn(EXPIRATION_SECONDS);
+      given(tokenPair.getRefreshTokenId()).willReturn("new-refresh-token-id");
+      given(tokenPair.getRefreshTokenExpiresIn()).willReturn(REFRESH_EXPIRATION_SECONDS);
       given(tokenService.rotateTokens(REFRESH_TOKEN_ID)).willReturn(tokenPair);
 
       // when
       TokenResponse response = authService.refresh(REFRESH_TOKEN_ID);
 
       // then
-      assertThat(response.accessToken()).isEqualTo("new-access-token");
+      assertThat(response.getAccessToken()).isEqualTo("new-access-token");
       assertThat(response.accessExpiresIn()).isEqualTo(EXPIRATION_SECONDS);
-      assertThat(response.refreshToken()).isEqualTo("new-refresh-token-id");
-      assertThat(response.refreshExpiresIn()).isEqualTo(REFRESH_EXPIRATION_SECONDS);
+      assertThat(response.getRefreshToken()).isEqualTo("new-refresh-token-id");
+      assertThat(response.getRefreshExpiresIn()).isEqualTo(REFRESH_EXPIRATION_SECONDS);
     }
 
     @Test

@@ -64,7 +64,7 @@ class DefaultCheckedLogicExecutor(
     override fun <T> executeUnchecked(
         task: CheckedSupplier<T>,
         context: TaskContext,
-        mapper: (Exception) -> RuntimeException
+        mapper: java.util.function.Function<Exception, RuntimeException>
     ): T {
         requireNotNull(task) { "task must not be null" }
         requireNotNull(context) { "context must not be null" }
@@ -112,7 +112,7 @@ class DefaultCheckedLogicExecutor(
         task: CheckedSupplier<T>,
         finalizer: CheckedRunnable,
         context: TaskContext,
-        mapper: (Exception) -> RuntimeException
+        mapper: java.util.function.Function<Exception, RuntimeException>
     ): T {
         requireNotNull(task) { "task must not be null" }
         requireNotNull(finalizer) { "finalizer must not be null" }
@@ -196,14 +196,13 @@ class DefaultCheckedLogicExecutor(
      * - 기타 Throwable throw → IllegalStateException
      */
     private fun applyMapper(
-        mapper: (Exception) -> RuntimeException,
+        mapper: java.util.function.Function<Exception, RuntimeException>,
         ex: Exception
     ): RuntimeException {
         return try {
-            val mapped = mapper(ex)
-            requireNotNull(mapped) {
+            val mapped = mapper.apply(ex) ?: throw IllegalStateException(
                 "Exception mapper returned null for: ${ex.javaClass.name}"
-            }
+            )
             mapped
         } catch (e: Error) {
             throw e

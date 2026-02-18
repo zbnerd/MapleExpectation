@@ -65,14 +65,16 @@ class SessionServiceTest {
               FINGERPRINT, "TestUser", "test-account-id", API_KEY, MY_OCIDS, ROLE_USER);
 
       // then
-      assertThat(session.sessionId()).isNotBlank();
-      assertThat(session.fingerprint()).isEqualTo(FINGERPRINT);
+      assertThat(session.getSessionId()).isNotBlank();
+      assertThat(session.getFingerprint()).isEqualTo(FINGERPRINT);
       assertThat(session.apiKey()).isEqualTo(API_KEY);
       assertThat(session.myOcids()).isEqualTo(MY_OCIDS);
-      assertThat(session.role()).isEqualTo(ROLE_USER);
+      assertThat(session.getRole()).isEqualTo(ROLE_USER);
 
       verify(sessionRepository)
-          .save(argThat(s -> s.fingerprint().equals(FINGERPRINT) && s.role().equals(ROLE_USER)));
+          .save(
+              argThat(
+                  s -> s.getFingerprint().equals(FINGERPRINT) && s.getRole().equals(ROLE_USER)));
     }
 
     @Test
@@ -84,7 +86,7 @@ class SessionServiceTest {
               FINGERPRINT, "TestUser", "test-account-id", API_KEY, MY_OCIDS, ROLE_ADMIN);
 
       // then
-      assertThat(session.role()).isEqualTo(ROLE_ADMIN);
+      assertThat(session.getRole()).isEqualTo(ROLE_ADMIN);
       verify(sessionRepository).save(any(Session.class));
     }
 
@@ -97,7 +99,7 @@ class SessionServiceTest {
               FINGERPRINT, "TestUser", "test-account-id", API_KEY, MY_OCIDS, ROLE_USER);
 
       // then
-      assertThat(session.sessionId())
+      assertThat(session.getSessionId())
           .matches("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
     }
 
@@ -113,7 +115,7 @@ class SessionServiceTest {
               FINGERPRINT, "TestUser", "test-account-id", API_KEY, MY_OCIDS, ROLE_USER);
 
       // then
-      assertThat(session1.sessionId()).isNotEqualTo(session2.sessionId());
+      assertThat(session1.getSessionId()).isNotEqualTo(session2.getSessionId());
     }
   }
 
