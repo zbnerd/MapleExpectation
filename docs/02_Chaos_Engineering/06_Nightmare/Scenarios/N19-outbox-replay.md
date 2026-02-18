@@ -11,7 +11,7 @@
 ### 📋 Test Class
 - **Class**: `NexonApiOutboxNightmareTest`
 - **Package**: `maple.expectation.chaos.nightmare`
-- **Source**: [`src/test/java/maple/expectation/chaos/nightmare/NexonApiOutboxNightmareTest.java`](../../../src/test/java/maple/expectation/chaos/nightmare/NexonApiOutboxNightmareTest.java)
+- **Source**: [`module-chaos-test/src/chaos-test/java/maple/expectation/chaos/nightmare/NexonApiOutboxNightmareTest.java`](../../../../../module-chaos-test/src/chaos-test/java/maple/expectation/chaos/nightmare/NexonApiOutboxNightmareTest.java)
 
 ### 🚀 Quick Start
 ```bash
@@ -97,9 +97,9 @@ mysql -u root -p maple_expectation -e "SELECT status, COUNT(*) FROM nexon_api_ou
 | DLQ Rate | 0% | 0% | <0.1% |
 
 ### 🔗 Evidence Links
-- Test Class: [NexonApiOutboxNightmareTest.java](../../../src/test/java/maple/expectation/chaos/nightmare/NexonApiOutboxNightmareTest.java)
-- Outbox Entity: [NexonApiOutbox.java](../../../src/main/java/maple/expectation/domain/v2/NexonApiOutbox.java)
-- Scheduler: [NexonApiOutboxScheduler.java](../../../src/main/java/maple/expectation/scheduler/NexonApiOutboxScheduler.java)
+- Test Class: [NexonApiOutboxNightmareTest.java](../../../../../module-chaos-test/src/chaos-test/java/maple/expectation/chaos/nightmare/NexonApiOutboxNightmareTest.java)
+- Outbox Entity: [NexonApiOutbox.java](../../../../../module-infra/src/main/java/maple/expectation/domain/v2/NexonApiOutbox.java)
+- Scheduler: [NexonApiOutboxScheduler.java](../../../../../module-app/src/main/java/maple/expectation/scheduler/NexonApiOutboxScheduler.java)
 - Implementation: [N19-outbox-fallback-implementation.md](../Results/N19-outbox-fallback-implementation.md)
 
 ### ❌ Fail If Wrong

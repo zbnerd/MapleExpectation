@@ -234,7 +234,7 @@ retry_budget_allowed_total == resilience_retry_budget_max_per_minute
 ## Documentation Updates
 
 ### Updated Files
-1. **docs/01_Chaos_Engineering/03_Resource/09-retry-storm.md**
+1. **docs/02_Chaos_Engineering/03_Resource/09-retry-storm.md**
    - Marked "Retry Budget 미구현" as ✅ 완료
    - Added Section 8: "Retry Budget 구현 상세"
    - Updated action items checklist

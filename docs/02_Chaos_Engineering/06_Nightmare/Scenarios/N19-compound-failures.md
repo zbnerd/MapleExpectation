@@ -11,7 +11,7 @@
 ### 📋 Test Class
 - **Class**: `NexonApiOutboxMultiFailureNightmareTest`
 - **Package**: `maple.expectation.chaos.nightmare`
-- **Source**: [`src/test/java/maple/expectation/chaos/nightmare/NexonApiOutboxMultiFailureNightmareTest.java`](../../../src/test/java/maple/expectation/chaos/nightmare/NexonApiOutboxMultiFailureNightmareTest.java)
+- **Source**: [`module-chaos-test/src/chaos-test/java/maple/expectation/chaos/nightmare/NexonApiOutboxMultiFailureNightmareTest.java`](../../../../../module-chaos-test/src/chaos-test/java/maple/expectation/chaos/nightmare/NexonApiOutboxMultiFailureNightmareTest.java)
 
 ### 🚀 Quick Start
 ```bash
@@ -294,8 +294,8 @@ markAsProcessed(requestId);
 ## References
 
 - [N19-outbox-replay.md](./N19-outbox-replay.md) - Base N19 scenario
-- [ADR-006](../../../adr/ADR-006-redis-lock-lease-timeout-ha.md) - Redis HA strategy
-- [ADR-010](../../../adr/ADR-010-outbox-pattern.md) - Outbox pattern implementation
+- [ADR-006](../../../../01_Adr/ADR-006-redis-lock-lease-timeout-ha.md) - Redis HA strategy
+- [ADR-010](../../../../01_Adr/ADR-010-outbox-pattern.md) - Outbox pattern implementation
 
 ---
 

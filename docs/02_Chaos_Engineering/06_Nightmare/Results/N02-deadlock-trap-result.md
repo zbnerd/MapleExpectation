@@ -60,7 +60,7 @@ This test would be **invalidated** if:
 
 ### 🔗 Evidence Links
 - **Scenario**: [N02-deadlock-trap.md](../Scenarios/N02-deadlock-trap.md)
-- **Test Class**: [DeadlockTrapNightmareTest.java](../../../src/test/java/maple/expectation/chaos/nightmare/DeadlockTrapNightmareTest.java)
+- **Test Class**: [DeadlockTrapNightmareTest.java](../../../../../module-chaos-test/src/chaos-test/java/maple/expectation/chaos/nightmare/DeadlockTrapNightmareTest.java)
 - **Log File**: `logs/nightmare-02-20260119_HHMMSS.log`
 - **GitHub Issue**: #[P0][Nightmare-02] Lock Ordering 미적용으로 인한 Deadlock 발생
 

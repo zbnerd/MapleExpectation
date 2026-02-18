@@ -2,7 +2,7 @@
 
 ## 관련 문서
 - **코드:** `src/main/java/maple/expectation/global/shutdown/GracefulShutdownCoordinator.java`
-- **리포트:** `docs/04_Reports/Load_Tests/LOAD_TEST_REPORT_20260125_V4_PARALLEL_WRITEBEHIND.md`
+- **리포트:** `docs/05_Reports/04_06_Load_Tests/LOAD_TEST_REPORT_20260125_V4_PARALLEL_WRITEBEHIND.md`
 
 ---
 

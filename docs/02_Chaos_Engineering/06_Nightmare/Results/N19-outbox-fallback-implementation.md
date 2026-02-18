@@ -367,10 +367,10 @@ Background: NexonApiOutboxProcessor
 
 ## References
 
-- [N19 Scenario](../../Scenarios/N19-outbox-replay.md)
-- [N19 Result Report](../Results/N19-outbox-replay-result.md)
+- [N19 Scenario](../Scenarios/N19-outbox-replay.md)
+- [N19 Result Report](N19-outbox-replay-result.md)
 - [CLAUDE.md Section 12](../../../../../../CLAUDE.md#12-zero-try-catch-policy--logicexecutor-architectural-core)
-- [Transaction Pattern](../../../../../../docs/02_Technical_Guides/infrastructure.md#section-17-tieredcache--cache-stampede-prevention)
+- [Transaction Pattern](../../../03_Technical_Guides/infrastructure.md#section-17-tieredcache--cache-stampede-prevention)
 
 ---
 

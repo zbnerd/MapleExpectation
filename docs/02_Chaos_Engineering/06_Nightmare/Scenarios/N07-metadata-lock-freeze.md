@@ -29,7 +29,7 @@ docker-compose up -d
 ```
 
 ### 📊 Test Results
-- **Result File**: [N07-metadata-lock-freeze-result.md](../Results/N07-metadata-lock-freeze-result.md) (if exists)
+- **Result File**: Not yet created
 - **Test Date**: 2025-01-20
 - **Result**: ❌ FAIL (1/3 tests)
 - **Test Duration**: ~90 seconds

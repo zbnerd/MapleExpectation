@@ -8,8 +8,8 @@
 ## Documentation Integrity Statement
 
 This Business Model Canvas is based on **actual production metrics** from 2025-2026:
-- Performance claims validated through WRK load testing (Evidence: [Load Test Report](../04_Reports/Portfolio_Enhancement_WRK_Final_Summary.md))
-- Cost calculations verified from AWS actual billing (Evidence: [Cost Performance Report](../04_Reports/Cost_Performance/COST_PERF_REPORT_N23_ACTUAL.md))
+- Performance claims validated through WRK load testing (Evidence: [Load Test Report](../05_Reports/04_03_Deep_Dive/Portfolio_Enhancement_WRK_Final_Summary.md))
+- Cost calculations verified from AWS actual billing (Evidence: [Cost Performance Report](../05_Reports/04_02_Cost_Performance/COST_PERF_REPORT_N23_ACTUAL.md))
 - Infrastructure specifications matched against actual deployment (Evidence: [Deployment Architecture](./architecture.md))
 
 ## Terminology
@@ -293,7 +293,7 @@ Tier 3: Direct Contact (Critical issues)
 
 ## Related Documents
 
-- [KPI-BSC Dashboard](../04_Reports/KPI_BSC_DASHBOARD.md) - 성과 지표 대시보드
+- [KPI-BSC Dashboard](../05_Reports/04_01_Baseline/KPI_BSC_DASHBOARD.md) - 성과 지표 대시보드
 - [Architecture](./architecture.md) - 시스템 아키텍처
 - [ROADMAP](./ROADMAP.md) - 프로젝트 로드맵
 
@@ -308,11 +308,11 @@ Tier 3: Direct Contact (Critical issues)
 
 | Claim | Evidence Source |
 |-------|-----------------|
-| **719 RPS Throughput** | [WRK Load Test Results](../04_Reports/Portfolio_Enhancement_WRK_Final_Summary.md) |
-| **p50 164ms Latency** | [Performance Report](../04_Reports/PERFORMANCE_260105.md) |
-| **AWS t3.small Cost** | [Cost Performance Report](../04_Reports/Cost_Performance/COST_PERF_REPORT_N23_ACTUAL.md) |
-| **0% Failure Rate** | [Load Test Results](../04_Reports/Load_Tests/LOAD_TEST_REPORT_20260120.md) |
-| **479 Test Cases** | [QA Monitoring Checklist](../03-analysis/QA_MONITORING_CHECKLIST.md) |
+| **719 RPS Throughput** | [WRK Load Test Results](../05_Reports/04_03_Deep_Dive/Portfolio_Enhancement_WRK_Final_Summary.md) |
+| **p50 164ms Latency** | [Performance Report](../05_Reports/04_02_Cost_Performance/PERFORMANCE_260105.md) |
+| **AWS t3.small Cost** | [Cost Performance Report](../05_Reports/04_02_Cost_Performance/COST_PERF_REPORT_N23_ACTUAL.md) |
+| **0% Failure Rate** | [Load Test Results](../05_Reports/04_06_Load_Tests/LOAD_TEST_REPORT_20260120.md) |
+| **479 Test Cases** | [QA Monitoring Checklist](../04_Sequence_Diagrams/QA_MONITORING_CHECKLIST.md) |
 
 ## Technical Validity Check
 

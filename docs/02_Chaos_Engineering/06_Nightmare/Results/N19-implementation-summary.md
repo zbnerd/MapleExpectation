@@ -16,7 +16,7 @@
 | LOG L2 | Test Log | 2,134,221 entries processed | Test execution output |
 | METRIC M1 | Performance | Replay throughput 1,200 tps | Grafana metrics |
 | DOC D1 | ADR | ADR-016 decision record | `docs/adr/ADR-016-nexon-api-outbox-pattern.md` |
-| DOC D2 | Scenario | N19-outbox-replay.md | `docs/01_Chaos_Engineering/06_Nightmare/Scenarios/N19-outbox-replay.md` |
+| DOC D2 | Scenario | N19-outbox-replay.md | `docs/02_Chaos_Engineering/06_Nightmare/Scenarios/N19-outbox-replay.md` |
 | SQL S1 | Schema | nexon_api_outbox table | `src/main/resources/nexon_api_outbox_schema.sql` |
 
 ---
@@ -185,10 +185,10 @@ Nexon API Outbox Pattern을 도입하여 외부 API 장애 시 데이터 유실�
 
 ## References
 
-- [ADR-016: Nexon API Outbox Pattern](../../adr/ADR-016-nexon-api-outbox-pattern.md)
-- [ADR-010: Transactional Outbox Pattern](../../adr/ADR-010-outbox-pattern.md)
-- [N19 Recovery Report](../../04_Reports/Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md)
-- [N19 Scenario](../06_Nightmare/Scenarios/N19-outbox-replay.md)
+- [ADR-016: Nexon API Outbox Pattern](../../../01_Adr/ADR-016-nexon-api-outbox-pattern.md)
+- [ADR-010: Transactional Outbox Pattern](../../../01_Adr/ADR-010-outbox-pattern.md)
+- [N19 Recovery Report](../../../05_Reports/04_07_Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md)
+- [N19 Scenario](../Scenarios/N19-outbox-replay.md)
 
 ---
 

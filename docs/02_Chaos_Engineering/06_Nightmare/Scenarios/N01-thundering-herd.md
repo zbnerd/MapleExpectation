@@ -11,7 +11,7 @@
 ### 📋 Test Class
 - **Class**: `ThunderingHerdNightmareTest`
 - **Package**: `maple.expectation.chaos.nightmare`
-- **Source**: [`src/test/java/maple/expectation/chaos/nightmare/ThunderingHerdNightmareTest.java`](../../../src/test/java/maple/expectation/chaos/nightmare/ThunderingHerdNightmareTest.java)
+- **Source**: [`module-chaos-test/src/chaos-test/java/maple/expectation/chaos/nightmare/ThunderingHerdNightmareTest.java`](../../../../module-chaos-test/src/chaos-test/java/maple/expectation/chaos/nightmare/ThunderingHerdNightmareTest.java)
 
 ### 🚀 Quick Start
 ```bash

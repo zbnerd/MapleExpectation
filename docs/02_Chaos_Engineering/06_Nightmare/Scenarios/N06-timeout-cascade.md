@@ -11,7 +11,7 @@
 ### 📋 Test Class
 - **Class**: `TimeoutCascadeNightmareTest`
 - **Package**: `maple.expectation.chaos.nightmare`
-- **Source**: [`src/test/java/maple/expectation/chaos/nightmare/TimeoutCascadeNightmareTest.java`](../../../src/test/java/maple/expectation/chaos/nightmare/TimeoutCascadeNightmareTest.java)
+- **Source**: [`module-chaos-test/src/chaos-test/java/maple/expectation/chaos/nightmare/N06TimeoutCascadeNightmareTest.java`](../../../../module-chaos-test/src/chaos-test/java/maple/expectation/chaos/nightmare/N06TimeoutCascadeNightmareTest.java)
 
 ### 🚀 Quick Start
 ```bash
@@ -99,7 +99,7 @@ docker system prune -f
 | Client Timeout Rate | 0% | 100% | N/A |
 
 ### 🔗 Evidence Links
-- Test Class: [TimeoutCascadeNightmareTest.java](../../../src/test/java/maple/expectation/chaos/nightmare/TimeoutCascadeNightmareTest.java)
+- Test Class: [N06TimeoutCascadeNightmareTest.java](../../../../module-chaos-test/src/chaos-test/java/maple/expectation/chaos/nightmare/N06TimeoutCascadeNightmareTest.java)
 - Test Results: [N06-timeout-cascade-result.md](../Results/N06-timeout-cascade-result.md)
 - Related Issue: #[P1][Nightmare-06] Timeout Hierarchy Mismatch
 

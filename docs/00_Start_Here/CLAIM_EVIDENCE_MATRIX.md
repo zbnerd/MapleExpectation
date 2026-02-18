@@ -38,7 +38,7 @@ Each claim includes bash/SQL commands to independently verify the assertion.
 | **COD-002** | `scheduler/OutboxScheduler.java:51` - Main outbox processing scheduler |
 | **COD-003** | `domain/v2/NexonApiOutbox.java` - Outbox entity with processed flag |
 | **EVD-001** | `docs/01_Chaos_Engineering/06_Nightmare/Results/N19-outbox-replay-result.md:59-63` |
-| **EVD-002** | `docs/04_Reports/Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md:Q1-Q5` |
+| **EVD-002** | `docs/05_Reports/04_07_Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md:Q1-Q5` |
 | **Verification Method** | ```sql-- Verify no orphaned outbox recordsSELECT COUNT(*) FROM donation_outbox WHERE processed = false;-- Expected: 0 (zero data loss)-- Verify reconciliation countSELECT COUNT(*) FROM external_api_donations WHERE date = '2026-02-05';-- Expected: 2,159,993 (99.997% match)``` |
 | **Status** | ✅ Verified - Reconciliation 99.997% achieved |
 
@@ -51,7 +51,7 @@ Each claim includes bash/SQL commands to independently verify the assertion.
 | **COD-004** | `scheduler/NexonApiOutboxScheduler.java:processPendingOutbox()` - Bulk replay method |
 | **COD-005** | `service/v2/outbox/NexonApiOutboxProcessor.java` - Batch processing logic |
 | **EVD-003** | `logs/nightmare-19-20260205.log:25000-25500` - Replay start log |
-| **EVD-004** | `docs/04_Reports/Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md:134-156` |
+| **EVD-004** | `docs/05_Reports/04_07_Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md:134-156` |
 | **Verification Method** | ```bash# Check scheduler logs for auto-detectiongrep "API recovered" logs/application-*.log# Verify replay throughputcurl -s http://localhost:8080/actuator/metrics/outbox.replay.tps# Expected: 1,200 tps sustained for 30m``` |
 | **Status** | ✅ Verified - Replay throughput 1,200 tps achieved |
 
@@ -67,8 +67,8 @@ Each claim includes bash/SQL commands to independently verify the assertion.
 | **Scope** | N21 Auto Mitigation Report |
 | **COD-006** | `monitoring/collector/CircuitBreakerMetricsCollector.java` - Prometheus metrics export |
 | **COD-007** | `monitoring/MonitoringAlertService.java` - Alert evaluation logic |
-| **EVD-005** | `docs/04_Reports/Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md:M2` |
-| **EVD-006** | `docs/04_Reports/Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md:T1-T3` |
+| **EVD-005** | `docs/05_Reports/04_05_Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md:M2` |
+| **EVD-006** | `docs/05_Reports/04_05_Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md:T1-T3` |
 | **Verification Method** | ```bash# Verify alert rule existscurl -s http://localhost:9090/api/v1/rules | grep p99_spike# Check alert historygrep "p99 exceeded threshold" logs/auto-mitigation-*.log# Expected: Alert triggered within 30s of degradation``` |
 | **Status** | ✅ Verified - MTTD 30s confirmed |
 
@@ -79,8 +79,8 @@ Each claim includes bash/SQL commands to independently verify the assertion.
 | **Claim** | "MTTR 2m via auto-approval (confidence 92% ≥ 80% threshold)" |
 | **Scope** | N21 Auto Mitigation Report |
 | **COD-008** | `monitoring/ai/AiSreService.java` - Auto-approval engine |
-| **EVD-007** | `docs/04_Reports/Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md:D3` |
-| **EVD-008** | `docs/04_Reports/Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md:T4-T5` |
+| **EVD-007** | `docs/05_Reports/04_05_Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md:D3` |
+| **EVD-008** | `docs/05_Reports/04_05_Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md:T4-T5` |
 | **Verification Method** | ```yaml# Check approval policycat ops/policy/mitigation.yml | grep auto_approval_threshold# Expected: 0.80# Verify decision loggrep "AUTO_APPROVED" logs/auto-mitigation-*.log# Expected: "AUTO_APPROVED: Confidence 0.92 ≥ threshold 0.80"``` |
 | **Status** | ✅ Verified - Auto-approval executed successfully |
 
@@ -91,7 +91,7 @@ Each claim includes bash/SQL commands to independently verify the assertion.
 | **Claim** | "All mitigations have explicit rollback criteria (p99 > 2000ms triggers revert)" |
 | **Scope** | N21 Auto Mitigation Report |
 | **COD-009** | `global/resilience/DistributedCircuitBreakerManager.java` - Rollback logic |
-| **EVD-009** | `docs/04_Reports/Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md:451-467` |
+| **EVD-009** | `docs/05_Reports/04_05_Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md:451-467` |
 | **Verification Method** | ```bash# Verify rollback policy existsgrep -A 10 "rollback_conditions" ops/policy/mitigation.yml# Expected: Defined p99 and error_rate thresholds# Check rollback execution historygrep "Rollback" logs/auto-mitigation-*.log# Expected: No rollbacks (mitigation successful)``` |
 | **Status** | ✅ Verified - Rollback policy defined and no rollback needed |
 
@@ -107,7 +107,7 @@ Each claim includes bash/SQL commands to independently verify the assertion.
 | **Scope** | README.md, Load Test Report #266 ADR |
 | **COD-010** | `service/v4/EquipmentExpectationServiceV4.java` - V4 optimized endpoint |
 | **COD-011** | `service/v4/cache/ExpectationCacheCoordinator.java` - Cache strategy |
-| **EVD-010** | `docs/04_Reports/Load_Tests/LOAD_TEST_REPORT_20260126_V4_ADR_REFACTORING.md` |
+| **EVD-010** | `docs/05_Reports/04_06_Load_Tests/LOAD_TEST_REPORT_20260126_V4_ADR_REFACTORING.md` |
 | **EVD-011** | `load-test/wrk-v4-expectation.lua` - Load test script |
 | **Verification Method** | ```bash# Reproduce load testwrk -t4 -c100 -d30s --latency -s load-test/wrk-v4-expectation.lua http://localhost:8080/api/v4/character/test/expectation# Expected: RPS ≥ 900, p99 ≤ 250ms, Error = 0%``` |
 | **Status** | ✅ Verified - 965 RPS achieved in test environment |
@@ -131,7 +131,7 @@ Each claim includes bash/SQL commands to independently verify the assertion.
 | **Claim** | "719 RPS with 200 concurrent connections" |
 | **Scope** | Portfolio Enhancement Report |
 | **COD-014** | `service/v4/fallback/NexonApiFallbackService.java` - Fallback strategy |
-| **EVD-013** | `docs/04_Reports/Portfolio_Enhancement_WRK_Final_Summary.md` |
+| **EVD-013** | `docs/05_Reports/04_03_Deep_Dive/Portfolio_Enhancement_WRK_Final_Summary.md` |
 | **Verification Method** | ```bash# 200-connection load testwrk -t4 -c200 -d30s --latency http://localhost:8080/api/v2/characters/test# Expected: RPS ≥ 700, p99 ≤ 300ms``` |
 | **Status** | ✅ Verified - WRK final summary confirms 719 RPS |
 
@@ -147,7 +147,7 @@ Each claim includes bash/SQL commands to independently verify the assertion.
 | **Scope** | N23 Cost Performance Report |
 | **COD-015** | `config/CacheConfig.java` - Cache sizing |
 | **COD-016** | `config/ExecutorConfig.java` - Thread pool configuration |
-| **EVD-014** | `docs/04_Reports/Cost_Performance/COST_PERF_REPORT_N23.md:133-142` |
+| **EVD-014** | `docs/05_Reports/04_02_Cost_Performance/COST_PERF_REPORT_N23.md:133-142` |
 | **EVD-015** | `load-test/k6-results-20260205.json` |
 | **Verification Method** | ```javascript// Verify K6 resultsimport { check } from 'k6';export let options = { stages: [{ duration: '10m', target: 100 }] };// Expected: RPS ≈ 250 for t3.small × 2 ($30/mo)``` |
 | **Status** | ✅ Verified - Config B (2× t3.small) confirmed optimal |
@@ -158,8 +158,8 @@ Each claim includes bash/SQL commands to independently verify the assertion.
 |-----------|-------|
 | **Claim** | "Compute-only $30 + incremental $2 = $32 total for 2-instance config" |
 | **Scope** | N23 Cost Performance Report |
-| **EVD-016** | `docs/04_Reports/Cost_Performance/COST_PERF_REPORT_N23.md:497-519` |
-| **EVD-017** | `docs/04_Reports/Cost_Performance/aws-cost-export-Feb2026.csv` |
+| **EVD-016** | `docs/05_Reports/04_02_Cost_Performance/COST_PERF_REPORT_N23.md:497-519` |
+| **EVD-017** | `docs/05_Reports/04_02_Cost_Performance/aws-cost-export-Feb2026.csv` |
 | **Verification Method** | ```bash# Verify AWS cost calculation# EC2: t3.small × 2 = $0.0208 × 2 × 730 = $30.37# Redis: cache.t3.medium = $10# Total compute: $40# Add network egress: ~$2# Expected: $42 ± 5% (actual billing varies)``` |
 | **Status** | ✅ Verified - Cost formula matches AWS pricing |
 
@@ -248,8 +248,8 @@ Each claim includes bash/SQL commands to independently verify the assertion.
 |-----------|-------|
 | **Claim** | "30s MTTD + 120s MTTR = 150s total recovery time" |
 | **Scope** | N21 Incident Report |
-| **EVD-024** | `docs/04_Reports/Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md:97-105` |
-| **EVD-025** | `docs/04_Reports/Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md:563-567` |
+| **EVD-024** | `docs/05_Reports/04_05_Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md:97-105` |
+| **EVD-025** | `docs/05_Reports/04_05_Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md:563-567` |
 | **Verification Method** | ```bash# Extract timestamps from logsgrep -E "10:15:(00|30|45)" logs/auto-mitigation-20260205.log# Expected: Continuous timeline from 10:15:00 → 10:17:30# Verify no gapsawk '/10:15:00/,/10:17:30/' logs/auto-mitigation-20260205.log | wc -l# Expected: No missing entries``` |
 | **Status** | ✅ Verified - Timeline math verified (30 + 120 = 150s) |
 
@@ -259,7 +259,7 @@ Each claim includes bash/SQL commands to independently verify the assertion.
 |-----------|-------|
 | **Claim** | "30m replay + 5m reconciliation = 35m total for 2.16M events" |
 | **Scope** | N19 Outbox Replay Report |
-| **EVD-026** | `docs/04_Reports/Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md:29-38` |
+| **EVD-026** | `docs/05_Reports/04_07_Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md:29-38` |
 | **Verification Method** | ```sql-- Verify replay durationSELECT MIN(updated_at) - MIN(created_at) AS replay_durationFROM donation_outbox WHERE processed = true;-- Expected: ≈ 1800 seconds (30 minutes)-- Verify throughputSELECT COUNT(*) / 1800 AS tpsFROM donation_outbox WHERE processed = true;-- Expected: ≈ 1,200 tps``` |
 | **Status** | ✅ Verified - Replay throughput confirmed |
 
@@ -273,7 +273,7 @@ Each claim includes bash/SQL commands to independently verify the assertion.
 |-----------|-------|
 | **Claim** | "Service restart rejected: 100% user impact vs 5% during outage" |
 | **Scope** | N21 Incident Report Section 5.5 |
-| **EVD-027** | `docs/04_Reports/Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md:293-300` |
+| **EVD-027** | `docs/05_Reports/04_05_Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md:293-300` |
 | **Verification Method** | ```bash# Verify restart would impact all userscurl -s http://localhost:8080/actuator/health | jq '.status'# If "DOWN", all requests fail (100% impact)# Compare to mitigation impact (only 5% experienced >1s latency)``` |
 | **Status** | ✅ Verified - Rejection rationale documented |
 
@@ -283,7 +283,7 @@ Each claim includes bash/SQL commands to independently verify the assertion.
 |-----------|-------|
 | **Claim** | "Manual adjustment rejected: 15min MTTD vs 30s auto-detection" |
 | **Scope** | N21 Incident Report Section 5.5 |
-| **EVD-028** | `docs/04_Reports/Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md:301-306` |
+| **EVD-028** | `docs/05_Reports/04_05_Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md:301-306` |
 | **Verification Method** | ```bash# Simulate manual detection latencyecho "Auto-detection: 30s"echo "Manual detection: 15m (900s)"# Calculate business impact# 900s × 200 RPS × $0.001/RPS = $180 opportunity cost# Auto: 30s × 200 RPS × $0.001/RPS = $6# Difference: $174 saved by auto-detection``` |
 | **Status** | ✅ Verified - Cost-benefit analysis supports rejection |
 
@@ -297,7 +297,7 @@ Each claim includes bash/SQL commands to independently verify the assertion.
 |-----------|-------|
 | **Claim** | "Report invalidated if reconciliation mismatch ≠ 0" |
 | **Scope** | N19 Outbox Replay Report |
-| **EVD-029** | `docs/04_Reports/Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md:43-50` |
+| **EVD-029** | `docs/05_Reports/04_07_Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md:43-50` |
 | **Invariant Check** | ```sql-- This query MUST return 0 for report validitySELECT (SELECT COUNT(*) FROM donation_outbox) -       (SELECT COUNT(*) FROM external_api_donations WHERE date = '2026-02-05') AS mismatch;-- If ≠ 0, report is INVALIDATED-- Actual result: 2,160,000 - 2,159,993 = 7 (0.003% in DLQ, acceptable)``` |
 | **Status** | ✅ Verified - Invariant satisfied (7 records in DLQ, not lost) |
 
@@ -307,7 +307,7 @@ Each claim includes bash/SQL commands to independently verify the assertion.
 |-----------|-------|
 | **Claim** | "Auto-approval requires confidence ≥ 0.80, risk ∈ {LOW, MEDIUM}" |
 | **Scope** | N21 Incident Report |
-| **EVD-030** | `docs/04_Reports/Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md:636-643` |
+| **EVD-030** | `docs/05_Reports/04_05_Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md:636-643` |
 | **Invariant Check** | ```bash# Extract confidence from decision loggrep -A 5 "AUTO_APPROVED" logs/auto-mitigation-20260205.log | grep confidence# Expected: "confidence: 0.92 ≥ threshold 0.80"# If < 0.80, auto-approval should NOT occur``` |
 | **Status** | ✅ Verified - 0.92 ≥ 0.80, invariant satisfied |
 

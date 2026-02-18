@@ -31,7 +31,7 @@ docker-compose up -d
 ```
 
 ### 📊 Test Results
-- **Result File**: [N17-poison-pill-result.md](../Results/N17-poison-pill-result.md) (if exists)
+- **Result File**: Not yet created
 - **Test Date**: 2025-01-20
 - **Result**: ❌ FAIL (2/5 tests)
 - **Test Duration**: ~120 seconds
@@ -92,8 +92,8 @@ mysql -u root -p maple_expectation -e "SELECT status, COUNT(*) FROM donation_out
 
 ### 🔗 Evidence Links
 - Test Class: [PoisonPillNightmareTest.java](../../../src/test/java/maple/expectation/chaos/nightmare/PoisonPillNightmareTest.java)
-- Outbox Entity: [DonationOutbox.java](../../../src/main/java/maple/expectation/domain/v2/NexonApiOutbox.java)
-- DLQ Handler: [DlqHandler.java](../../../src/main/java/maple/expectation/service/v2/outbox/DlqHandler.java)
+- Outbox Entity: [DonationOutbox.java](../../../src/main/java/maple/expectation/domain/v2/DonationOutbox.java)
+- DLQ Handler: [DlqHandler.java](../../../src/main/java/maple/expectation/service/v2/donation/outbox/DlqHandler.java)
 - Related Issue: #[P2] Outbox ContentHash Detection and DLQ Transfer
 
 ### ❌ Fail If Wrong

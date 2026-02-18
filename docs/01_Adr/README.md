@@ -173,18 +173,18 @@ ADR-XXX-{short-description}.md
 - [docs/00_Start_Here/architecture.md](../00_Start_Here/architecture.md) - System architecture
 
 ### Technical
-- [docs/02_Technical_Guides/infrastructure.md](../02_Technical_Guides/infrastructure.md) - Infrastructure guide
-- [docs/02_Technical_Guides/async-concurrency.md](../02_Technical_Guides/async-concurrency.md) - Async & concurrency
-- [docs/02_Technical_Guides/testing-guide.md](../02_Technical_Guides/testing-guide.md) - Testing guide
+- [docs/03_Technical_Guides/infrastructure.md](../03_Technical_Guides/infrastructure.md) - Infrastructure guide
+- [docs/03_Technical_Guides/async-concurrency.md](../03_Technical_Guides/async-concurrency.md) - Async & concurrency
+- [docs/03_Technical_Guides/testing-guide.md](../03_Technical_Guides/testing-guide.md) - Testing guide
 
 ### Refactoring
-- [docs/refactor/REFACTOR_PLAN.md](../refactor/REFACTOR_PLAN.md) - Refactoring roadmap
-- [docs/refactor/TARGET_STRUCTURE.md](../refactor/TARGET_STRUCTURE.md) - Target architecture
-- [docs/refactor/SOLID_VIOLATIONS.md](../refactor/SOLID_VIOLATIONS.md) - SOLID violations
+- [docs/05_Reports/04_08_Refactor/REFACTOR_PLAN.md](../05_Reports/04_08_Refactor/REFACTOR_PLAN.md) - Refactoring roadmap
+- [docs/05_Reports/04_08_Refactor/TARGET_STRUCTURE.md](../05_Reports/04_08_Refactor/TARGET_STRUCTURE.md) - Target architecture
+- [docs/05_Reports/04_08_Refactor/SOLID_VIOLATIONS.md](../05_Reports/04_08_Refactor/SOLID_VIOLATIONS.md) - SOLID violations
 
 ### Chaos Engineering
-- [docs/01_Chaos_Engineering/00_Overview/TEST_STRATEGY.md](../01_Chaos_Engineering/00_Overview/TEST_STRATEGY.md) - Test strategy
-- [docs/01_Chaos_Engineering/06_Nightmare/](../01_Chaos_Engineering/06_Nightmare/) - Nightmare scenarios
+- [docs/02_Chaos_Engineering/00_Overview/TEST_STRATEGY.md](../02_Chaos_Engineering/00_Overview/TEST_STRATEGY.md) - Test strategy
+- [docs/02_Chaos_Engineering/06_Nightmare/](../02_Chaos_Engineering/06_Nightmare/) - Nightmare scenarios
 
 ---
 

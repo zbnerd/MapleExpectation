@@ -60,8 +60,8 @@ This test would be **invalidated** if:
 
 ### 🔗 Evidence Links
 - **Scenario**: [N03-thread-pool-exhaustion.md](../Scenarios/N03-thread-pool-exhaustion.md)
-- **Test Class**: [ThreadPoolExhaustionNightmareTest.java](../../../src/test/java/maple/expectation/chaos/nightmare/ThreadPoolExhaustionNightmareTest.java)
-- **Executor Config**: [ExecutorConfig.java](../../../src/main/java/maple/expectation/config/ExecutorConfig.java)
+- **Test Class**: [ThreadPoolExhaustionNightmareTest.java](../../../../../module-chaos-test/src/chaos-test/java/maple/expectation/chaos/nightmare/ThreadPoolExhaustionNightmareTest.java)
+- **Executor Config**: [ExecutorConfig.java](../../../../../module-infra/src/main/java/maple/expectation/infrastructure/config/ExecutorConfig.java)
 - **Log File**: `logs/nightmare-03-20260119_HHMMSS.log`
 
 ### 🔧 Test Environment

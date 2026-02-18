@@ -60,7 +60,7 @@ This test would be **invalidated** if:
 
 ### 🔗 Evidence Links
 - **Scenario**: [N01-thundering-herd.md](../Scenarios/N01-thundering-herd.md)
-- **Test Class**: [ThunderingHerdNightmareTest.java](../../../src/test/java/maple/expectation/chaos/nightmare/ThunderingHerdNightmareTest.java)
+- **Test Class**: [ThunderingHerdNightmareTest.java](../../../../../module-chaos-test/src/chaos-test/java/maple/expectation/chaos/nightmare/ThunderingHerdNightmareTest.java)
 - **Log File**: `logs/nightmare-01-20260119_HHMMSS.log`
 - **GitHub Issue**: #[N01][Nightmare] Thundering Herd 방지 Singleflight 패턴 검증
 

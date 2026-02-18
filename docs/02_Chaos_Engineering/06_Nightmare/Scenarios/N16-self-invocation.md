@@ -31,7 +31,7 @@ docker-compose up -d
 ```
 
 ### 📊 Test Results
-- **Result File**: [N16-self-invocation-result.md](../Results/N16-self-invocation-result.md) (if exists)
+- **Result File**: Not yet created
 - **Test Date**: 2025-01-20
 - **Result**: ✅ PASS (5/5 tests)
 - **Test Duration**: ~60 seconds

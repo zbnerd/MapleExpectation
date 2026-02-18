@@ -29,7 +29,7 @@ docker-compose up -d
 ```
 
 ### 📊 Test Results
-- **Result File**: [N11-lock-fallback-avalanche-result.md](../Results/N11-lock-fallback-avalanche-result.md) (if exists)
+- **Result File**: Not yet created
 - **Test Date**: 2025-01-20
 - **Result**: ✅ PASS (3/3 tests)
 - **Test Duration**: ~120 seconds

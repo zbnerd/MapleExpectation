@@ -625,8 +625,8 @@ This test is invalid if:
 
 ### 관련 테스트 결과
 - **상세 결과**: [N05-celebrity-problem-result.md](../Results/N05-celebrity-problem-result.md)
-- **테스트 코드**: [CelebrityProblemNightmareTest.java](../../../src/test/java/maple/expectation/chaos/nightmare/CelebrityProblemNightmareTest.java)
-- **적용 대상 코드**: [TieredCache.java](../../../src/main/java/maple/expectation/global/cache/TieredCache.java)
+- **테스트 코드**: [CelebrityProblemNightmareTest.java](../../../../module-chaos-test/src/chaos-test/java/maple/expectation/chaos/nightmare/CelebrityProblemNightmareTest.java)
+- **적용 대상 코드**: [TieredCache.java](../../../../module-infra/src/main/java/maple/expectation/infrastructure/cache/TieredCache.java)
 
 ### 검증 명령어
 ```bash

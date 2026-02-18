@@ -183,10 +183,10 @@ void test_name() {
 
 ## Related Documentation
 
-- [Testing Guide Section 23-25](../../02_Technical_Guides/testing-guide.md) - ExecutorService, Flaky Test Prevention
-- [Flaky Test Management](../../02_Technical_Guides/flaky-test-management.md) - Identification and Resolution
+- [Testing Guide Section 23-25](../03_Technical_Guides/testing-guide.md) - ExecutorService, Flaky Test Prevention
+- [Flaky Test Management](../03_Technical_Guides/flaky-test-management.md) - Identification and Resolution
 - [Issue #120](https://github.com/zbnerd/probabilistic-valuation-engine/issues/120) - Original CharacterEquipment Logic
-- [Character Equipment Entity](../../../src/main/java/maple/expectation/domain/v2/CharacterEquipment.java) - Source Code
+- [Character Equipment Entity](../../src/main/java/maple/expectation/domain/v2/CharacterEquipment.java) - Source Code
 
 ---
 

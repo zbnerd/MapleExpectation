@@ -86,7 +86,13 @@ public class RedisEventPublisher implements EventPublisher {
   @Override
   public void publish(String topic, IntegrationEvent<?> event) {
     executor.executeVoid(
-        () -> publishInternal(topic, event),
+        () -> {
+          try {
+            publishInternal(topic, event);
+          } catch (Exception e) {
+            log.error("[RedisEventPublisher] Publish failed for topic: {}", topic, e);
+          }
+        },
         TaskContext.of("RedisEventPublisher", "Publish", topic));
   }
 

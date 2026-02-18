@@ -332,9 +332,9 @@ This template is INVALID if:
 
 ## 관련 문서
 
-- [Infrastructure Guide](../02_Technical_Guides/infrastructure.md) - Section 18: Security Best Practices
-- [Testing Guide](../02_Technical_Guides/testing-guide.md) - CI 환경 설정
-- [ADR-014](../adr/ADR-014-multi-module-cross-cutting-concerns.md) - CI/CD 파이프라인
+- [Infrastructure Guide](../03_Technical_Guides/infrastructure.md) - Section 18: Security Best Practices
+- [Testing Guide](../03_Technical_Guides/testing-guide.md) - CI 환경 설정
+- [ADR-014](../01_Adr/ADR-014-multi-module-cross-cutting-concerns.md) - CI/CD 파이프라인
 
 ---
 

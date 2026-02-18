@@ -41,7 +41,7 @@ Proposed
 
 ### 문제 정의
 
-**Flaky Test Management Guide**([docs/02_Technical_Guides/flaky-test-management.md](../02_Technical_Guides/flaky-test-management.md))에 따르면 현재 5개의 플래키 테스트가 식별되어 `@Tag("flaky")`로 격리되었습니다:
+**Flaky Test Management Guide**([docs/03_Technical_Guides/flaky-test-management.md](../03_Technical_Guides/flaky-test-management.md))에 따르면 현재 5개의 플래키 테스트가 식별되어 `@Tag("flaky")`로 격리되었습니다:
 
 | # | 테스트 클래스 | 메서드 | 원인 | 우선순위 | 이슈 | 상태 |
 |---|--------------|--------|------|----------|------|------|
@@ -473,7 +473,7 @@ histogram_quantile(0.95, junit_tests_duration_seconds)
 ### 연결된 ADR
 - **[ADR-019](ADR-019-ultraqa-cycle2-solid-refactoring.md)** - SOLID 리팩토링 선행 작업
 - **[CLAUDE.md](../CLAUDE.md)** - 섹션 4 SOLID 원칙, 섹션 24 Flaky Test 방지
-- **[flaky-test-management.md](../02_Technical_Guides/flaky-test-management.md)** - Flaky Test 관리 가이드
+- **[flaky-test-management.md](../03_Technical_Guides/flaky-test-management.md)** - Flaky Test 관리 가이드
 
 ### 코드 참조
 - **수정:** `src/test/java/maple/expectation/service/v2/DonationTest.java`
@@ -482,7 +482,7 @@ histogram_quantile(0.95, junit_tests_duration_seconds)
 - **신규:** `src/test/java/maple/expectation/support/TestAwaitilityHelper.java`
 
 ### 리포트
-- **[flaky-test-management.md](../02_Technical_Guides/flaky-test-management.md)** - 플래키 테스트 관리
+- **[flaky-test-management.md](../03_Technical_Guides/flaky-test-management.md)** - 플래키 테스트 관리
 
 ---
 

@@ -455,4 +455,4 @@ grep -A 10 "executeAsFollower" src/main/java/maple/expectation/global/concurrenc
 
 ### 이슈 및 PR
 - **[PR #160](https://github.com/zbnerd/MapleExpectation/pull/160)** - SingleFlight Follower Timeout Fix
-- **Chaos Tests:** `docs/01_Chaos_Engineering/06_Nightmare/`
+- **Chaos Tests:** `docs/02_Chaos_Engineering/06_Nightmare/`

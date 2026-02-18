@@ -9,7 +9,7 @@
 This roadmap is based on **actual GitHub issues and ADRs** from the project:
 - All issue references validated against GitHub repository (Evidence: [GitHub Issues](https://github.com/zbnerd/MapleExpectation/issues))
 - Phase 7 dependency structure validated through ADR-013, ADR-014 (Evidence: [ADR Directory](../adr/))
-- Stateful component analysis completed (Evidence: [Scale-out Blockers Analysis](../04_Reports/scale-out-blockers-analysis.md))
+- Stateful component analysis completed (Evidence: [Scale-out Blockers Analysis](../05_Reports/scale-out-blockers-analysis.md))
 
 ## Terminology
 
@@ -208,7 +208,7 @@ P0/P1 Stateful 컴포넌트를 분산 환경에서 안전하게 동작하도록 
 - [ ] 2개 인스턴스 동시 기동 시 중복 처리 0건
 - [ ] Scale-out 검증 부하 테스트 통과
 
-**관련 문서:** [Scale-out 방해 요소 분석 리포트](../04_Reports/scale-out-blockers-analysis.md)
+**관련 문서:** [Scale-out 방해 요소 분석 리포트](../05_Reports/scale-out-blockers-analysis.md)
 
 ### Step 2: 멀티 모듈 전환 (#282)
 
@@ -228,7 +228,7 @@ P0/P1 Stateful 컴포넌트를 분산 환경에서 안전하게 동작하도록 
 - [ ] `implementation project(':maple-core')` 한 줄로 인프라 Bean 자동 등록
 - [ ] 순환 의존 없음 (Gradle dependency report)
 
-**관련 문서:** [ADR-014: 멀티 모듈 전환](../adr/ADR-014-multi-module-cross-cutting-concerns.md)
+**관련 문서:** [ADR-014: 멀티 모듈 전환](../01_Adr/ADR-014-multi-module-cross-cutting-concerns.md)
 
 ### Step 3: Pragmatic CQRS (#126)
 
@@ -247,7 +247,7 @@ P0/P1 Stateful 컴포넌트를 분산 환경에서 안전하게 동작하도록 
 - [ ] 대량 업데이트 시에도 메인 API 응답 속도 일정 유지
 - [ ] Worker 장애 시 조회 서비스 생존 확인
 
-**관련 문서:** [ADR-013: 비동기 이벤트 파이프라인](../adr/ADR-013-high-throughput-event-pipeline.md)
+**관련 문서:** [ADR-013: 비동기 이벤트 파이프라인](../01_Adr/ADR-013-high-throughput-event-pipeline.md)
 
 ---
 
@@ -340,7 +340,7 @@ P0/P1 Stateful 컴포넌트를 분산 환경에서 안전하게 동작하도록 
 - [ ] P99 Latency 50ms 이하 유지
 
 **관련 문서:**
-- [Transactional Outbox 패턴 ADR](../adr/ADR-XXX-outbox-pattern.md) (TBD)
+- [Transactional Outbox 패턴 ADR](../01_Adr/ADR-XXX-outbox-pattern.md) (TBD)
 - [Debebium 공식 문서](https://debezium.io/documentation/reference/stable/)
 
 ---
@@ -569,10 +569,10 @@ P0/P1 Stateful 컴포넌트를 분산 환경에서 안전하게 동작하도록 
 
 | Section | Evidence Source |
 |---------|-----------------|
-| **Phase 7 Dependencies** | [ADR-014](../adr/ADR-014-multi-module-cross-cutting-concerns.md), [ADR-013](../adr/ADR-013-high-throughput-event-pipeline.md) |
-| **Stateful Components** | [Scale-out Blockers Analysis](../04_Reports/scale-out-blockers-analysis.md) |
+| **Phase 7 Dependencies** | [ADR-014](../01_Adr/ADR-014-multi-module-cross-cutting-concerns.md), [ADR-013](../01_Adr/ADR-013-high-throughput-event-pipeline.md) |
+| **Stateful Components** | [Scale-out Blockers Analysis](../05_Reports/scale-out-blockers-analysis.md) |
 | **Issue References** | [GitHub Issues](https://github.com/zbnerd/MapleExpectation/issues) |
-| **P0/P1 Classifications** | [P0 Report](../04_Reports/P0_Issues_Resolution_Report_2026-01-20.md), [P1 Report](../04_Reports/P1_Nightmare_Issues_Resolution_Report.md) |
+| **P0/P1 Classifications** | [P0 Report](../05_Reports/P0_Issues_Resolution_Report_2026-01-20.md), [P1 Report](../05_Reports/P1_Nightmare_Issues_Resolution_Report.md) |
 
 ## Technical Validity Check
 
