@@ -81,7 +81,7 @@ public class AuthService {
             fingerprint, userIgn, accountId, apiKey, validation.myOcids(), role);
 
     // 6. JWT + Refresh Token 발급
-    TokenService.TokenPair tokens = tokenService.createTokens(session);
+    TokenPair tokens = tokenService.createTokens(session);
 
     // fingerprint는 로컬에서만 로깅 (운영환경 보안)
     logLoginSuccess(userIgn, role, fingerprint);
@@ -130,7 +130,7 @@ public class AuthService {
    * @return 새 TokenResponse (accessToken, refreshToken)
    */
   public TokenResponse refresh(String refreshTokenId) {
-    TokenService.TokenPair tokens = tokenService.rotateTokens(refreshTokenId);
+    TokenPair tokens = tokenService.rotateTokens(refreshTokenId);
 
     log.info("Token refreshed: refreshTokenId={}", maskRefreshTokenId(refreshTokenId));
 

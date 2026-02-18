@@ -135,7 +135,7 @@ docs/04-report/
 - Coverage: All 15 priority issues + supporting plans
 
 ### Design Documents
-- Location: `docs/adr/` (ADR-003~009, ADR-013~014)
+- Location: `docs/01_Adr/` (ADR-003~009, ADR-013~014)
 - Type: Architectural Decision Records
 - Status: Approved by Architecture Council
 

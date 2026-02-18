@@ -859,6 +859,6 @@ public GameCharacter createNewCharacter(String userIgn) {
 
 **참고 문헌:**
 - [CLAUDE.md](../../CLAUDE.md) - Section 5 (No Deprecated), Section 15 (Lambda Hell)
-- [docs/02_Technical_Guides/service-modules.md](service-modules.md) - V2/V4 모듈 구조
+- [docs/03_Technical_Guides/service-modules.md](service-modules.md) - V2/V4 모듈 구조
 - Martin Fowler, "Refactoring: Improving the Design of Existing Code"
 - Joshua Kerievsky, "Refactoring to Patterns"

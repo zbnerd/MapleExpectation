@@ -1,0 +1,138 @@
+> Task :module-common:compileJava UP-TO-DATE
+> Task :module-common:processResources NO-SOURCE
+> Task :module-common:classes UP-TO-DATE
+> Task :module-common:jar UP-TO-DATE
+> Task :module-core:compileJava UP-TO-DATE
+> Task :module-core:processResources NO-SOURCE
+> Task :module-core:classes UP-TO-DATE
+> Task :module-core:jar UP-TO-DATE
+> Task :module-infra:compileJava UP-TO-DATE
+> Task :module-infra:processResources UP-TO-DATE
+> Task :module-infra:classes UP-TO-DATE
+> Task :module-infra:jar UP-TO-DATE
+> Task :module-app:compileJava UP-TO-DATE
+> Task :module-app:processResources UP-TO-DATE
+> Task :module-app:classes UP-TO-DATE
+> Task :module-app:jar UP-TO-DATE
+> Task :module-chaos-test:compileJava NO-SOURCE
+> Task :module-chaos-test:processResources NO-SOURCE
+> Task :module-chaos-test:classes UP-TO-DATE
+> Task :module-chaos-test:compileTestJava NO-SOURCE
+> Task :module-chaos-test:processTestResources NO-SOURCE
+> Task :module-chaos-test:testClasses UP-TO-DATE
+> Task :module-chaos-test:compileChaosTestJava UP-TO-DATE
+> Task :module-chaos-test:processChaosTestResources UP-TO-DATE
+> Task :module-chaos-test:chaosTestClasses UP-TO-DATE
+
+> Task :module-chaos-test:chaosTest
+Could not load Logmanager "org.jboss.logmanager.LogManager"
+java.lang.ClassNotFoundException: org.jboss.logmanager.LogManager
+	at java.base/jdk.internal.loader.BuiltinClassLoader.loadClass(BuiltinClassLoader.java:641)
+	at java.base/jdk.internal.loader.ClassLoaders$AppClassLoader.loadClass(ClassLoaders.java:188)
+	at java.base/java.lang.ClassLoader.loadClass(ClassLoader.java:526)
+	at java.logging/java.util.logging.LogManager$1.run(LogManager.java:239)
+	at java.logging/java.util.logging.LogManager$1.run(LogManager.java:223)
+	at java.base/java.security.AccessController.doPrivileged(AccessController.java:319)
+	at java.logging/java.util.logging.LogManager.<clinit>(LogManager.java:222)
+	at java.logging/java.util.logging.Logger.demandLogger(Logger.java:650)
+	at java.logging/java.util.logging.Logger.getLogger(Logger.java:720)
+	at java.logging/java.util.logging.Logger.getLogger(Logger.java:703)
+	at org.gradle.internal.logging.source.JavaUtilLoggingSystem.<init>(JavaUtilLoggingSystem.java:55)
+	at org.gradle.internal.logging.services.LoggingServiceRegistry.createLoggingManagerFactory(LoggingServiceRegistry.java:136)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at org.gradle.internal.reflect.JavaMethod.invoke(JavaMethod.java:125)
+	at org.gradle.internal.service.ReflectionBasedServiceMethod.invoke(ReflectionBasedServiceMethod.java:34)
+	at org.gradle.internal.service.DefaultServiceRegistry$FactoryMethodService.invokeMethod(DefaultServiceRegistry.java:911)
+	at org.gradle.internal.service.DefaultServiceRegistry$FactoryService.createServiceInstance(DefaultServiceRegistry.java:838)
+	at org.gradle.internal.service.DefaultServiceRegistry$ManagedObjectServiceProvider.getInstance(DefaultServiceRegistry.java:623)
+	at org.gradle.internal.service.DefaultServiceRegistry$SingletonService.get(DefaultServiceRegistry.java:686)
+	at org.gradle.internal.service.DefaultServiceRegistry.getFactory(DefaultServiceRegistry.java:336)
+	at org.gradle.internal.service.DefaultServiceRegistry.newInstance(DefaultServiceRegistry.java:392)
+	at org.gradle.process.internal.worker.child.SystemApplicationClassLoaderWorker.createLoggingManager(SystemApplicationClassLoaderWorker.java:174)
+	at org.gradle.process.internal.worker.child.SystemApplicationClassLoaderWorker.call(SystemApplicationClassLoaderWorker.java:84)
+	at org.gradle.process.internal.worker.child.SystemApplicationClassLoaderWorker.call(SystemApplicationClassLoaderWorker.java:65)
+	at worker.org.gradle.process.internal.worker.GradleWorkerMain.run(GradleWorkerMain.java:69)
+	at worker.org.gradle.process.internal.worker.GradleWorkerMain.main(GradleWorkerMain.java:74)
+
+Gradle Test Run :module-chaos-test:chaosTest > Gradle Test Executor 1 > Nightmare 15: AOP Order Problem - 프로젝트 전체 AOP 순서 검증 > initializationError STARTED
+
+Gradle Test Run :module-chaos-test:chaosTest > Gradle Test Executor 1 > Nightmare 15: AOP Order Problem - 프로젝트 전체 AOP 순서 검증 > initializationError FAILED
+    java.lang.IllegalStateException: Could not find a valid Docker environment. Please see logs and check configuration
+        at org.testcontainers.dockerclient.DockerClientProviderStrategy.lambda$getFirstValidStrategy$7(DockerClientProviderStrategy.java:274)
+        at java.base/java.util.Optional.orElseThrow(Optional.java:403)
+        at org.testcontainers.dockerclient.DockerClientProviderStrategy.getFirstValidStrategy(DockerClientProviderStrategy.java:265)
+        at org.testcontainers.DockerClientFactory.getOrInitializeStrategy(DockerClientFactory.java:154)
+        at org.testcontainers.DockerClientFactory.client(DockerClientFactory.java:196)
+        at org.testcontainers.DockerClientFactory$1.getDockerClient(DockerClientFactory.java:108)
+        at com.github.dockerjava.api.DockerClientDelegate.authConfig(DockerClientDelegate.java:109)
+        at org.testcontainers.containers.GenericContainer.start(GenericContainer.java:321)
+        at maple.expectation.support.AbstractContainerBaseTest.startContainers(AbstractContainerBaseTest.java:44)
+        at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+        at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+
+Gradle Test Run :module-chaos-test:chaosTest > Gradle Test Executor 1 > Nightmare 12: Phantom Context - 비동기 컨텍스트 전파 검증 > alertTaskExecutor에서 MDC 컨텍스트 전파 검증 STARTED
+
+OpenJDK 64-Bit Server VM warning: Sharing is only supported for boot loader classes because bootstrap classpath has been appended
+
+> Task :module-chaos-test:chaosTest
+
+Gradle Test Run :module-chaos-test:chaosTest > Gradle Test Executor 1 > Nightmare 12: Phantom Context - 비동기 컨텍스트 전파 검증 > alertTaskExecutor에서 MDC 컨텍스트 전파 검증 PASSED
+
+Gradle Test Run :module-chaos-test:chaosTest > Gradle Test Executor 1 > Nightmare 12: Phantom Context - 비동기 컨텍스트 전파 검증 > CompletableFuture 체인에서 MDC 전파 검증 STARTED
+
+Gradle Test Run :module-chaos-test:chaosTest > Gradle Test Executor 1 > Nightmare 12: Phantom Context - 비동기 컨텍스트 전파 검증 > CompletableFuture 체인에서 MDC 전파 검증 PASSED
+
+Gradle Test Run :module-chaos-test:chaosTest > Gradle Test Executor 1 > Nightmare 12: Phantom Context - 비동기 컨텍스트 전파 검증 > [대조군] TaskDecorator 없는 ExecutorService는 MDC 손실 STARTED
+
+Gradle Test Run :module-chaos-test:chaosTest > Gradle Test Executor 1 > Nightmare 12: Phantom Context - 비동기 컨텍스트 전파 검증 > [대조군] TaskDecorator 없는 ExecutorService는 MDC 손실 PASSED
+
+Gradle Test Run :module-chaos-test:chaosTest > Gradle Test Executor 1 > Nightmare 12: Phantom Context - 비동기 컨텍스트 전파 검증 > expectationComputeExecutor에서 MDC 컨텍스트 전파 검증 STARTED
+
+Gradle Test Run :module-chaos-test:chaosTest > Gradle Test Executor 1 > Nightmare 12: Phantom Context - 비동기 컨텍스트 전파 검증 > expectationComputeExecutor에서 MDC 컨텍스트 전파 검증 PASSED
+
+Gradle Test Run :module-chaos-test:chaosTest > Gradle Test Executor 1 > Nightmare 12: Phantom Context - 비동기 컨텍스트 전파 검증 > 100회 비동기 호출 시 MDC 전파 성공률 100% 검증 STARTED
+
+Gradle Test Run :module-chaos-test:chaosTest > Gradle Test Executor 1 > Nightmare 12: Phantom Context - 비동기 컨텍스트 전파 검증 > 100회 비동기 호출 시 MDC 전파 성공률 100% 검증 PASSED
+
+Gradle Test Run :module-chaos-test:chaosTest > Gradle Test Executor 1 > Nightmare 12: Phantom Context - 비동기 컨텍스트 전파 검증 > Executor 스레드 이름 패턴 검증 STARTED
+
+Gradle Test Run :module-chaos-test:chaosTest > Gradle Test Executor 1 > Nightmare 12: Phantom Context - 비동기 컨텍스트 전파 검증 > Executor 스레드 이름 패턴 검증 PASSED
+
+Gradle Test Run :module-chaos-test:chaosTest > Gradle Test Executor 1 > Nightmare 10: CallerRunsPolicy Betrayal - 실제 운영 Executor 검증 > [개념 시연] CallerRunsPolicy의 Cascading Timeout 위험 STARTED
+
+Gradle Test Run :module-chaos-test:chaosTest > Gradle Test Executor 1 > Nightmare 10: CallerRunsPolicy Betrayal - 실제 운영 Executor 검증 > [개념 시연] CallerRunsPolicy의 Cascading Timeout 위험 PASSED
+
+Gradle Test Run :module-chaos-test:chaosTest > Gradle Test Executor 1 > Nightmare 10: CallerRunsPolicy Betrayal - 실제 운영 Executor 검증 > expectationComputeExecutor: CallerRunsPolicy 미사용 검증 STARTED
+
+Gradle Test Run :module-chaos-test:chaosTest > Gradle Test Executor 1 > Nightmare 10: CallerRunsPolicy Betrayal - 실제 운영 Executor 검증 > expectationComputeExecutor: CallerRunsPolicy 미사용 검증 PASSED
+
+Gradle Test Run :module-chaos-test:chaosTest > Gradle Test Executor 1 > Nightmare 10: CallerRunsPolicy Betrayal - 실제 운영 Executor 검증 > alertTaskExecutor: CallerRunsPolicy 미사용 검증 STARTED
+Requesting stop of task ':module-chaos-test:chaosTest' as it has exceeded its configured timeout of 15m.
+
+Gradle Test Run :module-chaos-test:chaosTest > Gradle Test Executor 1 > Nightmare 10: CallerRunsPolicy Betrayal - 실제 운영 Executor 검증 > alertTaskExecutor: CallerRunsPolicy 미사용 검증 SKIPPED
+
+10 tests completed, 1 failed, 1 skipped
+
+> Task :module-chaos-test:chaosTest FAILED
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':module-chaos-test:chaosTest'.
+> Timeout has been exceeded
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.5/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD FAILED in 15m 6s
+13 actionable tasks: 1 executed, 12 up-to-date

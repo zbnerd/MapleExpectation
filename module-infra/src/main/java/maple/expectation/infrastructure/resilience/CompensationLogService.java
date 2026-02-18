@@ -130,7 +130,7 @@ public class CompensationLogService {
   public StreamMessageId writeLog(String type, String key, Object data) {
     return checkedExecutor.executeUnchecked(
         () -> {
-          String jsonData = serializeData(data);
+          String jsonData = serializeDataSafely(data);
 
           RStream<String, String> stream =
               redissonClient.getStream(properties.getCompensationStream());
@@ -299,15 +299,30 @@ public class CompensationLogService {
   }
 
   /** JSON 직렬화 */
-  private String serializeData(Object data) throws JsonProcessingException {
-    return objectMapper.writeValueAsString(data);
+  private String serializeDataSafely(Object data) {
+    try {
+      return objectMapper.writeValueAsString(data);
+    } catch (JsonProcessingException e) {
+      throw new MapleDataProcessingException("JSON 직렬화 실패: " + data.getClass().getSimpleName(), e);
+    }
   }
 
   /** JSON 역직렬화 */
   public <T> T deserializeData(String json, Class<T> type) {
     return checkedExecutor.executeUnchecked(
-        () -> objectMapper.readValue(json, type),
+        () -> {
+          try {
+            return objectMapper.readValue(json, type);
+          } catch (JsonProcessingException e) {
+            throw new MapleDataProcessingException("JSON 역직렬화 실패: " + type.getSimpleName(), e);
+          }
+        },
         TaskContext.of("Compensation", "DeserializeData", type.getSimpleName()),
         e -> new MapleDataProcessingException("JSON 역직렬화 실패: " + type.getSimpleName(), e));
+  }
+
+  /** JSON 역직렬화 안전 처리 */
+  private <T> T deserializeDataSafely(String json, Class<T> type) throws JsonProcessingException {
+    return objectMapper.readValue(json, type);
   }
 }

@@ -112,7 +112,13 @@ public class KafkaEventPublisher implements EventPublisher {
   @Override
   public void publish(String topic, IntegrationEvent<?> event) {
     executor.executeVoid(
-        () -> publishInternal(topic, event),
+        () -> {
+          try {
+            publishInternal(topic, event);
+          } catch (Exception e) {
+            log.error("[KafkaEventPublisher] Publish failed for topic: {}", topic, e);
+          }
+        },
         TaskContext.of("KafkaEventPublisher", "Publish", topic));
   }
 

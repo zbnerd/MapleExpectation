@@ -408,7 +408,7 @@ return executor.executeWithTranslation(
 
 #### 2. Document Structural Exception Patterns
 
-**Create:** `docs/02_Technical_Guides/exception-patterns.md`
+**Create:** `docs/03_Technical_Guides/exception-patterns.md`
 
 Document acceptable patterns for:
 - Thread lifecycle management (`InterruptedException`)

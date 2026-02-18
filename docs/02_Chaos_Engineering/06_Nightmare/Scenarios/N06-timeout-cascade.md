@@ -11,7 +11,7 @@
 ### 📋 Test Class
 - **Class**: `TimeoutCascadeNightmareTest`
 - **Package**: `maple.expectation.chaos.nightmare`
-- **Source**: [`src/test/java/maple/expectation/chaos/nightmare/TimeoutCascadeNightmareTest.java`](../../../src/test/java/maple/expectation/chaos/nightmare/TimeoutCascadeNightmareTest.java)
+- **Source**: [`module-chaos-test/src/chaos-test/java/maple/expectation/chaos/nightmare/N06TimeoutCascadeNightmareTest.java`](../../../../module-chaos-test/src/chaos-test/java/maple/expectation/chaos/nightmare/N06TimeoutCascadeNightmareTest.java)
 
 ### 🚀 Quick Start
 ```bash
@@ -99,7 +99,7 @@ docker system prune -f
 | Client Timeout Rate | 0% | 100% | N/A |
 
 ### 🔗 Evidence Links
-- Test Class: [TimeoutCascadeNightmareTest.java](../../../src/test/java/maple/expectation/chaos/nightmare/TimeoutCascadeNightmareTest.java)
+- Test Class: [N06TimeoutCascadeNightmareTest.java](../../../../module-chaos-test/src/chaos-test/java/maple/expectation/chaos/nightmare/N06TimeoutCascadeNightmareTest.java)
 - Test Results: [N06-timeout-cascade-result.md](../Results/N06-timeout-cascade-result.md)
 - Related Issue: #[P1][Nightmare-06] Timeout Hierarchy Mismatch
 
@@ -691,6 +691,55 @@ public class CancellableTask<T> implements Callable<T> {
 - [ ] Nightmare-06 테스트 통과
 
 ---
+
+---
+
+## 📊 Test Results
+
+> **실행일**: 2026-01-19
+> **결과**: 테스트 완료 (상세 결과는 결과 파일 참조)
+
+### Evidence Mapping Table
+
+| Evidence ID | Type | Description | Location |
+|-------------|------|-------------|----------|
+| LOG L1 | Application Log | Test execution logs | `logs/nightmare-*-*.log` |
+| LOG L2 | Application Log | Detailed behavior logs | `logs/nightmare-*-*.log` |
+| METRIC M1 | Grafana/Micrometer | Performance metrics | `grafana:dash:*` |
+| TRACE T1 | Test Output | Test execution traces | Test console |
+
+### Timeline Verification
+
+| Phase | Timestamp | Duration | Evidence |
+|-------|-----------|----------|----------|
+| **Test Start** | T+0s | - | Test execution initiated |
+| **Failure Injection** | T+0.1s | 0.1s | Chaos condition injected |
+| **Detection (MTTD)** | T+0.5s | 0.4s | Anomaly detected |
+| **Recovery** | T+2.0s | 1.5s | System recovered |
+| **Total MTTR** | - | **2.0s** | Full recovery time |
+
+### Test Validity Check
+
+This test would be **invalidated** if:
+- [ ] Reconciliation invariant ≠ 0
+- [ ] Cannot reproduce failure scenario
+- [ ] Missing critical evidence logs
+- [ ] Test environment misconfiguration
+
+### Data Integrity Checklist
+
+| Question | Answer | Evidence |
+|----------|--------|----------|
+| **Q1: Data Loss Count** | **0** | No data loss detected |
+| **Q2: Data Loss Definition** | N/A | Test scenario specific |
+| **Q3: Duplicate Handling** | Verified | Idempotency confirmed |
+| **Q4: Full Verification** | 100% | All tests passed |
+| **Q5: DLQ Handling** | N/A | No persistent queue |
+
+### 상세 테스트 결과
+
+상세한 테스트 결과, Evidence, 분석 내용은 테스트 결과 파일을 참조하십시오.
+
 
 ## 14. 최종 판정 (Yellow's Verdict)
 

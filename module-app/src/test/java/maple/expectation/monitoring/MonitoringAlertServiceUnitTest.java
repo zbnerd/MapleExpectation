@@ -45,10 +45,30 @@ class MonitoringAlertServiceUnitTest {
   @BeforeEach
   void setUp() {
     // executor.executeOrCatch()가 실제로 람다를 실행하도록 설정
-    given(logicExecutor.executeOrCatch(any(), any(), any(TaskContext.class)))
+    // Mock BOTH overloads: ExceptionTranslator and Kotlin Function1
+    // The production code uses method reference which may resolve to either
+
+    // 1. ExceptionTranslator overload (Java-friendly)
+    given(
+            logicExecutor.executeOrCatch(
+                any(),
+                any(maple.expectation.infrastructure.executor.strategy.ExceptionTranslator.class),
+                any(TaskContext.class)))
         .willAnswer(
             invocation -> {
-              // 첫 번째 인자(ThrowingSupplier)를 실행
+              maple.expectation.common.function.ThrowingSupplier<?> task =
+                  invocation.getArgument(0);
+              return task.get();
+            });
+
+    // 2. Kotlin Function1 overload - use any() for the function parameter
+    given(
+            logicExecutor.executeOrCatch(
+                any(maple.expectation.common.function.ThrowingSupplier.class),
+                any(kotlin.jvm.functions.Function1.class),
+                any(TaskContext.class)))
+        .willAnswer(
+            invocation -> {
               maple.expectation.common.function.ThrowingSupplier<?> task =
                   invocation.getArgument(0);
               return task.get();

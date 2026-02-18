@@ -225,7 +225,7 @@ executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
 ## 🔄 추후 작업
 
 1. **ADR 전체 검사:** 20개 ADR 문서 모두 검사
-2. **Service Modules 가이드:** docs/02_Technical_Guides/service-modules.md 위반 검사
+2. **Service Modules 가이드:** docs/03_Technical_Guides/service-modules.md 위반 검사
 3. **Chaos Engineering:** Nightmare 테스트 가이드라인 준수 여부 확인
 4. **Security:** infrastructure.md Sections 18-20 보안 규칙 검사
 5. **Design Patterns:** Strategy, Factory, Template Method 패턴 위반 검사

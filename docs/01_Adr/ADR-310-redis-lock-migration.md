@@ -435,21 +435,21 @@ echo "=== Verification Complete ==="
 
 ### 이슈
 - **[#310](https://github.com/zbnerd/MapleExpectation/issues/310)** - MySQL Named Lock → Redis 마이그레이션
-- **[N02](../01_Chaos_Engineering/06_Nightmare/)** - Deadlock Trap 시나리오
-- **[N18](../01_Chaos_Engineering/06_Nightmare/)** - Data Consistency 시나리오
+- **[N02](../02_Chaos_Engineering/)** - Deadlock Trap 시나리오 (Note: Directory structure may vary)
+- **[N18](../02_Chaos_Engineering/)** - Data Consistency 시나리오 (Note: Directory structure may vary)
 
 ---
 
 ## Evidence Links (증거 링크)
 
 ### 문서
-- [Scale-out Blockers Analysis](../04_Reports/scale-out-blockers-analysis.md) - MySQL Lock 병점 분석
-- [High Traffic Performance Analysis](../04_Reports/high-traffic-performance-analysis.md) - 부하 테스트 결과
-- [Chaos Test Results](../01_Chaos_Engineering/06_Nightmare/Results/) - N02, N18 테스트 결과
+- [Scale-out Blockers Analysis](../05_Reports/04_09_Scale_Out/scale-out-blockers-analysis.md) - MySQL Lock 병점 분석
+- [High Traffic Performance Analysis](../05_Reports/04_02_Cost_Performance/high-traffic-performance-analysis.md) - 부하 테스트 결과
+- [Chaos Test Results](../02_Chaos_Engineering/) - N02, N18 테스트 결과 (Note: Directory structure may vary)
 
 ### 모니터링
 - [Lock Metrics Dashboard](../../docker/grafana/provisioning/dashboards/lock-metrics.json) - 락 상태 대시보드
 - [Prometheus Rules](../../docker/prometheus/rules/lock-alerts.yml) - 락 관련 경고 규칙
 
 ### 인시던트
-- [INC-29506523-5ae92aa7](../incidents/INC-29506523-5ae92aa7.md) - MySQL Lock Pool 포화 사건
+- [INC-29506523-5ae92aa7](../incidents/INC-29506523-5ae92aa7.md) - MySQL Lock Pool 포화 사건 (Note: Incident file not yet created)

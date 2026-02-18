@@ -569,7 +569,7 @@ jaCoCoTestCoverageVerification {
 - **Security Tests:** `module-app/src/test/java/maple/expectation/global/security/` (Evidence: [CODE-SEC-TEST-001])
 - **JWT Tests:** `module-app/src/test/java/maple/expectation/global/security/jwt/JwtTokenProviderTest.java` (Evidence: [CODE-JWT-TEST-001])
 - **CORS Tests:** `module-app/src/test/java/maple/expectation/global/security/cors/` (Evidence: [CODE-CORS-TEST-001])
-- **Chaos Tests:** `docs/01_Chaos_Engineering/06_Nightmare/` (Evidence: [CHAOS-TEST-001])
+- **Chaos Tests:** `docs/02_Chaos_Engineering/06_Nightmare/` (Evidence: [CHAOS-TEST-001])
 
 ## Technical Validity Check
 
@@ -597,5 +597,5 @@ docker run -t --network=host owasp/zap2docker-stable zap-baseline.py \
 ```
 
 ### Related Evidence
-- Security Test Report: `docs/04_Reports/security-test-coverage-2025-Q4.md`
-- Penetration Test Results: `docs/04_Reports/penetration-test-2025-Q3.md`
+- Security Test Report: `docs/05_Reports/security-test-coverage-2025-Q4.md`
+- Penetration Test Results: `docs/05_Reports/penetration-test-2025-Q3.md`

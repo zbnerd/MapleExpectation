@@ -134,7 +134,7 @@
 
 | 용어 | 정의 | 관련 링크 |
 |------|------|----------|
-| **Graceful Degradation** | 일부 구성 요소 실패 시 핵심 기능 유지하며 서비스 수준 점진적 저하 | [docs/02_Technical_Guides/resilience.md](../../02_Technical_Guides/resilience.md) |
+| **Graceful Degradation** | 일부 구성 요소 실패 시 핵심 기능 유지하며 서비스 수준 점진적 저하 | [docs/03_Technical_Guides/resilience.md](../../03_Technical_Guides/resilience.md) |
 | **Log Rotation** | 로그 파일 주기적 교체/압축으로 디스크 사용량 제어 | [Logback Docs](https://logback.qos.ch/manual/appenders.html#RollingFileAppender) |
 | **Health Indicator** | Spring Boot Actuator가 제공하는 시스템 건전성 모니터링 | [Spring Boot Docs](https://docs.spring.io/spring-boot/docs/current/reference/html/actuator.html#actuator.endpoints.health) |
 | **diskSpace Threshold** | 디스크 부족 경고 임계치 (기본 10MB) | [Spring Boot Health](https://docs.spring.io/spring-boot/docs/current/reference/html/actuator.html#actuator.endpoints.health) |

@@ -115,9 +115,9 @@
 - 처리량: **1,200 TPS** (peak 1,250 TPS)
 
 **증거 링크:**
-- [Recovery Report](../04_Reports/Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md)
-- [Test Scenario](../01_Chaos_Engineering/06_Nightmare/Scenarios/N19-outbox-replay.md)
-- [Test Results](../01_Chaos_Engineering/06_Nightmare/Results/N19-outbox-replay-result.md)
+- [Recovery Report](../05_Reports/04_07_Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md)
+- [Test Scenario](../02_Chaos_Engineering/06_Nightmare/Scenarios/N19-outbox-replay.md)
+- [Test Results](../02_Chaos_Engineering/06_Nightmare/Results/N19-outbox-replay-result.md)
 
 ### Issue Reference
 - #303: 스케줄러 분산 락 P1-7/8/9
@@ -637,9 +637,9 @@ try {
 - `maple.expectation.external.impl.ResilientNexonApiClient` - Outbox 적재 포인트
 
 ### 증거 링크
-- [N19 Recovery Report](../04_Reports/Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md) - 상세 복구 분석
-- [N19 Test Scenario](../01_Chaos_Engineering/06_Nightmare/Scenarios/N19-outbox-replay.md) - 테스트 시나리오
-- [N19 Test Results](../01_Chaos_Engineering/06_Nightmare/Results/N19-outbox-replay-result.md) - 테스트 결과
+- [N19 Recovery Report](../05_Reports/04_07_Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md) - 상세 복구 분석
+- [N19 Test Scenario](../02_Chaos_Engineering/06_Nightmare/Scenarios/N19-outbox-replay.md) - 테스트 시나리오
+- [N19 Test Results](../02_Chaos_Engineering/06_Nightmare/Results/N19-outbox-replay-result.md) - 테스트 결과
 - [ADR-010: Transactional Outbox Pattern](ADR-010-outbox-pattern.md) - 일반적 Outbox 패턴
 - [ADR-013: High-Throughput Event Pipeline](ADR-013-high-throughput-event-pipeline.md) - 이벤트 파이프라인
 

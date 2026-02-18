@@ -355,5 +355,5 @@ docker run -t --network=host owasp/zap2docker-stable zap-baseline.py \
 ```
 
 ### Related Evidence
-- Security Audit Report: `docs/04_Reports/security-audit-2025-Q4.md`
-- OWASP Compliance: `docs/04_Reports/owasp-compliance.md`
+- Security Audit Report: `docs/05_Reports/security-audit-2025-Q4.md`
+- OWASP Compliance: `docs/05_Reports/owasp-compliance.md`

@@ -39,7 +39,7 @@ Discord webhook notifications were not being sent due to an **environment variab
 
 ### 3. Documentation
 
-**New File:** `docs/04_Reports/discord-webhook-root-cause-analysis.md`
+**New File:** `docs/05_Reports/discord-webhook-root-cause-analysis.md`
 
 - Complete root cause analysis
 - Technical details of the three alert systems
@@ -103,7 +103,7 @@ If NOT configured, you will see:
 1. `.env.example` - Fixed environment variable name
 2. `module-app/src/main/java/maple/expectation/config/AlertConfigurationValidator.java` - New validator
 3. `module-app/src/test/java/maple/expectation/config/AlertConfigurationValidatorTest.java` - New test
-4. `docs/04_Reports/discord-webhook-root-cause-analysis.md` - New documentation
+4. `docs/05_Reports/discord-webhook-root-cause-analysis.md` - New documentation
 
 ---
 

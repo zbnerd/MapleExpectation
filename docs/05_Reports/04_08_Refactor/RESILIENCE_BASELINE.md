@@ -199,7 +199,7 @@ outbox:
 
 ### Evidence: N19 Replay
 
-From `docs/01_Chaos_Engineering/06_Nightmare/Results/N19-outbox-replay-result.md`:
+From `docs/02_Chaos_Engineering/06_Nightmare/Results/N19-outbox-replay-result.md`:
 
 - **Events**: 2,160,000 accumulated during 6-hour outage
 - **Replay Time**: 30 minutes
@@ -379,7 +379,7 @@ Redis Master: 172.20.0.10
 
 ### N21 Auto Mitigation Baseline
 
-From `docs/04_Reports/Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md`:
+From `docs/05_Reports/Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md`:
 
 - **MTTD**: 30 seconds (p99 spike detection)
 - **MTTR**: 2 minutes (auto-mitigation executed)

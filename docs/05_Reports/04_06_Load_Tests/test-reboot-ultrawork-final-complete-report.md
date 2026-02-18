@@ -160,11 +160,11 @@ M  module-app/build.gradle (test-legacy 제외)
 M  module-core/build.gradle (jqwik 추가)
 M  module-infra/build.gradle (integrationTest 소스셋)
 
-A  docs/adr/ADR-015-test-reboot-pyramid.md
-A  docs/02_Technical_Guides/testcontainers-singleton-flaky-prevention.md
-A  docs/04_Reports/test-reboot-completion-report.md
-A  docs/04_Reports/test-reboot-ultrawork-final-report.md
-A  docs/04_Reports/test-rewrite-progress-report.md
+A  docs/01_Adr/ADR-015-test-reboot-pyramid.md
+A  docs/03_Technical_Guides/testcontainers-singleton-flaky-prevention.md
+A  docs/05_Reports/test-reboot-completion-report.md
+A  docs/05_Reports/test-reboot-ultrawork-final-report.md
+A  docs/05_Reports/test-rewrite-progress-report.md
 A  module-core/src/test/java/maple/expectation/domain/cost/CostFormatterTest.java
 A  module-core/src/test/java/maple/expectation/properties/ (jqwik PBT 5개 파일)
 A  module-infra/src/integrationTest/java/ (Testcontainers Singleton)

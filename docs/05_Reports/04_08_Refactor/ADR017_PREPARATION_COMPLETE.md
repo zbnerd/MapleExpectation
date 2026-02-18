@@ -35,11 +35,11 @@ The ADR-017 (Domain Extraction - Equipment Slice) preparation phase is **COMPLET
 
 | # | Document | Purpose | Status |
 |---|----------|---------|--------|
-| 1 | `docs/04_Reports/Refactor/v4_expectation_flow_analysis.md` | Complete V4 call flow analysis | ✅ Created |
-| 2 | `docs/04_Reports/Refactor/monitoring_query_guide.md` | Prometheus/Loki query library | ✅ Created |
-| 3 | `docs/04_Reports/Baseline/BASELINE_20260210.md` | Performance baseline | ✅ Updated |
+| 1 | `docs/05_Reports/Refactor/v4_expectation_flow_analysis.md` | Complete V4 call flow analysis | ✅ Created |
+| 2 | `docs/05_Reports/Refactor/monitoring_query_guide.md` | Prometheus/Loki query library | ✅ Created |
+| 3 | `docs/05_Reports/Baseline/BASELINE_20260210.md` | Performance baseline | ✅ Updated |
 | 4 | `results/CAPTURE_CHECKLIST.md` | Performance capture checklist | ✅ Created |
-| 5 | `docs/04_Reports/Refactor/COUNCIL_REVIEW_ADR017_PREPARATION.md` | Council review results | ✅ Created |
+| 5 | `docs/05_Reports/Refactor/COUNCIL_REVIEW_ADR017_PREPARATION.md` | Council review results | ✅ Created |
 
 ---
 
@@ -67,7 +67,7 @@ All 5 agents now agree that preparation is complete and implementation can proce
 
 **Status:** Complete (agent a180c5f)
 
-**Deliverable:** `docs/04_Reports/Refactor/v4_expectation_flow_analysis.md` (~1,200 lines)
+**Deliverable:** `docs/05_Reports/Refactor/v4_expectation_flow_analysis.md` (~1,200 lines)
 
 **Key Findings:**
 - **Complete sequence diagram** with line numbers from Controller to Database
@@ -88,7 +88,7 @@ All 5 agents now agree that preparation is complete and implementation can proce
 
 **Status:** Complete (agent a2f9999)
 
-**Deliverable:** `docs/04_Reports/Refactor/monitoring_query_guide.md` (~400 lines)
+**Deliverable:** `docs/05_Reports/Refactor/monitoring_query_guide.md` (~400 lines)
 
 **Contents:**
 - **Prometheus Query Library:** RPS, latency (p50/p95/p99), error rates, cache metrics, thread pools, JVM, GC
@@ -429,18 +429,18 @@ If Slice 1 fails:
 
 ### Documents Created
 
-1. `docs/04_Reports/Refactor/v4_expectation_flow_analysis.md` - V4 endpoint analysis
-2. `docs/04_Reports/Refactor/monitoring_query_guide.md` - Prometheus/Loki queries
-3. `docs/04_Reports/Refactor/COUNCIL_REVIEW_ADR017_PREPARATION.md` - 5-Agent Council review
-4. `docs/04_Reports/Baseline/BASELINE_20260210.md` - Performance baseline
+1. `docs/05_Reports/Refactor/v4_expectation_flow_analysis.md` - V4 endpoint analysis
+2. `docs/05_Reports/Refactor/monitoring_query_guide.md` - Prometheus/Loki queries
+3. `docs/05_Reports/Refactor/COUNCIL_REVIEW_ADR017_PREPARATION.md` - 5-Agent Council review
+4. `docs/05_Reports/Baseline/BASELINE_20260210.md` - Performance baseline
 5. `results/CAPTURE_CHECKLIST.md` - Performance capture checklist
-6. `docs/04_Reports/Refactor/ADR017_PREPARATION_COMPLETE.md` - This document
+6. `docs/05_Reports/Refactor/ADR017_PREPARATION_COMPLETE.md` - This document
 
 ### Existing Documents Referenced
 
-- `docs/adr/ADR-017-S1-equipment-slice.md` - Equipment slice ADR
-- `docs/adr/ADR-017-domain-extraction-clean-architecture.md` - Parent ADR
-- `docs/04_Reports/Refactor/v2_like_flow_analysis.md` - V2 like endpoint analysis
+- `docs/01_Adr/ADR-017-S1-equipment-slice.md` - Equipment slice ADR
+- `docs/01_Adr/ADR-017-domain-extraction-clean-architecture.md` - Parent ADR
+- `docs/05_Reports/Refactor/v2_like_flow_analysis.md` - V2 like endpoint analysis
 - `src/test/java/maple/expectation/characterization/CharacterEquipmentCharacterizationTest.java` - Tests
 - `load-test/wrk-v4-expectation.lua` - Load test script
 

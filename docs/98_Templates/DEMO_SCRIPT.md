@@ -457,10 +457,10 @@ Top 3 Learnings:
 
 ## 🔗 Related Resources
 
-- [Balanced Scorecard KPIs](../02_Technical_Guides/balanced-scorecard-kpis.md) - Performance metrics reference
-- [N21 Auto Mitigation Report](../../04_Reports/Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md) - Incident deep dive
-- [N23 Cost Performance Report](../../04_Reports/Cost_Performance/COST_PERF_REPORT_N23.md) - Cost optimization evidence
-- [Scenario Planning Guide](../02_Technical_Guides/scenario-planning.md) - Future scenarios and mitigation
+- [Balanced Scorecard KPIs](../03_Technical_Guides/balanced-scorecard-kpis.md) - Performance metrics reference
+- [N21 Auto Mitigation Report](../05_Reports/Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md) - Incident deep dive
+- [N23 Cost Performance Report](../05_Reports/Cost_Performance/COST_PERF_REPORT_N23.md) - Cost optimization evidence
+- [Scenario Planning Guide](../03_Technical_Guides/scenario-planning.md) - Future scenarios and mitigation
 
 ---
 

@@ -430,7 +430,7 @@ jobs:
 
 ### Phase 8: Documentation
 
-- [ ] **Step 8.1**: Update `docs/01_Chaos_Engineering/00_Overview/TEST_STRATEGY.md`
+- [ ] **Step 8.1**: Update `docs/02_Chaos_Engineering/00_Overview/TEST_STRATEGY.md`
 - [ ] **Step 8.2**: Update CLAUDE.md Section 10 (Testing)
 - [ ] **Step 8.3**: Create ADR documenting migration rationale
 - [ ] **Step 8.4**: Update README with chaos test execution instructions
@@ -488,10 +488,10 @@ Migration is successful when ALL of the following are true:
 
 ## 8. References
 
-- [ADR-014: Multi-module Cross-cutting Concerns](/home/maple/MapleExpectation/docs/adr/ADR-014-multi-module-cross-cutting-concerns.md)
-- [Test Strategy](/home/maple/MapleExpectation/docs/01_Chaos_Engineering/00_Overview/TEST_STRATEGY.md)
-- [Flaky Test Management Guide](/home/maple/MapleExpectation/docs/02_Technical_Guides/flaky-test-management.md)
-- [Nightmare Scenarios](/home/maple/MapleExpectation/docs/01_Chaos_Engineering/06_Nightmare/Scenarios/)
+- [ADR-014: Multi-module Cross-cutting Concerns](/home/maple/MapleExpectation/docs/01_Adr/ADR-014-multi-module-cross-cutting-concerns.md)
+- [Test Strategy](/home/maple/MapleExpectation/docs/02_Chaos_Engineering/00_Overview/TEST_STRATEGY.md)
+- [Flaky Test Management Guide](/home/maple/MapleExpectation/docs/03_Technical_Guides/flaky-test-management.md)
+- [Nightmare Scenarios](/home/maple/MapleExpectation/docs/02_Chaos_Engineering/06_Nightmare/Scenarios/)
 
 ---
 

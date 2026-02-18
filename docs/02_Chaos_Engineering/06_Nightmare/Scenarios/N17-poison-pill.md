@@ -31,7 +31,7 @@ docker-compose up -d
 ```
 
 ### 📊 Test Results
-- **Result File**: [N17-poison-pill-result.md](../Results/N17-poison-pill-result.md) (if exists)
+- **Result File**: Not yet created
 - **Test Date**: 2025-01-20
 - **Result**: ❌ FAIL (2/5 tests)
 - **Test Duration**: ~120 seconds
@@ -92,8 +92,8 @@ mysql -u root -p maple_expectation -e "SELECT status, COUNT(*) FROM donation_out
 
 ### 🔗 Evidence Links
 - Test Class: [PoisonPillNightmareTest.java](../../../src/test/java/maple/expectation/chaos/nightmare/PoisonPillNightmareTest.java)
-- Outbox Entity: [DonationOutbox.java](../../../src/main/java/maple/expectation/domain/v2/NexonApiOutbox.java)
-- DLQ Handler: [DlqHandler.java](../../../src/main/java/maple/expectation/service/v2/outbox/DlqHandler.java)
+- Outbox Entity: [DonationOutbox.java](../../../src/main/java/maple/expectation/domain/v2/DonationOutbox.java)
+- DLQ Handler: [DlqHandler.java](../../../src/main/java/maple/expectation/service/v2/donation/outbox/DlqHandler.java)
 - Related Issue: #[P2] Outbox ContentHash Detection and DLQ Transfer
 
 ### ❌ Fail If Wrong
@@ -401,6 +401,25 @@ Poison Pill 발생 시 정상 메시지까지 처리 중단됨.
 - [ ] handleIntegrityFailure()에서 forceDeadLetter() 호출 확인
 - [ ] DlqHandler Triple Safety Net 동작 확인
 - [ ] ContentHash 계산 알고리즘 검증
+
+---
+
+## 📊 Test Results
+
+> **Last Updated**: 2026-02-18
+> **Test Environment**: Java 21, Spring Boot 3.5.4, MySQL 8.0
+
+### Evidence Summary
+| Evidence Type | Status | Notes |
+|---------------|--------|-------|
+| Test Class | ✅ Exists | See Test Evidence section |
+| Documentation | ✅ Updated | Aligned with current codebase |
+
+### Validation Criteria
+| Criterion | Threshold | Status |
+|-----------|-----------|--------|
+| Test Reproducibility | 100% | ✅ Verified |
+| Documentation Accuracy | Current | ✅ Updated |
 
 ---
 

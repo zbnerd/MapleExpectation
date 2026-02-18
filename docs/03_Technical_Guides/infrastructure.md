@@ -760,4 +760,4 @@ grep -r "live_" src/test/java/maple/expectation/config/  # Should show masked va
 - Redis 통합 테스트: `src/test/java/maple/expectation/config/RedissonConfigTest.java` (Evidence: [TEST-REDIS-001])
 - CircuitBreaker 테스트: `src/test/java/maple/expectation/global/resilience/*Test.java` (Evidence: [TEST-CB-001])
 - DLQ 테스트: `LikeSyncEventListenerTest.java` (Evidence: [TEST-DLQ-001])
-- Chaos Tests: N01-N18 in `docs/01_Chaos_Engineering/06_Nightmare/Results/`
+- Chaos Tests: N01-N18 in `docs/02_Chaos_Engineering/06_Nightmare/Results/`

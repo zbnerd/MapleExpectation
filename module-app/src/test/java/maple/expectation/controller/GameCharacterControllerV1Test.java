@@ -59,9 +59,9 @@ class GameCharacterControllerV1Test {
       // then
       assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
       assertThat(response.getBody()).isNotNull();
-      assertThat(response.getBody().userIgn()).isEqualTo("TestUser");
-      assertThat(response.getBody().ocid()).isEqualTo("ocid-12345");
-      assertThat(response.getBody().likeCount()).isEqualTo(0L);
+      assertThat(response.getBody().getUserIgn()).isEqualTo("TestUser");
+      assertThat(response.getBody().getOcid()).isEqualTo("ocid-12345");
+      assertThat(response.getBody().getLikeCount()).isEqualTo(0L);
     }
 
     @Test
@@ -80,9 +80,9 @@ class GameCharacterControllerV1Test {
       CharacterResponse dto = response.getBody();
 
       // Record 컴포넌트만 존재
-      assertThat(dto.userIgn()).isNotNull();
-      assertThat(dto.ocid()).isNotNull();
-      assertThat(dto.likeCount()).isNotNull();
+      assertThat(dto.getUserIgn()).isNotNull();
+      assertThat(dto.getOcid()).isNotNull();
+      assertThat(dto.getLikeCount()).isNotNull();
     }
 
     @Test
@@ -98,7 +98,7 @@ class GameCharacterControllerV1Test {
 
       // then
       assertThat(response.getBody()).isNotNull();
-      assertThat(response.getBody().likeCount()).isZero();
+      assertThat(response.getBody().getLikeCount()).isZero();
     }
   }
 }

@@ -651,6 +651,6 @@ The system is production-ready. Future enhancements (scheduler @Locked, addition
 **Analysis Date:** 2026-02-16
 **Next Review:** After major architecture changes or when adding new stateful components
 **Related Documents:**
-- [Scale-out Blockers Analysis](/home/maple/MapleExpectation/docs/04_Reports/04_09_Scale_Out/scale-out-blockers-analysis.md)
-- [Stateless Design Compliance (Legacy)](/home/maple/MapleExpectation/docs/04_Reports/stateless-design-compliance.md)
+- [Scale-out Blockers Analysis](/home/maple/MapleExpectation/docs/05_Reports/04_09_Scale_Out/scale-out-blockers-analysis.md)
+- [Stateless Design Compliance (Legacy)](/home/maple/MapleExpectation/docs/05_Reports/stateless-design-compliance.md)
 - [ADR-012: Stateless Scalability Roadmap](/home/maple/MapleExpectation/docs/99_Adr/ADR-012-stateless-scalability-roadmap.md)

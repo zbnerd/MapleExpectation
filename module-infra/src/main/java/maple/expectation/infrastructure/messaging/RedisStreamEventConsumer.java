@@ -148,7 +148,14 @@ public class RedisStreamEventConsumer implements ApplicationContextAware {
    */
   private void discoverHandlers(ApplicationContext context) {
     executor.executeVoid(
-        () -> discoverHandlersInternal(context),
+        () -> {
+          try {
+            discoverHandlersInternal(context);
+          } catch (Exception e) {
+            log.error(
+                "[RedisStreamEventConsumer] Handler discovery failed for stream: {}", streamKey, e);
+          }
+        },
         TaskContext.of("RedisStreamEventConsumer", "DiscoverHandlers", streamKey));
   }
 
@@ -268,7 +275,16 @@ public class RedisStreamEventConsumer implements ApplicationContextAware {
 
     while (!Thread.currentThread().isInterrupted()) {
       executor.executeVoid(
-          () -> consumeNextBatch(),
+          () -> {
+            try {
+              consumeNextBatch();
+            } catch (Exception e) {
+              log.error(
+                  "[RedisStreamEventConsumer] Batch consumption failed for stream: {}",
+                  streamKey,
+                  e);
+            }
+          },
           TaskContext.of("RedisStreamEventConsumer", "ConsumeBatch", streamKey));
     }
 
@@ -322,7 +338,16 @@ public class RedisStreamEventConsumer implements ApplicationContextAware {
    */
   private void processMessage(StreamMessageId messageId, Map<String, String> fields) {
     executor.executeVoid(
-        () -> processMessageInternal(messageId, fields),
+        () -> {
+          try {
+            processMessageInternal(messageId, fields);
+          } catch (Exception e) {
+            log.error(
+                "[RedisStreamEventConsumer] Message processing failed for messageId: {}",
+                messageId,
+                e);
+          }
+        },
         TaskContext.of("RedisStreamEventConsumer", "ProcessMessage", messageId.toString()));
   }
 

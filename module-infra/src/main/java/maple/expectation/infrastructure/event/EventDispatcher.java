@@ -103,7 +103,16 @@ public class EventDispatcher {
    */
   public void registerHandlers(Object component) {
     executor.executeVoid(
-        () -> registerHandlersInternal(component),
+        () -> {
+          try {
+            registerHandlersInternal(component);
+          } catch (Exception e) {
+            log.error(
+                "[EventDispatcher] Handler registration failed for component: {}",
+                component.getClass().getSimpleName(),
+                e);
+          }
+        },
         TaskContext.of(
             "EventDispatcher", "RegisterHandlers", component.getClass().getSimpleName()));
   }
@@ -199,7 +208,13 @@ public class EventDispatcher {
    */
   public void dispatch(IntegrationEvent<?> event) {
     executor.executeVoid(
-        () -> dispatchInternal(event),
+        () -> {
+          try {
+            dispatchInternal(event);
+          } catch (Exception e) {
+            log.error("[EventDispatcher] Dispatch failed for event: {}", event.getEventType(), e);
+          }
+        },
         TaskContext.of("EventDispatcher", "Dispatch", event.getEventType()));
   }
 
@@ -235,12 +250,32 @@ public class EventDispatcher {
       virtualThreadExecutor.execute(
           () ->
               executor.executeVoid(
-                  () -> invokeHandler(handler, event),
+                  () -> {
+                    try {
+                      invokeHandler(handler, event);
+                    } catch (Exception e) {
+                      log.error(
+                          "[EventDispatcher] Async handler failed: method={}, eventType={}",
+                          handler.method().getName(),
+                          event.getPayload().getClass().getSimpleName(),
+                          e);
+                    }
+                  },
                   TaskContext.of("EventDispatcher", "InvokeAsync", handler.method().getName())));
     } else {
       // Sync: Execute directly
       executor.executeVoid(
-          () -> invokeHandler(handler, event),
+          () -> {
+            try {
+              invokeHandler(handler, event);
+            } catch (Exception e) {
+              log.error(
+                  "[EventDispatcher] Sync handler failed: method={}, eventType={}",
+                  handler.method().getName(),
+                  event.getPayload().getClass().getSimpleName(),
+                  e);
+            }
+          },
           TaskContext.of("EventDispatcher", "InvokeSync", handler.method().getName()));
     }
   }

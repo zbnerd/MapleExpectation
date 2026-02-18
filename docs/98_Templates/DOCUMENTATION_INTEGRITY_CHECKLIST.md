@@ -173,7 +173,7 @@ All documentation MUST include:
 - **p50 지연**: 68.57ms [W1]
 - **p99 지연**: 548.09ms [W1]
 
-[W1]: wrk 테스트 출력 - `docs/04_Reports/Cost_Performance/N23_WRK_V4_RESULTS.md`
+[W1]: wrk 테스트 출력 - `docs/05_Reports/Cost_Performance/N23_WRK_V4_RESULTS.md`
 ```
 
 ---
@@ -289,7 +289,7 @@ cat /tmp/n23_load_test_results.json | jq '.results'
 wrk -t4 -c100 -d30s http://localhost:8080 | grep "Requests/sec"
 
 # 원본 데이터와 비교
-cat docs/04_Reports/Cost_Performance/N23_WRK_V4_RESULTS.md | grep "Requests/sec"
+cat docs/05_Reports/Cost_Performance/N23_WRK_V4_RESULTS.md | grep "Requests/sec"
 ```
 
 ### Circuit Breaker 상태 확인

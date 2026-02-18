@@ -17,7 +17,6 @@ import maple.expectation.domain.v2.NexonApiOutbox.OutboxStatus;
 import maple.expectation.infrastructure.external.NexonApiClient;
 import maple.expectation.infrastructure.persistence.repository.NexonApiOutboxRepository;
 import maple.expectation.service.v2.outbox.NexonApiOutboxProcessor;
-import maple.expectation.service.v2.outbox.NexonApiRetryClient;
 import maple.expectation.support.IntegrationTestSupport;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.*;
@@ -74,8 +73,6 @@ class NexonApiOutboxMultiFailureNightmareTest extends IntegrationTestSupport {
   @MockitoBean(name = "nexonApiClient")
   private NexonApiClient nexonApiClient;
 
-  @MockitoBean private NexonApiRetryClient nexonApiRetryClient;
-
   // 테스트 데이터 관리
   private final List<String> createdRequestIds = new ArrayList<>();
 
@@ -89,6 +86,8 @@ class NexonApiOutboxMultiFailureNightmareTest extends IntegrationTestSupport {
     log.info("│   CF-2: N19 + DB Failover                                  │");
     log.info("│   CF-3: N19 + Process Kill                                 │");
     log.info("└────────────────────────────────────────────────────────────┘");
+    // Reset mocks to prevent test interference
+    Mockito.reset(nexonApiClient);
   }
 
   @AfterEach
@@ -208,9 +207,12 @@ class NexonApiOutboxMultiFailureNightmareTest extends IntegrationTestSupport {
 
     Awaitility.await()
         .atMost(Duration.ofSeconds(60))
-        .pollInterval(Duration.ofMillis(500))
+        .pollInterval(Duration.ofMillis(200))
         .untilAsserted(
             () -> {
+              // 매 사이클마다 프로세서 호출하여 계속 처리
+              outboxProcessor.pollAndProcess();
+
               long completed = outboxRepository.countByStatusIn(List.of(OutboxStatus.COMPLETED));
               long deadLetter = outboxRepository.countByStatusIn(List.of(OutboxStatus.DEAD_LETTER));
               long totalProcessed = completed + deadLetter;
@@ -385,9 +387,12 @@ class NexonApiOutboxMultiFailureNightmareTest extends IntegrationTestSupport {
 
     Awaitility.await()
         .atMost(Duration.ofSeconds(60))
-        .pollInterval(Duration.ofMillis(500))
+        .pollInterval(Duration.ofMillis(200))
         .untilAsserted(
             () -> {
+              // 매 사이클마다 프로세서 호출하여 계속 처리
+              outboxProcessor.pollAndProcess();
+
               long completed = outboxRepository.countByStatusIn(List.of(OutboxStatus.COMPLETED));
               long deadLetter = outboxRepository.countByStatusIn(List.of(OutboxStatus.DEAD_LETTER));
               long totalProcessed = completed + deadLetter;
@@ -479,6 +484,7 @@ class NexonApiOutboxMultiFailureNightmareTest extends IntegrationTestSupport {
    * <p><b>참고</b>: 실제 Process Kill은 테스트 환경에서 어렵기 때문에 Orphaned record 상태 복구 메커니즘을 검증합니다.
    */
   @Test
+  @org.springframework.transaction.annotation.Transactional
   @DisplayName("CF-3: N19 + Process Kill - Orphaned record recovery")
   void shouldRecoverAfterProcessKill() throws Exception {
     log.info("┌────────────────────────────────────────────────────────────┐");
@@ -568,16 +574,14 @@ class NexonApiOutboxMultiFailureNightmareTest extends IntegrationTestSupport {
     // Phase 5: 남은 replay 계속
     log.info("[CF-3] Phase 5: Continuing replay...");
 
-    for (int i = 0; i < 20; i++) {
-      outboxProcessor.pollAndProcess();
-      Thread.sleep(100);
-    }
-
     Awaitility.await()
         .atMost(Duration.ofSeconds(60))
-        .pollInterval(Duration.ofMillis(500))
+        .pollInterval(Duration.ofMillis(200))
         .untilAsserted(
             () -> {
+              // 매 사이클마다 프로세서 호출하여 계속 처리
+              outboxProcessor.pollAndProcess();
+
               long completed = outboxRepository.countByStatusIn(List.of(OutboxStatus.COMPLETED));
               long deadLetter = outboxRepository.countByStatusIn(List.of(OutboxStatus.DEAD_LETTER));
               long totalProcessed = completed + deadLetter;
@@ -700,8 +704,6 @@ class NexonApiOutboxMultiFailureNightmareTest extends IntegrationTestSupport {
         .thenReturn(CompletableFuture.completedFuture(basicResponse));
     Mockito.when(nexonApiClient.getItemDataByOcid(anyString()))
         .thenReturn(CompletableFuture.completedFuture(equipmentResponse));
-
-    Mockito.when(nexonApiRetryClient.processOutboxEntry(Mockito.any())).thenReturn(true);
 
     log.debug("[Mock] API recovered - returning 200 OK responses");
   }

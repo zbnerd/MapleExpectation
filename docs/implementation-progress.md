@@ -79,7 +79,7 @@
 
 ## 🔗 Related Files
 
-**ADR:** `/home/maple/MapleExpectation/docs/adr/ADR-0345-stateless-alert-system.md`
+**ADR:** `/home/maple/MapleExpectation/docs/01_Adr/ADR-0345-stateless-alert-system.md`
 **Implementation Progress:** `/home/maple/MapleExpectation/docs/implementation-progress.md`
 
 **Package Structure:**

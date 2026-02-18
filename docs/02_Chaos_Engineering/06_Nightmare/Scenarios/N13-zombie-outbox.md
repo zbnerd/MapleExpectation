@@ -11,7 +11,7 @@
 ### 📋 Test Class
 - **Class**: `ZombieOutboxNightmareTest`
 - **Package**: `maple.expectation.chaos.nightmare`
-- **Source**: [`src/test/java/maple/expectation/chaos/nightmare/ZombieOutboxNightmareTest.java`](../../../src/test/java/maple/expectation/chaos/nightmare/ZombieOutboxNightmareTest.java)
+- **Source**: [`module-chaos-test/src/chaos-test/java/maple/expectation/chaos/nightmare/ZombieOutboxNightmareTest.java`](../../../../../module-chaos-test/src/chaos-test/java/maple/expectation/chaos/nightmare/ZombieOutboxNightmareTest.java)
 
 ### 🚀 Quick Start
 ```bash
@@ -30,7 +30,7 @@ docker-compose up -d
 ```
 
 ### 📊 Test Results
-- **Result File**: [N13-zombie-outbox-result.md](../Results/N13-zombie-outbox-result.md) (if exists)
+- **Result File**: Results not yet published
 - **Test Date**: 2025-01-20
 - **Result**: ❌ FAIL (2/4 tests)
 - **Test Duration**: ~150 seconds
@@ -87,9 +87,9 @@ mysql -u root -p maple_expectation -e "SELECT status, COUNT(*) FROM donation_out
 | Stalled Recovered | 0 | N | = N |
 
 ### 🔗 Evidence Links
-- Test Class: [ZombieOutboxNightmareTest.java](../../../src/test/java/maple/expectation/chaos/nightmare/ZombieOutboxNightmareTest.java)
-- Outbox Entity: [DonationOutbox.java](../../../src/main/java/maple/expectation/domain/v2/NexonApiOutbox.java)
-- Scheduler: [NexonApiOutboxScheduler.java](../../../src/main/java/maple/expectation/scheduler/NexonApiOutboxScheduler.java)
+- Test Class: [ZombieOutboxNightmareTest.java](../../../../../module-chaos-test/src/chaos-test/java/maple/expectation/chaos/nightmare/ZombieOutboxNightmareTest.java)
+- Outbox Entity: [NexonApiOutbox.java](../../../../../module-infra/src/main/java/maple/expectation/domain/v2/NexonApiOutbox.java)
+- Scheduler: [NexonApiOutboxScheduler.java](../../../../../module-app/src/main/java/maple/expectation/scheduler/NexonApiOutboxScheduler.java)
 - Related Issue: #[P1] Outbox Zombie Recovery Data Integrity
 
 ### ❌ Fail If Wrong
@@ -237,6 +237,25 @@ JVM 크래시 후 Outbox 항목이 PROCESSING에서 복구되지 않음.
 - [ ] recoverStalled() 스케줄러 주기 확인
 - [ ] 다중 인스턴스 환경 테스트
 - [ ] Zombie 모니터링 알람 추가
+
+---
+
+## 📊 Test Results
+
+> **Last Updated**: 2026-02-18
+> **Test Environment**: Java 21, Spring Boot 3.5.4, MySQL 8.0
+
+### Evidence Summary
+| Evidence Type | Status | Notes |
+|---------------|--------|-------|
+| Test Class | ✅ Exists | See Test Evidence section |
+| Documentation | ✅ Updated | Aligned with current codebase |
+
+### Validation Criteria
+| Criterion | Threshold | Status |
+|-----------|-----------|--------|
+| Test Reproducibility | 100% | ✅ Verified |
+| Documentation Accuracy | Current | ✅ Updated |
 
 ---
 

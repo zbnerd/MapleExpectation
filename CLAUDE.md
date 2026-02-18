@@ -61,12 +61,12 @@ docker exec -it redis_container redis-cli
 
 > **분리된 문서 참조 (떼끄 스타일 넘버링):**
 > - [Architecture Overview](docs/00_Start_Here/architecture.md) - 시스템 아키텍처 다이어그램 (Mermaid)
-> - [Infrastructure & Integration Guide](docs/02_Technical_Guides/infrastructure.md) - Redis, Cache, Security (Sections 7-10, 17-20)
-> - [Async & Concurrency Guide](docs/02_Technical_Guides/async-concurrency.md) - 비동기, Thread Pool (Sections 21-22)
-> - [Testing Guide](docs/02_Technical_Guides/testing-guide.md) - 테스트, Flaky Test 방지 (Sections 23-25)
-> - [Flaky Test Management](docs/02_Technical_Guides/flaky-test-management.md) - 플래키 테스트 식별, 격리, 관리 절차
+> - [Infrastructure & Integration Guide](docs/03_Technical_Guides/infrastructure.md) - Redis, Cache, Security (Sections 7-10, 17-20)
+> - [Async & Concurrency Guide](docs/03_Technical_Guides/async-concurrency.md) - 비동기, Thread Pool (Sections 21-22)
+> - [Testing Guide](docs/03_Technical_Guides/testing-guide.md) - 테스트, Flaky Test 방지 (Sections 23-25)
+> - [Flaky Test Management](docs/03_Technical_Guides/flaky-test-management.md) - 플래키 테스트 식별, 격리, 관리 절차
 > - [Multi-Agent Protocol](docs/00_Start_Here/multi-agent-protocol.md) - 5-Agent Council
-> - [Chaos Engineering](docs/01_Chaos_Engineering/) - Nightmare Tests N01-N18
+> - [Chaos Engineering](docs/02_Chaos_Engineering/) - Nightmare Tests N01-N18
 > - [Templates](docs/98_Templates/) - PR, Issue, Report 템플릿
 
 ---
@@ -93,29 +93,29 @@ docs/
 │   ├── multi-agent-protocol.md              # 5-Agent Council
 │   └── ROADMAP.md                           # 프로젝트 로드맵
 │
-├── 01_Chaos_Engineering/                    # [핵심] 카오스 테스트 - 메인 필살기
+├── 02_Chaos_Engineering/                    # [핵심] 카오스 테스트 - 메인 필살기
 │   ├── 00_Overview/TEST_STRATEGY.md         # 테스트 전략
 │   ├── 01_Core/ ~ 05_Data/                  # 시나리오 카테고리
 │   └── 06_Nightmare/                        # Nightmare N01-N18 시나리오
 │
-├── 02_Technical_Guides/                     # [심화] 기술 가이드
+├── 03_Technical_Guides/                     # [심화] 기술 가이드
 │   ├── infrastructure.md                    # Redis, Cache, Security
 │   ├── async-concurrency.md                 # 비동기, Thread Pool
 │   ├── testing-guide.md                     # 테스트, Flaky Test 방지
 │   └── resilience.md                        # 회복 탄력성 패턴
 │
-├── 03_Sequence_Diagrams/                    # [시각화] 시퀀스 다이어그램
-├── 04_Reports/                              # [결과] 리포트 및 분석
+├── 04_Sequence_Diagrams/                    # [시각화] 시퀀스 다이어그램
+├── 05_Reports/                              # [결과] 리포트 및 분석
 ├── 98_Templates/                            # [효율화] 템플릿 모음
 └── 99_Archive/                              # [정리] 개인 자료 보관소
 ```
 
 **규칙:**
 - **핵심 규칙**: CLAUDE.md에 유지 (SOLID, 예외 처리, LogicExecutor 등)
-- **인프라/기술 상세**: `docs/02_Technical_Guides/infrastructure.md`로 분리
-- **비동기/동시성**: `docs/02_Technical_Guides/async-concurrency.md`로 분리
-- **테스트 가이드**: `docs/02_Technical_Guides/testing-guide.md`로 분리
-- **상호 참조**: 문서 간 링크로 연결 (예: `-> [docs/infrastructure.md](docs/infrastructure.md)`)
+- **인프라/기술 상세**: `docs/03_Technical_Guides/infrastructure.md`로 분리
+- **비동기/동시성**: `docs/03_Technical_Guides/async-concurrency.md`로 분리
+- **테스트 가이드**: `docs/03_Technical_Guides/testing-guide.md`로 분리
+- **상호 참조**: 문서 간 링크로 연결 (예: `-> [docs/03_Technical_Guides/infrastructure.md](docs/03_Technical_Guides/infrastructure.md)`)
 
 **새 규칙 추가 시:**
 1. 핵심 원칙 -> CLAUDE.md
@@ -398,7 +398,7 @@ private List<Dto> processActiveUser(Long id) {
 
 # Quick Reference (분리 문서 요약)
 
-## Infrastructure (-> [docs/02_Technical_Guides/infrastructure.md](docs/02_Technical_Guides/infrastructure.md))
+## Infrastructure (-> [docs/03_Technical_Guides/infrastructure.md](docs/03_Technical_Guides/infrastructure.md))
 - **Section 7**: AOP & Facade Pattern
 - **Section 8**: Redis & Redisson Integration
 - **Section 8-1**: Redis Lua Script & Cluster Hash Tag
@@ -409,11 +409,11 @@ private List<Dto> processActiveUser(Long id) {
 - **Section 19**: Security Best Practices (Logging & API Client)
 - **Section 20**: SpringDoc OpenAPI (Swagger UI) Best Practice
 
-## Async & Concurrency (-> [docs/02_Technical_Guides/async-concurrency.md](docs/02_Technical_Guides/async-concurrency.md))
+## Async & Concurrency (-> [docs/03_Technical_Guides/async-concurrency.md](docs/03_Technical_Guides/async-concurrency.md))
 - **Section 21**: Async Non-Blocking Pipeline Pattern
 - **Section 22**: Thread Pool Backpressure Best Practice
 
-## Testing (-> [docs/02_Technical_Guides/testing-guide.md](docs/02_Technical_Guides/testing-guide.md))
+## Testing (-> [docs/03_Technical_Guides/testing-guide.md](docs/03_Technical_Guides/testing-guide.md))
 - **Section 23**: ExecutorService 동시성 테스트 Best Practice
 - **Section 24**: Flaky Test 근본 원인 분석 및 해결 가이드
 - **Section 25**: 경량 테스트 강제 규칙 (Issue #207)
@@ -423,21 +423,20 @@ private List<Dto> processActiveUser(Long id) {
 - **Pentagonal Pipeline Workflow**
 - **Core Principles (Context7)**
 
-## Chaos Engineering (-> [docs/01_Chaos_Engineering/](docs/01_Chaos_Engineering/))
+## Chaos Engineering (-> [docs/02_Chaos_Engineering/](docs/02_Chaos_Engineering/))
 - **06_Nightmare/Scenarios**: N01-N18 Nightmare 시나리오
 - **06_Nightmare/Results**: 테스트 결과 리포트
-- **04_Reports/**: Load Test, E2E Validation 결과
+- **05_Reports/**: Load Test, E2E Validation 결과
 
-## Service Modules (-> [docs/02_Technical_Guides/service-modules.md](docs/02_Technical_Guides/service-modules.md))
+## Service Modules (-> [docs/03_Technical_Guides/service-modules.md](docs/03_Technical_Guides/service-modules.md))
 - **V2 핵심 비즈니스**: 15개 모듈 (root, alert, auth, cache, calculator, cube, donation, facade, impl, like, mapper, policy, shutdown, starforce, worker)
 - **V4 성능 강화**: 7개 모듈 (root, buffer, cache, fallback, persistence, warmup, calculator/v4)
 - **설계 패턴 요약**: Facade, Decorator, Strategy, Transactional Outbox, Write-Behind 등 12개 패턴
 - **모듈 의존성 그래프**: V2↔V4 Mermaid 다이어그램
 
-## Scale-out & Architecture (-> [docs/04_Reports/](docs/04_Reports/), [docs/adr/](docs/adr/))
-- **Scale-out 방해 요소 분석**: [docs/04_Reports/scale-out-blockers-analysis.md](docs/04_Reports/scale-out-blockers-analysis.md) - P0/P1 Stateful 컴포넌트 전수 분석 (22개)
-- **대규모 트래픽 성능 분석**: [docs/04_Reports/high-traffic-performance-analysis.md](docs/04_Reports/high-traffic-performance-analysis.md) - P0/P1 Thread Pool, Connection Pool, Lock 경합 (11개)
-- **ADR-014 멀티 모듈 전환**: [docs/adr/ADR-014-multi-module-cross-cutting-concerns.md](docs/adr/ADR-014-multi-module-cross-cutting-concerns.md) - 횡단 관심사 분리 설계
+## Scale-out & Architecture (-> [docs/05_Reports/](docs/05_Reports/), [docs/adr/](docs/adr/))
+- **Scale-out 방해 요소 분석**: [docs/05_Reports/04_09_Scale_Out/scale-out-blockers-analysis.md](docs/05_Reports/04_09_Scale_Out/scale-out-blockers-analysis.md) - P0/P1 Stateful 컴포넌트 전수 분석 (22개)
+- **대규모 트래픽 성능 분석**: [docs/05_Reports/04_02_Cost_Performance/high-traffic-performance-analysis.md](docs/05_Reports/04_02_Cost_Performance/high-traffic-performance-analysis.md) - P0/P1 Thread Pool, Connection Pool, Lock 경합 (11개)
 - **로드맵 Phase 7**: [docs/00_Start_Here/ROADMAP.md](docs/00_Start_Here/ROADMAP.md) - #283 → #282 → #126 의존 관계
 
 ## Templates (-> [docs/98_Templates/](docs/98_Templates/))

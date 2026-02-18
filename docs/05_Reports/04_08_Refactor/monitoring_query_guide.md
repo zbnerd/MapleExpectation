@@ -5,9 +5,9 @@
 This guide provides a complete library of Prometheus and Loki queries for monitoring MapleExpectation performance, resilience, and system health. It is designed for quantitative validation during refactoring phases and production operations.
 
 **Related Documents:**
-- [Chaos Engineering Test Strategy](docs/01_Chaos_Engineering/00_Overview/TEST_STRATEGY.md)
-- [Baseline Metrics](docs/04_Reports/Baseline/BASELINE_20260210.md)
-- [Infrastructure Guide](docs/02_Technical_Guides/infrastructure.md)
+- [Chaos Engineering Test Strategy](docs/02_Chaos_Engineering/00_Overview/TEST_STRATEGY.md)
+- [Baseline Metrics](docs/05_Reports/Baseline/BASELINE_20260210.md)
+- [Infrastructure Guide](docs/03_Technical_Guides/infrastructure.md)
 
 ---
 
@@ -426,7 +426,7 @@ Review `application.yml` for cache TTL settings
 - [Prometheus Query Language](https://prometheus.io/docs/prometheus/latest/querying/basics/)
 - [Loki LogQL](https://grafana.com/docs/loki/latest/logql/)
 - [wrk HTTP Benchmark](https://github.com/wg/wrk)
-- [Phase 3 Baseline Metrics](docs/04_Reports/Baseline/BASELINE_20260210.md)
+- [Phase 3 Baseline Metrics](docs/05_Reports/Baseline/BASELINE_20260210.md)
 
 ---
 

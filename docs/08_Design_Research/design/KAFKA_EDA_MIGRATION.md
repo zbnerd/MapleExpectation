@@ -283,8 +283,8 @@ curl -X DELETE http://localhost:8083/connectors/outbox-connector
 
 ## 관련 문서
 
-- [ROADMAP.md Phase 8](../00_Start_Here/ROADMAP.md#phase-8--event-driven-architecture-eda--msa-전환-planned)
-- [Transactional Outbox ADR](../adr/ADR-XXX-outbox-pattern.md) (TBD)
+- [ROADMAP.md Phase 8](../../00_Start_Here/ROADMAP.md#phase-8--event-driven-architecture-eda--msa-전환-planned)
+- [Transactional Outbox ADR](../../01_Adr/ADR-010-outbox-pattern.md)
 - [Debezium Documentation](https://debezium.io/documentation/reference/stable/)
 
 ---

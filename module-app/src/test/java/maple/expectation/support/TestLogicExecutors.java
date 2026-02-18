@@ -141,40 +141,77 @@ public final class TestLogicExecutors {
               }
             });
 
-    // Pattern 8: Execute with fallback (original exception)
+    // Pattern 8: Execute with fallback (original exception) - Kotlin Function1 version
     Mockito.lenient()
         .when(
             mock.executeWithFallback(
                 ArgumentMatchers.<ThrowingSupplier<Object>>any(),
-                ArgumentMatchers.<java.util.function.Function<Throwable, Object>>any(),
+                ArgumentMatchers.<kotlin.jvm.functions.Function1<Throwable, Object>>any(),
                 ArgumentMatchers.<TaskContext>any()))
         .thenAnswer(
             invocation -> {
               ThrowingSupplier<Object> task = invocation.getArgument(0);
-              java.util.function.Function<Throwable, Object> fallback = invocation.getArgument(1);
+              kotlin.jvm.functions.Function1<Throwable, Object> fallback =
+                  invocation.getArgument(1);
               try {
                 return task.get();
               } catch (Throwable t) {
-                return fallback.apply(t);
+                return fallback.invoke(t);
               }
             });
 
-    // Pattern 5: Execute or catch with recovery
+    // Pattern 8: Execute with fallback - ExceptionTranslator version
+    Mockito.lenient()
+        .when(
+            mock.executeWithFallback(
+                ArgumentMatchers.<ThrowingSupplier<Object>>any(),
+                ArgumentMatchers.<ExceptionTranslator>any(),
+                ArgumentMatchers.<TaskContext>any()))
+        .thenAnswer(
+            invocation -> {
+              ThrowingSupplier<Object> task = invocation.getArgument(0);
+              ExceptionTranslator translator = invocation.getArgument(1);
+              try {
+                return task.get();
+              } catch (Throwable t) {
+                return translator.translate(t, invocation.getArgument(2));
+              }
+            });
+
+    // Pattern 5: Execute or catch with recovery - Kotlin Function1 version
     Mockito.lenient()
         .when(
             mock.executeOrCatch(
                 ArgumentMatchers.<ThrowingSupplier<Object>>any(),
-                ArgumentMatchers.<java.util.function.Function<Throwable, Object>>any(),
+                ArgumentMatchers.<kotlin.jvm.functions.Function1<Throwable, Object>>any(),
                 ArgumentMatchers.<TaskContext>any()))
         .thenAnswer(
             invocation -> {
               ThrowingSupplier<Object> task = invocation.getArgument(0);
-              java.util.function.Function<Throwable, Object> recovery = invocation.getArgument(1);
+              kotlin.jvm.functions.Function1<Throwable, Object> recovery =
+                  invocation.getArgument(1);
               try {
                 return task.get();
               } catch (Throwable t) {
-                // Note: Uses default translator to get translated exception
-                return recovery.apply(t);
+                return recovery.invoke(t);
+              }
+            });
+
+    // Pattern 5: Execute or catch - ExceptionTranslator version
+    Mockito.lenient()
+        .when(
+            mock.executeOrCatch(
+                ArgumentMatchers.<ThrowingSupplier<Object>>any(),
+                ArgumentMatchers.<ExceptionTranslator>any(),
+                ArgumentMatchers.<TaskContext>any()))
+        .thenAnswer(
+            invocation -> {
+              ThrowingSupplier<Object> task = invocation.getArgument(0);
+              ExceptionTranslator translator = invocation.getArgument(1);
+              try {
+                return task.get();
+              } catch (Throwable t) {
+                return translator.translate(t, invocation.getArgument(2));
               }
             });
 

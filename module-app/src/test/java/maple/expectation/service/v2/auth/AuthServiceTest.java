@@ -13,11 +13,11 @@ import maple.expectation.controller.dto.auth.LoginResponse;
 import maple.expectation.controller.dto.auth.TokenResponse;
 import maple.expectation.domain.RefreshToken;
 import maple.expectation.domain.Session;
-import maple.expectation.error.exception.auth.CharacterNotOwnedException;
-import maple.expectation.error.exception.auth.InvalidApiKeyException;
-import maple.expectation.error.exception.auth.InvalidRefreshTokenException;
-import maple.expectation.error.exception.auth.SessionNotFoundException;
-import maple.expectation.error.exception.auth.TokenReusedException;
+import maple.expectation.error.exception.CharacterNotOwnedException;
+import maple.expectation.error.exception.InvalidApiKeyException;
+import maple.expectation.error.exception.InvalidRefreshTokenException;
+import maple.expectation.error.exception.SessionNotFoundException;
+import maple.expectation.error.exception.TokenReusedException;
 import maple.expectation.infrastructure.security.AccountIdGenerator;
 import maple.expectation.infrastructure.security.FingerprintGenerator;
 import org.junit.jupiter.api.BeforeEach;
@@ -128,7 +128,8 @@ class AuthServiceTest {
           .willReturn(session);
 
       // TokenService: Token 쌍 생성 (Access + Refresh)
-      TokenService.TokenPair tokenPair = mock(TokenService.TokenPair.class);
+      // Use accessToken() method (Kotlin data class explicit accessor)
+      TokenPair tokenPair = mock(TokenPair.class);
       given(tokenPair.accessToken()).willReturn(ACCESS_TOKEN);
       given(tokenPair.accessTokenExpiresIn()).willReturn(EXPIRATION_SECONDS);
       given(tokenPair.refreshTokenId()).willReturn(REFRESH_TOKEN_ID);
@@ -138,13 +139,13 @@ class AuthServiceTest {
       // when
       LoginResponse response = authService.login(request);
 
-      // then
-      assertThat(response.accessToken()).isEqualTo(ACCESS_TOKEN);
-      assertThat(response.expiresIn()).isEqualTo(EXPIRATION_SECONDS);
-      assertThat(response.role()).isEqualTo("USER");
-      assertThat(response.fingerprint()).isEqualTo(FINGERPRINT);
-      assertThat(response.refreshToken()).isEqualTo(REFRESH_TOKEN_ID);
-      assertThat(response.refreshExpiresIn()).isEqualTo(REFRESH_EXPIRATION_SECONDS);
+      // then - use safe accessors for nullable Kotlin fields
+      assertThat(response.getAccessTokenSafe()).isEqualTo(ACCESS_TOKEN);
+      assertThat(response.getExpiresInSafe()).isEqualTo(EXPIRATION_SECONDS);
+      assertThat(response.getRoleSafe()).isEqualTo("USER");
+      assertThat(response.getFingerprintSafe()).isEqualTo(FINGERPRINT);
+      assertThat(response.getRefreshTokenSafe()).isEqualTo(REFRESH_TOKEN_ID);
+      assertThat(response.getRefreshExpiresInSafe()).isEqualTo(REFRESH_EXPIRATION_SECONDS);
     }
 
     @Test
@@ -181,7 +182,7 @@ class AuthServiceTest {
                   eq("ADMIN")))
           .willReturn(session);
 
-      TokenService.TokenPair tokenPair = mock(TokenService.TokenPair.class);
+      TokenPair tokenPair = mock(TokenPair.class);
       given(tokenPair.accessToken()).willReturn(ACCESS_TOKEN);
       given(tokenPair.accessTokenExpiresIn()).willReturn(EXPIRATION_SECONDS);
       given(tokenPair.refreshTokenId()).willReturn(REFRESH_TOKEN_ID);
@@ -191,8 +192,8 @@ class AuthServiceTest {
       // when
       LoginResponse response = authService.login(request);
 
-      // then
-      assertThat(response.role()).isEqualTo("ADMIN");
+      // then - use safe accessor for nullable Kotlin field
+      assertThat(response.getRoleSafe()).isEqualTo("ADMIN");
     }
 
     @Test
@@ -230,7 +231,7 @@ class AuthServiceTest {
                   eq("USER")))
           .willReturn(session);
 
-      TokenService.TokenPair tokenPair = mock(TokenService.TokenPair.class);
+      TokenPair tokenPair = mock(TokenPair.class);
       given(tokenPair.accessToken()).willReturn(ACCESS_TOKEN);
       given(tokenPair.accessTokenExpiresIn()).willReturn(EXPIRATION_SECONDS);
       given(tokenPair.refreshTokenId()).willReturn(REFRESH_TOKEN_ID);
@@ -240,8 +241,8 @@ class AuthServiceTest {
       // when
       LoginResponse response = authService.login(request);
 
-      // then
-      assertThat(response.accessToken()).isEqualTo(ACCESS_TOKEN);
+      // then - use safe accessor for nullable Kotlin field
+      assertThat(response.getAccessTokenSafe()).isEqualTo(ACCESS_TOKEN);
     }
 
     @Test
@@ -273,15 +274,15 @@ class AuthServiceTest {
                   eq("USER")))
           .willReturn(session);
 
-      TokenService.TokenPair tokenPair = mock(TokenService.TokenPair.class);
+      TokenPair tokenPair = mock(TokenPair.class);
       given(tokenPair.accessToken()).willReturn(ACCESS_TOKEN);
       given(tokenService.createTokens(session)).willReturn(tokenPair);
 
       // when
       LoginResponse response = authService.login(request);
 
-      // then
-      assertThat(response.accessToken()).isNotNull();
+      // then - use safe accessor for nullable Kotlin field
+      assertThat(response.getAccessTokenSafe()).isNotEmpty();
     }
   }
 
@@ -339,7 +340,7 @@ class AuthServiceTest {
   @DisplayName("토큰 갱신 (Issue #279)")
   class RefreshTest {
 
-    TokenService.TokenPair tokenPair = mock(TokenService.TokenPair.class);
+    TokenPair tokenPair = mock(TokenPair.class);
 
     @Test
     @DisplayName("토큰 갱신 성공 - 새 Access Token + Refresh Token 발급")
@@ -367,11 +368,11 @@ class AuthServiceTest {
       // when
       TokenResponse response = authService.refresh(REFRESH_TOKEN_ID);
 
-      // then
-      assertThat(response.accessToken()).isEqualTo("new-access-token");
+      // then - use safe accessors for nullable Kotlin fields
+      assertThat(response.getAccessTokenSafe()).isEqualTo("new-access-token");
       assertThat(response.accessExpiresIn()).isEqualTo(EXPIRATION_SECONDS);
-      assertThat(response.refreshToken()).isEqualTo("new-refresh-token-id");
-      assertThat(response.refreshExpiresIn()).isEqualTo(REFRESH_EXPIRATION_SECONDS);
+      assertThat(response.getRefreshTokenSafe()).isEqualTo("new-refresh-token-id");
+      assertThat(response.getRefreshExpiresInSafe()).isEqualTo(REFRESH_EXPIRATION_SECONDS);
     }
 
     @Test

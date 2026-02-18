@@ -1,5 +1,6 @@
 package maple.expectation.infrastructure.external.impl;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.concurrent.CompletableFuture;
 import lombok.RequiredArgsConstructor;
@@ -13,7 +14,7 @@ import maple.expectation.error.exception.marker.CircuitBreakerIgnoreMarker;
 import maple.expectation.infrastructure.executor.CheckedLogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.infrastructure.external.dto.v2.EquipmentResponse;
-import maple.expectation.infrastructure.util.ExceptionUtils;
+import maple.expectation.util.ExceptionUtils;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 /**
@@ -158,7 +159,14 @@ public class FallbackHandler {
    */
   private EquipmentResponse convertToResponse(CharacterEquipment entity) {
     return checkedExecutor.executeUnchecked(
-        () -> objectMapper.readValue(entity.jsonContent(), EquipmentResponse.class),
+        () -> {
+          try {
+            return objectMapper.readValue(entity.jsonContent(), EquipmentResponse.class);
+          } catch (JsonProcessingException e) {
+            throw new EquipmentDataProcessingException(
+                "JSON 역직렬화 실패 [ocid=" + entity.ocid() + "]: " + e.getMessage(), e);
+          }
+        },
         TaskContext.of("NexonApi", "DeserializeCache", entity.ocid()),
         e ->
             new EquipmentDataProcessingException(

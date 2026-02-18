@@ -652,14 +652,14 @@ curl -s "http://localhost:8080/api/v4/characters/%EC%95%84%EB%8D%B8/expectation"
 ## 🔗 관련 문서 (Related Documents)
 
 ### 실제 wrk 결과
-- **wrk 상세 리포트**: `docs/04_Reports/Cost_Performance/N23_WRK_V4_RESULTS.md` [W1]
+- **wrk 상세 리포트**: `docs/05_Reports/Cost_Performance/N23_WRK_V4_RESULTS.md` [W1]
 
 ### Python 테스트 결과 (비교용)
-- **N23 Python**: `docs/04_Reports/Cost_Performance/COST_PERF_REPORT_N23_ACTUAL.md` [L1]
-- **N23 V4 API**: `docs/04_Reports/Cost_Performance/N23_V4_API_RESULTS.md` [L2]
+- **N23 Python**: `docs/05_Reports/Cost_Performance/COST_PERF_REPORT_N23_ACTUAL.md` [L1]
+- **N23 V4 API**: `docs/05_Reports/Cost_Performance/N23_V4_API_RESULTS.md` [L2]
 
 ### N21 결과
-- **Circuit Breaker**: `docs/04_Reports/Incidents/INCIDENT_REPORT_N21_ACTUAL.md` [T1]
+- **Circuit Breaker**: `docs/05_Reports/Incidents/INCIDENT_REPORT_N21_ACTUAL.md` [T1]
 
 ### 원시 데이터
 - **wrk 출력**: `/tmp/wrk_output.txt` (테스트 실행 시 생성)
@@ -671,9 +671,9 @@ curl -s "http://localhost:8080/api/v4/characters/%EC%95%84%EB%8D%B8/expectation"
 
 | ID | Source | Location |
 |----|--------|----------|
-| [W1] | wrk Benchmark | `docs/04_Reports/Cost_Performance/N23_WRK_V4_RESULTS.md` |
+| [W1] | wrk Benchmark | `docs/05_Reports/Cost_Performance/N23_WRK_V4_RESULTS.md` |
 | [L1] | Python Load Test | `/tmp/n23_load_test_results.json` |
-| [L2] | V4 API Test | `docs/04_Reports/Cost_Performance/N23_V4_API_RESULTS.md` |
+| [L2] | V4 API Test | `docs/05_Reports/Cost_Performance/N23_V4_API_RESULTS.md` |
 | [T1] | Circuit Breaker Test | `/tmp/n21_test_results.json` |
 | [E1] | AWS Pricing | https://aws.amazon.com/ec2/pricing/on-demand/ |
 

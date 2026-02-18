@@ -322,7 +322,7 @@ root_cause = max(hypotheses, key=lambda h: h["confidence"])
 - **Rollback logic**: `src/.../RollbackPolicy.java`
 
 ### Monitoring Snapshots
-- **Before/After metrics**: `docs/04_Reports/Incidents/assets/N21_p99_before_after.png`
+- **Before/After metrics**: `docs/05_Reports/Incidents/assets/N21_p99_before_after.png`
 
 ---
 

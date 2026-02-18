@@ -19,7 +19,7 @@ Successfully implemented an **Anti-Corruption Layer (ACL)** using the **Strategy
 ## Deliverables
 
 ### 1. Architecture Decision Record
-- **File:** `docs/adr/ADR-018-acl-strategy-pattern.md`
+- **File:** `docs/01_Adr/ADR-018-acl-strategy-pattern.md`
 - **Content:** Complete Strategy Pattern design with 3-stage pipeline architecture
 - **Status:** ✅ Approved by 5-Agent Council
 

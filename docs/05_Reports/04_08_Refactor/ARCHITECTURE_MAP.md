@@ -678,8 +678,8 @@ maple.expectation/
 | Reference | Location | Purpose |
 |-----------|----------|---------|
 | Architecture Overview | `docs/00_Start_Here/architecture.md` | System architecture |
-| Service Modules | `docs/02_Technical_Guides/service-modules.md` | V2/V4 module details |
-| Infrastructure Guide | `docs/02_Technical_Guides/infrastructure.md` | Redis, Cache, Security |
+| Service Modules | `docs/03_Technical_Guides/service-modules.md` | V2/V4 module details |
+| Infrastructure Guide | `docs/03_Technical_Guides/infrastructure.md` | Redis, Cache, Security |
 | Multi-Agent Protocol | `docs/00_Start_Here/multi-agent-protocol.md` | 5-Agent Council |
 | CLAUDE.md | Project root | Coding standards |
 

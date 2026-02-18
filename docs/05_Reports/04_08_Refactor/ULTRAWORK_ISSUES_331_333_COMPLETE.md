@@ -327,8 +327,8 @@ BUILD SUCCESSFUL in 41s
 - `docs/03_Sequence_Diagrams/async-pipeline-sequence.md`
 
 ### 기술 가이드
-- `docs/02_Technical_Guides/async-concurrency.md` (Section 21)
-- `docs/02_Technical_Guides/infrastructure.md` (Redis, Cache)
+- `docs/03_Technical_Guides/async-concurrency.md` (Section 21)
+- `docs/03_Technical_Guides/infrastructure.md` (Redis, Cache)
 
 ---
 

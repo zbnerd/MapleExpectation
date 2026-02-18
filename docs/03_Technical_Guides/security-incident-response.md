@@ -520,7 +520,7 @@ RCA 작성 템플릿입니다.
 
 ## Evidence Links
 
-- **P0 Incidents:** `docs/04_Reports/P0_Issues_Resolution_Report_2026-01-20.md` (Evidence: [P0-REPORT-001])
+- **P0 Incidents:** `docs/05_Reports/P0_Issues_Resolution_Report_2026-01-20.md` (Evidence: [P0-REPORT-001])
 - **Security Playbooks:** `docs/98_Templates/` (Evidence: [TEMPLATE-001])
 - **Incident Notifications:** Discord #security-incidents (Evidence: [COMM-001])
 
@@ -545,6 +545,6 @@ curl -X POST $DISCORD_WEBHOOK -d '{"content": "Security incident test"}'
 ```
 
 ### Related Evidence
-- Incident Reports: `docs/04_Reports/security-incidents/`
+- Incident Reports: `docs/05_Reports/security-incidents/`
 - Playbooks: `docs/98_Templates/security-playbooks.md`
 - IRT Charter: `docs/security/irt-charter.md`

@@ -222,7 +222,7 @@ Actuator 엔드포인트는 제공하지 않습니다 (스케줄러 자동 실�
 - **PopularCharacterTracker:** `src/main/java/maple/expectation/service/v4/warmup/PopularCharacterTracker.java` (Evidence: [CODE-WARMUP-TRACKER-001])
 - **PopularCharacterWarmupScheduler:** `src/main/java/maple/expectation/scheduler/PopularCharacterWarmupScheduler.java` (Evidence: [CODE-WARMUP-SCHEDULER-001])
 - **Configuration:** `src/main/resources/application.yml` (scheduler.warmup 섹션) (Evidence: [CONF-WARMUP-001])
-- **Performance Report:** `docs/04_Reports/Cost_Performance/N23_V4_API_RESULTS.md` (Cold vs Warm comparison)
+- **Performance Report:** `docs/05_Reports/Cost_Performance/N23_V4_API_RESULTS.md` (Cold vs Warm comparison)
 
 ## Technical Validity Check
 
@@ -251,5 +251,5 @@ redis-cli ZREVRANGE "popular:characters:$(date +%Y-%m-%d)" 0 9 WITHSCORES
 ```
 
 ### Related Evidence
-- N23 V4 Results: `docs/04_Reports/Cost_Performance/N23_V4_API_RESULTS.md`
+- N23 V4 Results: `docs/05_Reports/Cost_Performance/N23_V4_API_RESULTS.md`
 - V4 Specification: `docs/api/v4_specification.md`

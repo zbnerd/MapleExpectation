@@ -645,7 +645,7 @@ All claims in this report are supported by source code evidence:
 | Scheduler without @Locked | EVIDENCE-S012 | `scheduler/BufferRecoveryScheduler.java:82` |
 | ExpectationWriteBackBuffer volatile flag | EVIDENCE-S017 | `service/v4/buffer/ExpectationWriteBackBuffer.java:96` |
 
-Full evidence catalog available in `/docs/04_Reports/04_09_Scale_Out/scale-out-blockers-analysis.md`.
+Full evidence catalog available in `/docs/05_Reports/04_09_Scale_Out/scale-out-blockers-analysis.md`.
 
 ---
 

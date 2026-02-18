@@ -168,8 +168,12 @@ public class ProbabilisticCacheAspect {
 
     executor.executeVoid(
         () -> {
-          recomputeAndCache(joinPoint, cacheKey, annotation);
-          log.debug("✅ [PER] 백그라운드 갱신 완료: {}", cacheKey);
+          try {
+            recomputeAndCache(joinPoint, cacheKey, annotation);
+            log.debug("✅ [PER] 백그라운드 갱신 완료: {}", cacheKey);
+          } catch (Throwable t) {
+            log.error("[PER] 백그라운드 갱신 실패: {}", cacheKey, t);
+          }
         },
         context);
   }

@@ -427,7 +427,7 @@ spring:
 - [#310 MySQL → Redis Lock Migration](https://github.com/zbnerd/MapleExpectation/issues/310) - Lock DataSource Pool Size 설정
 
 ### 관련 문서
-- [Scale-out Blockers Analysis](../04_Reports/scale-out-blockers-analysis.md) - P0/P1 Stateful 컴포넌트 분석
+- [Scale-out Blockers Analysis](../05_Reports/04_09_Scale_Out/scale-out-blockers-analysis.md) - P0/P1 Stateful 컴포넌트 분석
 - [Spring Framework Scheduling Documentation](https://docs.spring.io/spring-framework/reference/integration/scheduling.html) - @Scheduled 가이드
 
 ---

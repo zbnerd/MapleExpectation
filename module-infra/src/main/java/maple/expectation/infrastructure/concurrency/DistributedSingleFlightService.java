@@ -149,14 +149,20 @@ public class DistributedSingleFlightService {
     long delayMs =
         BASE_DELAY_MS * (1L << attempt); // Exponential backoff: 50ms, 100ms, 200ms, 400ms...
     long jitter = ThreadLocalRandom.current().nextLong(0, delayMs / 4);
-    checkedExecutor.executeUncheckedVoid(
-        () -> Thread.sleep(delayMs + jitter),
-        TaskContext.of("SingleFlight", "SleepBackoff", String.valueOf(attempt)),
-        ie -> {
-          Thread.currentThread().interrupt();
-          throw new DistributedLockException(
-              "Cache read retry interrupted [key=" + originalKey + "]", ie);
-        });
+    long totalDelay = delayMs + jitter;
+
+    // Use LogicExecutor pattern instead of direct Thread.sleep
+    executor.executeVoid(
+        () -> {
+          try {
+            Thread.sleep(totalDelay);
+          } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw new DistributedLockException(
+                "Cache read retry interrupted [key=" + originalKey + "]", ie);
+          }
+        },
+        TaskContext.of("SingleFlight", "SleepBackoff", String.valueOf(attempt)));
   }
 
   /** Handle final retry after all exponential backoff attempts. */

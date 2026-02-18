@@ -656,7 +656,7 @@ This analysis report is **INVALID** if any of the following conditions are true:
 > "Cache Stampede (P0-4) is not theoretical. The N01 Chaos Test demonstrates:
 > - Without Single-flight: 100 requests → 100 API calls
 > - With Single-flight: 100 requests → 1 API call
-> See: docs/01_Chaos_Engineering/06_Nightmare/Results/N01-thundering-herd-result.md"
+> See: docs/02_Chaos_Engineering/06_Nightmare/Results/N01-thundering-herd-result.md"
 
 ### For SRE Reviewers
 
@@ -825,10 +825,10 @@ curl -s http://localhost:8080/actuator/metrics/hikaricp.connections.active | jq 
 # Expected: < 25 (pool size 30)
 
 # 4. Simulate Thread Pool Exhaustion (N03)
-# See: docs/01_Chaos_Engineering/06_Nightmare/Scenarios/N03-thread-pool-exhaustion.md
+# See: docs/02_Chaos_Engineering/06_Nightmare/Scenarios/N03-thread-pool-exhaustion.md
 
 # 5. Simulate Cache Stampede (N01)
-# See: docs/01_Chaos_Engineering/06_Nightmare/Scenarios/N01-thundering-herd.md
+# See: docs/02_Chaos_Engineering/06_Nightmare/Scenarios/N01-thundering-herd.md
 ```
 
 ---

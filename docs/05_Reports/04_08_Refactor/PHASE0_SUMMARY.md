@@ -28,13 +28,13 @@ All 5 agents have completed their baseline analysis. The MapleExpectation projec
 
 | Agent | Document | Location | Purpose |
 |-------|----------|----------|---------|
-| **Blue** | ARCHITECTURE_MAP.md | docs/refactor/ | Current state mapping |
-| **Blue** | SOLID_VIOLATIONS.md | docs/refactor/ | 43 violations with evidence |
-| **Blue** | TARGET_STRUCTURE.md | docs/refactor/ | Clean Architecture proposal |
-| **Green** | PERFORMANCE_BASELINE.md | docs/refactor/ | Performance metrics |
-| **Yellow** | RISK_REGISTER.md | docs/refactor/ | Top 10 risks + mitigation |
-| **Purple** | AUDIT_BASELINE.md | docs/refactor/ | Audit verification |
-| **Red** | RESILIENCE_BASELINE.md | docs/refactor/ | Operations baseline |
+| **Blue** | ARCHITECTURE_MAP.md | do../05_Reports/04_08_Refactor/ | Current state mapping |
+| **Blue** | SOLID_VIOLATIONS.md | do../05_Reports/04_08_Refactor/ | 43 violations with evidence |
+| **Blue** | TARGET_STRUCTURE.md | do../05_Reports/04_08_Refactor/ | Clean Architecture proposal |
+| **Green** | PERFORMANCE_BASELINE.md | do../05_Reports/04_08_Refactor/ | Performance metrics |
+| **Yellow** | RISK_REGISTER.md | do../05_Reports/04_08_Refactor/ | Top 10 risks + mitigation |
+| **Purple** | AUDIT_BASELINE.md | do../05_Reports/04_08_Refactor/ | Audit verification |
+| **Red** | RESILIENCE_BASELINE.md | do../05_Reports/04_08_Refactor/ | Operations baseline |
 
 ---
 

@@ -9,7 +9,7 @@
 ## ✅ 완료된 문서 목록
 
 ### 1. Portfolio_Enhancement_Summary.md
-- **경로**: `docs/04_Reports/Portfolio_Enhancement_Summary.md`
+- **경로**: `docs/05_Reports/Portfolio_Enhancement_Summary.md`
 - **유형**: 포트폴리오 템플릿 계획서
 - **추가 섹션**:
   - ✅ 문서 무결성 체크리스트 (21/30 항목)
@@ -25,7 +25,7 @@
 - **평가**: 70% 충족 (템플릿 문서로 양호)
 
 ### 2. Portfolio_Enhancement_Actual_Results.md
-- **경로**: `docs/04_Reports/Portfolio_Enhancement_Actual_Results.md`
+- **경로**: `docs/05_Reports/Portfolio_Enhancement_Actual_Results.md`
 - **유형**: N23 Python Load Test 실제 결과
 - **추가 섹션**:
   - ✅ 문서 무결성 체크리스트 (27/30 항목)
@@ -41,7 +41,7 @@
 - **평가**: 90% 충족 ✅ **운영 증거로 활용 가능**
 
 ### 3. Portfolio_Enhancement_Final_Summary.md
-- **경로**: `docs/04_Reports/Portfolio_Enhancement_Final_Summary.md`
+- **경로**: `docs/05_Reports/Portfolio_Enhancement_Final_Summary.md`
 - **유형**: N23, N21 최종 결과 요약
 - **추가 섹션**:
   - ✅ 문서 무결성 체크리스트 (28/30 항목)
@@ -57,7 +57,7 @@
 - **평가**: 93% 충족 ✅ **운영 증거로 활용 가능**
 
 ### 4. Portfolio_Enhancement_WRK_Final_Summary.md
-- **경로**: `docs/04_Reports/Portfolio_Enhancement_WRK_Final_Summary.md`
+- **경로**: `docs/05_Reports/Portfolio_Enhancement_WRK_Final_Summary.md`
 - **유형**: N23 wrk HTTP 벤치마크 결과 (가장 신뢰도 높음)
 - **추가 섹션**:
   - ✅ 문서 무결성 체크리스트 (28/30 항목)
@@ -73,7 +73,7 @@
 - **평가**: 93% 충족 ✅ **가장 신뢰도 높은 운영 증거**
 
 ### 5. PERFORMANCE_260105.md
-- **경로**: `docs/04_Reports/PERFORMANCE_260105.md`
+- **경로**: `docs/05_Reports/PERFORMANCE_260105.md`
 - **유형**: Locust 부하 테스트 결과 (235 RPS)
 - **추가 섹션**:
   - ✅ 문서 무결성 체크리스트 (18/30 항목)
@@ -88,7 +88,7 @@
 - **평가**: 60% 충족 ⚠️ **일부 개선 필요** (locustfile.py 미포함)
 
 ### 6. p1-p2-performance-improvements-report.md
-- **경로**: `docs/04_Reports/p1-p2-performance-improvements-report.md`
+- **경로**: `docs/05_Reports/p1-p2-performance-improvements-report.md`
 - **유형**: P1/P2 이슈 해결 리포트 (5개 이슈)
 - **추가 섹션**:
   - ✅ 문서 무결성 체크리스트 (20/30 항목)
@@ -264,21 +264,21 @@
 ## 🔗 관련 문서
 
 ### 원본 리포트 (향상 전)
-- `docs/04_Reports/Portfolio_Enhancement_Summary.md` (v1.0)
-- `docs/04_Reports/Portfolio_Enhancement_Actual_Results.md` (v1.0)
-- `docs/04_Reports/Portfolio_Enhancement_Final_Summary.md` (v1.0)
-- `docs/04_Reports/Portfolio_Enhancement_WRK_Final_Summary.md` (v1.0)
-- `docs/04_Reports/PERFORMANCE_260105.md` (v1.0)
-- `docs/04_Reports/p1-p2-performance-improvements-report.md` (v1.0)
+- `docs/05_Reports/Portfolio_Enhancement_Summary.md` (v1.0)
+- `docs/05_Reports/Portfolio_Enhancement_Actual_Results.md` (v1.0)
+- `docs/05_Reports/Portfolio_Enhancement_Final_Summary.md` (v1.0)
+- `docs/05_Reports/Portfolio_Enhancement_WRK_Final_Summary.md` (v1.0)
+- `docs/05_Reports/PERFORMANCE_260105.md` (v1.0)
+- `docs/05_Reports/p1-p2-performance-improvements-report.md` (v1.0)
 
 ### 템플릿
 - `docs/98_Templates/DOCUMENTATION_INTEGRITY_CHECKLIST.md` (v1.0) - 새로 생성
 
 ### 실제 테스트 데이터
-- `docs/04_Reports/Cost_Performance/COST_PERF_REPORT_N23_ACTUAL.md`
-- `docs/04_Reports/Cost_Performance/N23_WRK_V4_RESULTS.md`
-- `docs/04_Reports/Cost_Performance/N23_V4_API_RESULTS.md`
-- `docs/04_Reports/Incidents/INCIDENT_REPORT_N21_ACTUAL.md`
+- `docs/05_Reports/Cost_Performance/COST_PERF_REPORT_N23_ACTUAL.md`
+- `docs/05_Reports/Cost_Performance/N23_WRK_V4_RESULTS.md`
+- `docs/05_Reports/Cost_Performance/N23_V4_API_RESULTS.md`
+- `docs/05_Reports/Incidents/INCIDENT_REPORT_N21_ACTUAL.md`
 
 ---
 

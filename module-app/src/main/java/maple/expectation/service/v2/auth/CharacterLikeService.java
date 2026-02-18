@@ -4,7 +4,7 @@ import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.core.port.out.LikeBufferStrategy;
 import maple.expectation.core.port.out.LikeRelationBufferStrategy;
-import maple.expectation.error.exception.auth.SelfLikeNotAllowedException;
+import maple.expectation.error.exception.SelfLikeNotAllowedException;
 import maple.expectation.infrastructure.aop.annotation.ObservedTransaction;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;

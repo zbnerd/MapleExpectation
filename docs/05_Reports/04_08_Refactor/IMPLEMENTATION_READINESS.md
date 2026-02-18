@@ -68,9 +68,9 @@ java.lang.IllegalStateException: Failed to load ApplicationContext for [WebMerge
 ### 3. Documentation Status: ✅ COMPLETE
 
 **Available Documents**:
-- ✅ `docs/adr/ADR-017-S1-equipment-slice.md` (1312 lines, comprehensive)
-- ✅ `docs/04_Reports/Refactor/monitoring_query_guide.md` (436 lines)
-- ❌ `docs/04_Reports/Refactor/v4_expectation_flow_analysis.md` (NOT FOUND)
+- ✅ `docs/01_Adr/ADR-017-S1-equipment-slice.md` (1312 lines, comprehensive)
+- ✅ `docs/05_Reports/Refactor/monitoring_query_guide.md` (436 lines)
+- ❌ `docs/05_Reports/Refactor/v4_expectation_flow_analysis.md` (NOT FOUND)
 - ✅ `CLAUDE.md` (447 lines, complete)
 
 **Documentation Quality**:
@@ -126,7 +126,7 @@ java.lang.ClassNotFoundException: maple.expectation.monitoring.copilot.client.Pr
 **Problem**: `v4_expectation_flow_analysis.md` not found but referenced in ADR-017-S1
 ```bash
 # File missing
-ls docs/04_Reports/Refactor/v4_expectation_flow_analysis.md
+ls docs/05_Reports/Refactor/v4_expectation_flow_analysis.md
 ```
 
 **Required Actions**:

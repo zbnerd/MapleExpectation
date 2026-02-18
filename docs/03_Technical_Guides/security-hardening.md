@@ -540,6 +540,6 @@ grep -r "log.info.*apiKey\|log.info.*password" --include="*.java"
 ```
 
 ### Related Evidence
-- Security Audit: `docs/04_Reports/security-audit-2025-Q4.md`
-- P0 Resolution: `docs/04_Reports/P0_Issues_Resolution_Report_2026-01-20.md`
-- OWASP Compliance: `docs/04_Reports/owasp-compliance.md`
+- Security Audit: `docs/05_Reports/security-audit-2025-Q4.md`
+- P0 Resolution: `docs/05_Reports/P0_Issues_Resolution_Report_2026-01-20.md`
+- OWASP Compliance: `docs/05_Reports/owasp-compliance.md`

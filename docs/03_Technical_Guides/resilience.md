@@ -72,7 +72,7 @@ graph TD
 - **Marker Interfaces:** `src/main/java/maple/expectation/global/error/exception/marker/` (Evidence: [CODE-MARKER-001])
 - **Configuration:** `src/main/resources/application.yml` (resilience4j 섹션) (Evidence: [CONF-RES4J-001])
 - **Tests:** `src/test/java/maple/expectation/external/ResilientNexonApiClientTest.java` (Evidence: [TEST-RESILIENT-001])
-- **ADR-005:** `docs/adr/ADR-005-resilience4j-scenario-abc.md` (Scenario A/B/C Decision Record)
+- **ADR-005:** `docs/01_Adr/ADR-005-resilience4j-scenario-abc.md` (Scenario A/B/C Decision Record)
 
 ## Technical Validity Check
 
@@ -98,6 +98,6 @@ curl -s http://localhost:8080/actuator/metrics/resilience4j.circuitbreaker.state
 ```
 
 ### Related Evidence
-- ADR-005: `docs/adr/ADR-005-resilience4j-scenario-abc.md`
-- P0 Report: `docs/04_Reports/P0_Issues_Resolution_Report_2026-01-20.md`
+- ADR-005: `docs/01_Adr/ADR-005-resilience4j-scenario-abc.md`
+- P0 Report: `docs/05_Reports/P0_Issues_Resolution_Report_2026-01-20.md`
 - Chaos Tests: N05 (network delay), N06 (API timeout)

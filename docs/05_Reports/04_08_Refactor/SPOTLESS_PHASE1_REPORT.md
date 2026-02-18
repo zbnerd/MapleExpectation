@@ -224,7 +224,7 @@ The Spotless configuration has been added to `build.gradle` but is **not yet int
 
 ### FORMATTING_STANDARDS.md
 
-Location: `/home/maple/MapleExpectation/docs/refactor/FORMATTING_STANDARDS.md`
+Location: `/home/maple/MapleExpectation/do../05_Reports/04_08_Refactor/FORMATTING_STANDARDS.md`
 
 **Contents**:
 - Spotless configuration details
@@ -285,8 +285,8 @@ All Java files reformatted to Google Java Format standard, including:
 - Test source files: `src/test/java/**/*.java`
 
 ### Documentation (New)
-- `docs/refactor/FORMATTING_STANDARDS.md`
-- `docs/refactor/SPOTLESS_PHASE1_REPORT.md` (this file)
+- `do../05_Reports/04_08_Refactor/FORMATTING_STANDARDS.md`
+- `do../05_Reports/04_08_Refactor/SPOTLESS_PHASE1_REPORT.md` (this file)
 
 ---
 
@@ -313,7 +313,7 @@ All Java files reformatted to Google Java Format standard, including:
    - Sort imports per Google style
    - Compact Javadoc formatting
 
-   See docs/refactor/FORMATTING_STANDARDS.md for details"
+   See do../05_Reports/04_08_Refactor/FORMATTING_STANDARDS.md for details"
    ```
 
 2. **Integrate to CI**: Add `spotlessCheck` to `.github/workflows/ci.yml`
@@ -324,7 +324,7 @@ All Java files reformatted to Google Java Format standard, including:
 
 ## Contact & Support
 
-**Questions**: See `docs/refactor/FORMATTING_STANDARDS.md`
+**Questions**: See `do../05_Reports/04_08_Refactor/FORMATTING_STANDARDS.md`
 **Issues**: Report formatting problems via project issue tracker
 **Documentation**: [Spotless GitHub](https://github.com/diffplug/spotless)
 

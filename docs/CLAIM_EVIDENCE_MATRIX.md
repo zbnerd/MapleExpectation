@@ -235,4 +235,4 @@ Discord 버튼으로 실행되는 액션은 RBAC, 서명 검증, 화이트리스
 ---
 
 *Last Updated: 2026-02-06*
-*Related: [README AI SRE Section](../README.md#ai-sre-policy-guarded-autonomous-loop)*
+*Related: [README AI SRE Section](README.md#ai-sre-policy-guarded-autonomous-loop)*

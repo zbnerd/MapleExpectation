@@ -7,10 +7,10 @@
 ## Documentation Integrity Statement
 
 This roadmap is based on **current production implementation** validated through:
-- Architecture evidence from [architecture.md](../architecture.md)
+- Architecture evidence from [architecture.md](./architecture.md)
 - Monitoring copilot evidence from [MONITORING_COPILOT_SUMMARY.md](../../../MONITORING_COPILOT_SUMMARY.md)
-- Existing roadmap validation from [ROADMAP.md](../ROADMAP.md)
-- P0/P1 stateful component analysis from [scale-out-blockers-analysis.md](../04_Reports/scale-out-blockers-analysis.md)
+- Existing roadmap validation from [ROADMAP.md](./ROADMAP.md)
+- P0/P1 stateful component analysis from [scale-out-blockers-analysis.md](../05_Reports/04_09_Scale_Out/scale-out-blockers-analysis.md)
 
 ---
 
@@ -417,10 +417,10 @@ This MVP roadmap provides a clear path to achieve C5 4/4 classification by focus
 
 ### B. References
 
-- [Architecture Documentation](../architecture.md)
+- [Architecture Documentation](./architecture.md)
 - [Monitoring Copilot Implementation](../../../MONITORING_COPILOT_SUMMARY.md)
-- [Technical Roadmap](../ROADMAP.md)
-- [Scale-out Blockers Analysis](../04_Reports/scale-out-blockers-analysis.md)
+- [Technical Roadmap](./ROADMAP.md)
+- [Scale-out Blockers Analysis](../05_Reports/04_09_Scale_Out/scale-out-blockers-analysis.md)
 
 ### C. Glossary
 

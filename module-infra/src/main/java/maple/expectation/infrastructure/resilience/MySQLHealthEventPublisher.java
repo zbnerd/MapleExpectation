@@ -113,7 +113,13 @@ public class MySQLHealthEventPublisher {
     executor.executeVoid(
         () -> {
           // Debounce 대기
-          TimeUnit.SECONDS.sleep(properties.getDebounceSeconds());
+          try {
+            TimeUnit.SECONDS.sleep(properties.getDebounceSeconds());
+          } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            log.info("[MySQLHealth] Debounce sleep interrupted");
+            return;
+          }
 
           // 대기 후 UP 이벤트가 발생했는지 확인
           if (!isDownTimestampValid()) {

@@ -153,7 +153,7 @@
 
 - **Roadmap**: docs/00_Start_Here/ROADMAP.md (Phase 1-7 planning)
 - **Architecture**: docs/00_Start_Here/architecture.md (System design)
-- **ADRs**: docs/adr/ (Architectural Decision Records)
+- **ADRs**: docs/01_Adr/ (Architectural Decision Records)
 - **Completion Reports**: docs/04-report/ (PDCA results)
 
 ---

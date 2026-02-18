@@ -439,7 +439,7 @@ dependencies {
 
 ## 9. 참조 문서
 
-- **ADR-014**: `/home/maple/MapleExpectation/docs/adr/ADR-014-multi-module-cross-cutting-concerns.md`
+- **ADR-014**: `/home/maple/MapleExpectation/docs/01_Adr/ADR-014-multi-module-cross-cutting-concerns.md`
 - **ADR-017**: Equipment Domain Extraction (현재 진행 중)
 - **#126 Pragmatic CQRS**: https://github.com/zbnerd/MapleExpectation/issues/126
 - **CLAUDE.md**: `/home/maple/MapleExpectation/CLAUDE.md`

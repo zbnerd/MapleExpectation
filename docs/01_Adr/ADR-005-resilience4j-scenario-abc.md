@@ -296,5 +296,5 @@ curl -s http://localhost:8080/actuator/metrics/resilience4j.circuitbreaker.calls
 - **application.yml:** `src/main/resources/application.yml` (resilience4j 섹션)
 
 ### 이슈 및 문서
-- **[Chaos N06](../01_Chaos_Engineering/06_Nightmare/Scenarios/N06-timeout-cascade.md)** - Timeout Cascade 시나리오
-- **[Load Test #266](../04_Reports/Load_Tests/)** - 719 RPS 달성
+- **[Chaos N06](../02_Chaos_Engineering/06_Nightmare/Scenarios/N06-timeout-cascade.md)** - Timeout Cascade 시나리오
+- **[Load Test #266](../05_Reports/04_06_Load_Tests/)** - 719 RPS 달성

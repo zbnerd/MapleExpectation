@@ -2,10 +2,12 @@ package maple.expectation.service.v5;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.function.Function;
 import maple.expectation.common.function.ThrowingSupplier;
+import maple.expectation.infrastructure.executor.CheckedLogicExecutor;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
+import maple.expectation.infrastructure.executor.function.CheckedRunnable;
+import maple.expectation.infrastructure.executor.function.CheckedSupplier;
 import maple.expectation.infrastructure.executor.function.ThrowingRunnable;
 import maple.expectation.infrastructure.executor.strategy.ExceptionTranslator;
 import maple.expectation.service.v5.queue.ExpectationCalculationTask;
@@ -17,12 +19,14 @@ import org.junit.jupiter.api.Test;
 class PriorityCalculationQueueTest {
 
   private LogicExecutor executor;
+  private CheckedLogicExecutor checkedExecutor;
   private PriorityCalculationQueue queue;
 
   @org.junit.jupiter.api.BeforeEach
   void setUp() {
     executor = new TestLogicExecutor();
-    queue = new PriorityCalculationQueue(executor);
+    checkedExecutor = new TestCheckedLogicExecutor();
+    queue = new PriorityCalculationQueue(executor, checkedExecutor);
   }
 
   @Test
@@ -65,6 +69,11 @@ class PriorityCalculationQueueTest {
     }
 
     @Override
+    public <T> T execute(ThrowingSupplier<T> task, String taskName) {
+      return execute(task, TaskContext.of("Legacy", taskName));
+    }
+
+    @Override
     public <T> T executeOrDefault(ThrowingSupplier<T> task, T defaultValue, TaskContext context) {
       try {
         return task.get();
@@ -80,6 +89,11 @@ class PriorityCalculationQueueTest {
       } catch (Throwable e) {
         throw new RuntimeException(e);
       }
+    }
+
+    @Override
+    public void executeVoid(ThrowingRunnable task, String taskName) {
+      executeVoid(task, TaskContext.of("Legacy", taskName));
     }
 
     @Override
@@ -106,21 +120,124 @@ class PriorityCalculationQueueTest {
 
     @Override
     public <T> T executeWithFallback(
-        ThrowingSupplier<T> task, Function<Throwable, T> fallback, TaskContext context) {
+        ThrowingSupplier<T> task,
+        kotlin.jvm.functions.Function1<? super Throwable, ? extends T> fallback,
+        TaskContext context) {
       try {
         return task.get();
       } catch (Throwable e) {
-        return fallback.apply(e);
+        return fallback.invoke(e);
+      }
+    }
+
+    @Override
+    public <T> T executeWithFallback(
+        ThrowingSupplier<T> task, ExceptionTranslator translator, TaskContext context) {
+      try {
+        return task.get();
+      } catch (Throwable e) {
+        @SuppressWarnings("unchecked")
+        T result = (T) translator.translate(e, context);
+        return result;
       }
     }
 
     @Override
     public <T> T executeOrCatch(
-        ThrowingSupplier<T> task, Function<Throwable, T> recovery, TaskContext context) {
+        ThrowingSupplier<T> task,
+        kotlin.jvm.functions.Function1<? super Throwable, ? extends T> recovery,
+        TaskContext context) {
       try {
         return task.get();
       } catch (Throwable e) {
-        return recovery.apply(e);
+        return recovery.invoke(e);
+      }
+    }
+
+    @Override
+    public <T> T executeOrCatch(
+        ThrowingSupplier<T> task, ExceptionTranslator translator, TaskContext context) {
+      try {
+        return task.get();
+      } catch (Throwable e) {
+        @SuppressWarnings("unchecked")
+        T result = (T) translator.translate(e, context);
+        return result;
+      }
+    }
+  }
+
+  /** 테스트용 간단한 CheckedLogicExecutor 구현 */
+  private static class TestCheckedLogicExecutor implements CheckedLogicExecutor {
+    @Override
+    public <T> T execute(CheckedSupplier<T> task, TaskContext context) throws Exception {
+      return task.get();
+    }
+
+    @Override
+    public void executeVoid(CheckedRunnable task, TaskContext context) throws Exception {
+      task.run();
+    }
+
+    @Override
+    public <T> T executeUnchecked(
+        CheckedSupplier<T> task,
+        TaskContext context,
+        java.util.function.Function<Exception, RuntimeException> mapper) {
+      try {
+        return task.get();
+      } catch (Exception e) {
+        throw mapper.apply(e);
+      }
+    }
+
+    @Override
+    public void executeUncheckedVoid(
+        CheckedRunnable task,
+        TaskContext context,
+        java.util.function.Function<Exception, RuntimeException> mapper) {
+      try {
+        task.run();
+      } catch (Exception e) {
+        throw mapper.apply(e);
+      }
+    }
+
+    @Override
+    public <T> T executeWithFinallyUnchecked(
+        CheckedSupplier<T> task,
+        CheckedRunnable finalizer,
+        TaskContext context,
+        java.util.function.Function<Exception, RuntimeException> mapper) {
+      try {
+        return task.get();
+      } catch (Exception e) {
+        throw mapper.apply(e);
+      } finally {
+        try {
+          finalizer.run();
+        } catch (Exception e) {
+          // ignore finalizer exception in test
+        }
+      }
+    }
+
+    @Override
+    public void executeWithFinallyUncheckedVoid(
+        CheckedRunnable task,
+        CheckedRunnable finalizer,
+        TaskContext context,
+        java.util.function.Function<Exception, RuntimeException> mapper) {
+      try {
+        task.run();
+      } catch (Exception e) {
+        throw mapper.apply(e);
+      } finally {
+        try {
+          finalizer.run();
+        } catch (Exception e) {
+          // ignore finalizer exception in test
+        }
       }
     }
   }

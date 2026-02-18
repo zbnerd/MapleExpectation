@@ -674,7 +674,7 @@ echo "$(date): EMERGENCY ROTATION - $REASON" >> /var/log/security-incidents.log
    ```
 3. **Rotate All Credentials**: Not just the exposed one
 4. **Security Audit**: Full security review
-5. **Incident Report**: Document in `docs/04_Reports/`
+5. **Incident Report**: Document in `docs/05_Reports/`
 
 ---
 
@@ -783,7 +783,7 @@ echo "All health checks passed! Rotation successful."
 
 ### 10.1 Rotation Audit Log
 
-All rotations must be logged in `docs/04_Reports/credential-rotation-audit.log`:
+All rotations must be logged in `docs/05_Reports/credential-rotation-audit.log`:
 
 ```
 YYYY-MM-DD HH:MM:SS | CREDENTIAL | ACTION | PERFORMED_BY | NOTES
@@ -821,8 +821,8 @@ After each rotation, collect evidence:
 
 ## Evidence Links
 
-- **Security Audit:** `docs/04_Reports/security-audit-report-2026-02-08.md` (Evidence: [SEC-AUDIT-001])
-- **Security Testing:** `docs/02_Technical_Guides/security-testing.md` (Evidence: [SEC-TEST-001])
+- **Security Audit:** `docs/05_Reports/security-audit-report-2026-02-08.md` (Evidence: [SEC-AUDIT-001])
+- **Security Testing:** `docs/03_Technical_Guides/security-testing.md` (Evidence: [SEC-TEST-001])
 - **On-call Checklist:** `docs/05_Guides/ON_CALL_CHECKLIST.md` (Evidence: [OPS-001])
 - **JWT Provider:** `module-app/src/main/java/maple/expectation/global/security/jwt/JwtTokenProvider.java` (Evidence: [CODE-JWT-001])
 

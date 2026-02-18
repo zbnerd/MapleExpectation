@@ -4,7 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.domain.RefreshToken;
 import maple.expectation.domain.Session;
-import maple.expectation.error.exception.auth.SessionNotFoundException;
+import maple.expectation.error.exception.SessionNotFoundException;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.infrastructure.security.jwt.JwtTokenProvider;
@@ -125,20 +125,6 @@ public class TokenService {
         TaskContext.of(
             "TokenService", "GetOrCleanupSession", "sessionId=" + refreshToken.sessionId()));
   }
-
-  /**
-   * 토큰 쌍 (Access Token + Refresh Token)
-   *
-   * @param accessToken JWT Access Token
-   * @param accessTokenExpiresIn Access Token 만료 시간 (초)
-   * @param refreshTokenId Refresh Token ID
-   * @param refreshTokenExpiresIn Refresh Token 만료 시간 (초)
-   */
-  public record TokenPair(
-      String accessToken,
-      long accessTokenExpiresIn,
-      String refreshTokenId,
-      long refreshTokenExpiresIn) {}
 
   private String maskRefreshTokenId(String refreshTokenId) {
     if (refreshTokenId == null || refreshTokenId.length() < 8) {

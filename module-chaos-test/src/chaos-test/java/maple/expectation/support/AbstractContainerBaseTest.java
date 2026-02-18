@@ -1,8 +1,10 @@
 package maple.expectation.support;
 
+import maple.expectation.config.ChaosTestConfig;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.MySQLContainer;
@@ -19,7 +21,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  */
 @Testcontainers
 @SpringBootTest(classes = maple.expectation.ExpectationApplication.class)
-@ActiveProfiles("test")
+@ActiveProfiles("chaos")
+@Import(ChaosTestConfig.class)
 public abstract class AbstractContainerBaseTest {
 
   /** Shared MySQL container for all tests. Uses testcontainers/MySQL 8.0 image. */

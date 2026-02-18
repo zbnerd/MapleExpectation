@@ -160,7 +160,7 @@ EOF
 ## 📄 생성된 문서
 
 ### 1. N23 실제 테스트 리포트
-**파일**: `docs/04_Reports/Cost_Performance/COST_PERF_REPORT_N23_ACTUAL.md` [L1]
+**파일**: `docs/05_Reports/Cost_Performance/COST_PERF_REPORT_N23_ACTUAL.md` [L1]
 
 **포함된 내용**:
 - ✅ 실제 부하 테스트 결과 (10,538 requests)
@@ -762,13 +762,13 @@ curl -s http://localhost:8080/actuator/metrics/jvm.threads.live | jq '.measureme
 ## 🔗 관련 문서 (Related Documents)
 
 ### 실제 테스트 결과
-- **N23 Python Load Test**: `docs/04_Reports/Cost_Performance/COST_PERF_REPORT_N23_ACTUAL.md` [L1]
-- **N23 wrk Test**: `docs/04_Reports/Cost_Performance/N23_WRK_V4_RESULTS.md` [W1]
-- **N23 V4 API Test**: `docs/04_Reports/Cost_Performance/N23_V4_API_RESULTS.md` [L2]
+- **N23 Python Load Test**: `docs/05_Reports/Cost_Performance/COST_PERF_REPORT_N23_ACTUAL.md` [L1]
+- **N23 wrk Test**: `docs/05_Reports/Cost_Performance/N23_WRK_V4_RESULTS.md` [W1]
+- **N23 V4 API Test**: `docs/05_Reports/Cost_Performance/N23_V4_API_RESULTS.md` [L2]
 
 ### 템플릿 리포트
-- **N23 시나리오**: `docs/04_Reports/Cost_Performance/COST_PERF_REPORT_N23.md`
-- **N21 시나리오**: `docs/04_Reports/Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md`
+- **N23 시나리오**: `docs/05_Reports/Cost_Performance/COST_PERF_REPORT_N23.md`
+- **N21 시나리오**: `docs/05_Reports/Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md`
 
 ### 원시 데이터
 - **N23 Python 데이터**: `/tmp/n23_load_test_results.json` [L1]
@@ -781,8 +781,8 @@ curl -s http://localhost:8080/actuator/metrics/jvm.threads.live | jq '.measureme
 | ID | Source | Location |
 |----|--------|----------|
 | [L1] | Python Load Test | `/tmp/n23_load_test_results.json` |
-| [L2] | V4 API Test | `docs/04_Reports/Cost_Performance/N23_V4_API_RESULTS.md` |
-| [W1] | wrk Benchmark | `docs/04_Reports/Cost_Performance/N23_WRK_V4_RESULTS.md` |
+| [L2] | V4 API Test | `docs/05_Reports/Cost_Performance/N23_V4_API_RESULTS.md` |
+| [W1] | wrk Benchmark | `docs/05_Reports/Cost_Performance/N23_WRK_V4_RESULTS.md` |
 | [E1] | AWS Pricing | https://aws.amazon.com/ec2/pricing/on-demand/ |
 
 ---

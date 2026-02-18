@@ -13,7 +13,7 @@ import org.springframework.test.context.ActiveProfiles;
  * @see ActiveProfiles
  */
 @SpringBootTest(classes = maple.expectation.ExpectationApplication.class)
-@ActiveProfiles("test")
+@ActiveProfiles("chaos")
 public abstract class ChaosTestSupport {
   // Base class for chaos engineering tests
   // All test configuration is inherited via annotations

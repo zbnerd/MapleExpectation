@@ -28,7 +28,7 @@ MapleExpectation's multi-module architecture was established in ADR-035 (Februar
 
 - **ADR-035:** Multi-Module Migration Completion (original structure)
 - **ADR-036:** V5 CQRS Architecture (ongoing implementation)
-- **docs/04_Reports/Multi-Module-Refactoring-Analysis.md:** Detailed analysis (2026-02-16)
+- **docs/05_Reports/Multi-Module-Refactoring-Analysis.md:** Detailed analysis (2026-02-16)
 
 ---
 
@@ -416,9 +416,9 @@ public class RedisCacheStrategy implements CacheStrategy {
 
 ### Analysis Documents
 
-- **docs/04_Reports/Multi-Module-Refactoring-Analysis.md** - Detailed analysis (2026-02-16)
+- **docs/05_Reports/Multi-Module-Refactoring-Analysis.md** - Detailed analysis (2026-02-16)
 - **docs/00_Start_Here/architecture.md** - System architecture overview
-- **docs/02_Technical_Guides/service-modules.md** - Service layer documentation
+- **docs/03_Technical_Guides/service-modules.md** - Service layer documentation
 - **docs/00_Start_Here/ROADMAP.md** - Phase 7: Multi-module refactoring
 
 ### Related Issues
@@ -429,8 +429,8 @@ public class RedisCacheStrategy implements CacheStrategy {
 
 ### Technical Guides
 
-- **docs/02_Technical_Guides/infrastructure.md** - Infrastructure best practices
-- **docs/02_Technical_Guides/testing-guide.md** - Testing strategy
+- **docs/03_Technical_Guides/infrastructure.md** - Infrastructure best practices
+- **docs/03_Technical_Guides/testing-guide.md** - Testing strategy
 - **CLAUDE.md** - Project guidelines (SOLID, LogicExecutor, Exception handling)
 
 ---

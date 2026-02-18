@@ -115,6 +115,8 @@ public class MongoSyncEventPublisher implements MongoSyncEventPublisherInterface
    *
    * <p>Redis Stream stores data as key-value pairs. We serialize the entire event to JSON for the
    * payload field.
+   *
+   * <p>Uses LogicExecutor.executeOrDefault() for Section 12 compliance.
    */
   private Map<String, String> convertToStreamMap(
       IntegrationEvent<ExpectationCalculationCompletedEvent> event) {
@@ -123,12 +125,12 @@ public class MongoSyncEventPublisher implements MongoSyncEventPublisherInterface
     map.put("eventType", event.getEventType());
     map.put("timestamp", String.valueOf(event.getTimestamp()));
 
-    try {
-      map.put("payload", objectMapper.writeValueAsString(event.getPayload()));
-    } catch (Exception e) {
-      log.warn("[MongoSyncPublisher] Failed to serialize payload", e);
-      map.put("payload", "{}");
-    }
+    String payloadJson =
+        executor.executeOrDefault(
+            () -> objectMapper.writeValueAsString(event.getPayload()),
+            "{}",
+            TaskContext.of("MongoSyncPublisher", "SerializePayload", event.getEventId()));
+    map.put("payload", payloadJson);
 
     return map;
   }

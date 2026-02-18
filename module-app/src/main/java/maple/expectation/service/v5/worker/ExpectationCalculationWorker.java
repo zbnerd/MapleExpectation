@@ -1,14 +1,17 @@
 package maple.expectation.service.v5.worker;
 
 import io.micrometer.core.instrument.Counter;
+import java.time.Instant;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.dto.v4.EquipmentExpectationResponseV4;
+import maple.expectation.infrastructure.executor.CheckedLogicExecutor;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.service.v4.EquipmentExpectationServiceV4;
 import maple.expectation.service.v5.event.MongoSyncEventPublisherInterface;
 import maple.expectation.service.v5.queue.ExpectationCalculationTask;
 import maple.expectation.service.v5.queue.PriorityCalculationQueue;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 /**
@@ -23,6 +26,10 @@ import org.springframework.stereotype.Component;
  *   <li>Upsert to MongoDB view
  *   <li>Complete task in queue
  * </ol>
+ *
+ * <h3>Section 12 Compliance</h3>
+ *
+ * <p>All exception handling delegated to LogicExecutor/CheckedLogicExecutor.
  */
 @Slf4j
 @Component
@@ -31,6 +38,7 @@ public class ExpectationCalculationWorker implements Runnable {
   private final PriorityCalculationQueue queue;
   private final EquipmentExpectationServiceV4 expectationService;
   private final LogicExecutor executor;
+  private final CheckedLogicExecutor checkedExecutor;
   private final Counter processedCounter;
   private final Counter errorCounter;
 
@@ -42,10 +50,12 @@ public class ExpectationCalculationWorker implements Runnable {
       PriorityCalculationQueue queue,
       EquipmentExpectationServiceV4 expectationService,
       LogicExecutor executor,
+      @Qualifier("checkedLogicExecutor") CheckedLogicExecutor checkedExecutor,
       io.micrometer.core.instrument.MeterRegistry meterRegistry) {
     this.queue = queue;
     this.expectationService = expectationService;
     this.executor = executor;
+    this.checkedExecutor = checkedExecutor;
     this.processedCounter = meterRegistry.counter("calculation.worker.processed");
     this.errorCounter = meterRegistry.counter("calculation.worker.errors");
   }
@@ -55,82 +65,60 @@ public class ExpectationCalculationWorker implements Runnable {
     log.info("[V5-Worker] Calculation worker started");
 
     while (!Thread.currentThread().isInterrupted()) {
-      executor.executeVoid(this::processNextTask, TaskContext.of("V5-Worker", "ProcessTask"));
+      processNextTaskWithRecovery();
     }
 
     log.info("[V5-Worker] Calculation worker stopped");
   }
 
   /**
-   * Process next task from queue with full V4 calculation pipeline
+   * Process next task with recovery pattern (Section 12 compliant).
    *
-   * <h3>Calculation Flow (V4 Service Reuse)</h3>
-   *
-   * <ol>
-   *   <li>GameCharacterFacade.findCharacterByUserIgn() - DB 조회 + 기본 정보 보강
-   *   <li>EquipmentDataProvider.getRawEquipmentData() - 장비 데이터 로드 (DB/API)
-   *   <li>EquipmentStreamingParser.decompressIfNeeded() - GZIP 해제
-   *   <li>EquipmentStreamingParser.parseCubeInputsForPreset() - 프리셋별 파싱 (1,2,3)
-   *   <li>PresetCalculationHelper.calculatePreset() - 3개 프리셋 병렬 계산
-   *   <li>findMaxPreset() - 최대 기대값 프리셋 선택
-   *   <li>ExpectationPersistenceService.saveResults() - 결과 저장 (MySQL)
-   *   <li>MongoSyncEventPublisher.publishCalculationCompleted() - 이벤트 발행
-   * </ol>
+   * <p>Uses CheckedLogicExecutor for queue.poll() which throws InterruptedException.
    */
-  void processNextTask() {
-    ExpectationCalculationTask task = null;
-    try {
-      task = queue.poll();
-      if (task == null) {
-        return;
-      }
+  private void processNextTaskWithRecovery() {
+    ExpectationCalculationTask task = pollTaskOrNull();
 
-      TaskContext context = TaskContext.of("V5-Worker", "Calculate", task.getUserIgn());
-
-      task.setStartedAt(java.time.Instant.now());
-
-      try {
-        executeCalculation(task, context);
-        processedCounter.increment();
-
-      } catch (Exception e) {
-        errorCounter.increment();
-        log.error("[V5-Worker] Calculation failed for: {}", task.getUserIgn(), e);
-      } finally {
-        queue.complete(task);
-      }
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-      log.info("[V5-Worker] Worker interrupted, shutting down");
+    if (task == null) {
       return;
-    } catch (Exception e) {
-      log.error("[V5-Worker] Unexpected error in processNextTask", e);
-      if (task != null) {
-        queue.complete(task);
-      }
     }
+
+    TaskContext context = TaskContext.of("V5-Worker", "Calculate", task.getUserIgn());
+    task.setStartedAt(Instant.now());
+
+    executeCalculationWithFinally(task, context);
   }
 
-  /**
-   * Execute full V4 calculation pipeline via EquipmentExpectationServiceV4
-   *
-   * <p>This method reuses the complete V4 calculation logic which already implements:
-   *
-   * <ul>
-   *   <li>Character lookup via GameCharacterFacade
-   *   <li>Equipment data loading via EquipmentDataProvider
-   *   <li>Decompression via EquipmentStreamingParser
-   *   <li>Preset parsing (1,2,3) via EquipmentStreamingParser
-   *   <li>Parallel preset calculation via PresetCalculationHelper
-   *   <li>Max preset selection via findMaxPreset
-   *   <li>Result persistence via ExpectationPersistenceService
-   * </ul>
-   *
-   * @param task calculation task with userIgn and forceRecalculation flag
-   * @param context execution context for logging and metrics
-   */
-  private void executeCalculation(ExpectationCalculationTask task, TaskContext context) {
-    executor.executeVoid(
+  /** Poll task from queue, returning null on interruption (graceful shutdown). */
+  private ExpectationCalculationTask pollTaskOrNull() {
+    return executor.executeOrDefault(
+        () -> {
+          try {
+            return queue.poll();
+          } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.info("[V5-Worker] Worker interrupted, shutting down");
+            throw new WorkerShutdownException(e);
+          }
+        },
+        null,
+        TaskContext.of("V5-Worker", "PollTask"));
+  }
+
+  /** Execute calculation with finally pattern ensuring task completion. */
+  private void executeCalculationWithFinally(ExpectationCalculationTask task, TaskContext context) {
+    executor.executeWithFinally(
+        () -> {
+          executeCalculation(task);
+          return null; // Return null since executeWithFinally requires a return value
+        },
+        () -> queue.complete(task),
+        context);
+  }
+
+  /** Execute calculation with error recovery. */
+  private void executeCalculation(ExpectationCalculationTask task) {
+    executor.executeOrCatch(
         () -> {
           EquipmentExpectationResponseV4 response =
               expectationService.calculateExpectation(
@@ -141,13 +129,27 @@ public class ExpectationCalculationWorker implements Runnable {
             eventPublisher.publishCalculationCompleted(task.getTaskId(), response);
           }
 
+          processedCounter.increment();
           log.info(
               "[V5-Worker] Calculation completed: userIgn={}, taskId={}, cost={}, maxPreset={}",
               task.getUserIgn(),
               task.getTaskId(),
               response.getTotalExpectedCost(),
               response.getMaxPresetNo());
+          return null;
         },
-        context);
+        e -> {
+          errorCounter.increment();
+          log.error("[V5-Worker] Calculation failed for: {}", task.getUserIgn(), e);
+          return null;
+        },
+        TaskContext.of("V5-Worker", "ExecuteCalculation", task.getUserIgn()));
+  }
+
+  /** RuntimeException to signal graceful worker shutdown. */
+  private static class WorkerShutdownException extends RuntimeException {
+    WorkerShutdownException(InterruptedException cause) {
+      super(cause);
+    }
   }
 }

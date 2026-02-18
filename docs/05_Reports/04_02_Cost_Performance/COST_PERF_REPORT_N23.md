@@ -525,7 +525,7 @@ total_cost = compute_cost + network_egress + data_transfer
 | ID | 유형 | 설명 | 위치 |
 |----|------|------|------|
 | **K1** | 부하 테스트 | K6 부하 테스트 결과 (RPS, p99) | `load-test/k6-results-20260205.json` |
-| **C1** | 비용 명세서 | AWS Cost Explorer 추출 | `docs/04_Reports/Cost_Performance/aws-cost-export-Feb2026.csv` |
+| **C1** | 비용 명세서 | AWS Cost Explorer 추출 | `docs/05_Reports/Cost_Performance/aws-cost-export-Feb2026.csv` |
 | **G1** | 모니터링 | Grafana 대시보드 스냅샷 | Grafana Dashboard: `scale-out-performance` |
 | **M1** | 메트릭 | CPU/Memory 사용량 추이 | CloudWatch Metrics: `CPUUtilization`, `MemoryUtilization` |
 | **L1** | 로그 | 애플리케이션 로그 (응답 시간) | `logs/application-20260205.log` |
@@ -572,7 +572,7 @@ aws ce get-cost-and-usage \
   --metrics "UnblendedCost" \
   --group-by Type=DIMENSION,Key=SERVICE
 
-# 결과: docs/04_Reports/Cost_Performance/aws-cost-export-Feb2026.csv
+# 결과: docs/05_Reports/Cost_Performance/aws-cost-export-Feb2026.csv
 ```
 
 #### 4. 로그 분석 [L1]
@@ -672,7 +672,7 @@ echo "B→C: 60 / 50 = $b_to_c_roi"
 # 3. 파일 존재 확인
 echo -e "\n=== 파일 존재 확인 ==="
 [ -f "load-test/k6-results-20260205.json" ] && echo "✅ K6 결과 파일 존재" || echo "❌ K6 결과 파일 누락"
-[ -f "docs/04_Reports/Cost_Performance/aws-cost-export-Feb2026.csv" ] && echo "✅ 비용 파일 존재" || echo "❌ 비용 파일 누락"
+[ -f "docs/05_Reports/Cost_Performance/aws-cost-export-Feb2026.csv" ] && echo "✅ 비용 파일 존재" || echo "❌ 비용 파일 누락"
 
 echo -e "\n검증 완료!"
 ```

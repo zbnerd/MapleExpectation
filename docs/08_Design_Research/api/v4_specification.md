@@ -706,9 +706,9 @@ console.log(`총 기대 비용: ${result.totalCostText}`);
 ## Related Documents
 
 - [Architecture Overview](../00_Start_Here/architecture.md) - 시스템 아키텍처
-- [Async & Concurrency Guide](../02_Technical_Guides/async-concurrency.md) - 비동기 패턴
-- [Performance Report](../04_Reports/Load_Tests/) - 부하 테스트 결과
-- [KPI Dashboard](../04_Reports/KPI_BSC_DASHBOARD.md) - 성능 지표
+- [Async & Concurrency Guide](../03_Technical_Guides/async-concurrency.md) - 비동기 패턴
+- [Performance Report](../05_Reports/04_06_Load_Tests/) - 부하 테스트 결과
+- [KPI Dashboard](../05_Reports/04_01_Baseline/KPI_BSC_DASHBOARD.md) - 성능 지표
 
 ---
 

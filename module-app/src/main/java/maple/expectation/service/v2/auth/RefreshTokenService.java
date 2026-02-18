@@ -5,9 +5,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.domain.RefreshToken;
 import maple.expectation.domain.repository.RedisRefreshTokenRepository;
-import maple.expectation.error.exception.auth.InvalidRefreshTokenException;
-import maple.expectation.error.exception.auth.RefreshTokenExpiredException;
-import maple.expectation.error.exception.auth.TokenReusedException;
+import maple.expectation.error.exception.InvalidRefreshTokenException;
+import maple.expectation.error.exception.RefreshTokenExpiredException;
+import maple.expectation.error.exception.TokenReusedException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 

@@ -123,7 +123,7 @@
 | 항목 | 문서 값 | 검증 명령어 | 검증 결과 |
 |------|---------|-------------|----------|
 | **Total Scenarios** | 35 (17 Chaos + 18 Nightmare) | `find docs/01_Chaos_Engineering -name "*.md" \| wc -l` | ✅ 검증 명령어 제공 |
-| **P0 Issues** | 10개 | `grep -c "P0" docs/04_Reports/Deep_Dive/CHAOS_REPORT_DEEP_DIVE.md` | ✅ 검증 명령어 제공 |
+| **P0 Issues** | 10개 | `grep -c "P0" docs/05_Reports/Deep_Dive/CHAOS_REPORT_DEEP_DIVE.md` | ✅ 검증 명령어 제공 |
 | **Pass Rate (P0)** | 61.1% (11/18) | `./gradlew test --tests "maple.expectation.chaos.nightmare.*"` | ✅ 검증 명령어 제공 |
 | **Lock Wait Timeout** | 10초 | `grep "lock_wait_timeout" src/main/resources/application.yml` | ✅ [E6] 확인 |
 | **HikariCP Max Pool Size** | 100 | `grep "maximum-pool-size" src/main/resources/application.yml` | ✅ 검증 명령어 제공 |
@@ -268,7 +268,7 @@ echo "=== Chaos Report Verification ==="
 
 # 1. 문서 존재 확인
 echo "[1] Checking document existence..."
-test -f docs/04_Reports/Deep_Dive/CHAOS_REPORT_DEEP_DIVE.md && echo "✅ Main document exists" || echo "❌ Missing"
+test -f docs/05_Reports/Deep_Dive/CHAOS_REPORT_DEEP_DIVE.md && echo "✅ Main document exists" || echo "❌ Missing"
 
 # 2. 테스트 결과 확인
 echo "[2] Running Nightmare tests..."

@@ -308,7 +308,7 @@ calculation.work stealing.count
 ## 참고
 
 - **CLAUDE.md**: [계산 로직 가이드](../CLAUDE.md#6-design-patterns--structure)
-- **docs/02_Technical_Guides/infrastructure.md**: 성능 최적화 가이드
+- **docs/03_Technical_Guides/infrastructure.md**: 성능 최적화 가이드
 - **Issue #172**: 큐브 시뮬레이션 성능 개선
 
 ## Evidence Links

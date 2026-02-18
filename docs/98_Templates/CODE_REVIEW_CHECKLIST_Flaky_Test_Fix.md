@@ -9,7 +9,7 @@
 
 ## Overview
 
-This checklist is designed for multi-agent review of flaky test fixes following SOLID principles and CLAUDE.md guidelines. Use this checklist when reviewing PRs that address flaky tests identified in [flaky-test-management.md](../02_Technical_Guides/flaky-test-management.md).
+This checklist is designed for multi-agent review of flaky test fixes following SOLID principles and CLAUDE.md guidelines. Use this checklist when reviewing PRs that address flaky tests identified in [flaky-test-management.md](../03_Technical_Guides/flaky-test-management.md).
 
 ---
 

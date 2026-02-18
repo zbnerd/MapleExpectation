@@ -370,8 +370,8 @@ module-common/src/main/java/maple/expectation/error/
 
 | 보고서 | 경로 |
 |--------|------|
-| Service Modules Guide | `docs/02_Technical_Guides/service-modules.md` |
-| Stateful Refactoring Targets | `docs/04_Reports/04_08_Refactor/STATEFUL_REFACTORING_TARGETS.md` |
+| Service Modules Guide | `docs/03_Technical_Guides/service-modules.md` |
+| Stateful Refactoring Targets | `docs/05_Reports/04_08_Refactor/STATEFUL_REFACTORING_TARGETS.md` |
 | Migration Status | `MIGRATION_STATUS.md` |
 
 ---

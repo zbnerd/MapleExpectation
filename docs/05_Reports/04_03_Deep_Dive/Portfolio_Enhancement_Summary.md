@@ -75,14 +75,14 @@
 **검증 명령어**:
 ```bash
 # 실제 리포트 존재 확인
-ls -la docs/04_Reports/Portfolio_Enhancement_Actual_Results.md
-ls -la docs/04_Reports/Portfolio_Enhancement_WRK_Final_Summary.md
-ls -la docs/04_Reports/Portfolio_Enhancement_Final_Summary.md
+ls -la docs/05_Reports/Portfolio_Enhancement_Actual_Results.md
+ls -la docs/05_Reports/Portfolio_Enhancement_WRK_Final_Summary.md
+ls -la docs/05_Reports/Portfolio_Enhancement_Final_Summary.md
 
 # Evidence ID 추적
-grep -r "10,538 requests" docs/04_Reports/
-grep -r "620.32 RPS" docs/04_Reports/
-grep -r "1,052 requests" docs/04_Reports/
+grep -r "10,538 requests" docs/05_Reports/
+grep -r "620.32 RPS" docs/05_Reports/
+grep -r "1,052 requests" docs/05_Reports/
 ```
 
 **조치**: 위반 시 실제 테스트 결과 리포트로 대체하여 포트폴리오 업데이트
@@ -121,26 +121,26 @@ grep -r "1,052 requests" docs/04_Reports/
 
 ```bash
 # N23 Python Load Test 결과
-cat docs/04_Reports/Portfolio_Enhancement_Actual_Results.md | grep "RPS"
+cat docs/05_Reports/Portfolio_Enhancement_Actual_Results.md | grep "RPS"
 
 # N23 wrk Test 결과
-cat docs/04_Reports/Portfolio_Enhancement_WRK_Final_Summary.md | grep "620"
+cat docs/05_Reports/Portfolio_Enhancement_WRK_Final_Summary.md | grep "620"
 
 # N21 Circuit Breaker 결과
-cat docs/04_Reports/Portfolio_Enhancement_Final_Summary.md | grep "Circuit Breaker"
+cat docs/05_Reports/Portfolio_Enhancement_Final_Summary.md | grep "Circuit Breaker"
 ```
 
 ### Evidence ID 추적
 
 ```bash
 # [L1] Python Load Test
-grep -r "10,538 requests" docs/04_Reports/
+grep -r "10,538 requests" docs/05_Reports/
 
 # [W1] wrk Benchmark
-grep -r "620.32 RPS" docs/04_Reports/
+grep -r "620.32 RPS" docs/05_Reports/
 
 # [T1] Circuit Breaker Test
-grep -r "1,052 requests" docs/04_Reports/
+grep -r "1,052 requests" docs/05_Reports/
 ```
 
 ---
@@ -166,8 +166,8 @@ Successfully created three portfolio-enhancing documentation templates that demo
 - Can you prove zero data loss with numbers?
 
 **Deliverable:**
-- Scenario: `docs/01_Chaos_Engineering/06_Nightmare/Scenarios/N19-outbox-replay.md`
-- Result: `docs/01_Chaos_Engineering/06_Nightmare/Results/N19-outbox-replay-result.md`
+- Scenario: `docs/02_Chaos_Engineering/06_Nightmare/Scenarios/N19-outbox-replay.md`
+- Result: `docs/02_Chaos_Engineering/06_Nightmare/Results/N19-outbox-replay-result.md`
 
 **Key Metrics:**
 - Outbox pending rows: 2,134,221
@@ -189,7 +189,7 @@ Successfully created three portfolio-enhancing documentation templates that demo
 - Can you prove MTTD/MTTR improvements?
 
 **Deliverable:**
-- `docs/04_Reports/Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md` [T1]
+- `docs/05_Reports/Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md` [T1]
 
 **Key Features:**
 - 5 Decision Logs with full audit trail
@@ -229,7 +229,7 @@ Successfully created three portfolio-enhancing documentation templates that demo
 - Can you find the optimal efficiency point?
 
 **Deliverable:**
-- `docs/04_Reports/Cost_Performance/COST_PERF_REPORT_N23.md`
+- `docs/05_Reports/Cost_Performance/COST_PERF_REPORT_N23.md`
 
 **Experimental Matrix:**
 | Instances | Redis  | Monthly Cost | RPS   | p99    | Cost Efficiency |
@@ -701,9 +701,9 @@ curl -s http://localhost:8080/actuator/health | jq '.components.circuitBreakers.
 - **N21**: [T1] `Portfolio_Enhancement_Final_Summary.md`
 
 ### 템플릿 리포트
-- **N23 시나리오**: `docs/04_Reports/Cost_Performance/COST_PERF_REPORT_N23.md`
-- **N21 시나리오**: `docs/04_Reports/Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md`
-- **N19 시나리오**: `docs/01_Chaos_Engineering/06_Nightmare/Scenarios/N19-outbox-replay.md`
+- **N23 시나리오**: `docs/05_Reports/Cost_Performance/COST_PERF_REPORT_N23.md`
+- **N21 시나리오**: `docs/05_Reports/Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md`
+- **N19 시나리오**: `docs/02_Chaos_Engineering/06_Nightmare/Scenarios/N19-outbox-replay.md`
 
 ---
 

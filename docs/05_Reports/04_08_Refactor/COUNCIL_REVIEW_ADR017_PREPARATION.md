@@ -255,7 +255,7 @@ The test foundation is solid. Characterization tests serve as a model implementa
 
 #### 1. Create V4 Expectation Flow Analysis (4-6 hours)
 
-**Path:** `docs/04_Reports/Refactor/v4_expectation_flow_analysis.md`
+**Path:** `docs/05_Reports/Refactor/v4_expectation_flow_analysis.md`
 
 **Content Requirements:**
 - Complete sequence diagram (Controller → Service → Repository → JPA)
@@ -273,7 +273,7 @@ The test foundation is solid. Characterization tests serve as a model implementa
 
 #### 2. Create Monitoring Query Guide (2-3 hours)
 
-**Path:** `docs/04_Reports/Refactor/monitoring_query_guide.md`
+**Path:** `docs/05_Reports/Refactor/monitoring_query_guide.md`
 
 **Content Requirements:**
 
@@ -337,7 +337,7 @@ curl -s http://localhost:9090/api/v1/query?query=cache_hit_rate | jq .
 
 #### 4. Create ADR Summary Document (3-4 hours)
 
-**Path:** `docs/04_Reports/Refactor/ADR_Summary.md`
+**Path:** `docs/05_Reports/Refactor/ADR_Summary.md`
 
 **Content Requirements:**
 1. Shared Value Objects registry (CharacterId, UserIgn, Ocid)
@@ -581,11 +581,11 @@ This investment prevents weeks of potential rework and ensures the migration is 
 ## Appendix: Reference Documents
 
 **Existing Deliverables:**
-- `docs/04_Reports/Refactor/v2_like_flow_analysis.md`
-- `docs/adr/ADR-017-S1-equipment-slice.md`
-- `docs/adr/ADR-017-domain-extraction-clean-architecture.md`
+- `docs/05_Reports/Refactor/v2_like_flow_analysis.md`
+- `docs/01_Adr/ADR-017-S1-equipment-slice.md`
+- `docs/01_Adr/ADR-017-domain-extraction-clean-architecture.md`
 - `src/test/java/maple/expectation/characterization/CharacterEquipmentCharacterizationTest.java`
-- `docs/04_Reports/Baseline/BASELINE_20260210.md`
+- `docs/05_Reports/Baseline/BASELINE_20260210.md`
 
 **Individual Agent Reports:**
 - Blue Agent: Architecture review (detailed findings)
@@ -596,8 +596,8 @@ This investment prevents weeks of potential rework and ensures the migration is 
 
 **Supporting Documents:**
 - `CLAUDE.md` - Project guidelines (Sections 4, 6, 11-16, 23-25)
-- `docs/02_Technical_Guides/testing-guide.md`
-- `docs/02_Technical_Guides/flaky-test-management.md`
+- `docs/03_Technical_Guides/testing-guide.md`
+- `docs/03_Technical_Guides/flaky-test-management.md`
 - `load-test/wrk-v4-expectation.lua`
 - `docker/grafana/dashboards/*.json` (7 dashboards)
 

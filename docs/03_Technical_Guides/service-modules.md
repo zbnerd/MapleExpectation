@@ -694,7 +694,7 @@ public void updateEquipment(String ocid) {
 - **V4 Modules:** `src/main/java/maple/expectation/service/v4/` (Evidence: [CODE-V4-001])
 - **Calculator:** `src/main/java/maple/expectation/service/v2/calculator/` (Evidence: [CODE-CALC-001])
 - **Tests:** `src/test/java/maple/expectation/service/v2/*Test.java` (Evidence: [TEST-SERVICE-001])
-- **ADR-014:** `docs/adr/ADR-014-multi-module-cross-cutting-concerns.md` (Module architecture decision)
+- **ADR-014:** `docs/01_Adr/ADR-014-multi-module-cross-cutting-concerns.md` (Module architecture decision)
 
 ## Technical Validity Check
 
@@ -723,10 +723,10 @@ curl -s http://localhost:8080/actuator/metrics/expectation.buffer.pending | jq
 ```
 
 ### Related Evidence
-- WRK Summary: `docs/04_Reports/WRK_Final_Summary.md`
-- N01 Test: `docs/01_Chaos_Engineering/06_Nightmare/Results/N01-thundering-herd-result.md`
-- N19 Recovery: `docs/04_Reports/Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md`
-- ADR-011: `docs/adr/ADR-011-controller-v4-optimization.md`
+- WRK Summary: `docs/05_Reports/WRK_Final_Summary.md`
+- N01 Test: `docs/02_Chaos_Engineering/06_Nightmare/Results/N01-thundering-herd-result.md`
+- N19 Recovery: `docs/05_Reports/Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md`
+- ADR-011: `docs/01_Adr/ADR-011-controller-v4-optimization.md`
 
 ---
 
@@ -742,17 +742,17 @@ curl -s http://localhost:8080/actuator/metrics/expectation.buffer.pending | jq
 - **[E7]** Flame Calculation: `src/main/java/maple/expectation/service/v2/flame/` (Evidence: [CODE-FLAME-001])
 
 ### Performance Evidence
-- **[P1]** V4 Performance Report: `docs/04_Reports/WRK_Final_Summary.md` (Evidence: [PERF-001])
-- **[P2]** Cache Deduplication: `docs/01_Chaos_Engineering/06_Nightmare/Results/N01-thundering-herd-result.md` (Evidence: [PERF-002])
-- **[P3]** Write-Behind Buffer: `docs/01_Chaos_Engineering/06_Nightmare/Results/N19-implementation-summary.md` (Evidence: [PERF-003])
+- **[P1]** V4 Performance Report: `docs/05_Reports/WRK_Final_Summary.md` (Evidence: [PERF-001])
+- **[P2]** Cache Deduplication: `docs/02_Chaos_Engineering/06_Nightmare/Results/N01-thundering-herd-result.md` (Evidence: [PERF-002])
+- **[P3]** Write-Behind Buffer: `docs/02_Chaos_Engineering/06_Nightmare/Results/N19-implementation-summary.md` (Evidence: [PERF-003])
 
 ### Architecture Evidence
-- **[A1]** ADR-011: `docs/adr/ADR-011-controller-v4-optimization.md` (Evidence: [ARCH-001])
-- **[A2]** ADR-014: `docs/adr/ADR-014-multi-module-cross-cutting-concerns.md` (Evidence: [ARCH-002])
+- **[A1]** ADR-011: `docs/01_Adr/ADR-011-controller-v4-optimization.md` (Evidence: [ARCH-001])
+- **[A2]** ADR-014: `docs/01_Adr/ADR-014-multi-module-cross-cutting-concerns.md` (Evidence: [ARCH-002])
 
 ### Test Evidence
 - **[T1]** Service Tests: `src/test/java/maple/expectation/service/v2/*Test.java` (Evidence: [TEST-SERVICE-001])
-- **[T2]** Chaos Tests: `docs/01_Chaos_Engineering/06_Nightmare/` (Evidence: [TEST-CHAOS-001])
+- **[T2]** Chaos Tests: `docs/02_Chaos_Engineering/06_Nightmare/` (Evidence: [TEST-CHAOS-001])
 
 ---
 
@@ -861,11 +861,11 @@ grep -r "extends.*Decorator" src/main/java/maple/expectation/service/v*/ | head 
 ---
 
 ## Related Evidence
-- WRK Summary: `docs/04_Reports/WRK_Final_Summary.md`
-- N01 Test: `docs/01_Chaos_Engineering/06_Nightmare/Results/N01-thundering-herd-result.md`
-- N19 Recovery: `docs/04_Reports/Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md`
-- ADR-011: `docs/adr/ADR-011-controller-v4-optimization.md`
-- ADR-014: `docs/adr/ADR-014-multi-module-cross-cutting-concerns.md`
+- WRK Summary: `docs/05_Reports/WRK_Final_Summary.md`
+- N01 Test: `docs/02_Chaos_Engineering/06_Nightmare/Results/N01-thundering-herd-result.md`
+- N19 Recovery: `docs/05_Reports/Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md`
+- ADR-011: `docs/01_Adr/ADR-011-controller-v4-optimization.md`
+- ADR-014: `docs/01_Adr/ADR-014-multi-module-cross-cutting-concerns.md`
 
 ---
 

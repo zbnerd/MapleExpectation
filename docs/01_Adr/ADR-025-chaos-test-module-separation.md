@@ -257,11 +257,11 @@ module-chaos-test/
 
 ## References
 
-- [Architecture Documentation](/home/maple/MapleExpectation/docs/02_Technical_Guides/chaos-test-module-architecture.md)
-- [Quick Start Guide](/home/maple/MapleExpectation/docs/02_Technical_Guides/chaos-test-quick-start.md)
-- [CI/CD Patterns](/home/maple/MapleExpectation/docs/02_Technical_Guides/chaos-test-cicd-patterns.md)
-- [Test Strategy](/home/maple/MapleExpectation/docs/01_Chaos_Engineering/00_Overview/TEST_STRATEGY.md)
-- [ADR-014: Multi-module Cross-cutting Concerns](/home/maple/MapleExpectation/docs/adr/ADR-014-multi-module-cross-cutting-concerns.md)
+- [Architecture Documentation](/home/maple/MapleExpectation/docs/02_Chaos_Engineering/00_Overview/TEST_STRATEGY.md)
+- [Quick Start Guide](/home/maple/MapleExpectation/docs/02_Chaos_Engineering/00_Overview/TEST_STRATEGY.md)
+- [CI/CD Patterns](/home/maple/MapleExpectation/docs/02_Chaos_Engineering/00_Overview/TEST_STRATEGY.md)
+- [Test Strategy](/home/maple/MapleExpectation/docs/02_Chaos_Engineering/00_Overview/TEST_STRATEGY.md)
+- [ADR-014: Multi-module Cross-cutting Concerns](ADR-014-multi-module-cross-cutting-concerns.md)
 
 ---
 

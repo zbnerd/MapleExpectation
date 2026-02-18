@@ -13,7 +13,7 @@ Environment variable name mismatch between `.env.example` and `application.yml`
 ### Fix Applied
 1. `.env.example` - Changed `DISCORD_WEBHOOK_URL` to `ALERT_DISCORD_WEBHOOK_URL`
 2. Added `AlertConfigurationValidator` - Startup validation with clear error messages
-3. Documentation created in `docs/04_Reports/discord-webhook-root-cause-analysis.md`
+3. Documentation created in `docs/05_Reports/discord-webhook-root-cause-analysis.md`
 
 ### How to Apply Fix
 ```bash

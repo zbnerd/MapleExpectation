@@ -337,7 +337,7 @@ Red     (SRE)          ✅ APPROVED  → Observability + Resilience
 
 - **Roadmap**: docs/00_Start_Here/ROADMAP.md
 - **Architecture**: docs/00_Start_Here/architecture.md
-- **ADRs**: docs/adr/ADR-*.md
+- **ADRs**: docs/01_Adr/ADR-*.md
 - **Reports**: docs/04-report/
 
 ---

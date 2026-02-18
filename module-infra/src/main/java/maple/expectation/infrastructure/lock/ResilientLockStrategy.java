@@ -8,11 +8,12 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.common.function.ThrowingSupplier;
+import maple.expectation.common.function.ThrowingSupplierUtils;
 import maple.expectation.error.exception.DistributedLockException;
 import maple.expectation.error.exception.base.ClientBaseException;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
-import maple.expectation.infrastructure.util.ExceptionUtils;
+import maple.expectation.util.ExceptionUtils;
 import org.redisson.client.RedisException;
 import org.redisson.client.RedisTimeoutException;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -227,7 +228,7 @@ public class ResilientLockStrategy extends AbstractLockStrategy {
    *   <li>Function&lt;Throwable, T&gt;은 throws 불가
    *   <li>RuntimeException/Error는 그대로 throw
    *   <li>Biz 경계에서 checked Throwable은 정책 위반이므로 fail-fast
-   *   <li>mysqlFallback.getUnchecked()로 checked 예외 처리 (인프라 레이어)
+   *   <li>mysqlFallbackThrowingSupplierUtils.getUnchecked(mysqlFallback)로 checked 예외 처리 (인프라 레이어)
    *   <li>MySQL 전략 없으면 명확한 예외로 fail-fast
    * </ul>
    *
@@ -271,7 +272,7 @@ public class ResilientLockStrategy extends AbstractLockStrategy {
           circuitBreaker.getState(),
           cause.getClass().getSimpleName(),
           cause.getMessage());
-      return mysqlFallback.getUnchecked();
+      return ThrowingSupplierUtils.getUnchecked(mysqlFallback);
     }
 
     // 3) Unknown: 즉시 전파 (버그 조기 발견)
@@ -415,7 +416,7 @@ public class ResilientLockStrategy extends AbstractLockStrategy {
           circuitBreaker.getState(),
           cause.getClass().getSimpleName(),
           cause.getMessage());
-      return mysqlFallback.getUnchecked();
+      return ThrowingSupplierUtils.getUnchecked(mysqlFallback);
     }
 
     // Unknown: 즉시 전파

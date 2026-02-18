@@ -11,7 +11,7 @@
 ## 📊 완료된 작업 요약
 
 ### 1. ✅ ADR-015 문서 작성
-**파일:** `docs/adr/ADR-015-test-reboot-pyramid.md`
+**파일:** `docs/01_Adr/ADR-015-test-reboot-pyramid.md`
 
 **내용:**
 - 테스트 피라미드 재구축 전략
@@ -71,7 +71,7 @@ void resetDatabaseAndRedisState() {
 - GoldenMasterTests: 2/10 PASSED
 
 ### 7. ✅ 플래키 방지 문서화 완료
-**파일:** `docs/02_Technical_Guides/testcontainers-singleton-flaky-prevention.md`
+**파일:** `docs/03_Technical_Guides/testcontainers-singleton-flaky-prevention.md`
 
 **내용:**
 - Singleton vs Reuse 명확히 구분
@@ -195,9 +195,9 @@ M  module-app/build.gradle
 M  module-core/build.gradle
 M  module-infra/build.gradle
 
-A  docs/adr/ADR-015-test-reboot-pyramid.md
-A  docs/02_Technical_Guides/testcontainers-singleton-flaky-prevention.md
-A  docs/04_Reports/test-reboot-completion-report.md
+A  docs/01_Adr/ADR-015-test-reboot-pyramid.md
+A  docs/03_Technical_Guides/testcontainers-singleton-flaky-prevention.md
+A  docs/05_Reports/test-reboot-completion-report.md
 A  module-core/src/test/java/maple/expectation/properties/
 A  module-infra/src/integrationTest/java/
 D  module-app/src/test-legacy/ (45개 테스트 이관)

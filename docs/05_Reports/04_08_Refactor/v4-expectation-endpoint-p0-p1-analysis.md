@@ -704,7 +704,7 @@ wc -l src/main/java/service/v4/EquipmentExpectationServiceV4.java
 # Expected: ~910
 
 # 5. Run Chaos Test N03
-cd docs/01_Chaos_Engineering/06_Nightmare/
+cd docs/02_Chaos_Engineering/06_Nightmare/
 # See N03-thread-pool-exhaustion.md for reproduction steps
 ```
 

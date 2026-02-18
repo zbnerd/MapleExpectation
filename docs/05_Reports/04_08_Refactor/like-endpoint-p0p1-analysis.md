@@ -414,7 +414,7 @@ This analysis is **INVALID** if any of the following conditions are true:
 | 1 | Code references are incorrect | All file:line references verified ✅ | PASS |
 | 2 | Implementation claims are false | Git log shows commits | PASS |
 | 3 | Performance metrics are fabricated | Load test results reproducible | PASS |
-| 4 | ADR-015 does not exist | File verified in docs/adr/ | PASS |
+| 4 | ADR-015 does not exist | File verified in docs/01_Adr/ | PASS |
 | 5 | 5-Agent Council voting is fictional | Council meeting notes exist | PASS |
 
 ### Invalid If Wrong Statements

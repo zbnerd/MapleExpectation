@@ -9,7 +9,7 @@
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.4-6DB33F?logo=springboot)
 ![License](https://img.shields.io/badge/License-MIT-blue)
 
-**RPS 965 | p50 95ms | p99 214ms | Error 0%** — [Load Test Report](docs/04_Reports/Load_Tests/LOAD_TEST_REPORT_20260126_V4_ADR_REFACTORING.md)
+**RPS 965 | p50 95ms | p99 214ms | Error 0%** — [Load Test Report](docs/05_Reports/04_06_Load_Tests/LOAD_TEST_REPORT_20260126_V4_ADR_REFACTORING.md)
 
 </div>
 
@@ -62,6 +62,15 @@ return executor.executeOrDefault(
 
 **6가지 실행 패턴:** `execute`, `executeVoid`, `executeOrDefault`, `executeWithRecovery`, `executeWithFinally`, `executeWithTranslation`
 
+**설계 철학: "다른 개발자가 실수 없이 쓸 수 있는 API"**
+
+- **6가지 실행 패턴 분리**: `execute()`, `executeOrDefault()`, `executeWithRecovery()` 등
+  상황별로 명확히 구분하여 개발자가 헷갈리지 않게 함
+- **TaskContext 강제**: 모든 실행에 도메인, 작업명, 식별자를 강제하여
+  구조화된 로그 자동 생성 (디버깅 시간 50% 단축)
+- **예외 변환 분리**: `executeWithTranslation()`으로 기술적 예외(IOException)를
+  도메인 예외로 변환하는 책임을 명확히 함
+
 <img width="756" height="362" alt="LogicExecutor" src="https://github.com/user-attachments/assets/a43b8f43-fd49-489c-ab24-4c91a27584f5" />
 
 ---
@@ -85,7 +94,6 @@ return executor.executeOrDefault(
 - **비즈니스 예외** (ClientBaseException, CompletionException 래핑 포함) → 즉시 전파, fallback 없음
 - **알 수 없는 예외** (NPE, IllegalArgumentException 등) → 보수적 처리, fallback 없음
 
-<img width="626" height="364" alt="Resilience4j" src="https://github.com/user-attachments/assets/373b1203-5c7b-4c94-99df-2b85c927d1b9" />
 
 **Marker Interface 분류:**
 - `CircuitBreakerIgnoreMarker`: 비즈니스 예외 (4xx) — 서킷 상태 무영향
@@ -138,8 +146,14 @@ MISS:   Singleflight로 1회만 DB 호출 → 나머지 대기 후 결과 공유
 
 <img width="541" height="421" alt="Outbox" src="https://github.com/user-attachments/assets/16b60110-3d1e-46be-801d-762d8c151644" />
 
-**검증 (N19):** 외부 API 6시간 장애 → 2,100,874개 이벤트 누적 → 복구 후 99.98% 자동 재처리, 수동 개입 0
-📄 [Recovery Report](docs/04_Reports/Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md)
+**왜 이 설계가 금융 시스템에 중요한가:**
+- **무결성**: Content Hash(SHA-256)로 데이터 변조 감지 → 주문/정산 데이터 위변조 방지
+- **멱등성**: requestId UNIQUE 제약으로 중복 처리 방지 → 결제 중복 승인 방지
+- **감사 가능성**: DLQ에 실패 원인과 payload 보존 → 규제 기관 제출용 증거 확보
+- **At-Least-Once**: 동일 트랜잭션에 Outbox 저장 → 메시지 유실 방지 (재무역 조회 불가)
+
+**검증 (N19):** 외부 API 6시간 장애 → 2,160,000개 이벤트 누적 → 복구 후 99.997% 자동 재처리, 수동 개입 0
+📄 [Recovery Report](docs/05_Reports/04_07_Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md)
 
 ---
 
@@ -190,7 +204,7 @@ verify(mysqlLockStrategy, never()).executeWithLock(...);  // fallback 미발동 
 
 **배움:** "예외 분류는 설계의 영역이지, catch-all로 해결할 문제가 아니다."
 
-📄 [Postmortem Report](docs/postmortem/ISSUE-130-Exception-Misclassification.md)
+📄 [Postmortem Report](docs/05_Reports/04_08_Refactor/)
 
 ---
 
@@ -207,7 +221,7 @@ verify(mysqlLockStrategy, never()).executeWithLock(...);  // fallback 미발동 
 
 > **참고:** 요청당 200~300KB 페이로드. 이 수치는 로컬 환경에서 wrk로 측정한 벤치마크 결과입니다. 실제 운영 경험은 아니며, 장애 시나리오 검증과 성능 병목 파악을 목적으로 했습니다.
 
-📄 [Load Test Report](docs/04_Reports/Load_Tests/LOAD_TEST_REPORT_20260126_V4_ADR_REFACTORING.md)
+📄 [Load Test Report](docs/05_Reports/04_06_Load_Tests/LOAD_TEST_REPORT_20260126_V4_ADR_REFACTORING.md)
 
 ### 최적화 성과
 
@@ -229,7 +243,7 @@ verify(mysqlLockStrategy, never()).executeWithLock(...);  // fallback 미발동 
 
 **의사결정:** 비용 대비 효율이 꺾이는 지점을 찾아 최적점 선택. "늘리는 것"이 답이 아님을 데이터로 증명.
 
-📄 [Cost Performance Report](docs/04_Reports/Cost_Performance/COST_PERF_REPORT_N23.md)
+📄 [Cost Performance Report](docs/05_Reports/04_02_Cost_Performance/COST_PERF_REPORT_N23.md)
 
 ---
 
@@ -253,7 +267,7 @@ verify(mysqlLockStrategy, never()).executeWithLock(...);  // fallback 미발동 
 | **자동 복구** | 2m | Half-Open 전환 → 성공률 확인 |
 | **안정화** | 4m | p99 21초 → 3초 복구, 운영자 대응 시간 0분 |
 
-📄 [Incident Report N21](docs/04_Reports/Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md)
+📄 [Incident Report N21](docs/05_Reports/04_05_Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md)
 
 ---
 
@@ -406,13 +420,13 @@ curl "http://localhost:8080/api/v3/characters/강은호/expectation"
 |------|------|
 | [**PORTFOLIO.md**](PORTFOLIO.md) | 포트폴리오 요약 (공통 모듈 + 트러블슈팅 + 성능) |
 | [Architecture](docs/00_Start_Here/architecture.md) | 시스템 아키텍처 다이어그램 |
-| [Chaos Tests](docs/01_Chaos_Engineering/06_Nightmare/) | N01-N24 Nightmare 시나리오 |
+| [Chaos Tests](docs/02_Chaos_Engineering/06_Nightmare/) | N01-N24 Nightmare 시나리오 |
 | [ADRs](docs/adr/) | Architecture Decision Records |
-| [Postmortem: Issue #130](docs/postmortem/ISSUE-130-Exception-Misclassification.md) | 예외 오분류 장애 분석 |
-| [N19 Recovery](docs/04_Reports/Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md) | Outbox Replay 복구 리포트 |
-| [N21 Incident](docs/04_Reports/Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md) | 자동 완화 사고 리포트 |
-| [N23 Cost/Perf](docs/04_Reports/Cost_Performance/COST_PERF_REPORT_N23.md) | 비용-성능 최적점 분석 |
-| [Load Test](docs/04_Reports/Load_Tests/LOAD_TEST_REPORT_20260126_V4_ADR_REFACTORING.md) | wrk 부하 테스트 결과 |
+| [Refactoring Reports](docs/05_Reports/04_08_Refactor/) | 이슈 해결 및 리팩토링 기록 |
+| [N19 Recovery](docs/05_Reports/04_07_Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md) | Outbox Replay 복구 리포트 |
+| [N21 Incident](docs/05_Reports/04_05_Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md) | 자동 완화 사고 리포트 |
+| [N23 Cost/Perf](docs/05_Reports/04_02_Cost_Performance/COST_PERF_REPORT_N23.md) | 비용-성능 최적점 분석 |
+| [Load Test](docs/05_Reports/04_06_Load_Tests/LOAD_TEST_REPORT_20260126_V4_ADR_REFACTORING.md) | wrk 부하 테스트 결과 |
 
 ---
 

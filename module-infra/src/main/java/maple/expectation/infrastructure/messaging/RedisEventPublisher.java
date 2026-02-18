@@ -91,33 +91,38 @@ public class RedisEventPublisher implements EventPublisher {
   }
 
   /**
-   * Internal publish implementation with checked exceptions.
+   * Internal publish implementation.
    *
-   * <p>Wrapped by LogicExecutor.executeWithTranslation() which translates checked exceptions to
-   * QueuePublishException.
+   * <p>Handles serialization and queue operations, converting checked exceptions to
+   * QueuePublishException as per CLAUDE.md Section 11.
    */
-  private void publishInternal(String topic, IntegrationEvent<?> event) throws Exception {
-    // Serialize IntegrationEvent to JSON
-    String jsonPayload = objectMapper.writeValueAsString(event);
+  private void publishInternal(String topic, IntegrationEvent<?> event) {
+    try {
+      // Serialize IntegrationEvent to JSON
+      String jsonPayload = objectMapper.writeValueAsString(event);
 
-    // Offer to Redis queue
-    boolean offered = messageQueue.offer(jsonPayload);
+      // Offer to Redis queue
+      boolean offered = messageQueue.offer(jsonPayload);
 
-    if (!offered) {
-      log.warn(
-          "[RedisEventPublisher] Queue full, could not publish to topic {}: eventId={}, eventType={}",
+      if (!offered) {
+        log.warn(
+            "[RedisEventPublisher] Queue full, could not publish to topic {}: eventId={}, eventType={}",
+            topic,
+            event.getEventId(),
+            event.getEventType());
+        throw new QueuePublishException(
+            String.format("Redis queue full: topic=%s, eventType=%s", topic, event.getEventType()));
+      }
+
+      log.debug(
+          "[RedisEventPublisher] Published to queue {}: eventId={}, eventType={}",
           topic,
           event.getEventId(),
           event.getEventType());
-      throw new QueuePublishException(
-          String.format("Redis queue full: topic=%s, eventType=%s", topic, event.getEventType()));
+    } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+      // Section 11: Convert checked exception to domain exception
+      throw new QueuePublishException("Failed to serialize event for topic: " + topic, e);
     }
-
-    log.debug(
-        "[RedisEventPublisher] Published to queue {}: eventId={}, eventType={}",
-        topic,
-        event.getEventId(),
-        event.getEventType());
   }
 
   @Override

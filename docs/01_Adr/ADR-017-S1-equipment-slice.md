@@ -1262,13 +1262,13 @@ gradlew dependencies
 ### 선행 문서 (Prerequisites)
 - [ADR-017: Domain Extraction - Clean Architecture Migration](ADR-017-domain-extraction-clean-architecture.md) (Phase 3 전체)
 - [CLAUDE.md](../../CLAUDE.md) - 프로젝트 코딩 표준 (Section 4: SOLID)
-- [docs/refactor/PHASE3_PREPARATION_SUMMARY.md](../refactor/PHASE3_PREPARATION_SUMMARY.md) - Phase 3 준비
+- [do../05_Reports/04_08_Refactor/PHASE3_PREPARATION_SUMMARY.md](../05_Reports/04_08_Refactor/PHASE3_PREPARATION_SUMMARY.md) - Phase 3 준비
 
 ### 참조 문서 (References)
-- [docs/refactor/SOLID_VIOLATIONS.md](../refactor/SOLID_VIOLATIONS.md) - 43개 위반 분석
-- [docs/refactor/ARCHUNIT_RULES.md](../refactor/ARCHUNIT_RULES.md) - ArchUnit 룰 정의
-- [src/test/java/maple/expectation/characterization/CharacterEquipmentCharacterizationTest.java](../../src/test/java/maple/expectation/characterization/CharacterEquipmentCharacterizationTest.java) - Characterization Tests
-- [src/test/java/maple/expectation/archunit/ArchitectureTest.java](../../src/test/java/maple/expectation/archunit/ArchitectureTest.java) - ArchUnit 테스트
+- [do../05_Reports/04_08_Refactor/SOLID_VIOLATIONS.md](../05_Reports/04_08_Refactor/SOLID_VIOLATIONS.md) - 43개 위반 분석
+- [do../05_Reports/04_08_Refactor/ARCHUNIT_RULES.md](../05_Reports/04_08_Refactor/ARCHUNIT_RULES.md) - ArchUnit 룰 정의
+- [src/test/java/maple/expectation/characterization/CharacterEquipmentCharacterizationTest.java](../../../module-app/src/test-legacy/java/maple/expectation/characterization/CharacterEquipmentCharacterizationTest.java) - Characterization Tests
+- [src/test/java/maple/expectation/archunit/ArchitectureTest.java](../../../module-app/src/test/java/maple/expectation/archunit/ArchitectureTest.java) - ArchUnit 테스트
 
 ### 후속 문서 (Follow-up)
 - ADR-017-S2: Character Domain Extraction (Slice 2)

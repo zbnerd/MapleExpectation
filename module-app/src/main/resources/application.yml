@@ -21,6 +21,14 @@ spring:
       register-mbeans: true # JMX를 통해 지표 노출 활성화
       connection-timeout: 3000      # 커넥션 획득 타임아웃 3초 (Red Agent P1 Fix)
       leak-detection-threshold: 60000  # 60초 이상 반납 안되면 누수 의심 로그
+---
+# Profile-specific: MySQL connection init SQL (NOT for test/chaos)
+spring:
+  config:
+    activate:
+      on-profile: "!test & !chaos"
+  datasource:
+    hikari:
       # [P0-N07 Fix] MDL Freeze 방지 - 세션 lock_wait_timeout 설정
       # 단일 문장만 지원 (P1-GREEN-01), MDL에는 lock_wait_timeout이 효과적
       # Issue #225: lock_wait_timeout 10s → 8s (Timeout Hierarchy 정렬 - Redis timeout과 동일)

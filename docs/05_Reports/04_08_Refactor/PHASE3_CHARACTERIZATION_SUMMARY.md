@@ -28,8 +28,8 @@ Successfully created **66 characterization tests** across **3 test suites** capt
 
 | Document | Content | Location |
 |----------|---------|----------|
-| `CHARACTERIZATION_TESTS.md` | Complete test catalog with 66 test cases | `docs/refactor/CHARACTERIZATION_TESTS.md` |
-| `PHASE3_CHARACTERIZATION_SUMMARY.md` | This summary report | `docs/refactor/PHASE3_CHARACTERIZATION_SUMMARY.md` |
+| `CHARACTERIZATION_TESTS.md` | Complete test catalog with 66 test cases | `do../05_Reports/04_08_Refactor/CHARACTERIZATION_TESTS.md` |
+| `PHASE3_CHARACTERIZATION_SUMMARY.md` | This summary report | `do../05_Reports/04_08_Refactor/PHASE3_CHARACTERIZATION_SUMMARY.md` |
 
 ---
 
