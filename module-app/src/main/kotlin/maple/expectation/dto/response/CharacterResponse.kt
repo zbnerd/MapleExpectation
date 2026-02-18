@@ -20,9 +20,9 @@ data class CharacterResponse(
     val userIgn: String,
     val ocid: String,
     val likeCount: Long?,
-    val worldName: String,
-    val characterClass: String,
-    val characterImage: String
+    val worldName: String?,
+    val characterClass: String?,
+    val characterImage: String?
 ) {
     companion object {
         /**

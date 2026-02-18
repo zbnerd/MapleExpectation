@@ -11,25 +11,44 @@ package maple.expectation.controller.dto.auth
  * @param refreshExpiresIn Refresh Token expiration time (seconds) (Issue #279)
  */
 data class LoginResponse(
-    val accessToken: String,
-    val expiresIn: Long,
-    val role: String,
-    val fingerprint: String,
+    val accessToken: String?,
+    val expiresIn: Long?,
+    val role: String?,
+    val fingerprint: String?,
     val refreshToken: String? = null,
-    val refreshExpiresIn: Long = 0
+    val refreshExpiresIn: Long? = null
 ) {
+    // Safe accessors for Java tests (handle null from mocks)
+    @JvmName("getAccessTokenSafe")
+    fun getAccessToken(): String = accessToken ?: ""
+
+    @JvmName("getExpiresInSafe")
+    fun getExpiresIn(): Long = expiresIn ?: 0
+
+    @JvmName("getRoleSafe")
+    fun getRole(): String = role ?: ""
+
+    @JvmName("getFingerprintSafe")
+    fun getFingerprint(): String = fingerprint ?: ""
+
+    @JvmName("getRefreshTokenSafe")
+    fun getRefreshToken(): String = refreshToken ?: ""
+
+    @JvmName("getRefreshExpiresInSafe")
+    fun getRefreshExpiresIn(): Long = refreshExpiresIn ?: 0
+
     companion object {
         /**
          * Create LoginResponse with Refresh Token
          */
         @JvmStatic
         fun of(
-            accessToken: String,
-            expiresIn: Long,
-            role: String,
-            fingerprint: String,
-            refreshToken: String,
-            refreshExpiresIn: Long
+            accessToken: String?,
+            expiresIn: Long?,
+            role: String?,
+            fingerprint: String?,
+            refreshToken: String?,
+            refreshExpiresIn: Long?
         ): LoginResponse = LoginResponse(
             accessToken, expiresIn, role, fingerprint, refreshToken, refreshExpiresIn
         )
@@ -39,13 +58,13 @@ data class LoginResponse(
          *
          * @deprecated Use [of] with all parameters instead
          */
-        @Deprecated("Use full constructor with refresh token", ReplaceWith("of(accessToken, expiresIn, role, fingerprint, null, 0)"))
+        @Deprecated("Use full constructor with refresh token", ReplaceWith("of(accessToken, expiresIn, role, fingerprint, null, null)"))
         @JvmStatic
         fun of(
-            accessToken: String,
-            expiresIn: Long,
-            role: String,
-            fingerprint: String
+            accessToken: String?,
+            expiresIn: Long?,
+            role: String?,
+            fingerprint: String?
         ): LoginResponse = LoginResponse(accessToken, expiresIn, role, fingerprint)
     }
 }
