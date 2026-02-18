@@ -49,8 +49,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 @Slf4j
 @Tag("nightmare")
 @SpringBootTest
-@org.springframework.test.annotation.DirtiesContext(
-    classMode = org.springframework.test.annotation.DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 @DisplayName("Nightmare 07: Metadata Lock Freeze - DDL Blocking Query Cascade")
 class MetadataLockFreezeNightmareTest extends AbstractContainerBaseTest {
 

@@ -63,8 +63,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 @Slf4j
 @Tag("nightmare")
 @SpringBootTest
-@org.springframework.test.annotation.DirtiesContext(
-    classMode = org.springframework.test.annotation.DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 @DisplayName("Nightmare 15: AOP Order Problem - 프로젝트 전체 AOP 순서 검증")
 class AopOrderNightmareTest extends AbstractContainerBaseTest {
 

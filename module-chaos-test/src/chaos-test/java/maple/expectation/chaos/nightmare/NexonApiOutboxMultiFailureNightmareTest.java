@@ -62,8 +62,6 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 @Tag("nightmare")
 @Tag("compound-failure")
 @DisplayName("Nightmare 19+: Compound Multi-Failure Scenarios")
-@org.springframework.test.annotation.DirtiesContext(
-    classMode = org.springframework.test.annotation.DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class NexonApiOutboxMultiFailureNightmareTest extends IntegrationTestSupport {
 
   @Autowired private NexonApiOutboxRepository outboxRepository;

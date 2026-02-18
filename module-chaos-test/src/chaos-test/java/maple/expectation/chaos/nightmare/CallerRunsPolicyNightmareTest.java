@@ -55,8 +55,6 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
  */
 @Slf4j
 @Tag("nightmare")
-@org.springframework.test.annotation.DirtiesContext(
-    classMode = org.springframework.test.annotation.DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 @DisplayName("Nightmare 10: CallerRunsPolicy Betrayal - 실제 운영 Executor 검증")
 class CallerRunsPolicyNightmareTest extends IntegrationTestSupport {
 

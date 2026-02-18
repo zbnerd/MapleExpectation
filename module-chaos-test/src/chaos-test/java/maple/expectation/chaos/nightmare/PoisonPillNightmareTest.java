@@ -81,8 +81,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 @Tag("nightmare")
 @DisplayName("Nightmare 17: Poison Pill - 실제 OutboxProcessor 처리 흐름")
-@org.springframework.test.annotation.DirtiesContext(
-    classMode = org.springframework.test.annotation.DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class PoisonPillNightmareTest extends IntegrationTestSupport {
 
   @Autowired private DonationService donationService;

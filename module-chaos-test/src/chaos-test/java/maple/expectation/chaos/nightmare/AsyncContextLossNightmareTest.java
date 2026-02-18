@@ -49,8 +49,6 @@ import org.springframework.beans.factory.annotation.Qualifier;
  */
 @Slf4j
 @Tag("nightmare")
-@org.springframework.test.annotation.DirtiesContext(
-    classMode = org.springframework.test.annotation.DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 @DisplayName("Nightmare 12: Phantom Context - 비동기 컨텍스트 전파 검증")
 class AsyncContextLossNightmareTest extends IntegrationTestSupport {
 

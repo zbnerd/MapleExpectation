@@ -76,8 +76,6 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 @Slf4j
 @Tag("nightmare")
 @DisplayName("Nightmare 19: Nexon API Outbox Replay - 6시간 장애 복구")
-@org.springframework.test.annotation.DirtiesContext(
-    classMode = org.springframework.test.annotation.DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class NexonApiOutboxNightmareTest extends IntegrationTestSupport {
 
   @Autowired private NexonApiOutboxRepository outboxRepository;

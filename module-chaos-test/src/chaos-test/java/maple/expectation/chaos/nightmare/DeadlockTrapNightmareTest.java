@@ -54,8 +54,6 @@ import org.springframework.transaction.PlatformTransactionManager;
 @Slf4j
 @Tag("nightmare")
 @SpringBootTest
-@org.springframework.test.annotation.DirtiesContext(
-    classMode = org.springframework.test.annotation.DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 @DisplayName("Nightmare 02: The Deadlock Trap - Circular Lock")
 class DeadlockTrapNightmareTest extends AbstractContainerBaseTest {
 
