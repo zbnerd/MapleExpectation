@@ -65,7 +65,7 @@ import org.springframework.test.context.ActiveProfiles;
 class N06TimeoutCascadeNightmareTest extends AbstractContainerBaseTest {
 
   @Autowired
-  @Qualifier("expectationComputeExecutor") private ExecutorService executorService;
+  @Qualifier("expectationComputeExecutor") private Executor executor;
 
   @Autowired(required = false)
   private RedisTemplate<String, String> redisTemplate;
@@ -148,7 +148,7 @@ class N06TimeoutCascadeNightmareTest extends AbstractContainerBaseTest {
                         }
                         return "result-" + requestId;
                       },
-                      executorService);
+                      executor);
 
               // Client timeout
               try {
@@ -267,7 +267,7 @@ class N06TimeoutCascadeNightmareTest extends AbstractContainerBaseTest {
                     }
                     return "result";
                   },
-                  executorService);
+                  executor);
 
           future.get(CLIENT_TIMEOUT_MS, TimeUnit.MILLISECONDS);
           break; // Success, no more retries
@@ -405,7 +405,7 @@ class N06TimeoutCascadeNightmareTest extends AbstractContainerBaseTest {
                 () -> {
                   throw new RuntimeException("Redis connection failed");
                 },
-                executorService);
+                executor);
 
         redisFuture.get(1000, TimeUnit.MILLISECONDS);
       } catch (Exception e) {
@@ -484,7 +484,7 @@ class N06TimeoutCascadeNightmareTest extends AbstractContainerBaseTest {
                         }
                         return "result-" + requestId;
                       },
-                      executorService);
+                      executor);
 
               // Client timeout
               try {

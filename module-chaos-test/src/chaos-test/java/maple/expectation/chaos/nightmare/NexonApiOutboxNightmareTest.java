@@ -18,7 +18,6 @@ import maple.expectation.infrastructure.external.NexonApiClient;
 import maple.expectation.infrastructure.persistence.repository.NexonApiOutboxRepository;
 import maple.expectation.service.v2.outbox.NexonApiOutboxMetrics;
 import maple.expectation.service.v2.outbox.NexonApiOutboxProcessor;
-import maple.expectation.service.v2.outbox.NexonApiRetryClient;
 import maple.expectation.support.IntegrationTestSupport;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.*;
@@ -77,6 +76,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 @Slf4j
 @Tag("nightmare")
 @DisplayName("Nightmare 19: Nexon API Outbox Replay - 6시간 장애 복구")
+@org.springframework.test.annotation.DirtiesContext(
+    classMode = org.springframework.test.annotation.DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class NexonApiOutboxNightmareTest extends IntegrationTestSupport {
 
   @Autowired private NexonApiOutboxRepository outboxRepository;
@@ -86,9 +87,8 @@ class NexonApiOutboxNightmareTest extends IntegrationTestSupport {
   @MockitoBean(name = "nexonApiClient")
   private NexonApiClient nexonApiClient;
 
-  @MockitoBean private NexonApiRetryClient nexonApiRetryClient;
-
-  @MockitoBean private NexonApiOutboxProcessor outboxProcessor;
+  // Use real processor and retry client, only mock the external API
+  @Autowired private NexonApiOutboxProcessor outboxProcessor;
 
   // 테스트 데이터 관리
   private final List<String> createdRequestIds = new ArrayList<>();
@@ -96,6 +96,8 @@ class NexonApiOutboxNightmareTest extends IntegrationTestSupport {
   @BeforeEach
   void setUp() {
     log.info("[Setup] Initializing N19 Outbox Nightmare Test...");
+    // Reset mocks to prevent test interference
+    Mockito.reset(nexonApiClient);
   }
 
   @AfterEach
@@ -252,23 +254,25 @@ class NexonApiOutboxNightmareTest extends IntegrationTestSupport {
     log.info("[Blue] Phase 2: API recovered, triggering replay...");
     long replayStartTime = System.currentTimeMillis();
 
-    // When: 복구 후 Processor 재시도
-    outboxProcessor.pollAndProcess();
-    outboxProcessor.pollAndProcess(); // 배치 처리 고려하여 2회 호출
-    outboxProcessor.pollAndProcess();
+    // When: 복구 후 Processor 재시도 - Awaitility 루프 내에서 지속적으로 처리
+    log.info("[Blue] Starting continuous replay processing...");
 
     // Then: 완료 대기 (CLAUDE.md Section 24 - Awaitility 패턴)
     Awaitility.await()
-        .atMost(Duration.ofSeconds(30))
-        .pollInterval(Duration.ofMillis(500))
+        .atMost(Duration.ofSeconds(60))
+        .pollInterval(Duration.ofMillis(200))
         .untilAsserted(
             () -> {
+              // 매 사이클마다 프로세서 호출하여 계속 처리
+              outboxProcessor.pollAndProcess();
+
               long completed = outboxRepository.countByStatusIn(List.of(OutboxStatus.COMPLETED));
               long deadLetter = outboxRepository.countByStatusIn(List.of(OutboxStatus.DEAD_LETTER));
               long totalProcessed = completed + deadLetter;
 
               log.info(
-                  "[Blue] Progress: {}/{} completed, {} DLQ", completed, totalEntries, deadLetter);
+                  "[Blue] Progress: {}/{} completed ({}%), {} DLQ",
+                  completed, totalEntries, (totalProcessed * 100 / totalEntries), deadLetter);
 
               assertThat(totalProcessed)
                   .as("All entries should be processed (COMPLETED or DLQ)")
@@ -341,20 +345,19 @@ class NexonApiOutboxNightmareTest extends IntegrationTestSupport {
     long startTime = System.currentTimeMillis();
     long initialCompleted = outboxRepository.countByStatusIn(List.of(OutboxStatus.COMPLETED));
 
-    // 여러 배치 실행
-    for (int i = 0; i < 10; i++) {
-      outboxProcessor.pollAndProcess();
-      Thread.sleep(100); // 배치 간 간격
-    }
-
-    // 완료 대기
+    // 완료 대기 - Awaitility 루프 내에서 지속적으로 처리
     Awaitility.await()
-        .atMost(Duration.ofSeconds(20))
-        .pollInterval(Duration.ofMillis(200))
+        .atMost(Duration.ofSeconds(30))
+        .pollInterval(Duration.ofMillis(100))
         .untilAsserted(
             () -> {
+              // 매 사이클마다 프로세서 호출하여 계속 처리
+              outboxProcessor.pollAndProcess();
+
               long completed = outboxRepository.countByStatusIn(List.of(OutboxStatus.COMPLETED));
-              assertThat(completed).isGreaterThanOrEqualTo((long) (totalEntries * 0.9));
+              assertThat(completed)
+                  .as("Processing progress check")
+                  .isGreaterThanOrEqualTo((long) (totalEntries * 0.9));
             });
 
     long finalCompleted = outboxRepository.countByStatusIn(List.of(OutboxStatus.COMPLETED));
@@ -424,20 +427,18 @@ class NexonApiOutboxNightmareTest extends IntegrationTestSupport {
               initialHash.addAndGet(outbox.getContentHash().hashCode());
             });
 
-    // When: API 복구 후 Processor 실행
+    // When: API 복구 후 Processor 실행 - Awaitility 루프 내에서 지속적으로 처리
     mockApiServiceRecovered();
-
-    for (int i = 0; i < 20; i++) {
-      outboxProcessor.pollAndProcess();
-      Thread.sleep(50);
-    }
 
     // 완료 대기
     Awaitility.await()
-        .atMost(Duration.ofSeconds(30))
-        .pollInterval(Duration.ofMillis(500))
+        .atMost(Duration.ofSeconds(60))
+        .pollInterval(Duration.ofMillis(200))
         .untilAsserted(
             () -> {
+              // 매 사이클마다 프로세서 호출하여 계속 처리
+              outboxProcessor.pollAndProcess();
+
               long completed = outboxRepository.countByStatusIn(List.of(OutboxStatus.COMPLETED));
               long deadLetter = outboxRepository.countByStatusIn(List.of(OutboxStatus.DEAD_LETTER));
               long pending = outboxRepository.countByStatusIn(List.of(OutboxStatus.PENDING));
@@ -678,9 +679,6 @@ class NexonApiOutboxNightmareTest extends IntegrationTestSupport {
         .thenReturn(
             CompletableFuture.failedFuture(new RuntimeException("503 Service Unavailable")));
 
-    // NexonApiRetryClient도 실패 상태로 Mock
-    Mockito.when(nexonApiRetryClient.processOutboxEntry(Mockito.any())).thenReturn(false);
-
     log.debug("[Mock] API set to 503 Service Unavailable");
   }
 
@@ -704,9 +702,6 @@ class NexonApiOutboxNightmareTest extends IntegrationTestSupport {
         .thenReturn(CompletableFuture.completedFuture(basicResponse));
     Mockito.when(nexonApiClient.getItemDataByOcid(anyString()))
         .thenReturn(CompletableFuture.completedFuture(equipmentResponse));
-
-    // NexonApiRetryClient도 성공 상태로 Mock
-    Mockito.when(nexonApiRetryClient.processOutboxEntry(Mockito.any())).thenReturn(true);
 
     log.debug("[Mock] API recovered - returning 200 OK responses");
   }

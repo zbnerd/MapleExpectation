@@ -17,7 +17,6 @@ import maple.expectation.domain.v2.NexonApiOutbox.OutboxStatus;
 import maple.expectation.infrastructure.external.NexonApiClient;
 import maple.expectation.infrastructure.persistence.repository.NexonApiOutboxRepository;
 import maple.expectation.service.v2.outbox.NexonApiOutboxProcessor;
-import maple.expectation.service.v2.outbox.NexonApiRetryClient;
 import maple.expectation.support.IntegrationTestSupport;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.*;
@@ -63,6 +62,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 @Tag("nightmare")
 @Tag("compound-failure")
 @DisplayName("Nightmare 19+: Compound Multi-Failure Scenarios")
+@org.springframework.test.annotation.DirtiesContext(
+    classMode = org.springframework.test.annotation.DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class NexonApiOutboxMultiFailureNightmareTest extends IntegrationTestSupport {
 
   @Autowired private NexonApiOutboxRepository outboxRepository;
@@ -73,8 +74,6 @@ class NexonApiOutboxMultiFailureNightmareTest extends IntegrationTestSupport {
 
   @MockitoBean(name = "nexonApiClient")
   private NexonApiClient nexonApiClient;
-
-  @MockitoBean private NexonApiRetryClient nexonApiRetryClient;
 
   // 테스트 데이터 관리
   private final List<String> createdRequestIds = new ArrayList<>();
@@ -89,6 +88,8 @@ class NexonApiOutboxMultiFailureNightmareTest extends IntegrationTestSupport {
     log.info("│   CF-2: N19 + DB Failover                                  │");
     log.info("│   CF-3: N19 + Process Kill                                 │");
     log.info("└────────────────────────────────────────────────────────────┘");
+    // Reset mocks to prevent test interference
+    Mockito.reset(nexonApiClient);
   }
 
   @AfterEach
@@ -700,8 +701,6 @@ class NexonApiOutboxMultiFailureNightmareTest extends IntegrationTestSupport {
         .thenReturn(CompletableFuture.completedFuture(basicResponse));
     Mockito.when(nexonApiClient.getItemDataByOcid(anyString()))
         .thenReturn(CompletableFuture.completedFuture(equipmentResponse));
-
-    Mockito.when(nexonApiRetryClient.processOutboxEntry(Mockito.any())).thenReturn(true);
 
     log.debug("[Mock] API recovered - returning 200 OK responses");
   }
