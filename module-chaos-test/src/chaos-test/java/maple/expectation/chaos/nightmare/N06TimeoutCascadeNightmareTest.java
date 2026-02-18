@@ -61,6 +61,8 @@ import org.springframework.test.context.ActiveProfiles;
 @Tag("nightmare")
 @SpringBootTest
 @ActiveProfiles("chaos")
+@org.springframework.test.annotation.DirtiesContext(
+    classMode = org.springframework.test.annotation.DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 @DisplayName("Nightmare 06: The Timeout Cascade (Zombie Request Problem)")
 class N06TimeoutCascadeNightmareTest extends AbstractContainerBaseTest {
 

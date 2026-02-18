@@ -44,6 +44,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 @Slf4j
 @Tag("nightmare")
 @SpringBootTest
+@org.springframework.test.annotation.DirtiesContext(
+    classMode = org.springframework.test.annotation.DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 @DisplayName("Nightmare 18: Deep Paging Abyss - 깊은 페이징 성능 문제")
 class DeepPagingNightmareTest extends AbstractContainerBaseTest {
 

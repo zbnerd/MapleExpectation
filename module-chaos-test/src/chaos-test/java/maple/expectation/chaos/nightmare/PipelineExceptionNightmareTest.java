@@ -47,6 +47,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 @Slf4j
 @Tag("nightmare")
 @SpringBootTest
+@org.springframework.test.annotation.DirtiesContext(
+    classMode = org.springframework.test.annotation.DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 @DisplayName("Nightmare 14: Pipeline Blackhole - 예외 삼킴")
 class PipelineExceptionNightmareTest extends AbstractContainerBaseTest {
 

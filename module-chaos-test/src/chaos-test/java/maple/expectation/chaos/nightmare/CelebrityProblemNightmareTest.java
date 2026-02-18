@@ -52,6 +52,8 @@ import org.springframework.data.redis.core.RedisTemplate;
 @Slf4j
 @Tag("nightmare")
 @SpringBootTest
+@org.springframework.test.annotation.DirtiesContext(
+    classMode = org.springframework.test.annotation.DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 @DisplayName("Nightmare 05: Celebrity Problem - Hot Key Meltdown")
 class CelebrityProblemNightmareTest extends AbstractContainerBaseTest {
 

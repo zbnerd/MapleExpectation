@@ -57,6 +57,8 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 @Slf4j
 @Tag("nightmare")
 @SpringBootTest
+@org.springframework.test.annotation.DirtiesContext(
+    classMode = org.springframework.test.annotation.DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 @DisplayName("Nightmare 04: Connection Vampire - DB Connection Pool Starvation")
 class ConnectionVampireNightmareTest extends AbstractContainerBaseTest {
 

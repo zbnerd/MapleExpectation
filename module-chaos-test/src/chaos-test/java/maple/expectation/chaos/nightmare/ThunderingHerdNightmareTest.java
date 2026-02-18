@@ -44,6 +44,8 @@ import org.springframework.data.redis.core.RedisTemplate;
 @Slf4j
 @Tag("nightmare")
 @SpringBootTest
+@org.springframework.test.annotation.DirtiesContext(
+    classMode = org.springframework.test.annotation.DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 @DisplayName("Nightmare 01: The Thundering Herd - Cache Stampede")
 class ThunderingHerdNightmareTest extends AbstractContainerBaseTest {
 

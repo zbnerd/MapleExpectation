@@ -57,6 +57,8 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 @Slf4j
 @Tag("nightmare")
 @SpringBootTest
+@org.springframework.test.annotation.DirtiesContext(
+    classMode = org.springframework.test.annotation.DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 @DisplayName("Nightmare 16: Self-Invocation Mirage - 실제 서비스의 프록시 바이패스 검증")
 class SelfInvocationNightmareTest extends AbstractContainerBaseTest {
 
