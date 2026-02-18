@@ -9,7 +9,7 @@ import maple.expectation.error.exception.ExternalServiceException;
 import maple.expectation.infrastructure.alert.StatelessAlertService;
 import maple.expectation.infrastructure.executor.CheckedLogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
-import maple.expectation.infrastructure.util.ExceptionUtils;
+import maple.expectation.util.ExceptionUtils;
 
 /**
  * Alert Notification Helper - 알림 발송을 담당하는 전담 클래스

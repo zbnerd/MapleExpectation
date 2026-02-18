@@ -14,7 +14,7 @@ import maple.expectation.error.exception.marker.CircuitBreakerIgnoreMarker;
 import maple.expectation.infrastructure.executor.CheckedLogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.infrastructure.external.dto.v2.EquipmentResponse;
-import maple.expectation.infrastructure.util.ExceptionUtils;
+import maple.expectation.util.ExceptionUtils;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 /**

@@ -16,7 +16,7 @@ import maple.expectation.infrastructure.external.dto.v2.CharacterOcidResponse;
 import maple.expectation.infrastructure.external.dto.v2.CubeHistoryResponse;
 import maple.expectation.infrastructure.external.dto.v2.EquipmentResponse;
 import maple.expectation.infrastructure.resilience.RetryBudgetManager;
-import maple.expectation.infrastructure.util.ExceptionUtils;
+import maple.expectation.util.ExceptionUtils;
 import org.springframework.context.annotation.Primary;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;

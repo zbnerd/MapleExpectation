@@ -1,4 +1,4 @@
-package maple.expectation.event;
+package maple.expectation.event
 
 /**
  * Event processing priority levels.
@@ -19,10 +19,10 @@ package maple.expectation.event;
  *
  * @since 1.0.0
  */
-public enum EventPriority {
-  /** High priority - critical events requiring immediate processing */
-  HIGH,
+enum class EventPriority {
+    /** High priority - critical events requiring immediate processing */
+    HIGH,
 
-  /** Low priority - background events that can be deferred */
-  LOW
+    /** Low priority - background events that can be deferred */
+    LOW
 }

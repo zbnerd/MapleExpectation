@@ -12,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import maple.expectation.error.exception.ApiTimeoutException;
 import maple.expectation.error.exception.InternalSystemException;
 import maple.expectation.infrastructure.executor.TaskContext;
+import maple.expectation.util.ExceptionUtils;
 
 /**
  * CompletableFuture 비동기 실행 유틸리티

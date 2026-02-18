@@ -2,7 +2,7 @@ package maple.expectation.infrastructure.executor.strategy
 
 import com.fasterxml.jackson.core.JsonProcessingException
 import maple.expectation.infrastructure.executor.TaskContext
-import maple.expectation.infrastructure.util.ExceptionUtils
+import maple.expectation.util.ExceptionUtils
 import org.springframework.cache.Cache
 import java.io.IOException
 import java.util.concurrent.Callable
@@ -37,7 +37,7 @@ fun interface ExceptionTranslator {
                 when (e) {
                     is Error -> throw e
                     else -> {
-                        val unwrapped = ExceptionUtils.unwrapAsyncException(e)
+                        val unwrapped = ExceptionUtils.unwrapAsyncException(e) ?: e
                         // RuntimeException pass-through for now
                         when (unwrapped) {
                             is RuntimeException -> unwrapped
