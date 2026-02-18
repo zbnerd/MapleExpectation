@@ -1,3 +1,4 @@
+@file:JvmName("ExternalApiException")
 package maple.expectation.error.exception
 
 import maple.expectation.error.ErrorCode

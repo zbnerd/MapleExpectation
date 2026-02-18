@@ -68,14 +68,17 @@ public class ShutdownDataPersistenceService {
 
   @PostConstruct
   public void init() {
-    executor.executeWithTranslation(
+    executor.executeOrCatch(
         () -> {
           Files.createDirectories(Paths.get(backupDirectory));
           Files.createDirectories(Paths.get(archiveDirectory));
           log.info("[Shutdown Persistence] 디렉토리 초기화 완료 (ID: {})", instanceId);
           return null;
         },
-        ExceptionTranslator.forFileIO(),
+        e -> {
+          throw new maple.expectation.error.exception.InternalSystemException(
+              "File IO operation failed", e);
+        },
         TaskContext.of("Persistence", "Init"));
   }
 
@@ -85,7 +88,7 @@ public class ShutdownDataPersistenceService {
    * <h4>변경 전 (Section 15 위반)</h4>
    *
    * <pre>{@code
-   * executor.execute(() -> {
+   * executor.executeOrCatch(() -> {
    *     Path tempFile = Files.createTempFile(...);
    *     return executor.executeWithFinally(  // 중첩!
    *         () -> performAtomicWrite(...),
@@ -105,9 +108,12 @@ public class ShutdownDataPersistenceService {
     Path backupPath = Paths.get(backupDirectory);
     Path targetFile = backupPath.resolve(generateFilename());
 
-    return executor.executeWithTranslation(
+    return executor.executeOrCatch(
         () -> performAtomicWrite(data, backupPath, targetFile),
-        ExceptionTranslator.forFileIO(),
+        e -> {
+          throw new maple.expectation.error.exception.InternalSystemException(
+              "File IO operation failed", e);
+        },
         context);
   }
 
@@ -159,7 +165,7 @@ public class ShutdownDataPersistenceService {
   public void appendOutboxEntry(String requestId, String payload) {
     TaskContext context = TaskContext.of("Persistence", "AppendOutbox", requestId);
 
-    executor.executeVoid(
+    executor.executeOrCatch(
         () -> {
           Path outboxBackupDir = Paths.get(backupDirectory, "outbox-dlq");
           Files.createDirectories(outboxBackupDir);
@@ -173,6 +179,11 @@ public class ShutdownDataPersistenceService {
 
           Files.writeString(target, payload, StandardOpenOption.CREATE_NEW);
           log.warn("[Persistence] Outbox 백업 완료: {}", filename);
+          return null;
+        },
+        e -> {
+          throw new maple.expectation.error.exception.InternalSystemException(
+              String.format("Outbox 백업 실패: requestId=%s", requestId), e);
         },
         context);
   }
@@ -205,7 +216,7 @@ public class ShutdownDataPersistenceService {
 
   /** 백업 디렉토리 내의 모든 JSON 파일을 생성 시간 역순으로 조회합니다. */
   public List<Path> findAllBackupFiles() {
-    return executor.executeWithTranslation(
+    return executor.executeOrCatch(
         () -> {
           Path backupPath = Paths.get(backupDirectory);
           if (!Files.exists(backupPath)) return List.of();
@@ -219,7 +230,10 @@ public class ShutdownDataPersistenceService {
                 .toList();
           }
         },
-        ExceptionTranslator.forFileIO(),
+        e -> {
+          throw new maple.expectation.error.exception.InternalSystemException(
+              "File IO operation failed", e);
+        },
         TaskContext.of("Persistence", "ScanFiles"));
   }
 
@@ -236,7 +250,7 @@ public class ShutdownDataPersistenceService {
 
   /** 처리가 완료된 파일을 아카이브 디렉토리로 이동시킵니다. */
   public void archiveFile(Path filePath) {
-    executor.executeWithTranslation(
+    executor.executeOrCatch(
         () -> {
           Files.move(
               filePath,
@@ -245,7 +259,10 @@ public class ShutdownDataPersistenceService {
           log.info("[Persistence] 아카이브 완료: {}", filePath.getFileName());
           return null;
         },
-        ExceptionTranslator.forFileIO(),
+        e -> {
+          throw new maple.expectation.error.exception.InternalSystemException(
+              "File IO operation failed", e);
+        },
         TaskContext.of("Persistence", "Archive", filePath.getFileName().toString()));
   }
 
@@ -296,8 +313,16 @@ public class ShutdownDataPersistenceService {
   }
 
   private void cleanupTempFile(Path tempFile) {
-    executor.executeVoid(
-        () -> Files.deleteIfExists(tempFile), TaskContext.of("Persistence", "CleanupTemp"));
+    executor.executeOrCatch(
+        () -> {
+          Files.deleteIfExists(tempFile);
+          return null;
+        },
+        e -> {
+          throw new maple.expectation.error.exception.InternalSystemException(
+              String.format("임시 파일 삭제 실패: %s", tempFile), e);
+        },
+        TaskContext.of("Persistence", "CleanupTemp"));
   }
 
   private ShutdownData loadCurrentInstanceBackup() {

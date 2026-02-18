@@ -1,3 +1,4 @@
+@file:JvmName("UnsupportedCalculationEngineException")
 package maple.expectation.error.exception
 
 import maple.expectation.error.CommonErrorCode

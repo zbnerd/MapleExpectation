@@ -1,3 +1,4 @@
+@file:JvmName("CircuitBreakerRecordMarker")
 package maple.expectation.error.exception.marker
 
 /**

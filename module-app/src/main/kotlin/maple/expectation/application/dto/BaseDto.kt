@@ -40,7 +40,7 @@ import java.time.LocalDateTime
  *
  * @see LocalDateTime
  */
-abstract class BaseDto {
+abstract open class BaseDto {
     /** Timestamp when the record was created (immutable) */
     @JvmField
     var createdAt: LocalDateTime? = null

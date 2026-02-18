@@ -1,3 +1,4 @@
+@file:JvmName("TransactionSnapshotException")
 package maple.expectation.error.exception
 
 import maple.expectation.error.CommonErrorCode

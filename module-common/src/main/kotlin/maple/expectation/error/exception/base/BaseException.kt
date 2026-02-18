@@ -1,3 +1,4 @@
+@file:JvmName("BaseException")
 package maple.expectation.error.exception.base
 
 import maple.expectation.error.ErrorCode

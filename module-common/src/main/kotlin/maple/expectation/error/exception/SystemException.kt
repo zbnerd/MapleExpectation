@@ -1,3 +1,4 @@
+@file:JvmName("SystemException")
 package maple.expectation.error.exception
 
 import maple.expectation.error.ErrorCode
