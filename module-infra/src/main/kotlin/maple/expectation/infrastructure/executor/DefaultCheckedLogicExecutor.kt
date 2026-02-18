@@ -126,7 +126,7 @@ class DefaultCheckedLogicExecutor(
             // 명시적 람다로 오버로드 추론 문제 방지
             @Suppress("UNCHECKED_CAST")
             result = pipeline.executeRaw(
-                ThrowingSupplier<Any> { task.get() } as ThrowingSupplier<T>,
+                ThrowingSupplier { task.get() },
                 context
             )
         } catch (t: Throwable) {

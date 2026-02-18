@@ -220,9 +220,9 @@ class ExecutionPipeline(policies: List<ExecutionPolicy>) {
     fun executeRaw(task: ThrowingRunnable, context: TaskContext) {
         requireNotNull(task) { "task must not be null" }
         executeRaw(
-            ThrowingSupplier<Nothing> {
+            ThrowingSupplier<Unit> {
                 task.run()
-                null
+                Unit
             },
             context
         )
