@@ -82,7 +82,7 @@ jobs:
         env:
           SPRING_PROFILES_ACTIVE: test
           DOCKER_HOST: unix:///var/run/docker.sock
-          TESTCONTAINERS_RYUK_DISABLED: true
+          TESTCONTAINERS_RYUK_DISABLED: false
           CI: true
 
       - name: Upload Unit Test Reports
@@ -129,7 +129,7 @@ jobs:
         env:
           SPRING_PROFILES_ACTIVE: test
           DOCKER_HOST: unix:///var/run/docker.sock
-          TESTCONTAINERS_RYUK_DISABLED: true
+          TESTCONTAINERS_RYUK_DISABLED: false
           CI: true
 
       - name: Upload Integration Test Reports
@@ -172,11 +172,11 @@ jobs:
       - name: Run Chaos Tests
         run: |
           echo "💥 Step 3: Running Chaos Tests"
-          ./gradlew test -PchaosTest --no-daemon --stacktrace
+          ./gradlew :module-chaos-test:chaosTest --no-daemon --stacktrace
         env:
-          SPRING_PROFILES_ACTIVE: test
+          SPRING_PROFILES_ACTIVE: chaos
           DOCKER_HOST: unix:///var/run/docker.sock
-          TESTCONTAINERS_RYUK_DISABLED: true
+          TESTCONTAINERS_RYUK_DISABLED: false
           CI: true
 
       - name: Upload Chaos Test Reports
@@ -185,8 +185,8 @@ jobs:
         with:
           name: chaos-test-reports
           path: |
-            build/reports/tests/
-            build/test-results/
+            module-chaos-test/build/reports/tests/
+            module-chaos-test/build/test-results/
           retention-days: 14
 
   # ==========================================================================
@@ -219,11 +219,11 @@ jobs:
       - name: Run Nightmare Tests
         run: |
           echo "😱 Step 4: Running Nightmare Tests"
-          ./gradlew test -PnightmareTest --no-daemon --stacktrace
+          ./gradlew :module-chaos-test:nightmareTest --no-daemon --stacktrace
         env:
-          SPRING_PROFILES_ACTIVE: test
+          SPRING_PROFILES_ACTIVE: chaos
           DOCKER_HOST: unix:///var/run/docker.sock
-          TESTCONTAINERS_RYUK_DISABLED: true
+          TESTCONTAINERS_RYUK_DISABLED: false
           CI: true
 
       - name: Upload Nightmare Test Reports
@@ -232,8 +232,8 @@ jobs:
         with:
           name: nightmare-test-reports
           path: |
-            build/reports/tests/
-            build/test-results/
+            module-chaos-test/build/reports/tests/
+            module-chaos-test/build/test-results/
           retention-days: 14
 
   # ==========================================================================
