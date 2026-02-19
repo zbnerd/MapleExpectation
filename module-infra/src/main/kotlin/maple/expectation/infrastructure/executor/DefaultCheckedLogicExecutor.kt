@@ -6,7 +6,6 @@ import maple.expectation.infrastructure.executor.function.CheckedSupplier
 import maple.expectation.infrastructure.executor.policy.ExecutionPipeline
 import maple.expectation.util.InterruptUtils
 import org.slf4j.LoggerFactory
-import org.springframework.stereotype.Component
 
 /**
  * CheckedLogicExecutor의 기본 구현체
@@ -21,7 +20,6 @@ import org.springframework.stereotype.Component
  * - **suppressed 이관**: Exception→RuntimeException 변환 시 suppressed 복사
  * - **인터럽트 플래그 복원**: InterruptedException 발생 시 Thread.currentThread().interrupt()
  */
-@Component
 class DefaultCheckedLogicExecutor(
     private val pipeline: ExecutionPipeline
 ) : CheckedLogicExecutor {
