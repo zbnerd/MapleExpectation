@@ -144,6 +144,7 @@ task chaosTest(type: Test) {
 
 	// Docker Configuration (Testcontainers)
 	systemProperty 'DOCKER_HOST', 'unix:///var/run/docker.sock'
+	systemProperty 'api.version', '1.44'
 	environment "DOCKER_HOST", "unix:///var/run/docker.sock"
 	environment "TESTCONTAINERS_RYUK_DISABLED", "true"  // Disable Ryuk for simpler setup
 
@@ -256,6 +257,7 @@ task nightmareTest(type: Test) {
 
 	// Docker Configuration (Testcontainers)
 	systemProperty 'DOCKER_HOST', 'unix:///var/run/docker.sock'
+	systemProperty 'api.version', '1.44'
 	environment "DOCKER_HOST", "unix:///var/run/docker.sock"
 	environment "TESTCONTAINERS_RYUK_DISABLED", "true"
 
