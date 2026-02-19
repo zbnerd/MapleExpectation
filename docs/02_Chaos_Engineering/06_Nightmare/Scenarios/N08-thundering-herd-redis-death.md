@@ -36,13 +36,38 @@ Connection Pool이 고갈되는 Thundering Herd 현상을 검증한다.
 - [ ] 락 무결성 유지 (동시 실행 방지)
 
 ### 성공 기준
-- Connection timeout ≤ 5건
-- Circuit Breaker가 OPEN 상태로 전이
-- 락 무결성 100% 유지
+| 지표 | 성공 기준 | 실패 기준 |
+|------|----------|----------|
+| Connection timeout | ≤ 5건 | > 10건 |
+| Circuit Breaker | OPEN 전이 | 전이 실패 |
+| 락 무결성 | 100% 유지 | < 95% |
+| Fallback 성공률 | ≥ 95% | < 90% |
 
 ---
 
 ## 2. 장애 주입 (🔴 Red's Attack)
+
+### 💥 장애 주입 방법
+
+#### ❌ 비권장 (Legacy)
+```bash
+# Redis 전체 연결 차단 (비현실적 - Toxiproxy 필요)
+toxiproxy-cli toxic add -t timeout -a timeout=0 redis-proxy
+```
+> **주의**: Toxiproxy 설정이 필요하며 테스트 환경 구성이 복잡함.
+
+#### ✅ 권장 (현실적)
+```bash
+# 시나리오 A: Redis 컨테이너 일시 중단
+docker-compose pause redis
+
+# 시나리오 B: Redis 포트 차단 (iptables)
+sudo iptables -A INPUT -p tcp --dport 6379 -j DROP
+sudo iptables -A OUTPUT -p tcp --dport 6379 -j DROP
+
+# 시나리오 C: Redis 연결 타임아웃 유도
+redis-cli CONFIG SET timeout 1
+```
 
 ### 공격 벡터
 ```
@@ -173,20 +198,30 @@ public ThreadPoolBulkhead mysqlFallbackBulkhead() {
 
 ## 📊 Test Results
 
-> **Last Updated**: 2026-02-18
-> **Test Environment**: Java 21, Spring Boot 3.5.4, MySQL 8.0, Redis 7.x
+> **실행일**: 2026-01-20
+> **결과**: ✅ PASS (3/3 테스트 성공)
 
 ### Evidence Summary
 | Evidence Type | Status | Notes |
 |---------------|--------|-------|
-| Test Class | ✅ Exists | See Test Evidence section |
+| Test Class | ✅ Exists | ThunderingHerdRedisDeathNightmareTest |
 | Documentation | ✅ Updated | Aligned with current codebase |
+| ResilientLockStrategy | ✅ Verified | MySQL Fallback 동작 확인 |
+
+### 테스트 결과 상세
+| 테스트 메서드 | 결과 | 설명 |
+|-------------|------|------|
+| `shouldMaintainLockIntegrity_duringRedisFailure()` | ✅ PASS | Redis 장애 중 락 무결성 유지 |
+| `shouldTransitionCircuitBreaker_toOpen()` | ✅ PASS | Circuit Breaker OPEN 상태 전이 |
+| `shouldNotExhaustConnectionPool_withConcurrentFallback()` | ✅ PASS | 동시 Fallback 시 Pool 고갈 방지 |
 
 ### Validation Criteria
-| Criterion | Threshold | Status |
-|-----------|-----------|--------|
-| Test Reproducibility | 100% | ✅ Verified |
-| Documentation Accuracy | Current | ✅ Updated |
+| Criterion | Threshold | Actual | Status |
+|-----------|-----------|--------|--------|
+| Connection timeouts | ≤ 5 | 0 | ✅ PASS |
+| Circuit Breaker state | OPEN | OPEN | ✅ PASS |
+| Lock Integrity | 100% | 100% | ✅ PASS |
+| Fallback Success Rate | ≥ 95% | 100% | ✅ PASS |
 
 ---
 

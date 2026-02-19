@@ -38,14 +38,28 @@
 - [ ] 데드락 후 데이터 무결성 유지
 
 ### 성공 기준
-- Deadlock 발생 0건
-- 데이터 무결성 100%
+| 지표 | 성공 기준 | 실패 기준 |
+|------|----------|----------|
+| Deadlock 발생 | 0건 | ≥ 1건 |
+| 데이터 무결성 | 100% | < 100% |
+| 트랜잭션 완료율 | 100% | < 100% |
 
 ---
 
 ## 2. 장애 주입 (🔴 Red's Attack)
 
-### 주입 방법
+### 💥 장애 주입 방법
+
+#### ❌ 비권장 (Legacy)
+```sql
+-- 랜덤한 순서로 락 획득 (Deadlock 발생 확률 높음)
+BEGIN;
+UPDATE table_a SET value = value + 1 WHERE id = 1;
+UPDATE table_b SET value = value + 1 WHERE id = 1;
+COMMIT;
+```
+
+#### ✅ 권장 (재현 가능한 Deadlock 시나리오)
 ```sql
 -- Transaction A (순서: TABLE_A → TABLE_B)
 BEGIN;
@@ -378,8 +392,27 @@ public class LockOrderingHelper {
 
 ## 📊 Test Results
 
-> **실행일**: 2026-01-19
-> **결과**: 테스트 완료 (상세 결과는 결과 파일 참조)
+> **실행일**: 2026-01-20
+> **결과**: ❌ FAIL (2/3 테스트 실패)
+
+### 테스트 결과 상세
+| 테스트 메서드 | 결과 | 설명 |
+|-------------|------|------|
+| `shouldDetectDeadlockPotential_withCrossTableLocking()` | ✅ PASS | Deadlock 잠재성 감지 |
+| `shouldNotDeadlock_withCrossTableLocking()` | ❌ FAIL | 교차 락 획득 시 Deadlock 발생 |
+| `shouldMeasureDeadlockProbability_over10Iterations()` | ❌ FAIL | 10회 반복 시 Deadlock 발생 |
+
+### 실패 원인 분석
+- **Lock Ordering 미적용**: 두 트랜잭션이 서로 다른 순서로 테이블 락을 획득
+- **InnoDB Deadlock Detection**: 50초 타임아웃 후 한 트랜잭션 강제 롤백
+- **Circular Wait 조건**: Coffman Conditions 4가지 충족
+
+### Validation Criteria
+| Criterion | Threshold | Actual | Status |
+|-----------|-----------|--------|--------|
+| Deadlock 발생 | 0건 | 1+ 건 | ❌ FAIL |
+| 데이터 무결성 | 100% | 100% | ✅ PASS |
+| Lock Ordering 적용 | 적용됨 | 미적용 | ❌ FAIL |
 
 ### Evidence Mapping Table
 

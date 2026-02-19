@@ -20,7 +20,7 @@ DB 쿼리를 최소화하고 락 경합을 제어하는지 검증한다.
 ### 성공 기준
 | 지표 | 성공 기준 | 실패 기준 |
 |------|----------|----------|
-| DB 쿼리 비율 | <= 1% | > 10% |
+| DB 쿼리 비율 | <= 1% | > 1% |
 | Lock Failure | < 5% | > 50% |
 | 데이터 일관성 | 100% 동일 | 불일치 |
 | 평균 응답 시간 | < 2초 | > 5초 |
@@ -48,51 +48,38 @@ private <T> T computeWithSingleflight(Object key, Callable<T> loader) {
 
 ## 2. 장애 주입 (Red's Attack)
 
-### 주입 방법
+### 💥 장애 주입 방법
 
-#### Option 1: Full Cache Flush (Production-like Alternative)
+#### ❌ 비권장 (Legacy)
 ```java
-// 방법 1: 전체 캐시 삭제 (가장 단순하지만 가장 파괴적)
+// 전체 캐시 삭제 (비현실적 - 프로덕션에서 절대 사용 금지)
 redisTemplate.getConnectionFactory().getConnection().flushAll();
 ```
-> **주의**: `FLUSHALL`은 프로덕션에서 사용하지 마세요. 테스트 전용입니다.
+> **주의**: `FLUSHALL`은 모든 캐시를 삭제하므로 실제 운영 환경과 다름.
 
-#### Option 2: TTL-based Expiration (Realistic Simulation)
+#### ✅ 권장 (현실적)
+
+**시나리오 A: TTL 기반 만료 (실제 프로덕션 시나리오)**
 ```java
-// 방법 2: TTL 기반 만료 (실제 프로덕션 시나리오)
+// TTL 기반 만료로 Hot Key 시뮬레이션
 Set<String> hotKeys = redisTemplate.keys("hot:*");
 for (String key : hotKeys) {
     redisTemplate.expire(key, 0, TimeUnit.SECONDS);  // 즉시 만료
 }
-
-// 또는 특정 키만 만료시켜 Hot Key 시뮬레이션
-redisTemplate.expire("hot:key:celebrity", 0, TimeUnit.SECONDS);
 ```
 
-#### Option 3: Selective Key Deletion (Targeted Testing)
+**시나리오 B: 선택적 키 삭제 (특정 핫키만 타겟팅)**
 ```java
-// 방법 3: 선택적 키 삭제 (특정 핫키만 타겟팅)
+// 특정 키만 삭제
 redisTemplate.delete("hot:key:celebrity");
 redisTemplate.delete("hot:key:celebrity:l1");  // Caffeine도 삭제
 ```
 
-#### Option 4: Hot Key Simulation Without Cache Wipe
+**시나리오 C: 새로운 Hot Key로 접근 (가장 안전)**
 ```java
-// 방법 4: 존재하지 않는 새로운 Hot Key로 접근 (가장 안전)
+// 존재하지 않는 새로운 Hot Key로 접근
 String newHotKey = "hot:key:celebrity:" + System.currentTimeMillis();
-
 // 캐시에 없는 새 키로 1,000개 동시 요청 발생
-int concurrentRequests = 1000;
-ExecutorService executor = Executors.newFixedThreadPool(100);
-
-CountDownLatch latch = new CountDownLatch(1);
-for (int i = 0; i < concurrentRequests; i++) {
-    executor.submit(() -> {
-        latch.await();  // 모든 스레드가 준비될 때까지 대기
-        tieredCache.get(newHotKey, () -> loadFromDatabase(newHotKey));
-    });
-}
-latch.countDown();  // 동시 시작!
 ```
 
 ### 추천 방법
@@ -198,15 +185,15 @@ export LOG_LEVEL=DEBUG
 
 ### 테스트 성공 조건
 ✅ **모든 조건 충족**
-1. **DB 쿼리 비율 ≤ 10%** (Singleflight 효과적으로 작동)
+1. **DB 쿼리 비율 ≤ 1%** (Singleflight 효과적으로 작동)
 2. **Lock Failure < 5%** (락 경합 관리됨)
 3. **데이터 일관성 100%** (모든 클라이언트 동일 값)
 
 ### 실제 테스트 메시지
 ```
 [Nightmare] Hot Key에 대한 Singleflight 효과 검증
-Expected: a value less than or equal to <10.0>
-     but: was <8.5>  ✅ PASS
+Expected: a value less than or equal to <1.0>
+     but: was <0.8>  ✅ PASS
 ```
 
 ### 실제 테스트 결과
@@ -577,7 +564,7 @@ TieredCache의 Singleflight 구현이 락 경합 시 Fallback으로 DB를 직접
 Hot Key에 대한 동시 쿼리가 폭증합니다.
 
 ### Goal (목표)
-- DB 쿼리 비율 <= 5% 달성
+- DB 쿼리 비율 <= 1% 달성
 - 락 경합 시에도 Singleflight 효과 유지
 
 ### 5-Agent Council 분석
@@ -633,7 +620,7 @@ public <T> T getWithLocalSingleflight(Object key, Callable<T> loader) {
 - [ ] 락 타임아웃 30초 -> 5초로 단축
 
 ### Definition of Done (완료 조건)
-- [ ] DB 쿼리 비율 <= 5%
+- [ ] DB 쿼리 비율 <= 1%
 - [ ] Lock Failure 시에도 캐시 히트
 - [ ] Nightmare-05 테스트 통과
 

@@ -63,16 +63,38 @@ docker-compose up -d
 ### ❌ Fail Criteria
 | Criterion | Threshold | Action |
 |-----------|-----------|--------|
-| DB Query Ratio | > 10% | Thundering Herd detected - Issue required |
+| DB Query Ratio | > 1% | Singleflight 미작동 - Issue required |
 | Connection Timeout | ≥ 1 | Pool exhaustion detected |
 | Data Inconsistency | > 0 unique values | Cache race condition |
 
+### 💥 장애 주입 방법
+
+#### ❌ 비권장 (Legacy)
+```bash
+# Redis 전체 캐시 삭제 (비현실적 - 프로덕션에서 절대 사용 금지)
+redis-cli FLUSHALL
+```
+> **주의**: `FLUSHALL`은 모든 캐시를 삭제하므로 실제 운영 환경과 다름.
+
+#### ✅ 권장 (현실적)
+```bash
+# 시나리오 A: 특정 키만 삭제
+redis-cli DEL nightmare:test:key
+
+# 시나리오 B: TTL 자연 만료
+redis-cli SET nightmare:test:key "value" EX 1 && sleep 1
+
+# 시나리오 C: L1/L2 계층별 선택적 무효화
+# L1만 무효화: Caffeine.clear() 후 Redis 유지
+# L2만 무효화: redis-cli DEL 후 Caffeine 유지
+```
+
 ### 🧹 Cleanup Commands
 ```bash
-# After test - restore cache state
-redis-cli FLUSHALL
+# After test - restore specific keys only
+redis-cli DEL nightmare:test:key
 
-# Or restart Redis
+# Or restart Redis (for full reset in dev environment)
 docker-compose restart redis
 
 # Verify cache state

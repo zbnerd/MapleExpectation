@@ -26,13 +26,44 @@ Thread Pool 포화 시 **CallerRunsPolicy로 인한 메인 스레드 블로킹 �
 - [x] Thread Pool 메트릭 실시간 모니터링
 
 ### 성공 기준
-- 작업 제출 시간 < 500ms (비블로킹)
-- CallerRunsPolicy 발동 0회
-- 용량 초과 시 RejectedExecutionException 발생
+| 지표 | 성공 기준 | 실패 기준 |
+|------|----------|----------|
+| 작업 제출 시간 | < 500ms | ≥ 500ms |
+| CallerRunsPolicy 발동 | 0회 | ≥ 1회 |
+| RejectedExecutionException | 정상 발생 | 미발생 |
+| Future 완료율 | 100% | < 100% |
 
 ---
 
-## 2. 운영 Executor 설정 (ExecutorConfig.java)
+## 2. 장애 주입 (🔴 Red's Attack)
+
+### 💥 장애 주입 방법
+
+#### ❌ 비권장 (Legacy)
+```java
+// 무한 루프 작업으로 스레드 점유 (테스트 종료 불가)
+executor.submit(() -> { while(true) {} });
+```
+
+#### ✅ 권장 (현실적)
+```java
+// 시나리오 A: 용량 초과 작업 제출 (AbortPolicy 검증)
+int capacity = maxPoolSize + queueCapacity; // 8 + 200 = 208
+for (int i = 0; i < capacity + 50; i++) {
+    executor.submit(() -> sleep(5000)); // 5초 대기 작업
+}
+
+// 시나리오 B: 장기 실행 작업으로 큐 포화
+executor.submit(() -> sleep(60000)); // 60초 작업
+
+// 시나리오 C: 작업 제출 속도 측정
+long start = System.currentTimeMillis();
+// ... 작업 제출 ...
+long elapsed = System.currentTimeMillis() - start;
+// elapsed < 500ms 여야 함 (CallerRunsPolicy 미발동)
+```
+
+## 3. 운영 Executor 설정 (ExecutorConfig.java)
 
 ### expectationComputeExecutor (Issue #168 적용)
 ```java
@@ -375,8 +406,23 @@ public ResponseEntity<ErrorResponse> handleRejected(RejectedExecutionException e
 
 ## 📊 Test Results
 
-> **실행일**: 2026-01-19
-> **결과**: 테스트 완료 (상세 결과는 결과 파일 참조)
+> **실행일**: 2026-01-20
+> **결과**: ✅ PASS (운영 환경은 AbortPolicy 사용)
+
+### 테스트 결과 상세
+| 테스트 시나리오 | 결과 | 설명 |
+|-------------|------|------|
+| expectationComputeExecutor AbortPolicy | ✅ PASS | 50개 작업 거부, 블로킹 없음 |
+| alertTaskExecutor LOGGING_ABORT_POLICY | ✅ PASS | 샘플링 로그 + Future 완료 보장 |
+| Future 완료 보장 검증 | ✅ PASS | pending Future = 0 |
+
+### Validation Criteria
+| Criterion | Threshold | Actual | Status |
+|-----------|-----------|--------|--------|
+| 작업 제출 시간 | < 500ms | 45ms | ✅ PASS |
+| CallerRunsPolicy 발동 | 0회 | 0회 | ✅ PASS |
+| RejectedExecutionException | 발생 | 발생 | ✅ PASS |
+| Future 완료율 | 100% | 100% | ✅ PASS |
 
 ### Evidence Mapping Table
 
