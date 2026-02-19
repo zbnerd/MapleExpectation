@@ -2,7 +2,6 @@ package maple.expectation.support;
 
 import maple.expectation.config.ChaosTestConfig;
 import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
@@ -38,9 +37,8 @@ public abstract class AbstractContainerBaseTest {
   protected static final GenericContainer<?> REDIS_CONTAINER =
       new GenericContainer<>("redis:7-alpine").withExposedPorts(6379).withReuse(true);
 
-  /** Start containers before any tests run. */
-  @BeforeAll
-  static void startContainers() {
+  // Static initializer to start containers before Spring context loads
+  static {
     MYSQL_CONTAINER.start();
     REDIS_CONTAINER.start();
 
@@ -56,8 +54,8 @@ public abstract class AbstractContainerBaseTest {
   /** Stop containers after all tests complete. */
   @AfterAll
   static void stopContainers() {
-    MYSQL_CONTAINER.stop();
-    REDIS_CONTAINER.stop();
+    // Containers are reused, so we don't stop them here
+    // They will be cleaned up by Ryuk or manually
   }
 
   /**
