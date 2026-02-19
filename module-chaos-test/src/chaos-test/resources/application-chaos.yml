@@ -106,9 +106,9 @@ resilience4j:
         record-exceptions:
           - java.lang.NullPointerException
           - java.io.IOException
+          - maple.expectation.error.exception.base.ServerBaseException
         ignore-exceptions:
-          - maple.expectation.error.exception.auth.DuplicateLikeException
-          - maple.expectation.error.exception.auth.SelfLikeNotAllowedException
+          - maple.expectation.error.exception.base.ClientBaseException
 
   timelimiter:
     configs:
@@ -123,8 +123,7 @@ resilience4j:
         retry-exceptions:
           - java.io.IOException
         ignore-exceptions:
-          - maple.expectation.error.exception.auth.DuplicateLikeException
-          - maple.expectation.error.exception.auth.SelfLikeNotAllowedException
+          - maple.expectation.error.exception.base.ClientBaseException
 
 # Actuator Configuration
 management:
