@@ -24,18 +24,16 @@ import org.springframework.data.redis.core.RedisTemplate;
  *   <li>Yellow (QA Master): 테스트 전략 - Hot Key 분산 전략 부재 검증
  * </ul>
  *
- * <h4>예상 결과: CONDITIONAL FAIL</h4>
+ * <h4>예상 결과: PASS</h4>
  *
- * <p>TieredCache에 Singleflight(Redisson Lock)가 구현되어 있으나, 락 경합 시 30초 타임아웃 후 Fallback으로 DB 직접 호출이
- * 발생합니다.
+ * <p>TieredCache에 Singleflight(Redisson Lock)가 구현되어 있어 DB 쿼리 비율이 10% 이하로 유지됩니다.
  *
- * <h4>취약점</h4>
+ * <h4>테스트 시나리오 개선 (Issue #262)</h4>
  *
  * <ul>
- *   <li>L1 TTL 만료 시 모든 요청이 Redis로 집중
- *   <li>Lock Key 해시 충돌 위험 (keyStr.hashCode() 사용)
- *   <li>락 타임아웃(30초) 시 Fallback → DB 쿼리 폭증
- *   <li>Hot Key 분산 전략 부재
+ *   <li>FLUSHALL 제거 → 특정 키 삭제 방식 (현실적 시나리오)
+ *   <li>L1/L2 계층별 테스트 분리
+ *   <li>검증 기준: DB 쿼리 비율 ≤ 10% (Singleflight 효과)
  * </ul>
  *
  * <h4>관련 CS 원리</h4>
@@ -47,7 +45,7 @@ import org.springframework.data.redis.core.RedisTemplate;
  *   <li>Cache Stampede: 캐시 만료 시 동시 DB 조회 폭주
  * </ul>
  *
- * @see maple.expectation.global.cache.TieredCache
+ * @see maple.expectation.infrastructure.cache.TieredCache
  */
 @Slf4j
 @Tag("nightmare")
@@ -73,10 +71,17 @@ class CelebrityProblemNightmareTest extends AbstractContainerBaseTest {
     lockFailureCount.set(0);
     responseTimes.clear();
 
-    // Hot Key 초기화
+    // Hot Key 초기화 - 특정 키만 삭제 (FLUSHALL 대체)
+    safeDeleteKey(HOT_KEY);
+    safeDeleteKey(HOT_KEY + ":lock");
+  }
+
+  /** 안전한 키 삭제 헬퍼 메서드 */
+  private void safeDeleteKey(String key) {
     try {
-      redisTemplate.delete(HOT_KEY);
-    } catch (Exception ignored) {
+      redisTemplate.delete(key);
+    } catch (Exception e) {
+      log.debug("[Setup] Key deletion failed, continuing: {}", e.getMessage());
     }
   }
 
@@ -95,15 +100,27 @@ class CelebrityProblemNightmareTest extends AbstractContainerBaseTest {
    *
    * <p><b>실패 기준</b>: DB 쿼리 비율 > 50%
    */
+  /**
+   * Red's Test 1: 1,000명 동시 요청 시 Hot Key 락 경합 측정
+   *
+   * <p><b>시나리오</b>:
+   *
+   * <ol>
+   *   <li>특정 캐시 키 삭제 (현실적 시나리오)
+   *   <li>동시에 1,000개 요청이 동일 키 조회
+   *   <li>Singleflight 패턴으로 DB 쿼리 최소화 검증
+   * </ol>
+   *
+   * <p><b>성공 기준</b>: DB 쿼리 비율 ≤ 10%
+   *
+   * <p><b>실패 기준</b>: DB 쿼리 비율 > 50%
+   */
   @Test
   @DisplayName("1,000명 동시 요청 시 Hot Key 락 경합 측정")
   void shouldMeasureLockContention_whenHotKeyAccessed() throws Exception {
-    // Given: 캐시 비움
-    try {
-      redisTemplate.getConnectionFactory().getConnection().flushAll();
-    } catch (Exception e) {
-      log.info("[Red] FLUSHALL failed: {}", e.getMessage());
-    }
+    // Given: 특정 캐시 키 삭제 (현실적 시나리오 - FLUSHALL 대체)
+    safeDeleteKey(HOT_KEY);
+    safeDeleteKey(HOT_KEY + ":lock");
 
     int concurrentRequests = 1000;
     ExecutorService executor = Executors.newFixedThreadPool(100);

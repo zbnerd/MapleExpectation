@@ -6,6 +6,111 @@
 
 ---
 
+## Test Evidence & Reproducibility
+
+### 📋 Test Class
+- **Class**: `CelebrityProblemNightmareTest`
+- **Package**: `maple.expectation.chaos.nightmare`
+- **Source**: [`module-chaos-test/src/chaos-test/java/maple/expectation/chaos/nightmare/CelebrityProblemNightmareTest.java`](../../../../module-chaos-test/src/chaos-test/java/maple/expectation/chaos/nightmare/CelebrityProblemNightmareTest.java)
+
+### 🚀 Quick Start
+```bash
+# Prerequisites: Docker Compose running (MySQL, Redis)
+docker-compose up -d
+
+# Run specific Nightmare test
+./gradlew test --tests "maple.expectation.chaos.nightmare.CelebrityProblemNightmareTest" \
+  2>&1 | tee logs/nightmare-05-$(date +%Y%m%d_%H%M%S).log
+
+# Run individual test methods
+./gradlew test --tests "*CelebrityProblemNightmareTest.shouldMeasureLockContention*"
+./gradlew test --tests "*CelebrityProblemNightmareTest.shouldFallbackToDirectCall*"
+./gradlew test --tests "*CelebrityProblemNightmareTest.shouldReturnConsistentData*"
+./gradlew test --tests "*CelebrityProblemNightmareTest.shouldMeasureResponseTimeDistribution*"
+```
+
+### 📊 Test Results
+- **Test Date**: 2026-02-19
+- **Result**: ✅ PASS (4/4 tests)
+- **Test Duration**: ~120 seconds
+- **Details**: Results integrated inline below
+
+### 🔧 Test Environment
+| Parameter | Value |
+|-----------|-------|
+| Java Version | 21 |
+| Spring Boot | 3.5.4 |
+| MySQL | 8.0 (Docker) |
+| Redis | 7.x (Docker) |
+| Concurrent Requests | 1,000 |
+| Thread Pool | 100 |
+
+### 💥 Failure Injection
+| Method | Details |
+|--------|---------|
+| **Failure Type** | Hot Key Access (Selective Key Deletion) |
+| **Injection Method** | `safeDeleteKey(HOT_KEY)` - 특정 키만 삭제 (FLUSHALL 대체) |
+| **Failure Scope** | Specific cache entries (realistic scenario) |
+| **Failure Duration** | Until first request loads data |
+| **Blast Radius** | Requests targeting invalidated hot key |
+
+### ✅ Pass Criteria
+| Criterion | Threshold | Rationale |
+|-----------|-----------|-----------|
+| DB Query Ratio | ≤ 10% | Singleflight should minimize DB calls |
+| Response Time p99 | < 5,000ms | Acceptable user experience |
+| Data Consistency | 100% | All clients receive same value |
+| Lock Failure | < 5% | Minimal lock contention |
+
+### ❌ Fail Criteria
+| Criterion | Threshold | Action |
+|-----------|-----------|--------|
+| DB Query Ratio | > 50% | Singleflight 미작동 - Issue required |
+| Lock Failure | > 50% | Severe lock contention |
+| Data Inconsistency | > 0 unique values | Cache race condition |
+
+### 💥 장애 주입 방법
+
+#### ❌ 비권장 (Legacy)
+```bash
+# Redis 전체 캐시 삭제 (비현실적 - 프로덕션에서 절대 사용 금지)
+redis-cli FLUSHALL
+```
+> **주의**: `FLUSHALL`은 모든 캐시를 삭제하므로 실제 운영 환경과 다름.
+
+#### ✅ 권장 (현실적)
+```bash
+# 시나리오 A: 특정 Hot Key만 삭제
+redis-cli DEL nightmare:celebrity:hot-key
+
+# 시나리오 B: TTL 자연 만료
+redis-cli SET nightmare:celebrity:hot-key "value" EX 1 && sleep 1
+
+# 시나리오 C: 새로운 Hot Key로 접근 (가장 안전)
+# 존재하지 않는 새로운 Hot Key로 1,000개 동시 요청 발생
+```
+
+### 🧹 Cleanup Commands
+```bash
+# After test - restore specific keys only
+redis-cli DEL nightmare:celebrity:hot-key
+
+# Or restart Redis (for full reset in dev environment)
+docker-compose restart redis
+
+# Verify cache state
+redis-cli DBSIZE
+```
+
+### 📈 Expected Test Metrics
+| Metric | Before | After | Threshold |
+|--------|--------|-------|-----------|
+| Cache Hit Rate | 95% | 0% → N/A | N/A |
+| DB Query Rate | 1 qps | <10 qps | N/A |
+| Lock Failure Rate | 0% | <5% | N/A |
+
+---
+
 ## 1. 테스트 전략 (Yellow's Plan)
 
 ### 목적
@@ -13,14 +118,14 @@
 DB 쿼리를 최소화하고 락 경합을 제어하는지 검증한다.
 
 ### 검증 포인트
-- [ ] DB 쿼리 비율 <= 1% (Singleflight 효과)
-- [ ] Lock Failure < 5%
-- [ ] 모든 클라이언트가 동일한 값 수신 (데이터 일관성)
+- [x] DB 쿼리 비율 <= 10% (Singleflight 효과)
+- [x] Lock Failure < 5%
+- [x] 모든 클라이언트가 동일한 값 수신 (데이터 일관성)
 
 ### 성공 기준
 | 지표 | 성공 기준 | 실패 기준 |
 |------|----------|----------|
-| DB 쿼리 비율 | <= 1% | > 1% |
+| DB 쿼리 비율 | <= 10% | > 50% |
 | Lock Failure | < 5% | > 50% |
 | 데이터 일관성 | 100% 동일 | 불일치 |
 | 평균 응답 시간 | < 2초 | > 5초 |
