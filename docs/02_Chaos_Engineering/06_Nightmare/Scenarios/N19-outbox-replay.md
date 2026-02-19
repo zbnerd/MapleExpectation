@@ -30,13 +30,10 @@ docker-compose up -d
 ```
 
 ### 📊 Test Results
-- **Result Files**:
-  - [N19-outbox-replay-result.md](../Results/N19-outbox-replay-result.md)
-  - [N19-outbox-fallback-implementation.md](../Results/N19-outbox-fallback-implementation.md)
-  - [N19-implementation-summary.md](../Results/N19-implementation-summary.md)
 - **Test Date**: 2026-01-19 to 2026-02-04
 - **Result**: ✅ PASS (Transactional Outbox verified)
 - **Test Duration**: ~600 seconds (including replay)
+- **Details**: Results integrated inline below
 
 ### 🔧 Test Environment
 | Parameter | Value |
@@ -100,7 +97,6 @@ mysql -u root -p maple_expectation -e "SELECT status, COUNT(*) FROM nexon_api_ou
 - Test Class: [NexonApiOutboxNightmareTest.java](../../../../../module-chaos-test/src/chaos-test/java/maple/expectation/chaos/nightmare/NexonApiOutboxNightmareTest.java)
 - Outbox Entity: [NexonApiOutbox.java](../../../../../module-infra/src/main/java/maple/expectation/domain/v2/NexonApiOutbox.java)
 - Scheduler: [NexonApiOutboxScheduler.java](../../../../../module-app/src/main/java/maple/expectation/scheduler/NexonApiOutboxScheduler.java)
-- Implementation: [N19-outbox-fallback-implementation.md](../Results/N19-outbox-fallback-implementation.md)
 
 ### ❌ Fail If Wrong
 This test is invalid if:

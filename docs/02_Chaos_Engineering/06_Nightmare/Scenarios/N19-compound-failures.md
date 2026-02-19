@@ -29,10 +29,10 @@ docker-compose up -d
 ```
 
 ### 📊 Test Results
-- **Result File**: [N19-compound-failures-result.md](../Results/N19-compound-failures-result.md)
 - **Test Date**: 2026-02-05
 - **Result**: 🔄 PENDING
 - **Test Duration**: ~900 seconds (estimated)
+- **Details**: Results integrated inline below
 
 ### 🔧 Test Environment
 | Parameter | Value |

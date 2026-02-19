@@ -30,10 +30,10 @@ docker-compose up -d
 ```
 
 ### 📊 Test Results
-- **Result File**: [N18-deep-paging-result.md](../Results/N18-deep-paging-result.md) (if exists)
 - **Test Date**: 2025-01-20
 - **Result**: ✅ PASS (4/4 tests)
 - **Test Duration**: ~180 seconds
+- **Details**: Results integrated inline below
 
 ### 🔧 Test Environment
 | Parameter | Value |

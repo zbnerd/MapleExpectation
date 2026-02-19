@@ -31,10 +31,10 @@ docker-compose up -d
 ```
 
 ### 📊 Test Results
-- **Result File**: [N06-timeout-cascade-result.md](../Results/N06-timeout-cascade-result.md)
 - **Test Date**: 2026-01-19
 - **Result**: ❌ FAIL (1/5 tests) - Zombie Request 취약점 성공 노출
 - **Test Duration**: ~180 seconds
+- **Details**: Results integrated inline below
 
 ### 🔧 Test Environment (검증됨)
 | Parameter | Value |
@@ -100,7 +100,6 @@ docker system prune -f
 
 ### 🔗 Evidence Links
 - Test Class: [N06TimeoutCascadeNightmareTest.java](../../../../module-chaos-test/src/chaos-test/java/maple/expectation/chaos/nightmare/N06TimeoutCascadeNightmareTest.java)
-- Test Results: [N06-timeout-cascade-result.md](../Results/N06-timeout-cascade-result.md)
 - Related Issue: #[P1][Nightmare-06] Timeout Hierarchy Mismatch
 
 ---

@@ -29,10 +29,10 @@ docker-compose up -d
 ```
 
 ### 📊 Test Results
-- **Result File**: [N01-thundering-herd-result.md](../Results/N01-thundering-herd-result.md)
 - **Test Date**: 2026-01-19
 - **Result**: ✅ PASS (3/3 tests)
 - **Test Duration**: ~120 seconds
+- **Details**: Results integrated inline below
 
 ### 🔧 Test Environment
 | Parameter | Value |
