@@ -254,6 +254,14 @@ task nightmareTest(type: Test) {
 	testClassesDirs = sourceSets.chaosTest.output.classesDirs
 	classpath = sourceSets.chaosTest.runtimeClasspath
 
+	// Docker Configuration (Testcontainers)
+	systemProperty 'DOCKER_HOST', 'unix:///var/run/docker.sock'
+	environment "DOCKER_HOST", "unix:///var/run/docker.sock"
+	environment "TESTCONTAINERS_RYUK_DISABLED", "true"
+
+	// Spring Profile
+	systemProperty 'spring.profiles.active', 'chaos'
+
 	useJUnitPlatform {
 		includeTags 'nightmare'
 	}
