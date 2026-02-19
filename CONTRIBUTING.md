@@ -220,9 +220,9 @@ We encourage **mob programming** for complex changes:
 
 When making significant decisions:
 
-1. **Create ADR** using template: `docs/adr/0000-template.md`
+1. **Create ADR** using template: `docs/01_ADR/0000-template.md`
    ```bash
-   cp docs/adr/0000-template.md docs/adr/0001-your-decision.md
+   cp docs/01_ADR/0000-template.md docs/01_ADR/0001-your-decision.md
    ```
 
 2. **Fill in sections:**

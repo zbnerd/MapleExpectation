@@ -55,7 +55,7 @@ docs/02_Technical_Guides/
 ├── chaos-test-quick-start.md                      ✅ Created
 └── chaos-test-cicd-patterns.md                    ✅ Created
 
-docs/adr/
+docs/01_ADR/
 └── ADR-025-chaos-test-module-separation.md        ✅ Created
 ```
 
@@ -240,7 +240,7 @@ None identified. Design is complete and ready for implementation.
 
 ## References
 
-- **ADR-025**: [Chaos Test Module Separation](/home/maple/MapleExpectation/docs/adr/ADR-025-chaos-test-module-separation.md)
+- **ADR-025**: [Chaos Test Module Separation](/home/maple/MapleExpectation/docs/01_ADR/ADR-025-chaos-test-module-separation.md)
 - **Architecture**: [Chaos Test Module Architecture](/home/maple/MapleExpectation/docs/02_Technical_Guides/chaos-test-module-architecture.md)
 - **Quick Start**: [Chaos Test Quick Start](/home/maple/MapleExpectation/docs/02_Technical_Guides/chaos-test-quick-start.md)
 - **CI/CD Patterns**: [CI/CD Integration Patterns](/home/maple/MapleExpectation/docs/02_Technical_Guides/chaos-test-cicd-patterns.md)

@@ -638,6 +638,6 @@ Groovy DSL을 사용했지만, 향후 Kotlin DSL로의 마이그레이션 여지
 **ADR 상태**: **Accepted** (2026-02-19 기준, 프로덕션 운영 중)
 
 **관련 ADR**:
-- [ADR-014: 멀티모듈 구조 설계](/home/maple/MapleExpectation/docs/adr/ADR-014-multi-module-structure.md)
-- [ADR-017: 애플리케이션 계층 분리](/home/maple/MapleExpectation/docs/adr/ADR-017-application-layer-separation.md)
-- [ADR-025: 카오스 테스트 모듈 분리](/home/maple/MapleExpectation/docs/adr/ADR-025-chaos-test-module.md)
+- [ADR-014: 멀티모듈 구조 설계](/home/maple/MapleExpectation/docs/01_ADR/ADR-014-multi-module-structure.md)
+- [ADR-017: 애플리케이션 계층 분리](/home/maple/MapleExpectation/docs/01_ADR/ADR-017-application-layer-separation.md)
+- [ADR-025: 카오스 테스트 모듈 분리](/home/maple/MapleExpectation/docs/01_ADR/ADR-025-chaos-test-module.md)
