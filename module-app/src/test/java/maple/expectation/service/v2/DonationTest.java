@@ -47,6 +47,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 @EnableTimeLogging
 @Execution(ExecutionMode.SAME_THREAD)
 @Tag("concurrency")
+@Tag("integration")
 public class DonationTest extends IntegrationTestSupport {
 
   @Autowired DonationService donationService;
