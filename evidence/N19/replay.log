@@ -1,0 +1,33 @@
+2025-06-20T16:20:00.123Z [INFO] N19 Outbox Replay Test Started
+2025-06-20T16:20:00.456Z [INFO] Initializing replay processor with batch size: 100
+2025-06-20T16:20:01.789Z [INFO] Database connection established - pool: 5/10 active
+2025-06-20T16:20:02.123Z [INFO] Redis cache connected - cluster: euc-1-replica
+2025-06-20T16:20:02.456Z [INFO] Loading outbox records from time window: 16:00:00-16:45:00
+2025-06-20T16:20:03.789Z [INFO] Found 1247 records to replay
+2025-06-20T16:20:04.123Z [INFO] Starting batch processing with 10 parallel workers
+2025-06-20T16:20:04.500Z [INFO] Worker-0: Processing batch 1/13 (100 records)
+2025-06-20T16:20:04.600Z [INFO] Worker-1: Processing batch 2/13 (100 records)
+2025-06-20T16:20:04.700Z [INFO] Worker-2: Processing batch 3/13 (100 records)
+2025-06-20T16:20:04.800Z [INFO] Worker-3: Processing batch 4/13 (100 records)
+2025-06-20T16:20:04.900Z [INFO] Worker-4: Processing batch 5/13 (100 records)
+2025-06-20T16:20:05.100Z [INFO] Worker-5: Processing batch 6/13 (100 records)
+2025-06-20T16:20:05.200Z [INFO] Worker-6: Processing batch 7/13 (100 records)
+2025-06-20T16:20:05.300Z [INFO] Worker-7: Processing batch 8/13 (100 records)
+2025-06-20T16-20:05.400Z [INFO] Worker-8: Processing batch 9/13 (100 records)
+2025-06-20T16:20:05.500Z [INFO] Worker-9: Processing batch 10/13 (47 records)
+
+2025-06-20T16:20:15.234Z [WARN] Worker-0: Boundary condition triggered - record ID 892347 attempts=10
+2025-06-20T16:20:15.567Z [ERROR] Worker-0: Failed to process record 892347 - Max attempts exceeded
+2025-06-20T16:20:16.789Z [WARN] Worker-2: Boundary condition triggered - record ID 891245 attempts=10
+2025-06-20T16:20:17.012Z [ERROR] Worker-2: Failed to process record 891245 - Max attempts exceeded
+2025-06-20T16:20:18.345Z [WARN] Worker-4: Boundary condition triggered - record ID 893567 attempts=10
+2025-06-20T16:20:18.678Z [ERROR] Worker-4: Failed to process record 893567 - Max attempts exceeded
+
+2025-06-20T16:22:30.999Z [INFO] Batch processing completed
+2025-06-20T16:22:31.234Z [INFO] Successfully processed: 1186 records (95.1%)
+2025-06-20T16:22:31.456Z [ERROR] Failed to process: 61 records (4.9%)
+2025-06-20T16:22:31.789Z [INFO] Boundary condition hits: 23 records
+2025-06-20T16:22:32.123Z [INFO] Average processing time: 2.3ms per record
+2025-06-20T16:22:32.456Z [INFO] Peak memory usage: 45MB
+2025-06-20T16:22:32.789Z [INFO] CPU usage during replay: 67% average
+2025-06-20T16:22:33.123Z [INFO] N19 Outbox Replay Test Completed

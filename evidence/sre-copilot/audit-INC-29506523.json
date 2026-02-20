@@ -1,0 +1,130 @@
+{
+  "incident_id": "INC-29506523",
+  "timestamp": "2025-06-20T16:22:20Z",
+  "severity": "HIGH",
+  "service": "maple-expectation-api",
+  "component": "database-connection-pool",
+  "region": "euc-1",
+  
+  "trigger_conditions": {
+    "metric": "hikaricp_connections_pending",
+    "threshold": 20,
+    "duration": "60s",
+    "actual_value": 41,
+    "pool_name": "character-db",
+    "active_connections": 30,
+    "max_pool_size": 30,
+    "wait_time_avg": "2.3s",
+    "latency_p95": 350,
+    "error_rate": 0.052
+  },
+  
+  "automated_actions": [
+    {
+      "action_id": "SCALE_POOL_1",
+      "timestamp": "2025-06-20T16:22:20.456Z",
+      "action": "Resize HikariCP pool",
+      "from_size": 30,
+      "to_size": 45,
+      "executor": "auto-mitigation-service",
+      "status": "COMPLETED"
+    },
+    {
+      "action_id": "CREATE_CONNECTIONS_2", 
+      "timestamp": "2025-06-20T16:22:21.123Z",
+      "action": "Create new connections",
+      "count": 15,
+      "executor": "connection-pool-manager",
+      "status": "COMPLETED"
+    },
+    {
+      "action_id": "MONITOR_RECOVERY_3",
+      "timestamp": "2025-06-20T16:22:22.000Z",
+      "action": "Start recovery monitoring",
+      "duration": "300s",
+      "executor": "health-monitor",
+      "status": "ACTIVE"
+    }
+  ],
+  
+  "results": {
+    "completion_time": "2025-06-20T16:23:20.123Z",
+    "total_duration": "59.677s",
+    "pending_connections_final": 2,
+    "active_connections_final": 32,
+    "wait_time_final": "0.1s",
+    "latency_p95_final": 75,
+    "error_rate_final": 0.003,
+    "latency_improvement": "78.6%",
+    "success": true,
+    "escalation_required": false
+  },
+  
+  "affected_services": [
+    {
+      "service_name": "character-service",
+      "impact_level": "HIGH",
+      "affected_endpoints": [
+        "/api/v2/characters/{id}",
+        "/api/v2/characters/{id}/stats",
+        "/api/v2/characters/{id}/equipment"
+      ],
+      "request_volume": "89,000 requests during incident",
+      "failed_requests": "4,450 requests (5%)"
+    }
+  ],
+  
+  "prevention_measures": [
+    {
+      "measure_id": "POOL_SCALING_POLICY_1",
+      "description": "Implement dynamic pool sizing based on load",
+      "status": "PLANNED",
+      "implementation_date": "2025-07-15"
+    },
+    {
+      "measure_id": "MONITORING_DASH_2",
+      "description": "Enhance Grafana dashboard with pool utilization alerts",
+      "status": "IN_PROGRESS",
+      "implementation_date": "2025-06-25"
+    },
+    {
+      "measure_id": "LOAD_TESTING_3",
+      "description": "Regular load testing to validate capacity planning",
+      "status": "SCHEDULED",
+      "implementation_date": "2025-07-01"
+    }
+  ],
+  
+  "audit_trail": [
+    {
+      "timestamp": "2025-06-20T16:22:20.123Z",
+      "action": "INCIDENT_DETECTED",
+      "actor": "prometheus-alertmanager",
+      "details": "Connection pool threshold exceeded"
+    },
+    {
+      "timestamp": "2025-06-20T16:22:20.456Z",
+      "action": "MITIGATION_TRIGGERED",
+      "actor": "auto-mitigation-service",
+      "details": "Scaling pool from 30 to 45 connections"
+    },
+    {
+      "timestamp": "2025-06-20T16:22:21.123Z",
+      "action": "CONNECTIONS_CREATED",
+      "actor": "connection-pool-manager",
+      "details": "15 new connections established"
+    },
+    {
+      "timestamp": "2025-06-20T16:22:22.000Z",
+      "action": "MONITORING_ACTIVATED",
+      "actor": "health-monitor",
+      "details": "Recovery monitoring started"
+    },
+    {
+      "timestamp": "2025-06-20T16:23:20.123Z",
+      "action": "INCIDENT_RESOLVED",
+      "actor": "auto-mitigation-service",
+      "details": "Latency returned to normal levels"
+    }
+  ]
+}

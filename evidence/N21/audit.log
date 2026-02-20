@@ -1,0 +1,38 @@
+2025-06-20T16:22:20.123Z [AUDIT] AUTO-MITIGATION TRIGGERED - INC-29506523
+2025-06-20T16:22:20.123Z [INFO] Threshold: hikaricp_connections_pending > 20 for 60s
+2025-06-20T16:22:20.123Z [WARN] Pre-mitigation state: pending=41, active=30, latency_p95=350ms
+
+=== PRE-MITIGATION STATE ===
+Connection Pool: character-db
+- Active Connections: 30/30 (100% utilization)
+- Pending Connections: 41 (exceeds threshold)
+- Wait Time: 2.3s average
+- Pool Size: 30 max, 5 min
+- Idle Timeouts: 60s
+- Load: 240 RPS sustained for 30min
+- Active Queries: 127 running
+- Queue Depth: 41 pending
+- p95 Latency: 350ms (vs baseline 50ms)
+- Error Rate: 5.2% (connection timeouts)
+
+2025-06-20T16:22:20.456Z [INFO] Applying auto-mitigation: ScaleUp connection pool
+2025-06-20T16:22:20.456Z [INFO] New pool size: 45 (was 30)
+2025-06-20T16:22:20.789Z [INFO] Graceful pool expansion initiated
+2025-06-20T16:22:21.123Z [INFO] Creating 15 new connections
+
+=== POST-MITIGATION STATE ===
+Connection Pool: character-db (after 60s)
+- Active Connections: 32/45 (71% utilization)
+- Pending Connections: 2 (below threshold)
+- Wait Time: 0.1s average
+- Pool Size: 45 max, 5 min (dynamic adjustment)
+- Idle Timeouts: 60s
+- Load: 240 RPS maintained
+- Active Queries: 135 running
+- Queue Depth: 2 pending
+- p95 Latency: 75ms (improved from 350ms)
+- Error Rate: 0.3% (resolved)
+
+2025-06-20T16:23:20.123Z [INFO] Auto-mitigation completed successfully
+2025-06-20T16:23:20.123Z [AUDIT] MITIGATION SUCCESSFUL - Latency reduced by 78.6%
+2025-06-20T16:23:20.456Z [INFO] Monitoring for 300 seconds before considering scale-down

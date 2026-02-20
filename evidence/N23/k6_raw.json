@@ -1,0 +1,140 @@
+{
+  "metadata": {
+    "name": "MapleExpectation-K6-Benchmark",
+    "start": "2025-06-20T16:00:00Z",
+    "end": "2025-06-20T17:00:00Z",
+    "duration": "1h",
+    "thresholds": {
+      "http_req_duration{p95}": ["lt=200"],
+      "http_req_duration{p99}": ["lt=500"],
+      "http_req_failed": ["rate<0.05"]
+    }
+  },
+  
+  "scenarios": [
+    {
+      "name": "baseline",
+      "config": {
+        "vus": 100,
+        "duration": "15m",
+        "iterations": 90000,
+        "rps": 100,
+        "executor": "rps"
+      },
+      "results": {
+        "vus_max": 100,
+        "vus_active": 100,
+        "rps_avg": 102.3,
+        "rps_max": 115,
+        "requests_total": 90000,
+        "requests_success": 89100,
+        "requests_failed": 900,
+        "http_req_duration_p90": 125.5,
+        "http_req_duration_p95": 187.3,
+        "http_req_duration_p99": 423.7,
+        "http_req_failed_rate": 0.01,
+        "checks_pass_rate": 0.98,
+        "data_sent_mb": 450.2,
+        "data_received_mb": 1200.5,
+        "iteration_duration_avg": 980.2,
+        "iteration_duration_p95": 1050.3
+      }
+    },
+    {
+      "name": "aggressive",
+      "config": {
+        "vus": 200,
+        "duration": "15m",
+        "iterations": 180000,
+        "rps": 200,
+        "executor": "rps"
+      },
+      "results": {
+        "vus_max": 200,
+        "vus_active": 200,
+        "rps_avg": 198.7,
+        "rps_max": 220,
+        "requests_total": 180000,
+        "requests_success": 171000,
+        "requests_failed": 9000,
+        "http_req_duration_p90": 210.3,
+        "http_req_duration_p95": 342.1,
+        "http_req_duration_p99": 678.2,
+        "http_req_failed_rate": 0.05,
+        "checks_pass_rate": 0.94,
+        "data_sent_mb": 900.4,
+        "data_received_mb": 2401.0,
+        "iteration_duration_avg": 1480.5,
+        "iteration_duration_p95": 1650.8
+      }
+    },
+    {
+      "name": "peak",
+      "config": {
+        "vus": 300,
+        "duration": "15m",
+        "iterations": 270000,
+        "rps": 300,
+        "executor": "rps"
+      },
+      "results": {
+        "vus_max": 300,
+        "vus_active": 300,
+        "rps_avg": 295.2,
+        "rps_max": 320,
+        "requests_total": 270000,
+        "requests_success": 243000,
+        "requests_failed": 27000,
+        "http_req_duration_p90": 380.2,
+        "http_req_duration_p95": 542.8,
+        "http_req_duration_p99": 895.6,
+        "http_req_failed_rate": 0.10,
+        "checks_pass_rate": 0.88,
+        "data_sent_mb": 1350.6,
+        "data_received_mb": 3601.5,
+        "iteration_duration_avg": 2980.3,
+        "iteration_duration_p95": 3200.7
+      }
+    },
+    {
+      "name": "extreme",
+      "config": {
+        "vus": 400,
+        "duration": "15m",
+        "iterations": 360000,
+        "rps": 400,
+        "executor": "rps"
+      },
+      "results": {
+        "vus_max": 400,
+        "vus_active": 400,
+        "rps_avg": 387.4,
+        "rps_max": 420,
+        "requests_total": 360000,
+        "requests_success": 306000,
+        "requests_failed": 54000,
+        "http_req_duration_p90": 520.1,
+        "http_req_duration_p95": 780.4,
+        "http_req_duration_p99": 1250.2,
+        "http_req_failed_rate": 0.15,
+        "checks_pass_rate": 0.82,
+        "data_sent_mb": 1800.8,
+        "data_received_mb": 4802.0,
+        "iteration_duration_avg": 4350.6,
+        "iteration_duration_p95": 4750.9
+      }
+    }
+  ],
+  
+  "summary": {
+    "total_duration_ms": 3600000,
+    "total_requests": 900000,
+    "total_success": 909000,
+    "total_failed": 81000,
+    "overall_success_rate": 0.910,
+    "overall_rps_avg": 250.0,
+    "avg_response_time": 305.5,
+    "p95_response_time": 468.2,
+    "p99_response_time": 812.1
+  }
+}

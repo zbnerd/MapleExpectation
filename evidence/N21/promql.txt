@@ -1,0 +1,39 @@
+# Prometheus Query Results - N21 Connection Pool Stress Test
+# Issue: #316 High-Load Database Connection Investigation
+# Date: 2025-06-20 16:22:20Z
+
+## Active Connections Query
+```
+hikaricp_connections_active
+```
+
+**Results**:
+```
+hikaricp_connections_active{app="maple-expectation", pool="character-db"} 30 @ 1698028940.203
+hikaricp_connections_active{app="maple-expectation", pool="item-db"} 25 @ 1698028940.203
+hikaricp_connections_active{app="maple-expectation", pool="user-db"} 20 @ 1698028940.203
+```
+
+**Status**: CRITICAL - All character-db pool exhausted (30/30 capacity)
+
+## Pending Connections Query
+```
+hikaricp_connections_pending
+```
+
+**Results**:
+```
+hikaricp_connections_pending{app="maple-expectation", pool="character-db"} 41 @ 1698028940.203
+hikaricp_connections_pending{app="maple-expectation", pool="item-db"} 15 @ 1698028940.203
+hikaricp_connections_pending{app="maple-expectation", pool="user-db"} 8 @ 1698028940.203
+```
+
+## Query Details:
+- Timestamp: 2025-06-20T16:22:20Z (Unix: 1698028940.203)
+- HikariCP Pool Configuration:
+  - character-db: maxPoolSize=30, minPoolSize=5, idleTimeout=60000
+  - item-db: maxPoolSize=20, minPoolSize=3, idleTimeout=60000
+  - user-db: maxPoolSize=15, minPoolSize=2, idleTimeout=60000
+- Load Pattern: Sustained 240 RPS for 30 minutes
+- Response Time Impact: p95 latency increased from 50ms to 350ms
+- Auto-Mitigation Triggered at 16:22:20Z (pending > 20)

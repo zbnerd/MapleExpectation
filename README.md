@@ -15,6 +15,139 @@
 
 ---
 
+## AI SRE: Policy-Guarded Autonomous Loop
+
+> **"AI가 장애를 감지 → 분석 → 제안 → 실행 → 감사하는 자율 운영 루프"**
+
+MapleExpectation은 AI SRE(System Reliability Engineering)를 구현하여 **자동 장애 탐지, 분석, 완화**를 사전 정의된 정책 기반으로 수행합니다. 이 시스템은 인간의 감시 없이도 운영 환경에서 안전하게 동작하도록 설계되었습니다.
+
+### 동작 방식 (Monitoring → Detection → Analysis → Proposal → Execution → Audit)
+
+```
+┌─────────────────┐     ┌──────────────┐     ┌─────────────────┐
+│   Monitoring    │───▶│  Detection   │───▶│   Analysis     │
+│ • Prometheus    │     │ • Threshold   │     │ • AI SRE       │
+│ • Grafana Dash  │     │ • Z-score     │     │ • MitigationPlan│
+│ • 15s 주기      │     │ • Hybrid     │     │ • Confidence    │
+└─────────────────┘     └──────────────┘     └─────────────────┘
+         ↓                      ↓                      ↓
+┌─────────────────┐     ┌──────────────┐     ┌─────────────────┐
+│   Proposal      │◀─── │  De-dup      │◀─── │   Discord       │
+│ • Action A, B   │     │ • 1h memory  │     │ • Incident ID   │
+│ • Risk Level    │     │ • Signature  │     │ • Evidence     │
+│ • Rollback      │     │ • Track      │     │ • Action Button │
+└─────────────────┘     └──────────────┘     └─────────────────┘
+         ↓                      ↓                      ↓
+┌─────────────────┐     ┌──────────────┐     ┌─────────────────┐
+│   Execution     │───▶│   Audit      │───▶│   Verification  │
+│ • RBAC Check    │     │ • Pre/Post   │     │ • SLO Recovery  │
+│ • Whitelist     │     │ • Timestamp  │     │ • Auto-Rollback │
+│ • Precondition  │     │ • Evidence    │     │ • 2~5분 검증    │
+└─────────────────┘     └──────────────┘     └─────────────────┘
+```
+
+### Safety Rails: 4중 보호 장치
+
+AI SRE 시스템은 **4중 안전장치**를 통해 무분별한 자동 실행을 방지합니다:
+
+#### 1. **Policy Engine** - 실행 전 정책 검증
+```java
+// 모든 액션은 정책 엔진을 통과해야 실행됨
+policyEngine.validate(action, incidentContext);
+// 검증 항목: Risk Level, Precondition, RBAC, Bounds
+```
+
+#### 2. **Whitelist** - 허용된 액션만 실행 가능
+```yaml
+# application.yml
+app:
+  mitigation:
+    allowed-actions:
+      - "hikari-pool-size-adjustment"     # DB 커넥션 풀 크기 조정
+      - "admission-control-tuning"         # 입장 통제 강화
+      - "cache-ttl-extension"              # 캐시 TTL 연장
+      # 금지된 액션: 서비스 재시작, 데이터베이스 변경
+```
+
+#### 3. **RBAC (Role-Based Access Control)** - 역할 기반 권한
+```java
+// Discord 인터랙션은 @sre 역할만 허용
+@RequiresRole("sre")
+public ResponseEntity<?> executeAction(@RequestBody DiscordActionRequest request) {
+    // 실행: @sre 역할 보유자만 자동 완화 버튼 클릭 가능
+}
+```
+
+#### 4. **Audit Log** - 모든 실행 감사 추적
+```json
+{
+  "incidentId": "INC-29506523",
+  "actionId": "A1",
+  "preState": {"pool_size": 30, "pending": 41},
+  "postState": {"pool_size": 40, "pending": 5},
+  "executedBy": "@sre-bot",
+  "timestamp": "2026-02-06T16:22:20Z",
+  "evidence": "PromQL: hikaricp_connections_active=30/30"
+}
+```
+
+### 실제 인시던트 사례: INC-29506523
+
+**시간**: 2026-02-06 16:22:20
+**문제**: MySQL 커넥션 풀 100% 포화 → HikariCP 대기열 41개
+
+#### 📊 Detection (탐지)
+```
+Prometheus 쿼리 실행:
+- hikaricp_connections_active = 30/30 (100% utilized) ❌
+- hikaricp_connections_pending = 41 > 10 threshold ⚠️
+- Z-score = 4.2 > 3.0 threshold ❌
+→ AnomalyEvent 생성
+```
+
+#### 🤖 Analysis (분석)
+**AI 분 결과 (Z.ai GLM-4.7):**
+```
+Hypothesis 1 (HIGH): DB Pool saturation → connection leak detected
+Hypothesis 2 (MEDIUM): Sudden traffic spike → pool too small
+
+Proposed Action A1: Increase Hikari pool 30→40 [RISK: LOW]
+- Precondition: pending>10 for 2min AND p95>200ms ✅
+- Rollback: pool>35 for 5min OR error-rate>3% for 5min
+```
+
+#### 🔧 Action (실행)
+```bash
+Discord: /approve INC-29506523-A1
+RBAC Check: @sre role OK
+Whitelist: hikari-pool-size-adjustment OK
+Precondition: pending=41 > 10 ✅
+Execution: dataSource.setMaximumPoolSize(40)
+Result: pending=5 (87% 개선)
+```
+
+#### ✅ Result (결과)
+```
+이전 상태: p99=2.1s, error-rate=0.5%
+2분 후:    p99=180ms, error-rate=0.1%
+SLO 회복: ✅ 안정화
+```
+
+### 관련 이슈 & 문서
+
+| 이슈 | 내용 | 상태 |
+|------|------|------|
+| [#310](https://github.com/zbnerd/MapleExpectation/issues/310) | Redis Lock migration 계획 | ✅ Closed |
+| [#311](https://github.com/zbnerd/MapleExpectation/issues/311) | Discord Auto-Mitigation Safety Rails | ✅ Closed |
+| [#312](https://github.com/zbnerd/MapleExpectation/issues/312) | Signal Deduplication 구현 | ⏳ In Progress |
+| [#313](https://github.com/zbnerd/MapleExpectation/issues/313) | AI Response Validation 강화 | ⏳ In Progress |
+| [#316](https://github.com/zbnerd/MapleExpectation/issues/316) | Mitigation Audit 확장 | ⏳ In Progress |
+
+📄 [AI SRE 운영 증거 체계](docs/CLAIM_EVIDENCE_MATRIX.md)
+📄 [AI SRE 구현 가이드](docs/03_Technical_Guides/monitoring-copilot-implementation.md)
+
+---
+
 ## What This Is
 
 200~300KB JSON을 처리하는 연산 백엔드입니다. 일반 API보다 큰 페이로드를 안정적으로 처리하기 위해, **반복되는 인프라 패턴을 공통 모듈로 추출**하고, 각 모듈이 독립적으로 재사용 가능한 구조로 설계했습니다.
