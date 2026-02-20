@@ -421,7 +421,7 @@ curl "http://localhost:8080/api/v3/characters/강은호/expectation"
 | [**PORTFOLIO.md**](PORTFOLIO.md) | 포트폴리오 요약 (공통 모듈 + 트러블슈팅 + 성능) |
 | [Architecture](docs/00_Start_Here/architecture.md) | 시스템 아키텍처 다이어그램 |
 | [Chaos Tests](docs/02_Chaos_Engineering/06_Nightmare/) | N01-N24 Nightmare 시나리오 |
-| [ADRs](docs/01_ADR/) | Architecture Decision Records |
+| [ADRs](docs/adr/) | Architecture Decision Records |
 | [Refactoring Reports](docs/05_Reports/04_08_Refactor/) | 이슈 해결 및 리팩토링 기록 |
 | [N19 Recovery](docs/05_Reports/04_07_Recovery/RECOVERY_REPORT_N19_OUTBOX_REPLAY.md) | Outbox Replay 복구 리포트 |
 | [N21 Incident](docs/05_Reports/04_05_Incidents/INCIDENT_REPORT_N21_AUTO_MITIGATION.md) | 자동 완화 사고 리포트 |

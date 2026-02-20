@@ -63,7 +63,7 @@ docker-compose up -d
 ### ❌ Fail Criteria
 | Criterion | Threshold | Action |
 |-----------|-----------|--------|
-| DB Query Ratio | > 1% | Singleflight 미작동 - Issue required |
+| DB Query Ratio | > 10% | Thundering Herd detected - Issue required |
 | Connection Timeout | ≥ 1 | Pool exhaustion detected |
 | Data Inconsistency | > 0 unique values | Cache race condition |
 

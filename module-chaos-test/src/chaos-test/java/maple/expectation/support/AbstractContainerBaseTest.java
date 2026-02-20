@@ -1,14 +1,8 @@
 package maple.expectation.support;
 
-import java.sql.Connection;
-import java.sql.Statement;
-import javax.sql.DataSource;
 import maple.expectation.config.ChaosTestConfig;
-import org.junit.jupiter.api.BeforeEach;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;

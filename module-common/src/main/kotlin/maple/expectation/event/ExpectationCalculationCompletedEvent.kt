@@ -24,7 +24,6 @@ package maple.expectation.event
 data class ExpectationCalculationCompletedEvent(
     var taskId: String? = null,
     var userIgn: String? = null,
-    var messageId: String? = null, // Redis Stream message ID for idempotency
     var characterOcid: String? = null,
     var characterClass: String? = null,
     var characterLevel: Int? = null,
@@ -41,7 +40,6 @@ data class ExpectationCalculationCompletedEvent(
     class Builder {
         private var taskId: String? = null
         private var userIgn: String? = null
-        private var messageId: String? = null
         private var characterOcid: String? = null
         private var characterClass: String? = null
         private var characterLevel: Int? = null
@@ -52,7 +50,6 @@ data class ExpectationCalculationCompletedEvent(
 
         fun taskId(taskId: String?) = apply { this.taskId = taskId }
         fun userIgn(userIgn: String?) = apply { this.userIgn = userIgn }
-        fun messageId(messageId: String?) = apply { this.messageId = messageId }
         fun characterOcid(characterOcid: String?) = apply { this.characterOcid = characterOcid }
         fun characterClass(characterClass: String?) = apply { this.characterClass = characterClass }
         fun characterLevel(characterLevel: Int?) = apply { this.characterLevel = characterLevel }
@@ -64,7 +61,6 @@ data class ExpectationCalculationCompletedEvent(
         fun build(): ExpectationCalculationCompletedEvent = ExpectationCalculationCompletedEvent(
             taskId = taskId,
             userIgn = userIgn,
-            messageId = messageId,
             characterOcid = characterOcid,
             characterClass = characterClass,
             characterLevel = characterLevel,

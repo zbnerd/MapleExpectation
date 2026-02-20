@@ -97,6 +97,7 @@ mysql -u root -p maple_expectation -e "SELECT status, COUNT(*) FROM nexon_api_ou
 - Test Class: [NexonApiOutboxNightmareTest.java](../../../../../module-chaos-test/src/chaos-test/java/maple/expectation/chaos/nightmare/NexonApiOutboxNightmareTest.java)
 - Outbox Entity: [NexonApiOutbox.java](../../../../../module-infra/src/main/java/maple/expectation/domain/v2/NexonApiOutbox.java)
 - Scheduler: [NexonApiOutboxScheduler.java](../../../../../module-app/src/main/java/maple/expectation/scheduler/NexonApiOutboxScheduler.java)
+- Implementation: [N19-outbox-fallback-implementation.md](../Results/N19-outbox-fallback-implementation.md)
 
 ### ❌ Fail If Wrong
 This test is invalid if:

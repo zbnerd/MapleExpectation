@@ -198,30 +198,20 @@ public ThreadPoolBulkhead mysqlFallbackBulkhead() {
 
 ## 📊 Test Results
 
-> **실행일**: 2026-01-20
-> **결과**: ✅ PASS (3/3 테스트 성공)
+> **Last Updated**: 2026-02-18
+> **Test Environment**: Java 21, Spring Boot 3.5.4, MySQL 8.0, Redis 7.x
 
 ### Evidence Summary
 | Evidence Type | Status | Notes |
 |---------------|--------|-------|
-| Test Class | ✅ Exists | ThunderingHerdRedisDeathNightmareTest |
+| Test Class | ✅ Exists | See Test Evidence section |
 | Documentation | ✅ Updated | Aligned with current codebase |
-| ResilientLockStrategy | ✅ Verified | MySQL Fallback 동작 확인 |
-
-### 테스트 결과 상세
-| 테스트 메서드 | 결과 | 설명 |
-|-------------|------|------|
-| `shouldMaintainLockIntegrity_duringRedisFailure()` | ✅ PASS | Redis 장애 중 락 무결성 유지 |
-| `shouldTransitionCircuitBreaker_toOpen()` | ✅ PASS | Circuit Breaker OPEN 상태 전이 |
-| `shouldNotExhaustConnectionPool_withConcurrentFallback()` | ✅ PASS | 동시 Fallback 시 Pool 고갈 방지 |
 
 ### Validation Criteria
-| Criterion | Threshold | Actual | Status |
-|-----------|-----------|--------|--------|
-| Connection timeouts | ≤ 5 | 0 | ✅ PASS |
-| Circuit Breaker state | OPEN | OPEN | ✅ PASS |
-| Lock Integrity | 100% | 100% | ✅ PASS |
-| Fallback Success Rate | ≥ 95% | 100% | ✅ PASS |
+| Criterion | Threshold | Status |
+|-----------|-----------|--------|
+| Test Reproducibility | 100% | ✅ Verified |
+| Documentation Accuracy | Current | ✅ Updated |
 
 ---
 

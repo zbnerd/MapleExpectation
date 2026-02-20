@@ -2,7 +2,6 @@ package maple.expectation.service.v5.worker;
 
 import io.micrometer.core.instrument.Counter;
 import java.time.Instant;
-import java.util.concurrent.atomic.AtomicInteger;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.dto.v4.EquipmentExpectationResponseV4;
 import maple.expectation.infrastructure.executor.CheckedLogicExecutor;
@@ -79,14 +78,11 @@ public class ExpectationCalculationWorker implements Runnable {
     ACTIVE_WORKERS.incrementAndGet();
     log.info("[V5-Worker] Calculation worker started (active: {})", ACTIVE_WORKERS.get());
 
-    try {
-      while (!Thread.currentThread().isInterrupted()) {
-        processNextTaskWithRecovery();
-      }
-    } finally {
-      ACTIVE_WORKERS.decrementAndGet();
-      log.info("[V5-Worker] Calculation worker stopped (active: {})", ACTIVE_WORKERS.get());
+    while (!Thread.currentThread().isInterrupted()) {
+      processNextTaskWithRecovery();
     }
+
+    log.info("[V5-Worker] Calculation worker stopped");
   }
 
   /**

@@ -406,23 +406,8 @@ public ResponseEntity<ErrorResponse> handleRejected(RejectedExecutionException e
 
 ## 📊 Test Results
 
-> **실행일**: 2026-01-20
-> **결과**: ✅ PASS (운영 환경은 AbortPolicy 사용)
-
-### 테스트 결과 상세
-| 테스트 시나리오 | 결과 | 설명 |
-|-------------|------|------|
-| expectationComputeExecutor AbortPolicy | ✅ PASS | 50개 작업 거부, 블로킹 없음 |
-| alertTaskExecutor LOGGING_ABORT_POLICY | ✅ PASS | 샘플링 로그 + Future 완료 보장 |
-| Future 완료 보장 검증 | ✅ PASS | pending Future = 0 |
-
-### Validation Criteria
-| Criterion | Threshold | Actual | Status |
-|-----------|-----------|--------|--------|
-| 작업 제출 시간 | < 500ms | 45ms | ✅ PASS |
-| CallerRunsPolicy 발동 | 0회 | 0회 | ✅ PASS |
-| RejectedExecutionException | 발생 | 발생 | ✅ PASS |
-| Future 완료율 | 100% | 100% | ✅ PASS |
+> **실행일**: 2026-01-19
+> **결과**: 테스트 완료 (상세 결과는 결과 파일 참조)
 
 ### Evidence Mapping Table
 

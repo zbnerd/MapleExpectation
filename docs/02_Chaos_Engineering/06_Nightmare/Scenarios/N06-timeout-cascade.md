@@ -100,6 +100,7 @@ docker system prune -f
 
 ### 🔗 Evidence Links
 - Test Class: [N06TimeoutCascadeNightmareTest.java](../../../../module-chaos-test/src/chaos-test/java/maple/expectation/chaos/nightmare/N06TimeoutCascadeNightmareTest.java)
+- Test Results: [N06-timeout-cascade-result.md](../Results/N06-timeout-cascade-result.md)
 - Related Issue: #[P1][Nightmare-06] Timeout Hierarchy Mismatch
 
 ---

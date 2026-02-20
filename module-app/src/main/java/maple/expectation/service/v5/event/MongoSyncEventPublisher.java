@@ -133,7 +133,7 @@ public class MongoSyncEventPublisher implements MongoSyncEventPublisherInterface
             () -> objectMapper.writeValueAsString(event.getPayload()),
             "{}",
             TaskContext.of("MongoSyncPublisher", "SerializePayload", event.getEventId()));
-    map.put("data", payloadJson); // instead of payload
+    map.put("payload", payloadJson);
 
     return map;
   }
