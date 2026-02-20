@@ -2,6 +2,7 @@ package maple.expectation.service.v5.worker;
 
 import io.micrometer.core.instrument.Counter;
 import java.time.Instant;
+import java.util.concurrent.atomic.AtomicInteger;
 import lombok.extern.slf4j.Slf4j;
 import maple.expectation.dto.v4.EquipmentExpectationResponseV4;
 import maple.expectation.infrastructure.executor.CheckedLogicExecutor;
@@ -35,6 +36,18 @@ import org.springframework.stereotype.Component;
 @Component
 public class ExpectationCalculationWorker implements Runnable {
 
+  // ADR-080 Fix 2: Track active workers for startup verification
+  private static final AtomicInteger ACTIVE_WORKERS = new AtomicInteger(0);
+
+  /**
+   * Get the current number of active workers (for monitoring/verification).
+   *
+   * @return active worker count
+   */
+  public static int getActiveWorkerCount() {
+    return ACTIVE_WORKERS.get();
+  }
+
   private final PriorityCalculationQueue queue;
   private final EquipmentExpectationServiceV4 expectationService;
   private final LogicExecutor executor;
@@ -62,13 +75,18 @@ public class ExpectationCalculationWorker implements Runnable {
 
   @Override
   public void run() {
-    log.info("[V5-Worker] Calculation worker started");
+    // ADR-080 Fix 2: Track active worker count
+    ACTIVE_WORKERS.incrementAndGet();
+    log.info("[V5-Worker] Calculation worker started (active: {})", ACTIVE_WORKERS.get());
 
-    while (!Thread.currentThread().isInterrupted()) {
-      processNextTaskWithRecovery();
+    try {
+      while (!Thread.currentThread().isInterrupted()) {
+        processNextTaskWithRecovery();
+      }
+    } finally {
+      ACTIVE_WORKERS.decrementAndGet();
+      log.info("[V5-Worker] Calculation worker stopped (active: {})", ACTIVE_WORKERS.get());
     }
-
-    log.info("[V5-Worker] Calculation worker stopped");
   }
 
   /**

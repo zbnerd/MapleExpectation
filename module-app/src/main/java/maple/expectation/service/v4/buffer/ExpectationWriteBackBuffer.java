@@ -286,7 +286,16 @@ public class ExpectationWriteBackBuffer {
   public boolean awaitPendingOffers(Duration timeout) {
     return executor.executeOrDefault(
         () -> {
-          int phase = shutdownPhaser.arrive();
+          // V5 CQRS Fix: Phaser가 초기화되지 않은 경우 안전하게 처리
+          // 애플리케이션 시작 중 shutdown이 호출될 수 있음 (V5Config @PostConstruct 이전)
+          if (shutdownPhaser.getRegisteredParties() == 0) {
+            log.debug("[Buffer] No registered parties in shutdown phaser, skipping await");
+            return true;
+          }
+
+          // 현재 phase를 가져와서 등록된 모든 offer 작업이 완료될 때까지 대기
+          // arrive()를 호출하면 안 됨 - 이 메서드는 등록된 party가 아님
+          int phase = shutdownPhaser.getPhase();
           shutdownPhaser.awaitAdvanceInterruptibly(
               phase, timeout.toMillis(), TimeUnit.MILLISECONDS);
           return true;

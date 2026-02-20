@@ -15,7 +15,11 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Component
-@ConditionalOnProperty(name = "v5.query-side-enabled", havingValue = "false", matchIfMissing = true)
+@ConditionalOnProperty(
+    prefix = "app.v5",
+    name = "query-side-enabled",
+    havingValue = "false",
+    matchIfMissing = true)
 public class MongoSyncEventPublisherStub implements MongoSyncEventPublisherInterface {
 
   private final LogicExecutor executor;

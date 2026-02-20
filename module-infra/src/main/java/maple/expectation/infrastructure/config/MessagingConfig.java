@@ -1,5 +1,6 @@
 package maple.expectation.infrastructure.config;
 
+import maple.expectation.common.resource.ResourceLoader;
 import maple.expectation.core.port.out.MessageQueue;
 import maple.expectation.core.port.out.MessageTopic;
 import maple.expectation.infrastructure.messaging.RedisMessageQueue;
@@ -40,5 +41,14 @@ public class MessagingConfig {
   @Bean("integrationEventQueue")
   public MessageQueue<String> integrationEventQueue(RedissonClient redissonClient) {
     return new RedisMessageQueue<>(redissonClient, "integration_event_queue");
+  }
+
+  /**
+   * ResourceLoader bean for loading classpath resources. Required by TwoBucketRateLimiter for
+   * loading Lua scripts.
+   */
+  @Bean
+  public ResourceLoader resourceLoader() {
+    return new ResourceLoader();
   }
 }

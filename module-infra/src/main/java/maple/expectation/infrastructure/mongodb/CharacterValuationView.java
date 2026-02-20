@@ -48,6 +48,9 @@ public class CharacterValuationView {
 
   @Indexed private String userIgn;
 
+  @Indexed(unique = true)
+  private String messageId;
+
   @Indexed private String characterOcid;
 
   private String characterClass;
@@ -60,7 +63,7 @@ public class CharacterValuationView {
 
   private Long version;
 
-  @Indexed private Integer totalExpectedCost;
+  @Indexed private Long totalExpectedCost;
 
   @JsonIgnore private Integer maxPresetNo;
 

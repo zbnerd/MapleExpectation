@@ -87,7 +87,7 @@ subprojects {
 
 	// Show ALL compilation errors at once (not just first 100)
 	tasks.withType(JavaCompile).configureEach {
-		options.compilerArgs += ['-Xmaxerrs', '1000', '-Xmaxwarns', '1000']
+		options.compilerArgs += ['-Xmaxerrs', '1000', '-Xmaxwarns', '1000', '-parameters']
 		options.fork = true
 		options.forkOptions.jvmArgs += ['-Xmx2g']
 	}
@@ -106,6 +106,7 @@ subprojects {
 		testImplementation "org.testcontainers:testcontainers"
 		testImplementation "org.testcontainers:junit-jupiter"
 		testImplementation "org.testcontainers:mysql"
+	testImplementation "org.testcontainers:mongodb"
 		testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
 		// ArchUnit

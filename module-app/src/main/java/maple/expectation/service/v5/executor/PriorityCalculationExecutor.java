@@ -57,6 +57,7 @@ public class PriorityCalculationExecutor {
   private final int workerPoolSize;
   private final int shutdownTimeoutSeconds;
   private final int highPriorityWorkerRatio; // P1 FIX: Ratio for HIGH priority pool
+  private final long verifyDelayMs; // ADR-080: Configurable worker startup verification delay
 
   // P1 FIX: Separate pools for HIGH and LOW priority to prevent starvation
   private ExecutorService highPriorityPool; // Fast Lane for user requests
@@ -70,7 +71,8 @@ public class PriorityCalculationExecutor {
       @Qualifier("checkedLogicExecutor") CheckedLogicExecutor checkedExecutor,
       @Value("${app.v5.worker-pool-size:4}") int workerPoolSize,
       @Value("${app.v5.shutdown-timeout-seconds:30}") int shutdownTimeoutSeconds,
-      @Value("${app.v5.high-priority-worker-ratio:0.5}") double highPriorityWorkerRatio) {
+      @Value("${app.v5.high-priority-worker-ratio:0.5}") double highPriorityWorkerRatio,
+      @Value("${app.v5.worker.startup.verifyDelayMs:100}") long verifyDelayMs) {
     this.queue = queue;
     this.worker = worker;
     this.executor = executor;
@@ -78,6 +80,7 @@ public class PriorityCalculationExecutor {
     this.workerPoolSize = workerPoolSize;
     this.shutdownTimeoutSeconds = shutdownTimeoutSeconds;
     this.highPriorityWorkerRatio = (int) (highPriorityWorkerRatio * 100); // 50% by default
+    this.verifyDelayMs = verifyDelayMs;
   }
 
   /**
@@ -114,6 +117,9 @@ public class PriorityCalculationExecutor {
           for (int i = 0; i < lowPriorityCount; i++) {
             lowPriorityPool.submit(worker);
           }
+
+          // ADR-080 Fix 1: Verify workers have started (non-blocking)
+          verifyWorkersStarted(workerPoolSize);
 
           running = true;
           log.info(
@@ -251,5 +257,48 @@ public class PriorityCalculationExecutor {
   /** Check if executor is running */
   public boolean isRunning() {
     return running;
+  }
+
+  /**
+   * ADR-080 Fix 1: Get the current number of active workers.
+   *
+   * <p>This provides visibility into worker pool health for monitoring and startup verification.
+   *
+   * @return active worker count from ExpectationCalculationWorker
+   */
+  public int getActiveWorkerCount() {
+    return ExpectationCalculationWorker.getActiveWorkerCount();
+  }
+
+  /**
+   * ADR-080 Fix 1: Verify workers have started after submission.
+   *
+   * <p>Non-blocking verification that logs a warning if not all workers are active. This helps
+   * detect startup race conditions without blocking initialization.
+   *
+   * @param expectedCount expected number of active workers
+   */
+  private void verifyWorkersStarted(int expectedCount) {
+    executor.executeVoid(
+        () -> {
+          // ADR-080: Configurable delay to allow workers to enter run loop
+          try {
+            TimeUnit.MILLISECONDS.sleep(verifyDelayMs);
+          } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return;
+          }
+
+          int activeWorkers = getActiveWorkerCount();
+          if (activeWorkers < expectedCount) {
+            log.warn(
+                "[V5-Executor] Only {}/{} workers active after startup (some may still be starting)",
+                activeWorkers,
+                expectedCount);
+          } else {
+            log.info("[V5-Executor] All {} workers verified active", activeWorkers);
+          }
+        },
+        TaskContext.of("V5-Executor", "VerifyWorkersStarted"));
   }
 }

@@ -16,10 +16,11 @@ import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.infrastructure.mongodb.CharacterValuationView;
 import maple.expectation.infrastructure.mongodb.CharacterViewQueryService;
 import maple.expectation.service.v5.event.ViewTransformer;
+import maple.expectation.service.v5.worker.stream.StreamInitializationStrategy;
+import maple.expectation.service.v5.worker.stream.StreamStrategyFactory;
 import org.redisson.api.RStream;
 import org.redisson.api.RedissonClient;
 import org.redisson.api.StreamMessageId;
-import org.redisson.api.stream.StreamCreateGroupArgs;
 import org.redisson.api.stream.StreamReadGroupArgs;
 import org.redisson.client.codec.StringCodec;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -108,7 +109,7 @@ public class MongoDBSyncWorker implements Runnable {
           errorCounter.increment();
         });
     workerThread.start();
-    log.info("[MongoDBSyncWorker] Worker started");
+    // ADR-080 Fix 3: Removed misleading log - run() will log when it actually starts
   }
 
   @PreDestroy
@@ -156,44 +157,23 @@ public class MongoDBSyncWorker implements Runnable {
           RStream<String, String> stream =
               redissonClient.getStream(STREAM_KEY, StringCodec.INSTANCE);
 
-          // Create consumer group if not exists
-          if (!stream.isExists()) {
-            stream.createGroup(StreamCreateGroupArgs.name(CONSUMER_GROUP).makeStream());
-            log.info("[MongoDBSyncWorker] Created consumer group: {}", CONSUMER_GROUP);
-            return;
-          }
+          // Use Strategy Pattern to determine appropriate initialization
+          StreamStrategyFactory factory = new StreamStrategyFactory(executor);
+          StreamInitializationStrategy strategy = factory.determineStrategy(stream);
 
-          // Stream exists, check if group exists
-          ensureConsumerGroupExists(stream);
+          log.info(
+              "[MongoDBSyncWorker] Stream initialization strategy: {}", strategy.getDescription());
+
+          strategy.initialize(stream);
         },
         context);
   }
 
-  /** Ensure consumer group exists, creating if necessary. */
-  private void ensureConsumerGroupExists(RStream<String, String> stream) {
-    executor.executeOrCatch(
-        () -> {
-          stream.readGroup(
-              CONSUMER_GROUP, CONSUMER_NAME, StreamReadGroupArgs.neverDelivered().count(1));
-          return null;
-        },
-        e -> {
-          if (e.getMessage() != null && e.getMessage().contains("NOGROUP")) {
-            executor.executeVoid(
-                () -> {
-                  stream.createGroup(StreamCreateGroupArgs.name(CONSUMER_GROUP));
-                  log.info("[MongoDBSyncWorker] Consumer group created: {}", CONSUMER_GROUP);
-                },
-                TaskContext.of("MongoDBSyncWorker", "CreateGroup"));
-          }
-          return null;
-        },
-        TaskContext.of("MongoDBSyncWorker", "CheckGroup"));
-  }
-
   private void processNextBatch() {
+    log.info("[MongoDBSyncWorker] DEBUG: processNextBatch ENTERED");
     executor.executeOrCatch(
         () -> {
+          log.info("[MongoDBSyncWorker] DEBUG: Inside executeOrCatch lambda");
           RStream<String, String> stream =
               redissonClient.getStream(STREAM_KEY, StringCodec.INSTANCE);
 
@@ -204,9 +184,17 @@ public class MongoDBSyncWorker implements Runnable {
                   CONSUMER_NAME,
                   StreamReadGroupArgs.neverDelivered().count(1).timeout(POLL_TIMEOUT));
 
+          log.info(
+              "[MongoDBSyncWorker] DEBUG: readGroup returned messages={}, isEmpty={}",
+              messages == null ? "null" : "Map(size=" + messages.size() + ")",
+              messages == null || messages.isEmpty());
+
           if (messages == null || messages.isEmpty()) {
+            log.info("[MongoDBSyncWorker] DEBUG: messages empty/null, returning");
             return null;
           }
+
+          log.info("[MongoDBSyncWorker] Received {} messages from stream", messages.size());
 
           for (Map.Entry<StreamMessageId, Map<String, String>> entry : messages.entrySet()) {
             processSingleMessage(stream, entry.getKey(), entry.getValue());
@@ -224,6 +212,7 @@ public class MongoDBSyncWorker implements Runnable {
   /** Process a single message with ACK on success. */
   private void processSingleMessage(
       RStream<String, String> stream, StreamMessageId messageId, Map<String, String> data) {
+    log.info("[MongoDBSyncWorker] Processing message: {}, keys: {}", messageId, data.keySet());
     executor.executeOrCatch(
         () -> {
           processMessage(messageId, data);
@@ -247,10 +236,12 @@ public class MongoDBSyncWorker implements Runnable {
 
     executor.executeVoid(
         () -> {
-          // Deserialize IntegrationEvent wrapper
-          String payloadJson = data.get("payload");
+          // StringCodec ensures keys are not truncated
+          String payloadJson = data.get("data");
+
           if (payloadJson == null) {
-            log.warn("[MongoDBSyncWorker] No payload in message");
+            log.warn(
+                "[MongoDBSyncWorker] No payload in message. Available keys: {}", data.keySet());
             return;
           }
 
@@ -271,14 +262,18 @@ public class MongoDBSyncWorker implements Runnable {
             throw new JsonDeserializationException("Failed to deserialize event", e);
           }
 
+          // Set messageId from Redis Stream for idempotency
+          event.setMessageId(messageId.toString());
+
           // Delegate transformation to ViewTransformer (SRP)
           CharacterValuationView view = viewTransformer.toDocument(event);
           queryService.upsert(view);
 
           log.debug(
-              "[MongoDBSyncWorker] Synced to MongoDB: userIgn={}, ocid={}",
+              "[MongoDBSyncWorker] Synced to MongoDB: userIgn={}, ocid={}, messageId={}",
               event.getUserIgn(),
-              event.getCharacterOcid());
+              event.getCharacterOcid(),
+              messageId);
         },
         TaskContext.of("MongoDBSyncWorker", "DeserializeAndSync", messageId.toString()),
         e -> new InternalSystemException("메시지 역직렬화 실패: " + messageId, e));

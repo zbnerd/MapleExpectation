@@ -224,12 +224,19 @@ public class ExpectationCacheCoordinator {
    * @return Base64 String (압축된 데이터)
    */
   private String convertCachedValueToBase64(Object cachedValue, String userIgn) {
-    if (cachedValue instanceof String base64) {
+    // Unwrap SimpleValueWrapper (Spring Cache wrapper)
+    Object unwrappedValue = cachedValue;
+    if (cachedValue instanceof org.springframework.cache.support.SimpleValueWrapper wrapper) {
+      unwrappedValue = wrapper.get();
+      log.debug("[V4] Unwrapped SimpleValueWrapper for: {}", userIgn);
+    }
+
+    if (unwrappedValue instanceof String base64) {
       log.debug("[V4] Cache HIT (New Base64 format): {}", userIgn);
       return base64;
     }
 
-    if (cachedValue instanceof byte[] oldGzipBytes) {
+    if (unwrappedValue instanceof byte[] oldGzipBytes) {
       log.warn(
           "[V4] Legacy byte[] format detected - migrating to Base64: {} ({}KB)",
           userIgn,
@@ -241,7 +248,11 @@ public class ExpectationCacheCoordinator {
       return migratedBase64;
     }
 
-    log.error("[V4] Unknown cache value type: {} for userIgn={}", cachedValue.getClass(), userIgn);
+    log.error(
+        "[V4] Unknown cache value type: {} (unwrapped: {}) for userIgn={}",
+        cachedValue.getClass(),
+        unwrappedValue != null ? unwrappedValue.getClass() : "null",
+        userIgn);
     throw new EquipmentDataProcessingException(
         String.format("Invalid cache value type: %s", cachedValue.getClass()));
   }

@@ -126,12 +126,18 @@ public class ExpectationBatchShutdownHandler implements SmartLifecycle {
           log.info("[ExpectationShutdown] Phase 1 complete - new offers blocked");
 
           // Phase 2: 진행 중인 offer 완료 대기
-          Duration awaitTimeout = buffer.getShutdownAwaitTimeout();
-          boolean allCompleted = buffer.awaitPendingOffers(awaitTimeout);
-          if (allCompleted) {
-            log.info("[ExpectationShutdown] Phase 2 complete - all in-flight offers completed");
+          // V5 CQRS Fix: 진행 중인 offer가 없는 경우 안전하게 스킵
+          if (buffer.getPendingCount() == 0) {
+            log.info("[ExpectationShutdown] Phase 2 skipped - no pending offers");
           } else {
-            log.warn("[ExpectationShutdown] Phase 2 timeout - some offers may not have completed");
+            Duration awaitTimeout = buffer.getShutdownAwaitTimeout();
+            boolean allCompleted = buffer.awaitPendingOffers(awaitTimeout);
+            if (allCompleted) {
+              log.info("[ExpectationShutdown] Phase 2 complete - all in-flight offers completed");
+            } else {
+              log.warn(
+                  "[ExpectationShutdown] Phase 2 timeout - some offers may not have completed");
+            }
           }
 
           // Phase 3: 버퍼 완전 drain

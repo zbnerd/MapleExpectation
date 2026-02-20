@@ -7,6 +7,9 @@ import lombok.extern.slf4j.Slf4j;
 import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 /**
@@ -53,13 +56,29 @@ public class CharacterViewQueryService {
         context);
   }
 
-  /** Upsert character valuation view (insert or update) */
+  /** Upsert character valuation view (insert or update) with idempotency */
   public void upsert(CharacterValuationView view) {
     TaskContext context = TaskContext.of("MongoQuery", "Upsert", view.getUserIgn());
 
     executor.executeVoid(
         () -> {
-          repository.save(view);
+          // Idempotent upsert using messageId as unique key
+          Query query = new Query(Criteria.where("messageId").is(view.getMessageId()));
+          Update update =
+              new Update()
+                  .set("userIgn", view.getUserIgn())
+                  .set("characterOcid", view.getCharacterOcid())
+                  .set("characterClass", view.getCharacterClass())
+                  .set("characterLevel", view.getCharacterLevel())
+                  .set("totalExpectedCost", view.getTotalExpectedCost())
+                  .set("maxPresetNo", view.getMaxPresetNo())
+                  .set("calculatedAt", view.getCalculatedAt())
+                  .set("lastApiSyncAt", view.getLastApiSyncAt())
+                  .set("version", view.getVersion())
+                  .set("fromCache", view.getFromCache())
+                  .set("presets", view.getPresets());
+
+          mongoTemplate.upsert(query, update, CharacterValuationView.class);
         },
         context);
   }

@@ -85,10 +85,12 @@ public class ViewTransformer {
     return CharacterValuationView.builder()
         .id(deterministicId)
         .userIgn(event.getUserIgn())
+        .messageId(event.getMessageId())
         .characterOcid(event.getCharacterOcid())
         .characterClass(event.getCharacterClass())
         .characterLevel(event.getCharacterLevel())
-        .totalExpectedCost(parseSafely(() -> Integer.parseInt(event.getTotalExpectedCost()), 0))
+        .totalExpectedCost(
+            parseSafely(() -> Long.parseLong(removeDecimal(event.getTotalExpectedCost())), 0L))
         .maxPresetNo(event.getMaxPresetNo())
         .calculatedAt(parseInstant(event.getCalculatedAt()))
         .lastApiSyncAt(Instant.now())
@@ -200,6 +202,20 @@ public class ViewTransformer {
   }
 
   /**
+   * Remove decimal point from numeric string.
+   *
+   * <p>e.g., "123.45" -> "12345", "100" -> "100"
+   *
+   * <p>This handles cases where JSON contains decimal notation for integer values.
+   */
+  private String removeDecimal(String numericStr) {
+    if (numericStr == null || numericStr.isBlank()) {
+      return "0";
+    }
+    return numericStr.replace(".", "");
+  }
+
+  /**
    * Convert BigDecimal to Long (mesos units).
    *
    * <p>Null-safe conversion.
@@ -243,10 +259,11 @@ public class ViewTransformer {
     return CharacterValuationView.builder()
         .id(buildDeterministicId(event.getUserIgn(), event.getTaskId()))
         .userIgn(event.getUserIgn())
+        .messageId(event.getMessageId())
         .characterOcid(event.getCharacterOcid())
         .characterClass(event.getCharacterClass())
         .characterLevel(event.getCharacterLevel())
-        .totalExpectedCost(0)
+        .totalExpectedCost(0L)
         .maxPresetNo(event.getMaxPresetNo())
         .calculatedAt(Instant.EPOCH)
         .lastApiSyncAt(Instant.now())

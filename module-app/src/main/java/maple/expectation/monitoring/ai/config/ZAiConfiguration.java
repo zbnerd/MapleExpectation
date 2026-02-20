@@ -33,13 +33,12 @@ import org.springframework.context.annotation.Configuration;
  */
 @Slf4j
 @Configuration
-@ConditionalOnProperty(name = "langchain4j.glm-4.chat-model.api-key")
 public class ZAiConfiguration {
 
   @Value("${langchain4j.glm-4.chat-model.base-url}")
   private String baseUrl;
 
-  @Value("${langchain4j.glm-4.chat-model.api-key:}")
+  @Value("${langchain4j.glm-4.chat-model.api-key:#{null}}")
   private String apiKey;
 
   @Value("${langchain4j.glm-4.chat-model.model-name:glm-4.7}")
@@ -66,6 +65,11 @@ public class ZAiConfiguration {
   @Bean
   @ConditionalOnProperty(name = "langchain4j.glm-4.chat-model.api-key")
   public ChatLanguageModel zAiChatModel() {
+    if (apiKey == null || apiKey.trim().isEmpty()) {
+      log.warn("[Z.ai] API 키가 미설정이어서 빈을 반환합니다.");
+      return null;
+    }
+
     log.info("[Z.ai] GLM-4.7 모델 초기화: baseUrl={}, model={}", baseUrl, modelName);
 
     return OpenAiChatModel.builder()

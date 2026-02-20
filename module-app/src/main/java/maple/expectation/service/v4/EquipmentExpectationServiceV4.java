@@ -20,6 +20,7 @@ import maple.expectation.infrastructure.executor.LogicExecutor;
 import maple.expectation.infrastructure.executor.TaskContext;
 import maple.expectation.infrastructure.provider.EquipmentDataProvider;
 import maple.expectation.parser.EquipmentStreamingParser;
+import maple.expectation.service.v2.GameCharacterService;
 import maple.expectation.service.v2.facade.GameCharacterFacade;
 import maple.expectation.service.v2.starforce.StarforceLookupTable;
 import maple.expectation.service.v4.cache.ExpectationCacheCoordinator;
@@ -55,6 +56,7 @@ public class EquipmentExpectationServiceV4 {
   private static final long DATA_LOAD_TIMEOUT_SECONDS = 10L;
 
   private final GameCharacterFacade gameCharacterFacade;
+  private final GameCharacterService gameCharacterService;
   private final EquipmentDataProvider equipmentProvider;
   private final EquipmentStreamingParser streamingParser;
   private final PresetCalculationHelper presetHelper;
@@ -68,6 +70,7 @@ public class EquipmentExpectationServiceV4 {
 
   public EquipmentExpectationServiceV4(
       GameCharacterFacade gameCharacterFacade,
+      GameCharacterService gameCharacterService,
       EquipmentDataProvider equipmentProvider,
       EquipmentStreamingParser streamingParser,
       PresetCalculationHelper presetHelper,
@@ -79,6 +82,7 @@ public class EquipmentExpectationServiceV4 {
       ExpectationPersistenceService persistenceService,
       ObjectProvider<EquipmentExpectationServiceV4> selfProvider) {
     this.gameCharacterFacade = gameCharacterFacade;
+    this.gameCharacterService = gameCharacterService;
     this.equipmentProvider = equipmentProvider;
     this.streamingParser = streamingParser;
     this.presetHelper = presetHelper;
@@ -157,7 +161,7 @@ public class EquipmentExpectationServiceV4 {
 
     return executor.execute(
         () -> {
-          GameCharacter character = gameCharacterFacade.findCharacterByUserIgn(userIgn);
+          GameCharacter character = findCharacterBypassingWorker(userIgn);
           byte[] equipmentData =
               loadEquipmentDataAsync(character).join(); // TieredCache Callable 내부 → 동기 필요
           List<PresetExpectation> presetResults =
@@ -167,6 +171,31 @@ public class EquipmentExpectationServiceV4 {
           return buildResponse(userIgn, maxPreset, presetResults, false);
         },
         context);
+  }
+
+  /**
+   * V2 워커 풀을 우회하고 직접 캐릭터를 조회/생성 (V5 CQRS 전용)
+   *
+   * <p>V5 워커가 V2 워커 풀에 의존하지 않도록 V2 Service를 직접 호출
+   */
+  private GameCharacter findCharacterBypassingWorker(String userIgn) {
+    return executor.execute(
+        () -> {
+          // 1. 캐시된 캐릭터 조회
+          Optional<GameCharacter> cached = gameCharacterService.getCharacterIfExist(userIgn);
+          if (cached.isPresent()) {
+            return cached.get();
+          }
+
+          // 2. Negative Cache 확인
+          if (gameCharacterService.isNonExistent(userIgn)) {
+            throw new maple.expectation.error.exception.CharacterNotFoundException(userIgn);
+          }
+
+          // 3. 직접 생성 (V2 워커 풀 우회)
+          return gameCharacterService.createNewCharacter(userIgn);
+        },
+        TaskContext.of("V4", "FindCharacterBypassingWorker", userIgn));
   }
 
   private PresetExpectation findMaxPreset(List<PresetExpectation> presetResults) {

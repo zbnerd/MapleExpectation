@@ -45,18 +45,19 @@ spring:
       webhook-url: ${ALERT_DISCORD_WEBHOOK_URL:}
 
   # MongoDB Configuration (V5 CQRS)
-  data:
-    mongodb:
-      host: localhost
-      port: 27017
-      database: maple_expectation_v5
-      auto-index-creation: true
-      # Connection pool settings for optimal performance
-      # connect-timeout: 10000
-      # socket-timeout: 30000
-      # max-connection-per-host: 50
-      # max-connection-idle-time: 60000
-      # max-connection-life-time: 120000
+  spring:
+    data:
+      mongodb:
+        host: localhost
+        port: 27017
+        database: maple_expectation_v5
+        auto-index-creation: true
+        # Connection pool settings for optimal performance
+        # connect-timeout: 10000
+        # socket-timeout: 30000
+        # max-connection-per-host: 50
+        # max-connection-idle-time: 60000
+        # max-connection-life-time: 120000
 
 # DP 엔진 테이블 검증 설정
 cube:
@@ -88,6 +89,15 @@ app:
       enabled: true  # ACL Phase 2: Enable Redis buffer for queue
   event-publisher:
     type: redis  # Use Redis (default)
+  aop:
+    trace:
+      enabled: true  # TraceAspect 활성화 (V5 로그 분석용)
+  v5:
+    worker-pool-size: 4
+    shutdown-timeout-seconds: 30
+    high-priority-worker-ratio: 0.5
+    enabled: true
+    query-side-enabled: true
 
 # ACL Phase 2: Scheduler Configuration
 scheduler:
@@ -110,9 +120,14 @@ outbox:
     nexon-api-outbox:
       enabled: false
 
-# V5 CQRS Configuration
-v5:
-  enabled: true
+# Z.ai LangChain4j Configuration (Issue #251)
+langchain4j:
+  glm-4:
+    chat-model:
+      enabled: false  # 로컬 개발에서 비활성화
+      base-url: https://api.z.ai/api/paas/v4
+      model-name: glm-4.7
+      timeout: 60s
 
 # ADR-0345: Resilience4j Configuration for Stateless Alert System
 resilience4j:

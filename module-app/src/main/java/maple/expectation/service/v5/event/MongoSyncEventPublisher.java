@@ -14,6 +14,7 @@ import org.redisson.api.RStream;
 import org.redisson.api.RedissonClient;
 import org.redisson.api.StreamMessageId;
 import org.redisson.api.stream.StreamAddArgs;
+import org.redisson.client.codec.StringCodec;
 import org.springframework.stereotype.Component;
 
 /**
@@ -42,7 +43,8 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
-    name = "v5.query-side-enabled",
+    prefix = "app.v5",
+    name = "query-side-enabled",
     havingValue = "true",
     matchIfMissing = false)
 public class MongoSyncEventPublisher implements MongoSyncEventPublisherInterface {
@@ -69,7 +71,7 @@ public class MongoSyncEventPublisher implements MongoSyncEventPublisherInterface
   }
 
   void publishCalculationCompletedInternal(String taskId, EquipmentExpectationResponseV4 response) {
-    RStream<String, String> stream = redissonClient.getStream(STREAM_KEY);
+    RStream<String, String> stream = redissonClient.getStream(STREAM_KEY, StringCodec.INSTANCE);
 
     executor.executeOrCatch(
         () -> {
@@ -121,16 +123,17 @@ public class MongoSyncEventPublisher implements MongoSyncEventPublisherInterface
   private Map<String, String> convertToStreamMap(
       IntegrationEvent<ExpectationCalculationCompletedEvent> event) {
     Map<String, String> map = new HashMap<>();
-    map.put("eventId", event.getEventId());
-    map.put("eventType", event.getEventType());
-    map.put("timestamp", String.valueOf(event.getTimestamp()));
+    // Redis key truncation workaround: use short keys (7 chars max)
+    map.put("id", event.getEventId()); // instead of eventId
+    map.put("type", event.getEventType()); // instead of eventType
+    map.put("time", String.valueOf(event.getTimestamp())); // instead of timestamp
 
     String payloadJson =
         executor.executeOrDefault(
             () -> objectMapper.writeValueAsString(event.getPayload()),
             "{}",
             TaskContext.of("MongoSyncPublisher", "SerializePayload", event.getEventId()));
-    map.put("payload", payloadJson);
+    map.put("data", payloadJson); // instead of payload
 
     return map;
   }

@@ -536,7 +536,8 @@ shutdown:
 
 # V5 CQRS Configuration
 v5:
-  enabled: false
+  enabled: true
+  query-side-enabled: true  # Enable MongoDB Sync Worker and Event Publisher
 
 # Stateless Alert System Feature Flags (Issue #345: ADR-0345 Phase 3)
 alert:
